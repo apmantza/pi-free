@@ -3,21 +3,13 @@
  *
  * Keys and flags are resolved in this order (first wins):
  *   1. Environment variable
- *   2. ~/.pi-free.json
- *
- * Example ~/.pi-free.json:
- * {
- *   "openrouter_api_key": "sk-or-...",
- *   "nvidia_api_key":     "nvapi-...",
- *   "opencode_api_key":   "oc-...",
- *   "show_paid":          false
- * }
+ *   2. ~/.pi-free.json  (auto-created on first run)
  *
  * PI_FREE_SHOW_PAID=true — include paid models for providers where an API key
  *                          is set. Free-only providers (no key) are unaffected.
  */
 
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
 
 interface PiFreeConfig {
@@ -27,25 +19,45 @@ interface PiFreeConfig {
   show_paid?: boolean;
 }
 
-function loadConfigFile(): PiFreeConfig {
-  const home = process.env.HOME || process.env.USERPROFILE || "";
+const CONFIG_TEMPLATE: PiFreeConfig = {
+  openrouter_api_key: "",
+  nvidia_api_key: "",
+  opencode_api_key: "",
+  show_paid: false,
+};
+
+const CONFIG_PATH = join(process.env.HOME || process.env.USERPROFILE || "", ".pi-free.json");
+
+function ensureConfigFile(): void {
+  if (existsSync(CONFIG_PATH)) return;
   try {
-    return JSON.parse(readFileSync(join(home, ".pi-free.json"), "utf8")) as PiFreeConfig;
+    writeFileSync(CONFIG_PATH, JSON.stringify(CONFIG_TEMPLATE, null, 2) + "\n", "utf8");
+    console.log(`[pi-free] Created config file at ${CONFIG_PATH} — add your API keys there.`);
+  } catch (err) {
+    console.warn(`[pi-free] Could not create config file at ${CONFIG_PATH}:`, err instanceof Error ? err.message : err);
+  }
+}
+
+function loadConfigFile(): PiFreeConfig {
+  try {
+    return JSON.parse(readFileSync(CONFIG_PATH, "utf8")) as PiFreeConfig;
   } catch {
     return {};
   }
 }
 
+ensureConfigFile();
 const file = loadConfigFile();
+
+// Resolve each value: env var takes priority over config file.
+// Treat empty strings in the config file as unset.
+function resolve(envKey: string, fileVal?: string): string | undefined {
+  return process.env[envKey] || (fileVal?.trim() ? fileVal : undefined);
+}
 
 export const SHOW_PAID =
   process.env.PI_FREE_SHOW_PAID === "true" || file.show_paid === true;
 
-export const OPENROUTER_API_KEY =
-  process.env.OPENROUTER_API_KEY || file.openrouter_api_key;
-
-export const NVIDIA_API_KEY =
-  process.env.NVIDIA_API_KEY || file.nvidia_api_key;
-
-export const OPENCODE_API_KEY =
-  process.env.OPENCODE_API_KEY || file.opencode_api_key;
+export const OPENROUTER_API_KEY = resolve("OPENROUTER_API_KEY", file.openrouter_api_key);
+export const NVIDIA_API_KEY     = resolve("NVIDIA_API_KEY",     file.nvidia_api_key);
+export const OPENCODE_API_KEY   = resolve("OPENCODE_API_KEY",   file.opencode_api_key);
