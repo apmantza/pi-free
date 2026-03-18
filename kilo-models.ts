@@ -5,6 +5,7 @@
 import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
 import { getCached, setCached } from "./cache.ts";
 import { applyHidden } from "./config.ts";
+import { isUsableModel } from "./model-filter.ts";
 
 const KILO_API_BASE = process.env.KILO_API_URL || "https://api.kilo.ai";
 export const KILO_GATEWAY_BASE = `${KILO_API_BASE}/api/gateway`;
@@ -117,6 +118,7 @@ export async function fetchKiloModels(options?: {
       const outputMods = m.architecture?.output_modalities ?? [];
       if (outputMods.includes("image")) return false;
       if (options?.freeOnly && !isFreeModel(m)) return false;
+      if (!isUsableModel(m.id)) return false;
       return true;
     })
     .map(mapOpenRouterModel);

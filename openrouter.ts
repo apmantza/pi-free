@@ -11,24 +11,10 @@
 import type { ExtensionAPI, ProviderModelConfig } from "@mariozechner/pi-coding-agent";
 import { SHOW_PAID, OPENROUTER_API_KEY as CONFIG_API_KEY, applyHidden } from "./config.ts";
 import { getCached, setCached } from "./cache.ts";
+import { isUsableModel } from "./model-filter.ts";
 
 const OPENROUTER_GATEWAY_BASE = "https://openrouter.ai/api/v1";
 const MODELS_FETCH_TIMEOUT_MS = 10_000;
-const MIN_SIZE_B = 30; // filter models where size can be determined and is <= 30B
-
-// Patterns that indicate a small/non-chat model regardless of size label
-const SKIP_PATTERNS = [
-  /gemma-3n/i,       // e2b/e4b efficient tiny variants
-  /-mini:/i,         // explicitly mini (e.g. trinity-mini:free)
-  /-a\db$/i,         // MoE with tiny active params (e.g. nemotron-30b-a3b)
-];
-
-function isUsableModel(id: string): boolean {
-  if (SKIP_PATTERNS.some((p) => p.test(id))) return false;
-  const m = id.match(/[_-](?:e)?(\d+(?:\.\d+)?)b[_:-]/i);
-  if (m && parseFloat(m[1]) <= MIN_SIZE_B) return false;
-  return true;
-}
 
 // =============================================================================
 // Types
