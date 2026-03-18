@@ -38,7 +38,6 @@ function ensureConfigFile(): void {
   try {
     mkdirSync(PI_DIR, { recursive: true });
     writeFileSync(CONFIG_PATH, JSON.stringify(CONFIG_TEMPLATE, null, 2) + "\n", "utf8");
-    console.log(`[pi-free] Created config file at ${CONFIG_PATH} — add your API keys there.`);
   } catch (err) {
     console.warn(`[pi-free] Could not create config file at ${CONFIG_PATH}:`, err instanceof Error ? err.message : err);
   }

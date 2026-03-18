@@ -12,6 +12,7 @@ import type { ExtensionAPI, ProviderModelConfig } from "@mariozechner/pi-coding-
 import { SHOW_PAID, OPENROUTER_API_KEY as CONFIG_API_KEY, applyHidden } from "./config.ts";
 import { getCached, setCached } from "./cache.ts";
 import { isUsableModel } from "./model-filter.ts";
+import { fetchWithRetry } from "./fetch-util.ts";
 
 const OPENROUTER_GATEWAY_BASE = "https://openrouter.ai/api/v1";
 const MODELS_FETCH_TIMEOUT_MS = 10_000;
@@ -94,7 +95,7 @@ async function fetchOpenRouterModels(apiKey: string): Promise<{
   const cachedAll  = getCached<ProviderModelConfig>("openrouter-all");
   if (cachedFree && cachedAll) return { free: cachedFree, all: cachedAll };
 
-  const response = await fetch(`${OPENROUTER_GATEWAY_BASE}/models`, {
+  const response = await fetchWithRetry(`${OPENROUTER_GATEWAY_BASE}/models`, {
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "User-Agent": "pi-free-providers",

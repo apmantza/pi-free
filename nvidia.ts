@@ -14,29 +14,13 @@
 import type { ExtensionAPI, ProviderModelConfig } from "@mariozechner/pi-coding-agent";
 import { SHOW_PAID, NVIDIA_API_KEY as CONFIG_API_KEY, applyHidden } from "./config.ts";
 import { getCached, setCached } from "./cache.ts";
+import { isUsableModel } from "./model-filter.ts";
+import { fetchWithRetry } from "./fetch-util.ts";
 
 const NVIDIA_GATEWAY_BASE = "https://integrate.api.nvidia.com/v1";
 const MODELS_DEV_URL = "https://models.dev/api.json";
 const MODELS_FETCH_TIMEOUT_MS = 10_000;
-const MIN_SIZE_B = 70;
-
-// =============================================================================
-// Filter
-// =============================================================================
-
-const SKIP_PATTERNS = [
-  /embed/i, /ocr/i, /whisper/i, /flux/i, /parakeet/i, /retriev/i, /cosmos/i,
-];
-
-function isUsableModel(id: string): boolean {
-  if (SKIP_PATTERNS.some((p) => p.test(id))) return false;
-  // Skip phi family (all small in practice)
-  if (id.includes("/phi-")) return false;
-  // Extract parameter count from id (e.g. -7b-, -70b-, -e2b-)
-  const m = id.match(/[_-](?:e)?(\d+(?:\.\d+)?)b[_-]/i);
-  if (m && parseFloat(m[1]) < MIN_SIZE_B) return false;
-  return true;
-}
+const NVIDIA_MIN_SIZE_B = 70;
 
 // =============================================================================
 // Types (models.dev schema)
@@ -65,7 +49,7 @@ async function fetchNvidiaModels(): Promise<ProviderModelConfig[]> {
   const cached = getCached<ProviderModelConfig>("nvidia");
   if (cached) return cached;
 
-  const response = await fetch(MODELS_DEV_URL, {
+  const response = await fetchWithRetry(MODELS_DEV_URL, {
     headers: { "User-Agent": "pi-free-providers" },
     signal: AbortSignal.timeout(MODELS_FETCH_TIMEOUT_MS),
   });
@@ -79,7 +63,7 @@ async function fetchNvidiaModels(): Promise<ProviderModelConfig[]> {
   if (!provider?.models) throw new Error("nvidia provider not found in models.dev");
 
   const result = applyHidden(Object.values(provider.models)
-    .filter((m) => isUsableModel(m.id))
+    .filter((m) => isUsableModel(m.id, NVIDIA_MIN_SIZE_B))
     .filter((m) => {
       // All NVIDIA models are credit-based (no hard cost.input = 0 distinction).
       // Respect SHOW_PAID: without the flag, only expose models marked free (cost 0).

@@ -21,6 +21,7 @@ export function registerKiloFooter(pi: ExtensionAPI, ctx: any) {
       dispose() { unsubBranch(); },
       invalidate() {},
       render(width: number): string[] {
+          try {
         const model = ctx.model;
 
         let totalInput = 0, totalOutput = 0, totalCacheRead = 0, totalCacheWrite = 0, totalCost = 0;
@@ -115,11 +116,14 @@ export function registerKiloFooter(pi: ExtensionAPI, ctx: any) {
           }
         }
 
-        return [
-          theme.fg("dim", pwd),
-          theme.fg("dim", statsLeft) + theme.fg("dim", statsLine.slice(statsLeft.length)),
-        ];
-      },
+            return [
+              theme.fg("dim", pwd),
+              theme.fg("dim", statsLeft) + theme.fg("dim", statsLine.slice(statsLeft.length)),
+            ];
+          } catch {
+            return [];
+          }
+        },
     };
   });
 }

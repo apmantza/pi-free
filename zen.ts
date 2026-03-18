@@ -17,6 +17,7 @@
 import type { ExtensionAPI, ProviderModelConfig } from "@mariozechner/pi-coding-agent";
 import { SHOW_PAID, OPENCODE_API_KEY as CONFIG_API_KEY, applyHidden } from "./config.ts";
 import { getCached, setCached } from "./cache.ts";
+import { fetchWithRetry } from "./fetch-util.ts";
 
 // =============================================================================
 // Constants
@@ -72,7 +73,7 @@ async function fetchZenModels(): Promise<{
   const cachedAll = getCached<ProviderModelConfig>("zen");
   if (cachedAll) return { all: cachedAll, free: cachedAll.filter((m) => (m.cost?.input ?? 0) === 0) };
 
-  const response = await fetch(MODELS_DEV_URL, {
+  const response = await fetchWithRetry(MODELS_DEV_URL, {
     headers: { "User-Agent": "pi-free-providers" },
     signal: AbortSignal.timeout(MODELS_FETCH_TIMEOUT_MS),
   });

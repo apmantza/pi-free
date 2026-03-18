@@ -40,7 +40,9 @@ export default async function (pi: ExtensionAPI) {
 
   let cachedAllModels: ProviderModelConfig[] = [];
 
-  function makeOAuthConfig() {
+  // Created once — the closure captures cachedAllModels by reference so
+  // updates to it are visible without recreating the config object.
+  const oauthConfig = (function makeOAuthConfig() {
     return {
       name: "Kilo",
       login: async (callbacks: any) => {
@@ -66,9 +68,9 @@ export default async function (pi: ExtensionAPI) {
         return [...nonKilo, ...fullModels];
       },
     };
-  }
+  })();
 
-  pi.registerProvider("kilo", { ...KILO_PROVIDER_CONFIG, models: freeModels, oauth: makeOAuthConfig() });
+  pi.registerProvider("kilo", { ...KILO_PROVIDER_CONFIG, models: freeModels, oauth: oauthConfig });
 
   // ── Credits helpers ──────────────────────────────────────────────────────
 
@@ -94,7 +96,7 @@ export default async function (pi: ExtensionAPI) {
       try {
         cachedAllModels = await fetchKiloModels({ token: cred.access });
         if (cachedAllModels.length > 0) {
-          ctx.modelRegistry.registerProvider("kilo", { ...KILO_PROVIDER_CONFIG, models: freeModels, oauth: makeOAuthConfig() });
+          ctx.modelRegistry.registerProvider("kilo", { ...KILO_PROVIDER_CONFIG, models: freeModels, oauth: oauthConfig });
         }
       } catch (error) {
         console.warn("[kilo] Failed to fetch models at session start:", error instanceof Error ? error.message : error);

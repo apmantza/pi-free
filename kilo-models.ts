@@ -6,6 +6,7 @@ import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
 import { getCached, setCached } from "./cache.ts";
 import { applyHidden } from "./config.ts";
 import { isUsableModel } from "./model-filter.ts";
+import { fetchWithRetry } from "./fetch-util.ts";
 
 const KILO_API_BASE = process.env.KILO_API_URL || "https://api.kilo.ai";
 export const KILO_GATEWAY_BASE = `${KILO_API_BASE}/api/gateway`;
@@ -99,7 +100,7 @@ export async function fetchKiloModels(options?: {
   };
   if (options?.token) headers.Authorization = `Bearer ${options.token}`;
 
-  const response = await fetch(`${KILO_GATEWAY_BASE}/models`, {
+  const response = await fetchWithRetry(`${KILO_GATEWAY_BASE}/models`, {
     headers,
     signal: AbortSignal.timeout(MODELS_FETCH_TIMEOUT_MS),
   });
