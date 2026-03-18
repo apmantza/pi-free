@@ -9,7 +9,7 @@
  *                          is set. Free-only providers (no key) are unaffected.
  */
 
-import { readFileSync, writeFileSync, existsSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 
 interface PiFreeConfig {
@@ -26,11 +26,13 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
   show_paid: false,
 };
 
-const CONFIG_PATH = join(process.env.HOME || process.env.USERPROFILE || "", ".pi-free.json");
+const PI_DIR = join(process.env.HOME || process.env.USERPROFILE || "", ".pi");
+const CONFIG_PATH = join(PI_DIR, "free.json");
 
 function ensureConfigFile(): void {
   if (existsSync(CONFIG_PATH)) return;
   try {
+    mkdirSync(PI_DIR, { recursive: true });
     writeFileSync(CONFIG_PATH, JSON.stringify(CONFIG_TEMPLATE, null, 2) + "\n", "utf8");
     console.log(`[pi-free] Created config file at ${CONFIG_PATH} — add your API keys there.`);
   } catch (err) {

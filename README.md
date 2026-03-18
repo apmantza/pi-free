@@ -36,7 +36,7 @@ Press `Ctrl+L` to open the model selector and pick any Kilo or Zen model.
 
 ## Adding API keys
 
-For OpenRouter and NVIDIA, create `~/.pi-free.json`:
+For OpenRouter and NVIDIA, create `~/.pi/free.json`:
 
 ```json
 {
@@ -87,7 +87,7 @@ Alternatively, set `KILO_API_KEY` directly if you have a Kilo API key.
 
 ## Showing paid models
 
-By default each provider only shows its **free** models. To unlock paid models for providers where you have a key, set `show_paid` in `~/.pi-free.json`:
+By default each provider only shows its **free** models. To unlock paid models for providers where you have a key, set `show_paid` in `~/.pi/free.json`:
 
 ```json
 {
@@ -126,7 +126,7 @@ This removes noise like small Phi, Gemma, and 7B variants. If you want everythin
 ## File layout
 
 ```
-~/.pi-free.json       ← your API keys and config (create this)
+~/.pi/free.json       ← your API keys and config (create this)
 
 # Extension files (managed by Pi):
 kilo.ts               ← Kilo provider entry point
@@ -145,13 +145,13 @@ package.json          ← Pi extension manifest
 ## Troubleshooting
 
 **No models appearing for OpenRouter / NVIDIA**
-→ Check that your key is set correctly in `~/.pi-free.json` or as an env var.
+→ Check that your key is set correctly in `~/.pi/free.json` or as an env var.
 
 **Kilo models disappeared after restart**
 → Run `/login kilo` again — the session token may have expired.
 
 **`zen` provider not working with a key**
-→ Make sure `opencode_api_key` is in `~/.pi-free.json`, or `OPENCODE_API_KEY` is exported before starting Pi.
+→ Make sure `opencode_api_key` is in `~/.pi/free.json`, or `OPENCODE_API_KEY` is exported before starting Pi.
 
 **Want to see what models loaded**
 → Press `Ctrl+L` in Pi to open the model selector — all active providers and their models are listed there.
