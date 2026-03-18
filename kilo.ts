@@ -16,6 +16,7 @@ import type { ExtensionAPI, ProviderModelConfig } from "@mariozechner/pi-coding-
 import { loginKilo, refreshKiloToken, fetchKiloBalance, formatCredits } from "./kilo-auth.ts";
 import { fetchKiloModels, KILO_GATEWAY_BASE } from "./kilo-models.ts";
 import { registerKiloFooter } from "./kilo-footer.ts";
+import { KILO_FREE_ONLY } from "./config.ts";
 
 const KILO_TOS_URL = "https://kilo.ai/terms";
 
@@ -54,7 +55,7 @@ export default async function (pi: ExtensionAPI) {
       refreshToken: refreshKiloToken,
       getApiKey: (cred: OAuthCredentials) => cred.access,
       modifyModels: (models: Model<Api>[], _cred: OAuthCredentials) => {
-        if (cachedAllModels.length === 0) return models;
+        if (KILO_FREE_ONLY || cachedAllModels.length === 0) return models;
         const template = models.find((m) => m.provider === "kilo");
         if (!template) return models;
         const nonKilo = models.filter((m) => m.provider !== "kilo");

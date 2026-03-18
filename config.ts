@@ -17,6 +17,7 @@ interface PiFreeConfig {
   nvidia_api_key?: string;
   opencode_api_key?: string;
   show_paid?: boolean;
+  kilo_free_only?: boolean;
 }
 
 const CONFIG_TEMPLATE: PiFreeConfig = {
@@ -24,6 +25,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
   nvidia_api_key: "",
   opencode_api_key: "",
   show_paid: false,
+  kilo_free_only: false,
 };
 
 const PI_DIR = join(process.env.HOME || process.env.USERPROFILE || "", ".pi");
@@ -59,6 +61,9 @@ function resolve(envKey: string, fileVal?: string): string | undefined {
 
 export const SHOW_PAID =
   process.env.PI_FREE_SHOW_PAID === "true" || file.show_paid === true;
+
+export const KILO_FREE_ONLY =
+  process.env.PI_FREE_KILO_FREE_ONLY === "true" || file.kilo_free_only === true;
 
 export const OPENROUTER_API_KEY = resolve("OPENROUTER_API_KEY", file.openrouter_api_key);
 export const NVIDIA_API_KEY     = resolve("NVIDIA_API_KEY",     file.nvidia_api_key);
