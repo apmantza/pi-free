@@ -9,7 +9,8 @@
  */
 
 import type { ExtensionAPI, ProviderModelConfig } from "@mariozechner/pi-coding-agent";
-import { SHOW_PAID, OPENROUTER_API_KEY as CONFIG_API_KEY } from "./config.ts";
+import { SHOW_PAID, OPENROUTER_API_KEY as CONFIG_API_KEY, applyHidden } from "./config.ts";
+import { getCached, setCached } from "./cache.ts";
 
 const OPENROUTER_GATEWAY_BASE = "https://openrouter.ai/api/v1";
 const MODELS_FETCH_TIMEOUT_MS = 10_000;
@@ -103,6 +104,10 @@ async function fetchOpenRouterModels(apiKey: string): Promise<{
   free: ProviderModelConfig[];
   all: ProviderModelConfig[];
 }> {
+  const cachedFree = getCached<ProviderModelConfig>("openrouter-free");
+  const cachedAll  = getCached<ProviderModelConfig>("openrouter-all");
+  if (cachedFree && cachedAll) return { free: cachedFree, all: cachedAll };
+
   const response = await fetch(`${OPENROUTER_GATEWAY_BASE}/models`, {
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -130,7 +135,10 @@ async function fetchOpenRouterModels(apiKey: string): Promise<{
 
   const free = chatModels.filter((m) => isFreeModel(m) && isUsableModel(m.id)).map(mapModel);
   const all = chatModels.filter((m) => isUsableModel(m.id)).map(mapModel);
-  return { free, all };
+  const result = { free: applyHidden(free), all: applyHidden(all) };
+  setCached("openrouter-free", result.free);
+  setCached("openrouter-all", result.all);
+  return result;
 }
 
 // =============================================================================

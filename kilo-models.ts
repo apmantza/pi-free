@@ -3,6 +3,8 @@
  */
 
 import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
+import { getCached, setCached } from "./cache.ts";
+import { applyHidden } from "./config.ts";
 
 const KILO_API_BASE = process.env.KILO_API_URL || "https://api.kilo.ai";
 export const KILO_GATEWAY_BASE = `${KILO_API_BASE}/api/gateway`;
@@ -86,6 +88,10 @@ export async function fetchKiloModels(options?: {
   token?: string;
   freeOnly?: boolean;
 }): Promise<ProviderModelConfig[]> {
+  const cacheKey = options?.freeOnly ? "kilo-free" : "kilo-all";
+  const cached = getCached<ProviderModelConfig>(cacheKey);
+  if (cached) return cached;
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "User-Agent": "pi-free-providers",
@@ -106,7 +112,7 @@ export async function fetchKiloModels(options?: {
     throw new Error("Invalid models response: missing data array");
   }
 
-  return json.data
+  const result = json.data
     .filter((m) => {
       const outputMods = m.architecture?.output_modalities ?? [];
       if (outputMods.includes("image")) return false;
@@ -114,4 +120,7 @@ export async function fetchKiloModels(options?: {
       return true;
     })
     .map(mapOpenRouterModel);
+
+  setCached(cacheKey, result);
+  return applyHidden(result);
 }

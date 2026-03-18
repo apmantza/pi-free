@@ -12,7 +12,8 @@
  */
 
 import type { ExtensionAPI, ProviderModelConfig } from "@mariozechner/pi-coding-agent";
-import { SHOW_PAID, NVIDIA_API_KEY as CONFIG_API_KEY } from "./config.ts";
+import { SHOW_PAID, NVIDIA_API_KEY as CONFIG_API_KEY, applyHidden } from "./config.ts";
+import { getCached, setCached } from "./cache.ts";
 
 const NVIDIA_GATEWAY_BASE = "https://integrate.api.nvidia.com/v1";
 const MODELS_DEV_URL = "https://models.dev/api.json";
@@ -61,6 +62,9 @@ interface ModelsDevProvider {
 // =============================================================================
 
 async function fetchNvidiaModels(): Promise<ProviderModelConfig[]> {
+  const cached = getCached<ProviderModelConfig>("nvidia");
+  if (cached) return cached;
+
   const response = await fetch(MODELS_DEV_URL, {
     headers: { "User-Agent": "pi-free-providers" },
     signal: AbortSignal.timeout(MODELS_FETCH_TIMEOUT_MS),
@@ -74,7 +78,7 @@ async function fetchNvidiaModels(): Promise<ProviderModelConfig[]> {
   const provider = Object.values(json).find((p) => p?.id === "nvidia");
   if (!provider?.models) throw new Error("nvidia provider not found in models.dev");
 
-  return Object.values(provider.models)
+  const result = applyHidden(Object.values(provider.models)
     .filter((m) => isUsableModel(m.id))
     .filter((m) => {
       // All NVIDIA models are credit-based (no hard cost.input = 0 distinction).
@@ -95,7 +99,10 @@ async function fetchNvidiaModels(): Promise<ProviderModelConfig[]> {
       },
       contextWindow: m.limit.context,
       maxTokens: m.limit.output,
-    }));
+    })));
+
+  setCached("nvidia", result);
+  return result;
 }
 
 // =============================================================================

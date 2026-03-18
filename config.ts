@@ -18,6 +18,7 @@ interface PiFreeConfig {
   opencode_api_key?: string;
   show_paid?: boolean;
   kilo_free_only?: boolean;
+  hidden_models?: string[];
 }
 
 const CONFIG_TEMPLATE: PiFreeConfig = {
@@ -26,6 +27,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
   opencode_api_key: "",
   show_paid: false,
   kilo_free_only: false,
+  hidden_models: [],
 };
 
 const PI_DIR = join(process.env.HOME || process.env.USERPROFILE || "", ".pi");
@@ -64,6 +66,14 @@ export const SHOW_PAID =
 
 export const KILO_FREE_ONLY =
   process.env.PI_FREE_KILO_FREE_ONLY === "true" || file.kilo_free_only === true;
+
+const HIDDEN: Set<string> = new Set(file.hidden_models ?? []);
+
+/** Removes any models whose id appears in hidden_models. */
+export function applyHidden<T extends { id: string }>(models: T[]): T[] {
+  if (HIDDEN.size === 0) return models;
+  return models.filter((m) => !HIDDEN.has(m.id));
+}
 
 export const OPENROUTER_API_KEY = resolve("OPENROUTER_API_KEY", file.openrouter_api_key);
 export const NVIDIA_API_KEY     = resolve("NVIDIA_API_KEY",     file.nvidia_api_key);
