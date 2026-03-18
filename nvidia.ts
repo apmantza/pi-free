@@ -5,7 +5,7 @@
  * All models use NVIDIA's free credit system — requires NVIDIA_API_KEY.
  * Get a free key at: https://build.nvidia.com
  *
- * Small models (< 14B), embedding, speech, OCR, and image-gen models are
+ * Small models (< 70B), embedding, speech, OCR, and image-gen models are
  * filtered out to keep the list focused on useful chat/coding models.
  *
  * Set PI_FREE_SHOW_PAID=true to show paid-tier models (same key, uses credits).
@@ -17,7 +17,7 @@ import { SHOW_PAID, NVIDIA_API_KEY as CONFIG_API_KEY } from "./config.ts";
 const NVIDIA_GATEWAY_BASE = "https://integrate.api.nvidia.com/v1";
 const MODELS_DEV_URL = "https://models.dev/api.json";
 const MODELS_FETCH_TIMEOUT_MS = 10_000;
-const MIN_SIZE_B = 14;
+const MIN_SIZE_B = 70;
 
 // =============================================================================
 // Filter
