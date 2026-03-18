@@ -134,8 +134,11 @@ async function fetchOpenRouterModels(apiKey: string): Promise<{
 
 export default async function (pi: ExtensionAPI) {
   const apiKey = CONFIG_API_KEY;
+  // Inject into process.env so Pi's apiKey lookup finds it even when loaded from ~/.pi/free.json.
+  if (apiKey) process.env.OPENROUTER_API_KEY = apiKey;
+
   if (!apiKey) {
-    console.warn("[openrouter] No API key found — set OPENROUTER_API_KEY or add openrouter_api_key to ~/.pi-free.json. Free key at https://openrouter.ai");
+    console.warn("[openrouter] No API key found — set OPENROUTER_API_KEY or add openrouter_api_key to ~/.pi/free.json. Free key at https://openrouter.ai");
     return;
   }
 

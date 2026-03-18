@@ -95,8 +95,11 @@ async function fetchNvidiaModels(): Promise<ProviderModelConfig[]> {
 
 export default async function (pi: ExtensionAPI) {
   const apiKey = CONFIG_API_KEY;
+  // Inject into process.env so Pi's apiKey lookup finds it even when loaded from ~/.pi/free.json.
+  if (apiKey) process.env.NVIDIA_API_KEY = apiKey;
+
   if (!apiKey) {
-    console.warn("[nvidia] No API key found — set NVIDIA_API_KEY or add nvidia_api_key to ~/.pi-free.json. Free key at https://build.nvidia.com");
+    console.warn("[nvidia] No API key found — set NVIDIA_API_KEY or add nvidia_api_key to ~/.pi/free.json. Free key at https://build.nvidia.com");
     return;
   }
 
