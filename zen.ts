@@ -133,6 +133,13 @@ function mapZenModel(m: ModelsDevModel): ProviderModelConfig {
 export default async function (pi: ExtensionAPI) {
   const hasKey = !!CONFIG_API_KEY;
 
+  // Pi resolves apiKey as an env var name. Ensure OPENCODE_API_KEY is always
+  // set — Zen accepts the literal string "public" as a bearer token for
+  // free (zero-cost) models when no real key is provided.
+  if (!process.env.OPENCODE_API_KEY) {
+    process.env.OPENCODE_API_KEY = CONFIG_API_KEY ?? "public";
+  }
+
   let models: ProviderModelConfig[] = [];
   let freeCount = 0;
 
@@ -152,7 +159,7 @@ export default async function (pi: ExtensionAPI) {
     // When no key is set, send "public" as bearer token — Zen accepts this for
     // zero-cost models. When a key is present, Pi reads OPENCODE_API_KEY from env
     // (config file keys are pre-loaded into the env by config.ts).
-    apiKey: hasKey ? "OPENCODE_API_KEY" : "public",
+    apiKey: "OPENCODE_API_KEY",
     api: "openai-completions" as const,
     headers: {
       "X-Title": "Pi",
