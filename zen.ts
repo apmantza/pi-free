@@ -15,6 +15,7 @@
  */
 
 import type { ExtensionAPI, ProviderModelConfig } from "@mariozechner/pi-coding-agent";
+import { SHOW_PAID, OPENCODE_API_KEY as CONFIG_API_KEY } from "./config.ts";
 
 // =============================================================================
 // Constants
@@ -123,14 +124,15 @@ function mapZenModel(m: ModelsDevModel): ProviderModelConfig {
 // =============================================================================
 
 export default async function (pi: ExtensionAPI) {
-  const hasKey = !!process.env.OPENCODE_API_KEY;
+  const hasKey = !!CONFIG_API_KEY;
 
   let models: ProviderModelConfig[] = [];
   let freeCount = 0;
 
   try {
     const result = await fetchZenModels();
-    models = hasKey ? result.all : result.free;
+    // With a key: show all if SHOW_PAID, otherwise just free models
+    models = hasKey && SHOW_PAID ? result.all : result.free;
     freeCount = result.free.length;
   } catch (error) {
     console.warn("[zen] Failed to fetch models at startup:", error instanceof Error ? error.message : error);
@@ -140,8 +142,9 @@ export default async function (pi: ExtensionAPI) {
 
   pi.registerProvider("zen", {
     baseUrl: ZEN_GATEWAY_BASE,
-    // When no key is set, send "public" as the bearer token — Zen accepts this
-    // for zero-cost models. When a key is set, Pi reads OPENCODE_API_KEY from env.
+    // When no key is set, send "public" as bearer token — Zen accepts this for
+    // zero-cost models. When a key is present, Pi reads OPENCODE_API_KEY from env
+    // (config file keys are pre-loaded into the env by config.ts).
     apiKey: hasKey ? "OPENCODE_API_KEY" : "public",
     api: "openai-completions" as const,
     headers: {

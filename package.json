@@ -10,7 +10,9 @@
   "pi": {
     "extensions": [
       "./kilo.ts",
-      "./zen.ts"
+      "./zen.ts",
+      "./openrouter.ts",
+      "./nvidia.ts"
     ]
   },
   "repository": {
