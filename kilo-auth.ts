@@ -3,6 +3,22 @@
  */
 
 import type { OAuthCredentials, OAuthLoginCallbacks } from "@mariozechner/pi-ai";
+import { spawn } from "child_process";
+
+function openBrowser(url: string): void {
+  try {
+    if (process.platform === "win32") {
+      // start needs an empty title arg or it chokes on URLs containing special chars
+      spawn("cmd", ["/c", "start", "", url], { detached: true, shell: false }).unref();
+    } else if (process.platform === "darwin") {
+      spawn("open", [url], { detached: true }).unref();
+    } else {
+      spawn("xdg-open", [url], { detached: true }).unref();
+    }
+  } catch {
+    // non-fatal — Pi will still show the URL in the terminal
+  }
+}
 
 const KILO_API_BASE = process.env.KILO_API_URL || "https://api.kilo.ai";
 const DEVICE_AUTH_ENDPOINT = `${KILO_API_BASE}/api/device-auth/codes`;
@@ -83,6 +99,7 @@ export async function loginKilo(callbacks: OAuthLoginCallbacks): Promise<OAuthCr
   const { code, verificationUrl, expiresIn } = await initiateDeviceAuth();
 
   callbacks.onAuth({ url: verificationUrl, instructions: `Enter code: ${code}` });
+  openBrowser(verificationUrl);
   callbacks.onProgress?.("Waiting for browser authorization...");
 
   const deadline = Date.now() + expiresIn * 1000;
