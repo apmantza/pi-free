@@ -50,6 +50,42 @@ const STATIC_ZEN_MODELS: ProviderModelConfig[] = [
     maxTokens: 16384,
   },
   {
+    id: "minimax-m2.5-free",
+    name: "MiniMax M2.5 Free",
+    reasoning: true,
+    input: ["text"],
+    cost: { input: 0, output: 0 },
+    contextWindow: 200000,
+    maxTokens: 16384,
+  },
+  {
+    id: "mimo-v2-pro-free",
+    name: "MiMo V2 Pro Free",
+    reasoning: false,
+    input: ["text"],
+    cost: { input: 0, output: 0 },
+    contextWindow: 128000,
+    maxTokens: 16384,
+  },
+  {
+    id: "mimo-v2-omni-free",
+    name: "MiMo V2 Omni Free",
+    reasoning: false,
+    input: ["text", "image"],
+    cost: { input: 0, output: 0 },
+    contextWindow: 128000,
+    maxTokens: 16384,
+  },
+  {
+    id: "mimo-v2-flash-free",
+    name: "MiMo V2 Flash Free",
+    reasoning: false,
+    input: ["text"],
+    cost: { input: 0, output: 0 },
+    contextWindow: 128000,
+    maxTokens: 16384,
+  },
+  {
     id: "nemotron-3-super-free",
     name: "Nemotron 3 Super Free",
     reasoning: false,
@@ -128,14 +164,10 @@ const STATIC_ZEN_MODELS: ProviderModelConfig[] = [
 // Fetch helpers
 // =============================================================================
 
-// Models confirmed broken or rate-limited with the public token.
+// Models confirmed broken (always return empty content regardless of token budget).
 const ZEN_BROKEN_MODELS = new Set([
-  "gpt-5-nano",       // always returns empty content
-  "gpt-5.4-nano",     // same family, same issue
-  "mimo-v2-pro-free", // rate-limited for public users
-  "mimo-v2-omni-free",
-  "mimo-v2-flash-free",
-  "minimax-m2.5-free", // reasoning consumes all tokens, no content ever emitted
+  "gpt-5-nano",   // always returns empty content/choices
+  "gpt-5.4-nano", // same family, same issue
 ]);
 
 /** Fetch the model list from the Zen gateway — authoritative for what's deployed. */
