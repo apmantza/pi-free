@@ -10,6 +10,7 @@
  *   # Models appear immediately; run /login cline to start chatting
  */
 
+import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { fetchClineModels } from "./cline-models.ts";
 import { PROVIDER_CLINE, BASE_URL_CLINE } from "./constants.ts";
@@ -187,6 +188,12 @@ export default async function (pi: ExtensionAPI) {
       api: "openai-completions" as const,
       headers: buildClineHeaders(),
       models: m,
+      oauth: {
+        name: "Cline",
+        login: async () => { throw new Error("Cline login is currently unavailable — free models work without authentication."); },
+        refreshToken: async (cred: OAuthCredentials) => cred,
+        getApiKey: (cred: OAuthCredentials) => cred.access,
+      },
     });
   }
 
