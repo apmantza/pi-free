@@ -147,14 +147,6 @@ export function registerKiloFooter(pi: ExtensionAPI, ctx: any) {
     }
 
     footerDispose = ctx.ui.setFooter((tui: any, theme: any, footerData: any) => {
-      // Show footer for any pi-free provider (kilo, openrouter, zen)
-      const currentModel = ctx.model;
-      const provider = currentModel?.provider;
-      if (!provider || ![PROVIDER_KILO, PROVIDER_OPENROUTER, PROVIDER_ZEN].includes(provider)) {
-        // Not a pi-free provider - return empty to let others show their footer
-        return { dispose() {}, invalidate() {}, render() { return []; } };
-      }
-
       const unsubBranch = footerData.onBranchChange?.(() => tui.requestRender());
 
       return {
@@ -162,6 +154,12 @@ export function registerKiloFooter(pi: ExtensionAPI, ctx: any) {
         invalidate() {},
         render(width: number): string[] {
         try {
+          // Check provider each render (model may not be set at factory time)
+          const currentProvider = ctx.model?.provider;
+          if (!currentProvider || ![PROVIDER_KILO, PROVIDER_OPENROUTER, PROVIDER_ZEN].includes(currentProvider)) {
+            return [];
+          }
+
           // Line 1: pwd
           const pwdLine = theme.fg("dim", formatPwdLine(width, footerData));
 
