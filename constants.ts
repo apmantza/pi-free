@@ -50,7 +50,6 @@ export const URL_CLINE_TOS = "https://cline.bot/tos";
 // Cline auth
 // =============================================================================
 
-export const CLINE_CALLBACK_PORT = 31234;
 export const CLINE_AUTH_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 // =============================================================================

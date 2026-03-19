@@ -5,6 +5,8 @@
  * Free model list is fetched from Cline's GitHub source — no account needed to browse.
  * Run /login cline to authenticate and make API calls.
  *
+ * Auth flow based on pi-cline's proven implementation.
+ *
  * Usage:
  *   pi install git:github.com/apmantza/pi-free
  *   # Models appear immediately; run /login cline to start chatting
@@ -13,14 +15,18 @@
 import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { fetchClineModels } from "./cline-models.ts";
+import { loginCline, refreshClineToken } from "./cline-auth.ts";
 import { PROVIDER_CLINE, BASE_URL_CLINE } from "./constants.ts";
 import { logWarning } from "./util.ts";
+import { incrementRequestCount } from "./metrics.ts";
+import { recordTurn } from "./usage-store.ts";
 
 // =============================================================================
-// Cline request headers (mimic VS Code extension identity)
+// Cline API headers (aligned with pi-cline)
 // =============================================================================
 
-const CLINE_VERSION = "3.63.0";
+const CLINE_CLIENT_VERSION = "2.7.0";
+const CLINE_CORE_VERSION = "3.72.0";
 let _currentTaskId = generateUlid();
 
 function generateUlid(): string {
@@ -41,13 +47,22 @@ function buildClineHeaders(): Record<string, string> {
     "HTTP-Referer": "https://cline.bot",
     "X-Title": "Cline",
     "X-Task-ID": _currentTaskId,
-    "X-Platform": "Visual Studio Code",
-    "X-Platform-Version": "1.109.3",
-    "X-Client-Type": "VSCode Extension",
-    "X-Client-Version": CLINE_VERSION,
-    "X-Core-Version": CLINE_VERSION,
+    "X-PLATFORM": "Cline CLI - Node.js",
+    "X-PLATFORM-VERSION": CLINE_CLIENT_VERSION,
+    "X-CLIENT-TYPE": "CLI",
+    "X-CLIENT-VERSION": CLINE_CLIENT_VERSION,
+    "X-CORE-VERSION": CLINE_CORE_VERSION,
     "X-Is-Multiroot": "false",
   };
+}
+
+// =============================================================================
+// Token handling (pi-cline stores without workos: prefix, adds it in getApiKey)
+// =============================================================================
+
+function toApiKey(credentials: OAuthCredentials): string {
+  const token = credentials.access;
+  return token.startsWith("workos:") ? token : `workos:${token}`;
 }
 
 // =============================================================================
@@ -68,7 +83,7 @@ While in PLAN MODE, if you've outlined concrete steps or requirements for the us
 
 function buildEnvironmentDetails(): string {
   const cwd = process.cwd();
-  return `<environment_details>
+  return `<environmentDetails>
 # Visual Studio Code Visible Files
 (No visible files)
 
@@ -83,7 +98,7 @@ function buildEnvironmentDetails(): string {
 
 # Current Mode
 PLAN MODE
-</environment_details>`;
+</environmentDetails>`;
 }
 
 function extractText(content: unknown): string {
@@ -106,7 +121,7 @@ function isClineWrapped(content: unknown): boolean {
   return (
     texts.some((t) => /<task>[\s\S]*<\/task>/.test(t)) &&
     texts.some((t) => t.includes("task_progress List")) &&
-    texts.some((t) => t.includes("<environment_details>"))
+    texts.some((t) => t.includes("<environmentDetails>"))
   );
 }
 
@@ -121,7 +136,6 @@ function extractTaskBody(content: unknown): string {
 }
 
 function shapeMessagesForCline(messages: any[]): any[] {
-  // Find the last already-wrapped user message to avoid re-wrapping
   let lastWrappedIdx = -1;
   let baseTranscript = "";
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -186,34 +200,35 @@ export default async function (pi: ExtensionAPI) {
     pi.registerProvider(PROVIDER_CLINE, {
       baseUrl: BASE_URL_CLINE,
       api: "openai-completions" as const,
+      authHeader: false,
       headers: buildClineHeaders(),
       models: m,
       oauth: {
         name: "Cline",
-        login: async () => { throw new Error("Cline login is currently unavailable — free models work without authentication."); },
-        refreshToken: async (cred: OAuthCredentials) => cred,
-        getApiKey: (cred: OAuthCredentials) => cred.access,
+        login: loginCline,
+        refreshToken: refreshClineToken,
+        getApiKey: toApiKey,
       },
     });
   }
 
   registerProvider();
 
-  // Refresh task ID and re-register headers before each agent run
+  // Cline-specific: refresh task ID and re-register headers before each agent run
   pi.on("before_agent_start", async (_event, ctx) => {
     if (ctx.model?.provider !== PROVIDER_CLINE) return;
     _currentTaskId = generateUlid();
     registerProvider();
   });
 
-  // Shape messages to Cline's expected envelope format
+  // Cline-specific: shape messages to Cline's expected envelope format
   pi.on("context", async (event, ctx) => {
     if (ctx.model?.provider !== PROVIDER_CLINE) return;
     const sourceMessages = Array.isArray(event.messages) ? event.messages : [];
     return { messages: shapeMessagesForCline(sourceMessages) };
   });
 
-  // Refresh model list at session start
+  // Cline-specific: refresh model list at session start
   pi.on("session_start", async (_event, ctx) => {
     try {
       const fresh = await fetchClineModels();
@@ -226,6 +241,22 @@ export default async function (pi: ExtensionAPI) {
       }
     } catch (err) {
       logWarning("cline", "Failed to refresh models at session start", err);
+    }
+  });
+
+  // Shared: clear status when switching away, track requests
+  pi.on("model_select", (_event, ctx) => {
+    if (_event.model?.provider !== PROVIDER_CLINE) {
+      ctx.ui.setStatus("cline-status", undefined);
+    }
+  });
+
+  pi.on("turn_end", async (_event, ctx) => {
+    if (ctx.model?.provider !== PROVIDER_CLINE) return;
+    incrementRequestCount(PROVIDER_CLINE);
+    const msg = _event.message;
+    if (msg.role === "assistant") {
+      recordTurn(PROVIDER_CLINE, msg.usage.input, msg.usage.output, msg.usage.cost.total);
     }
   });
 }

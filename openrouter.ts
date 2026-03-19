@@ -13,11 +13,8 @@ import { SHOW_PAID, OPENROUTER_API_KEY as CONFIG_API_KEY, applyHidden, PROVIDER_
 import { getCached, setCached } from "./cache.ts";
 import { isUsableModel, mapOpenRouterModel, fetchWithRetry, logWarning } from "./util.ts";
 import { BASE_URL_OPENROUTER, DEFAULT_FETCH_TIMEOUT_MS } from "./constants.ts";
-import { fetchOpenRouterMetrics, setCachedMetrics, incrementRequestCount } from "./metrics.ts";
-
-// Module-level storage for models (persists across session_start calls)
-let storedFreeModels: ProviderModelConfig[] = [];
-let storedAllModels: ProviderModelConfig[] = [];
+import { fetchOpenRouterMetrics, setCachedMetrics } from "./metrics.ts";
+import { setupProvider, type StoredModels } from "./provider-helper.ts";
 
 // =============================================================================
 // Fetch
@@ -89,52 +86,17 @@ async function fetchOpenRouterModels(apiKey: string): Promise<{
 export default async function (pi: ExtensionAPI) {
   const apiKey = CONFIG_API_KEY;
 
-  // Register commands for toggling model visibility
-  pi.registerCommand("openrouter-free", {
-    description: "Show only free OpenRouter models",
-    handler: async (_args, ctx) => {
-      if (storedFreeModels.length === 0) {
-        ctx.ui.notify("No free models loaded", "warning");
-        return;
-      }
-      // Re-register with free models only
-      ctx.modelRegistry.registerProvider(PROVIDER_OPENROUTER, {
-        baseUrl: BASE_URL_OPENROUTER,
-        apiKey: apiKey ? "OPENROUTER_API_KEY" : undefined,
-        api: "openai-completions" as const,
-        headers: {
-          "HTTP-Referer": "https://github.com/apmantza/pi-free",
-          "X-Title": "Pi",
-          "User-Agent": "pi-free-providers",
-        },
-        models: storedFreeModels,
-      });
-      ctx.ui.notify(`OpenRouter: showing ${storedFreeModels.length} free models`, "info");
-    },
-  });
+  // Shared model storage (references held by setupProvider for commands)
+  const stored: StoredModels = { free: [], all: [] };
 
-  pi.registerCommand("openrouter-all", {
-    description: "Show all OpenRouter models (free + paid)",
-    handler: async (_args, ctx) => {
-      if (storedAllModels.length === 0) {
-        ctx.ui.notify("No models loaded", "warning");
-        return;
-      }
-      // Re-register with all models
-      ctx.modelRegistry.registerProvider(PROVIDER_OPENROUTER, {
-        baseUrl: BASE_URL_OPENROUTER,
-        apiKey: apiKey ? "OPENROUTER_API_KEY" : undefined,
-        api: "openai-completions" as const,
-        headers: {
-          "HTTP-Referer": "https://github.com/apmantza/pi-free",
-          "X-Title": "Pi",
-          "User-Agent": "pi-free-providers",
-        },
-        models: storedAllModels,
-      });
-      ctx.ui.notify(`OpenRouter: showing all ${storedAllModels.length} models`, "info");
-    },
-  });
+  // Re-registration closure (set in session_start when we have ctx)
+  let reRegisterFn: (models: ProviderModelConfig[]) => void = () => {};
+
+  // Wire up shared boilerplate (commands, model_select, turn_end)
+  setupProvider(pi, {
+    providerId: PROVIDER_OPENROUTER,
+    reRegister: (models) => reRegisterFn(models),
+  }, stored);
 
   // Check in session_start if user already has auth for this provider
   // If yes: filter their models to free-only, use their key
@@ -167,20 +129,25 @@ export default async function (pi: ExtensionAPI) {
       }
 
       // Store for command toggle
-      storedFreeModels = freeModels;
-      storedAllModels = existingModels;
+      stored.free = freeModels;
+      stored.all = existingModels;
+
+      // Set up re-registration closure
+      reRegisterFn = (m: ProviderModelConfig[]) => {
+        ctx.modelRegistry.registerProvider(PROVIDER_OPENROUTER, {
+          baseUrl: BASE_URL_OPENROUTER,
+          api: "openai-completions" as const,
+          headers: {
+            "HTTP-Referer": "https://github.com/apmantza/pi-free",
+            "X-Title": "Pi",
+            "User-Agent": "pi-free-providers",
+          },
+          models: m,
+        });
+      };
 
       // Register filtered version (no apiKey - uses existing Pi auth)
-      ctx.modelRegistry.registerProvider(PROVIDER_OPENROUTER, {
-        baseUrl: BASE_URL_OPENROUTER,
-        api: "openai-completions" as const,
-        headers: {
-          "HTTP-Referer": "https://github.com/apmantza/pi-free",
-          "X-Title": "Pi",
-          "User-Agent": "pi-free-providers",
-        },
-        models: freeModels,
-      });
+      reRegisterFn(freeModels);
       return;
     }
 
@@ -208,22 +175,27 @@ export default async function (pi: ExtensionAPI) {
 
     // Store for command toggle
     if (fetchResult) {
-      storedFreeModels = fetchResult.free;
-      storedAllModels = fetchResult.all;
+      stored.free = fetchResult.free;
+      stored.all = fetchResult.all;
     }
 
+    // Set up re-registration closure
+    reRegisterFn = (m: ProviderModelConfig[]) => {
+      ctx.modelRegistry.registerProvider(PROVIDER_OPENROUTER, {
+        baseUrl: BASE_URL_OPENROUTER,
+        apiKey: "OPENROUTER_API_KEY",
+        api: "openai-completions" as const,
+        headers: {
+          "HTTP-Referer": "https://github.com/apmantza/pi-free",
+          "X-Title": "Pi",
+          "User-Agent": "pi-free-providers",
+        },
+        models: m,
+      });
+    };
+
     // Register our filtered provider
-    ctx.modelRegistry.registerProvider(PROVIDER_OPENROUTER, {
-      baseUrl: BASE_URL_OPENROUTER,
-      apiKey: "OPENROUTER_API_KEY",
-      api: "openai-completions" as const,
-      headers: {
-        "HTTP-Referer": "https://github.com/apmantza/pi-free",
-        "X-Title": "Pi",
-        "User-Agent": "pi-free-providers",
-      },
-      models,
-    });
+    reRegisterFn(models);
 
     const theme = ctx.ui.theme;
     const label = SHOW_PAID
@@ -253,16 +225,6 @@ export default async function (pi: ExtensionAPI) {
       if (parts.length > 0) {
         ctx.ui.setStatus("openrouter-metrics", theme.fg("dim", parts.join(" ")));
       }
-    }
-  });
-
-  pi.on("model_select", (_event, ctx) => {
-    if (_event.model?.provider !== PROVIDER_OPENROUTER) ctx.ui.setStatus("openrouter-status", undefined);
-  });
-
-  pi.on("turn_end", async (_event, ctx) => {
-    if (ctx.model?.provider === PROVIDER_OPENROUTER) {
-      incrementRequestCount(PROVIDER_OPENROUTER);
     }
   });
 }

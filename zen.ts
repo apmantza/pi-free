@@ -15,14 +15,7 @@ import { SHOW_PAID, OPENCODE_API_KEY as CONFIG_API_KEY, applyHidden, PROVIDER_ZE
 import { getCached, setCached } from "./cache.ts";
 import { fetchWithRetry, logWarning } from "./util.ts";
 import { BASE_URL_ZEN, URL_MODELS_DEV, URL_ZEN_TOS, DEFAULT_FETCH_TIMEOUT_MS } from "./constants.ts";
-import { incrementRequestCount } from "./metrics.ts";
-
-// Module-level so it persists across sessions within the same process.
-let noticeShown = false;
-
-// Module-level storage for models (persists across session_start calls)
-let storedFreeModels: ProviderModelConfig[] = [];
-let storedAllModels: ProviderModelConfig[] = [];
+import { setupProvider, type StoredModels } from "./provider-helper.ts";
 
 // =============================================================================
 // Static fallback models (from Pi's built-in + OpenCode docs)
@@ -273,52 +266,25 @@ export default async function (pi: ExtensionAPI) {
   // opencode provider, which also watches OPENCODE_API_KEY.
   const ZEN_KEY_VAR = "PI_FREE_ZEN_API_KEY";
 
-  // Register commands for toggling model visibility
-  pi.registerCommand("zen-free", {
-    description: "Show only free Zen models",
-    handler: async (_args, ctx) => {
-      if (storedFreeModels.length === 0) {
-        ctx.ui.notify("No free models loaded", "warning");
-        return;
-      }
-      // Re-register with free models only
-      ctx.modelRegistry.registerProvider(PROVIDER_ZEN, {
-        baseUrl: BASE_URL_ZEN,
-        apiKey: CONFIG_API_KEY ? ZEN_KEY_VAR : undefined,
-        api: "openai-completions" as const,
-        headers: {
-          "X-Title": "Pi",
-          "HTTP-Referer": "https://opencode.ai/",
-          "User-Agent": "pi-free-providers",
-        },
-        models: storedFreeModels,
-      });
-      ctx.ui.notify(`Zen: showing ${storedFreeModels.length} free models`, "info");
-    },
-  });
+  // Shared model storage (references held by setupProvider for commands)
+  const stored: StoredModels = { free: [], all: [] };
 
-  pi.registerCommand("zen-all", {
-    description: "Show all Zen models (free + paid)",
-    handler: async (_args, ctx) => {
-      if (storedAllModels.length === 0) {
-        ctx.ui.notify("No models loaded", "warning");
-        return;
-      }
-      // Re-register with all models
-      ctx.modelRegistry.registerProvider(PROVIDER_ZEN, {
-        baseUrl: BASE_URL_ZEN,
-        apiKey: CONFIG_API_KEY ? ZEN_KEY_VAR : undefined,
-        api: "openai-completions" as const,
-        headers: {
-          "X-Title": "Pi",
-          "HTTP-Referer": "https://opencode.ai/",
-          "User-Agent": "pi-free-providers",
-        },
-        models: storedAllModels,
-      });
-      ctx.ui.notify(`Zen: showing all ${storedAllModels.length} models`, "info");
+  function registerZenModels(models: ProviderModelConfig[]) {
+    ctx_modelRegistry_register(models);
+  }
+
+  // We need a closure that captures the runtime ctx for re-registration.
+  // setupProvider's reRegister callback will call this with the current ctx.
+  let ctx_modelRegistry_register: (models: ProviderModelConfig[]) => void = () => {};
+
+  // Wire up shared boilerplate (commands, model_select, turn_end, ToS)
+  setupProvider(pi, {
+    providerId: PROVIDER_ZEN,
+    tosUrl: URL_ZEN_TOS,
+    reRegister: (models, _stored) => {
+      ctx_modelRegistry_register(models);
     },
-  });
+  }, stored);
 
   // Check in session_start if user already has auth for this provider
   // Only register our filtered version if they don't have existing setup
@@ -345,8 +311,8 @@ export default async function (pi: ExtensionAPI) {
       useStaticFallback = result.useStaticFallback;
 
       // Store for command toggle
-      storedFreeModels = result.free;
-      storedAllModels = result.all;
+      stored.free = result.free;
+      stored.all = result.all;
     } catch (error) {
       logWarning("zen", "Failed to fetch models", error);
     }
@@ -357,47 +323,28 @@ export default async function (pi: ExtensionAPI) {
       return;
     }
 
+    // Set up the re-registration closure with this ctx
+    ctx_modelRegistry_register = (m: ProviderModelConfig[]) => {
+      ctx.modelRegistry.registerProvider(PROVIDER_ZEN, {
+        baseUrl: BASE_URL_ZEN,
+        apiKey: CONFIG_API_KEY ? ZEN_KEY_VAR : undefined,
+        api: "openai-completions" as const,
+        headers: {
+          "X-Title": "Pi",
+          "HTTP-Referer": "https://opencode.ai/",
+          "User-Agent": "pi-free-providers",
+        },
+        models: m,
+      });
+    };
+
     // Register our filtered provider
-    ctx.modelRegistry.registerProvider(PROVIDER_ZEN, {
-      baseUrl: BASE_URL_ZEN,
-      apiKey: ZEN_KEY_VAR,
-      api: "openai-completions" as const,
-      headers: {
-        "X-Title": "Pi",
-        "HTTP-Referer": "https://opencode.ai/",
-        "User-Agent": "pi-free-providers",
-      },
-      models,
-    });
+    ctx_modelRegistry_register(models);
 
     const theme = ctx.ui.theme;
     const label = hasKey
       ? `✦ Zen (${models.length} models)`
       : `✦ Zen (${freeCount} free)`;
     ctx.ui.setStatus("zen-status", theme.fg("accent", label));
-  });
-
-  pi.on("model_select", (_event, ctx) => {
-    if (_event.model?.provider !== PROVIDER_ZEN) ctx.ui.setStatus("zen-status", undefined);
-  });
-
-  pi.on("turn_end", async (_event, ctx) => {
-    if (ctx.model?.provider === PROVIDER_ZEN) {
-      incrementRequestCount(PROVIDER_ZEN);
-    }
-  });
-
-  pi.on("before_agent_start", async (_event, ctx) => {
-    // Note: hasKey check won't work here since it's defined outside the event handler
-    // This is OK - the notice will show for any Zen usage, which is fine
-    if (noticeShown || ctx.model?.provider !== PROVIDER_ZEN) return;
-    noticeShown = true;
-    return {
-      message: {
-        customType: "zen",
-        content: `Using OpenCode Zen free models. Set OPENCODE_API_KEY for paid access.\nTerms: ${URL_ZEN_TOS}`,
-        display: "inline",
-      },
-    };
   });
 }
