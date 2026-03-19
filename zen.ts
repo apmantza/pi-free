@@ -306,52 +306,13 @@ export default async function (pi: ExtensionAPI) {
   });
 
   // Check in session_start if user already has auth for this provider
-  // If yes: filter their models to free-only, use their key
-  // If no: use our extension's key with filtered models
+  // Only register our filtered version if they don't have existing setup
   pi.on("session_start", async (_event, ctx) => {
-    const allModels = ctx.modelRegistry.getAll();
     const availableModels = ctx.modelRegistry.getAvailable();
-    const existingModels = allModels.filter((m) => m.provider === PROVIDER_ZEN);
     const hasExistingAuth = availableModels.some((m) => m.provider === PROVIDER_ZEN);
 
-    if (hasExistingAuth && existingModels.length > 0) {
-      // User has existing auth - filter to free models, use their key
-      console.log("[zen] User has existing auth - filtering to free models");
-
-      const freeModels = existingModels
-        .filter((m) => (m.cost?.input ?? 0) === 0)
-        .map((m) => ({
-          id: m.id,
-          name: m.name,
-          reasoning: m.reasoning,
-          input: m.input,
-          cost: m.cost,
-          contextWindow: m.contextWindow,
-          maxTokens: m.maxTokens,
-        }));
-
-      if (freeModels.length === 0) {
-        console.warn("[zen] No free models available from existing auth");
-        return;
-      }
-
-      // Store for command toggle
-      storedFreeModels = freeModels;
-      storedAllModels = existingModels;
-
-      // Register filtered version (no apiKey - uses existing Pi auth)
-      ctx.modelRegistry.registerProvider(PROVIDER_ZEN, {
-        baseUrl: BASE_URL_ZEN,
-        api: "openai-completions" as const,
-        headers: {
-          "X-Title": "Pi",
-          "HTTP-Referer": "https://opencode.ai/",
-          "User-Agent": "pi-free-providers",
-        },
-        models: freeModels,
-      });
-
-      ctx.ui.setStatus("zen-status", ctx.ui.theme.fg("accent", `✦ Zen (${freeModels.length} free)`));
+    if (hasExistingAuth) {
+      console.log("[zen] User already has OpenCode/Zen auth configured — using existing setup");
       return;
     }
 
