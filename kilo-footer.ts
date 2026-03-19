@@ -99,10 +99,19 @@ function buildStatsParts(ctx: any, theme: any, footerData: any): { parts: string
     parts.push(theme.fg("dim", `📊 ${dailyReqs}/day`));
   }
 
-  // Kilo-specific: show credits balance
+  // Provider-specific status (credits for Kilo & OpenRouter)
+  const provider = model?.provider;
+  
+  // Kilo credits
   if (provider === PROVIDER_KILO) {
     const creditsStatus = ctx.ui.getStatus?.("kilo-credits") || footerData.getExtensionStatuses?.().get("kilo-credits");
     if (creditsStatus) parts.push(creditsStatus);
+  }
+  
+  // OpenRouter credits
+  if (provider === PROVIDER_OPENROUTER) {
+    const orStatus = ctx.ui.getStatus?.("openrouter-metrics") || footerData.getExtensionStatuses?.().get("openrouter-metrics");
+    if (orStatus) parts.push(orStatus);
   }
 
   const width = visibleWidth(parts.join(" "));

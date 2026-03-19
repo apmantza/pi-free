@@ -78,26 +78,52 @@ interface OpenRouterKeyResponse {
   soft_limit?: boolean;
 }
 
+interface OpenRouterCreditsResponse {
+  data?: {
+    credits_purchased: number;
+    credits_used: number;
+  };
+}
+
 export async function fetchOpenRouterMetrics(): Promise<ProviderMetrics | null> {
   if (!OPENROUTER_API_KEY) return null;
 
   try {
-    const response = await fetchWithRetry(`${BASE_URL_OPENROUTER}/key`, {
-      headers: {
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-        "User-Agent": "pi-free-providers",
-      },
-      timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
-    });
+    // Fetch both key info and credits in parallel
+    const [keyResponse, creditsResponse] = await Promise.all([
+      fetchWithRetry(`${BASE_URL_OPENROUTER}/key`, {
+        headers: {
+          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+          "User-Agent": "pi-free-providers",
+        },
+        timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
+      }),
+      fetchWithRetry(`${BASE_URL_OPENROUTER}/credits`, {
+        headers: {
+          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+          "User-Agent": "pi-free-providers",
+        },
+        timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
+      }),
+    ]);
 
-    if (!response.ok) {
-      return null;
+    let limit24h: number | undefined;
+    let usage24h: number | undefined;
+    let credits = 0;
+
+    if (keyResponse.ok) {
+      const keyData = (await keyResponse.json()) as OpenRouterKeyResponse;
+      limit24h = keyData.limit?.["24h"];
+      usage24h = keyData.usage?.["24h"];
     }
 
-    const data = (await response.json()) as OpenRouterKeyResponse;
-    
-    const limit24h = data.limit?.["24h"];
-    const usage24h = data.usage?.["24h"];
+    if (creditsResponse.ok) {
+      const creditsData = (await creditsResponse.json()) as OpenRouterCreditsResponse;
+      if (creditsData.data) {
+        credits = creditsData.data.credits_purchased - creditsData.data.credits_used;
+      }
+    }
+
     const dailyCount = getDailyRequestCount("openrouter");
     
     return {
@@ -107,6 +133,7 @@ export async function fetchOpenRouterMetrics(): Promise<ProviderMetrics | null> 
         requestsPerDay: limit24h,
         remainingToday: limit24h && usage24h ? limit24h - usage24h : undefined,
       },
+      credits,
       requestsToday: dailyCount,
       lastUpdated: Date.now(),
     };

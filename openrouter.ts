@@ -128,10 +128,23 @@ export default async function (pi: ExtensionAPI) {
     const metrics = await fetchOpenRouterMetrics();
     if (metrics) {
       setCachedMetrics(PROVIDER_OPENROUTER, metrics);
+      
+      const parts: string[] = [];
+      
+      // Show remaining daily requests
       if (metrics.rateLimit?.remainingToday !== undefined) {
         const remaining = metrics.rateLimit.remainingToday;
-        const display = remaining > 900 ? `${remaining} remaining/day` : `${remaining}/day`;
-        ctx.ui.setStatus("openrouter-metrics", theme.fg("dim", `📊 ${display}`));
+        const reqDisplay = remaining > 900 ? `${remaining} remaining/day` : `${remaining}/day`;
+        parts.push(`📊 ${reqDisplay}`);
+      }
+      
+      // Show credits balance
+      if (metrics.credits !== undefined && metrics.credits > 0) {
+        parts.push(`💰 $${metrics.credits.toFixed(2)}`);
+      }
+      
+      if (parts.length > 0) {
+        ctx.ui.setStatus("openrouter-metrics", theme.fg("dim", parts.join(" ")));
       }
     }
   });
