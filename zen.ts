@@ -190,10 +190,11 @@ async function fetchModelsMeta(): Promise<Record<string, ModelsDevModel>> {
 async function fetchZenModels(token: string): Promise<{
   all: ProviderModelConfig[];
   free: ProviderModelConfig[];
+  useStaticFallback: boolean;
 }> {
   const cachedAll = getCached<ProviderModelConfig>(PROVIDER_ZEN);
   if (cachedAll) {
-    return { all: cachedAll, free: cachedAll.filter((m) => (m.cost.input ?? 0) === 0) };
+    return { all: cachedAll, free: cachedAll.filter((m) => (m.cost.input ?? 0) === 0), useStaticFallback: false };
   }
 
   try {
@@ -230,18 +231,14 @@ async function fetchZenModels(token: string): Promise<{
       if ((m?.cost?.input ?? 0) === 0) free.push(config);
     }
 
-    const result = { all: applyHidden(all), free: applyHidden(free) };
+    const result = { all: applyHidden(all), free: applyHidden(free), useStaticFallback: false };
     setCached(PROVIDER_ZEN, result.all);
     return result;
   } catch (error) {
-    // Fallback to static models if API fails
-    logWarning("zen", "Using static fallback models (API unavailable)", error);
-    const result = {
-      all: applyHidden(STATIC_ZEN_MODELS),
-      free: applyHidden(STATIC_ZEN_MODELS.filter((m) => (m.cost.input ?? 0) === 0)),
-    };
-    setCached(PROVIDER_ZEN, result.all);
-    return result;
+    // API failed - return special flag to skip registration
+    // Pi's built-in OpenCode provider will be used instead
+    logWarning("zen", "API unavailable, letting Pi use built-in provider", error);
+    return { all: [], free: [], useStaticFallback: true };
   }
 }
 
@@ -260,16 +257,22 @@ export default async function (pi: ExtensionAPI) {
 
   let models: ProviderModelConfig[] = [];
   let freeCount = 0;
+  let useStaticFallback = false;
 
   try {
     const result = await fetchZenModels(token);
     models = hasKey && SHOW_PAID ? result.all : result.free;
     freeCount = result.free.length;
+    useStaticFallback = result.useStaticFallback;
   } catch (error) {
     logWarning("zen", "Failed to fetch models", error);
   }
 
-  if (models.length === 0) return;
+  // If API failed, don't register our provider - let Pi use its built-in
+  if (useStaticFallback || models.length === 0) {
+    console.log("[zen] API unavailable, using Pi's built-in provider");
+    return;
+  }
 
   pi.registerProvider(PROVIDER_ZEN, {
     baseUrl: BASE_URL_ZEN,
