@@ -100,8 +100,7 @@ function buildStatsParts(ctx: any, theme: any, footerData: any): { parts: string
   }
 
   // Provider-specific status (credits for Kilo & OpenRouter)
-  const provider = model?.provider;
-  
+
   // Kilo credits
   if (provider === PROVIDER_KILO) {
     const creditsStatus = ctx.ui.getStatus?.("kilo-credits") || footerData.getExtensionStatuses?.().get("kilo-credits");
