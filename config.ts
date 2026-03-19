@@ -13,7 +13,7 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
-import { PROVIDER_KILO, PROVIDER_OPENROUTER, PROVIDER_NVIDIA, PROVIDER_ZEN } from "./constants.ts";
+import { PROVIDER_KILO, PROVIDER_OPENROUTER, PROVIDER_NVIDIA, PROVIDER_ZEN, PROVIDER_CLINE } from "./constants.ts";
 
 interface PiFreeConfig {
   openrouter_api_key?: string;
@@ -37,10 +37,18 @@ const PI_DIR = join(process.env.HOME || process.env.USERPROFILE || "", ".pi");
 const CONFIG_PATH = join(PI_DIR, "free.json");
 
 function ensureConfigFile(): void {
-  if (existsSync(CONFIG_PATH)) return;
   try {
     mkdirSync(PI_DIR, { recursive: true });
-    writeFileSync(CONFIG_PATH, JSON.stringify(CONFIG_TEMPLATE, null, 2) + "\n", "utf8");
+    if (existsSync(CONFIG_PATH)) {
+      // Merge: add any new template keys without touching existing values
+      const existing = JSON.parse(readFileSync(CONFIG_PATH, "utf8")) as PiFreeConfig;
+      const merged = { ...CONFIG_TEMPLATE, ...existing };
+      if (JSON.stringify(merged) !== JSON.stringify(existing)) {
+        writeFileSync(CONFIG_PATH, JSON.stringify(merged, null, 2) + "\n", "utf8");
+      }
+    } else {
+      writeFileSync(CONFIG_PATH, JSON.stringify(CONFIG_TEMPLATE, null, 2) + "\n", "utf8");
+    }
   } catch (err) {
     console.warn(`[pi-free] Could not create config file at ${CONFIG_PATH}:`, err instanceof Error ? err.message : err);
   }
