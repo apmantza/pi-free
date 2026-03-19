@@ -281,6 +281,7 @@ export default async function (pi: ExtensionAPI) {
   setupProvider(pi, {
     providerId: PROVIDER_ZEN,
     tosUrl: URL_ZEN_TOS,
+    hasKey,
     reRegister: (models, _stored) => {
       ctx_modelRegistry_register(models);
     },

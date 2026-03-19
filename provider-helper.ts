@@ -19,6 +19,8 @@ export interface ProviderSetupConfig {
   providerId: string;
   /** Terms of service URL. If set, shows a one-time notice on first free use. */
   tosUrl?: string;
+  /** When true, suppresses the "free models / set API key" ToS notice. */
+  hasKey?: boolean;
   /**
    * Called by /{provider}-free and /{provider}-all commands to re-register
    * the provider with the given model set. Receives the model array and a
@@ -103,6 +105,7 @@ export function setupProvider(
     pi.on("before_agent_start", async (_event, ctx) => {
       if (tosShown || ctx.model?.provider !== providerId) return;
       tosShown = true;
+      if (config.hasKey) return;
       const cred = ctx.modelRegistry.authStorage.get(providerId);
       if (cred?.type === "oauth") return;
       return {
