@@ -4,6 +4,8 @@
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { visibleWidth } from "@mariozechner/pi-tui";
+import { PROVIDER_KILO, PROVIDER_OPENROUTER, PROVIDER_ZEN } from "./constants.ts";
+import { getRequestCount, getDailyRequestCount } from "./metrics.ts";
 
 // =============================================================================
 // Formatters
@@ -85,9 +87,23 @@ function buildStatsParts(ctx: any, theme: any, footerData: any): { parts: string
       : contextDisplay;
   parts.push(contextStr);
 
-  // Provider-specific status
-  const creditsStatus = ctx.ui.getStatus?.("kilo-credits") || ctx.ui.getStatus?.("openrouter-metrics") || footerData.getExtensionStatuses?.().get("kilo-credits");
-  if (creditsStatus) parts.push(creditsStatus);
+  // Provider-specific status (credits for Kilo, rate limits for OpenRouter)
+  const provider = model?.provider;
+  const sessionReqs = provider ? getRequestCount(provider) : 0;
+  const dailyReqs = provider ? getDailyRequestCount(provider) : 0;
+  
+  if (sessionReqs > 0) {
+    const reqDisplay = dailyReqs > 0 ? `${sessionReqs}sess/${dailyReqs}d` : `${sessionReqs} sess`;
+    parts.push(theme.fg("dim", `📊 ${reqDisplay}`));
+  } else if (dailyReqs > 0) {
+    parts.push(theme.fg("dim", `📊 ${dailyReqs}/day`));
+  }
+
+  // Kilo-specific: show credits balance
+  if (provider === PROVIDER_KILO) {
+    const creditsStatus = ctx.ui.getStatus?.("kilo-credits") || footerData.getExtensionStatuses?.().get("kilo-credits");
+    if (creditsStatus) parts.push(creditsStatus);
+  }
 
   const width = visibleWidth(parts.join(" "));
   return { parts, width };
@@ -130,12 +146,11 @@ export function registerKiloFooter(pi: ExtensionAPI, ctx: any) {
     }
 
     footerDispose = ctx.ui.setFooter((tui: any, theme: any, footerData: any) => {
-      // Only render footer when Kilo is the active provider
-      // Check both ctx.model and the provider status from the model registry
+      // Show footer for any pi-free provider (kilo, openrouter, zen)
       const currentModel = ctx.model;
-      if (!currentModel || currentModel.provider !== PROVIDER_KILO) {
-        // Check if we should show generic footer for non-Kilo providers
-        // Return empty to let other providers show their own footer
+      const provider = currentModel?.provider;
+      if (!provider || ![PROVIDER_KILO, PROVIDER_OPENROUTER, PROVIDER_ZEN].includes(provider)) {
+        // Not a pi-free provider - return empty to let others show their footer
         return { dispose() {}, invalidate() {}, render() { return []; } };
       }
 
