@@ -111,6 +111,31 @@ Or via environment variable:
 export PI_FREE_SHOW_PAID=true
 ```
 
+### Dynamic toggle with commands
+
+You can also toggle between free and all models **live** using slash commands:
+
+| Command | Description |
+|---------|-------------|
+| `/openrouter-free` | Show only free OpenRouter models |
+| `/openrouter-all` | Show all OpenRouter models (free + paid) |
+| `/zen-free` | Show only free Zen models |
+| `/zen-all` | Show all Zen models (free + paid) |
+
+These commands let you switch instantly without restarting Pi.
+
+---
+
+## Existing Pi configuration
+
+If you already have OpenRouter or OpenCode configured in Pi's settings **before** installing this extension:
+
+1. **Your existing key is preserved** — the extension uses your key, not its own
+2. **Models are filtered to free-only** — unless you run `/openrouter-all` or `/zen-all`
+3. **No conflicts** — the extension works alongside your existing setup
+
+This means you can install the extension and immediately get free model filtering without any configuration!
+
 ---
 
 ## Hiding specific models
