@@ -120,13 +120,31 @@ function buildRightSide(ctx: any, width: number, availableWidth: number, theme: 
 // =============================================================================
 
 export function registerKiloFooter(pi: ExtensionAPI, ctx: any) {
-  ctx.ui.setFooter((tui: any, theme: any, footerData: any) => {
-    const unsubBranch = footerData.onBranchChange?.(() => tui.requestRender());
+  let footerDispose: (() => void) | null = null;
 
-    return {
-      dispose() { unsubBranch?.(); },
-      invalidate() {},
-      render(width: number): string[] {
+  const setupFooter = () => {
+    // Clean up any existing footer
+    if (footerDispose) {
+      footerDispose();
+      footerDispose = null;
+    }
+
+    footerDispose = ctx.ui.setFooter((tui: any, theme: any, footerData: any) => {
+      // Only render footer when Kilo is the active provider
+      // Check both ctx.model and the provider status from the model registry
+      const currentModel = ctx.model;
+      if (!currentModel || currentModel.provider !== PROVIDER_KILO) {
+        // Check if we should show generic footer for non-Kilo providers
+        // Return empty to let other providers show their own footer
+        return { dispose() {}, invalidate() {}, render() { return []; } };
+      }
+
+      const unsubBranch = footerData.onBranchChange?.(() => tui.requestRender());
+
+      return {
+        dispose() { unsubBranch?.(); },
+        invalidate() {},
+        render(width: number): string[] {
         try {
           // Line 1: pwd
           const pwdLine = theme.fg("dim", formatPwdLine(width, footerData));
@@ -164,4 +182,8 @@ export function registerKiloFooter(pi: ExtensionAPI, ctx: any) {
       },
     };
   });
+  };
+
+  // Initial setup
+  setupFooter();
 }

@@ -106,7 +106,11 @@ export default async function (pi: ExtensionAPI) {
   });
 
   pi.on("model_select", async (event, ctx) => {
-    if (event.model?.provider === PROVIDER_KILO) await updateCredits(ctx);
+    if (event.model?.provider === PROVIDER_KILO) {
+      await updateCredits(ctx);
+    }
+    // Trigger footer re-render to show/hide based on provider
+    ctx.ui.requestRender?.();
   });
 
   pi.on("turn_end", async (_event, ctx) => {
