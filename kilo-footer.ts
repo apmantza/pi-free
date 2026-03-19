@@ -3,7 +3,7 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { visibleWidth } from "@mariozechner/pi-tui";
+import { visibleWidth, truncateToWidth } from "@mariozechner/pi-tui";
 import { PROVIDER_KILO, PROVIDER_OPENROUTER, PROVIDER_ZEN } from "./constants.ts";
 import { getRequestCount, getDailyRequestCount } from "./metrics.ts";
 
@@ -32,14 +32,7 @@ function formatPwdLine(width: number, footerData: any): string {
   const sessionName = footerData.getSessionName?.() || footerData.sessionManager?.getSessionName?.();
   if (sessionName) pwd = `${pwd} • ${sessionName}`;
 
-  // Truncate if needed
-  if (pwd.length > width) {
-    const half = Math.floor(width / 2) - 2;
-    pwd = half > 1
-      ? `${pwd.slice(0, half)}...${pwd.slice(-(half - 1))}`
-      : pwd.slice(0, Math.max(1, width));
-  }
-  return pwd;
+  return truncateToWidth(pwd, width);
 }
 
 /** Build stats parts array from session data. */
@@ -185,12 +178,9 @@ export function registerKiloFooter(pi: ExtensionAPI, ctx: any) {
             statsLine = statsLeft + padding + rightSide;
           } else {
             const available = width - statsLeftWidth - 2;
-            if (available > 3) {
-              const truncated = rightSide.replace(/\x1b\[[0-9;]*m/g, "").slice(0, available);
-              statsLine = statsLeft + " ".repeat(width - statsLeftWidth - truncated.length) + truncated;
-            } else {
-              statsLine = statsLeft;
-            }
+            statsLine = available > 3
+              ? statsLeft + " " + truncateToWidth(rightSide, available)
+              : statsLeft;
           }
 
           // Strip ANSI for left part, keep for right
@@ -198,7 +188,9 @@ export function registerKiloFooter(pi: ExtensionAPI, ctx: any) {
           const statsLeftColored = theme.fg("dim", plainLeft);
           const statsRightColored = theme.fg("dim", statsLine.slice(plainLeft.length));
 
-          return [pwdLine, statsLeftColored + statsRightColored];
+          return [pwdLine, statsLeftColored + statsRightColored].map(
+            (line) => truncateToWidth(line, width),
+          );
         } catch {
           return [];
         }
