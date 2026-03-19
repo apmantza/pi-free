@@ -86,13 +86,46 @@ export default async function (pi: ExtensionAPI) {
   const apiKey = CONFIG_API_KEY;
 
   // Check in session_start if user already has auth for this provider
-  // Only register our filtered version if they don't have existing setup
+  // If yes: filter their models to free-only, use their key
+  // If no: use our extension's key with filtered models
   pi.on("session_start", async (_event, ctx) => {
-    const existingModels = ctx.modelRegistry.getAvailable();
-    const hasExistingAuth = existingModels.some((m) => m.provider === PROVIDER_OPENROUTER);
+    const allModels = ctx.modelRegistry.getAll();
+    const availableModels = ctx.modelRegistry.getAvailable();
+    const existingModels = allModels.filter((m) => m.provider === PROVIDER_OPENROUTER);
+    const hasExistingAuth = availableModels.some((m) => m.provider === PROVIDER_OPENROUTER);
 
-    if (hasExistingAuth) {
-      console.log("[openrouter] User already has OpenRouter auth configured — using existing setup");
+    if (hasExistingAuth && existingModels.length > 0) {
+      // User has existing auth - filter to free models, use their key
+      console.log("[openrouter] User has existing auth - filtering to free models");
+
+      const freeModels = existingModels
+        .filter((m) => (m.cost?.input ?? 0) === 0)
+        .map((m) => ({
+          id: m.id,
+          name: m.name,
+          reasoning: m.reasoning,
+          input: m.input,
+          cost: m.cost,
+          contextWindow: m.contextWindow,
+          maxTokens: m.maxTokens,
+        }));
+
+      if (freeModels.length === 0) {
+        console.warn("[openrouter] No free models available from existing auth");
+        return;
+      }
+
+      // Register filtered version (no apiKey - uses existing Pi auth)
+      ctx.modelRegistry.registerProvider(PROVIDER_OPENROUTER, {
+        baseUrl: BASE_URL_OPENROUTER,
+        api: "openai-completions" as const,
+        headers: {
+          "HTTP-Referer": "https://github.com/apmantza/pi-free",
+          "X-Title": "Pi",
+          "User-Agent": "pi-free-providers",
+        },
+        models: freeModels,
+      });
       return;
     }
 
@@ -130,7 +163,6 @@ export default async function (pi: ExtensionAPI) {
       models,
     });
 
-    // ... rest of the session_start handler for status/metrics
     const theme = ctx.ui.theme;
     const label = SHOW_PAID
       ? `🔀 OpenRouter (${models.length} models)`
@@ -141,21 +173,21 @@ export default async function (pi: ExtensionAPI) {
     const metrics = await fetchOpenRouterMetrics();
     if (metrics) {
       setCachedMetrics(PROVIDER_OPENROUTER, metrics);
-      
+
       const parts: string[] = [];
-      
+
       // Show remaining daily requests
       if (metrics.rateLimit?.remainingToday !== undefined) {
         const remaining = metrics.rateLimit.remainingToday;
         const reqDisplay = remaining > 900 ? `${remaining} remaining/day` : `${remaining}/day`;
         parts.push(`📊 ${reqDisplay}`);
       }
-      
+
       // Show credits balance
       if (metrics.credits !== undefined && metrics.credits > 0) {
         parts.push(`💰 $${metrics.credits.toFixed(2)}`);
       }
-      
+
       if (parts.length > 0) {
         ctx.ui.setStatus("openrouter-metrics", theme.fg("dim", parts.join(" ")));
       }

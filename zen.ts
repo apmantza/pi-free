@@ -255,13 +255,48 @@ export default async function (pi: ExtensionAPI) {
   const ZEN_KEY_VAR = "PI_FREE_ZEN_API_KEY";
 
   // Check in session_start if user already has auth for this provider
-  // Only register our filtered version if they don't have existing setup
+  // If yes: filter their models to free-only, use their key
+  // If no: use our extension's key with filtered models
   pi.on("session_start", async (_event, ctx) => {
-    const existingModels = ctx.modelRegistry.getAvailable();
-    const hasExistingAuth = existingModels.some((m) => m.provider === PROVIDER_ZEN);
+    const allModels = ctx.modelRegistry.getAll();
+    const availableModels = ctx.modelRegistry.getAvailable();
+    const existingModels = allModels.filter((m) => m.provider === PROVIDER_ZEN);
+    const hasExistingAuth = availableModels.some((m) => m.provider === PROVIDER_ZEN);
 
-    if (hasExistingAuth) {
-      console.log("[zen] User already has OpenCode/Zen auth configured — using existing setup");
+    if (hasExistingAuth && existingModels.length > 0) {
+      // User has existing auth - filter to free models, use their key
+      console.log("[zen] User has existing auth - filtering to free models");
+
+      const freeModels = existingModels
+        .filter((m) => (m.cost?.input ?? 0) === 0)
+        .map((m) => ({
+          id: m.id,
+          name: m.name,
+          reasoning: m.reasoning,
+          input: m.input,
+          cost: m.cost,
+          contextWindow: m.contextWindow,
+          maxTokens: m.maxTokens,
+        }));
+
+      if (freeModels.length === 0) {
+        console.warn("[zen] No free models available from existing auth");
+        return;
+      }
+
+      // Register filtered version (no apiKey - uses existing Pi auth)
+      ctx.modelRegistry.registerProvider(PROVIDER_ZEN, {
+        baseUrl: BASE_URL_ZEN,
+        api: "openai-completions" as const,
+        headers: {
+          "X-Title": "Pi",
+          "HTTP-Referer": "https://opencode.ai/",
+          "User-Agent": "pi-free-providers",
+        },
+        models: freeModels,
+      });
+
+      ctx.ui.setStatus("zen-status", ctx.ui.theme.fg("accent", `✦ Zen (${freeModels.length} free)`));
       return;
     }
 
@@ -318,7 +353,9 @@ export default async function (pi: ExtensionAPI) {
   });
 
   pi.on("before_agent_start", async (_event, ctx) => {
-    if (noticeShown || hasKey || ctx.model?.provider !== PROVIDER_ZEN) return;
+    // Note: hasKey check won't work here since it's defined outside the event handler
+    // This is OK - the notice will show for any Zen usage, which is fine
+    if (noticeShown || ctx.model?.provider !== PROVIDER_ZEN) return;
     noticeShown = true;
     return {
       message: {
