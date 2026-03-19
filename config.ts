@@ -82,4 +82,4 @@ export const NVIDIA_API_KEY     = resolve("NVIDIA_API_KEY",     file.nvidia_api_
 export const OPENCODE_API_KEY   = resolve("OPENCODE_API_KEY",   file.opencode_api_key);
 
 // Re-export provider names for consistency
-export { PROVIDER_KILO, PROVIDER_OPENROUTER, PROVIDER_NVIDIA, PROVIDER_ZEN };
+export { PROVIDER_KILO, PROVIDER_OPENROUTER, PROVIDER_NVIDIA, PROVIDER_ZEN, PROVIDER_CLINE };

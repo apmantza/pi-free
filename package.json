@@ -12,7 +12,8 @@
       "./kilo.ts",
       "./zen.ts",
       "./openrouter.ts",
-      "./nvidia.ts"
+      "./nvidia.ts",
+      "./cline.ts"
     ]
   },
   "repository": {
