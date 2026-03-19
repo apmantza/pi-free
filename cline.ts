@@ -19,7 +19,6 @@ import { loginCline, refreshClineToken } from "./cline-auth.ts";
 import { PROVIDER_CLINE, BASE_URL_CLINE } from "./constants.ts";
 import { logWarning } from "./util.ts";
 import { incrementRequestCount } from "./metrics.ts";
-import { recordTurn } from "./usage-store.ts";
 
 // =============================================================================
 // Cline API headers (aligned with pi-cline)
@@ -254,9 +253,5 @@ export default async function (pi: ExtensionAPI) {
   pi.on("turn_end", async (_event, ctx) => {
     if (ctx.model?.provider !== PROVIDER_CLINE) return;
     incrementRequestCount(PROVIDER_CLINE);
-    const msg = _event.message;
-    if (msg.role === "assistant") {
-      recordTurn(PROVIDER_CLINE, msg.usage.input, msg.usage.output, msg.usage.cost.total);
-    }
   });
 }

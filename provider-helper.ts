@@ -9,7 +9,6 @@
 
 import type { ExtensionAPI, ProviderModelConfig } from "@mariozechner/pi-coding-agent";
 import { incrementRequestCount } from "./metrics.ts";
-import { recordTurn } from "./usage-store.ts";
 
 // =============================================================================
 // Types
@@ -90,15 +89,11 @@ export function setupProvider(
     }
   });
 
-  // ── Track request count + cumulative tokens ─────────────────────────
+  // ── Track request count ──────────────────────────────────────────────
 
   pi.on("turn_end", async (_event, ctx) => {
     if (ctx.model?.provider !== providerId) return;
     incrementRequestCount(providerId);
-    const msg = _event.message;
-    if (msg.role === "assistant") {
-      recordTurn(providerId, msg.usage.input, msg.usage.output, msg.usage.cost.total);
-    }
   });
 
   // ── One-time ToS notice on first free use ────────────────────────────

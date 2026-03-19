@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node ~/.claude/skills/greedysearch/launch.mjs)",
+      "Bash(node:*)",
+      "Bash(gh api:*)",
+      "Bash(npm info:*)",
+      "WebFetch(domain:opencode.ai)",
+      "Bash(curl -s https://models.dev/api.json)",
+      "Bash(curl -s https://api.kilo.ai/api/gateway/models)",
+      "Bash(wc -l /c/Users/R3LiC/Desktop/Pi-Free/*.ts)",
+      "Bash(git config:*)",
+      "Bash(git commit:*)",
+      "Bash(curl -s https://openrouter.ai/api/v1/models)",
+      "Bash(curl -s https://integrate.api.nvidia.com/v1/models -H 'Authorization: Bearer nvapi-free')",
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/cline/cline/main/src/shared/api.ts\")",
+      "Bash(curl -s https://raw.githubusercontent.com/cline/cline/main/src/services/auth/providers/ClineAuthProvider.ts)",
+      "Bash(curl -s https://raw.githubusercontent.com/cline/cline/main/cli/src/utils/provider-config.ts)",
+      "Bash(curl -s https://api.github.com/repos/cline/cline/git/trees/main?recursive=1)",
+      "Bash(curl -s https://raw.githubusercontent.com/cline/cline/main/cli/src/components/AuthView.tsx)"
+    ]
+  }
+}

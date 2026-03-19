@@ -3,12 +3,13 @@
  * free quota status, daily request counts, credit balances, and cumulative
  * token usage across all sessions.
  *
+ * Tracks ALL providers dynamically (including local/Ollama models).
  * Launch with /usage command. Toggles on repeated invocation.
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { getRequestCount, getDailyRequestCount, getCachedMetrics } from "./metrics.ts";
-import { getAllCumulativeUsage } from "./usage-store.ts";
+import { getAllCumulativeUsage, recordTurn } from "./usage-store.ts";
 import { PROVIDER_KILO, PROVIDER_OPENROUTER, PROVIDER_ZEN, PROVIDER_NVIDIA, PROVIDER_CLINE } from "./constants.ts";
 
 const GLIMPSE_PATH = "file:///C:/Users/R3LiC/AppData/Roaming/npm/node_modules/glimpseui/src/glimpse.mjs";
@@ -38,6 +39,19 @@ interface ProviderRow {
   credits?: number;
   creditsLabel?: string;
 }
+
+// Known provider metadata
+const KNOWN_PROVIDERS: Record<string, { icon: string; label: string }> = {
+  [PROVIDER_KILO]:       { icon: "🔥", label: "Kilo" },
+  [PROVIDER_OPENROUTER]: { icon: "🔀", label: "OpenRouter" },
+  [PROVIDER_ZEN]:        { icon: "✦",  label: "Zen" },
+  [PROVIDER_NVIDIA]:     { icon: "⚡", label: "NVIDIA" },
+  [PROVIDER_CLINE]:      { icon: "🤖", label: "Cline" },
+  "local":               { icon: "💻", label: "Local" },
+};
+
+// Session-level request tracking for non-extension providers
+const sessionRequestCounts: Map<string, number> = new Map();
 
 // =============================================================================
 // Formatting
@@ -75,47 +89,60 @@ function collectRows(): ProviderRow[] {
   const orMetrics = getCachedMetrics(PROVIDER_OPENROUTER);
   const kiloMetrics = getCachedMetrics(PROVIDER_KILO);
 
-  function makeRow(provider: string, key: string, icon: string, opts?: {
-    dailyLimit?: number;
-    hourlyLimit?: number;
-    remainingToday?: number;
-    credits?: number;
-    creditsLabel?: string;
-  }): ProviderRow {
+  // Discover all providers: known ones + any from cumulative store
+  const allKeys = new Set<string>(Object.keys(KNOWN_PROVIDERS));
+  for (const key of Object.keys(cumulative)) {
+    allKeys.add(key);
+  }
+
+  const rows: ProviderRow[] = [];
+
+  for (const key of allKeys) {
+    const meta = KNOWN_PROVIDERS[key];
     const c = cumulative[key];
-    return {
-      provider, key, icon,
-      sessionReqs: getRequestCount(key),
-      dailyReqs: getDailyRequestCount(key),
-      dailyLimit: opts?.dailyLimit,
-      hourlyLimit: opts?.hourlyLimit,
-      remainingToday: opts?.remainingToday,
+    const sessionReqs = getRequestCount(key) || sessionRequestCounts.get(key) || 0;
+
+    const row: ProviderRow = {
+      provider: meta?.label ?? key,
+      key,
+      icon: meta?.icon ?? "📦",
+      sessionReqs,
+      dailyReqs: getDailyRequestCount(key) || 0,
       totalTokensIn: c?.tokensIn ?? 0,
       totalTokensOut: c?.tokensOut ?? 0,
       totalRequests: c?.requests ?? 0,
       costEquivalent: c?.costEquivalent ?? 0,
       firstUsed: c?.firstUsed,
-      credits: opts?.credits,
-      creditsLabel: opts?.creditsLabel,
     };
+
+    // Provider-specific known limits
+    if (key === PROVIDER_OPENROUTER) {
+      row.dailyLimit = orMetrics?.rateLimit?.requestsPerDay;
+      row.remainingToday = orMetrics?.rateLimit?.remainingToday;
+      row.credits = orMetrics?.credits;
+      row.creditsLabel = "credits";
+    } else if (key === PROVIDER_KILO) {
+      row.hourlyLimit = 200; // 200 req/hr per IP (anonymous)
+      row.credits = kiloMetrics?.balance;
+      row.creditsLabel = "balance";
+    }
+
+    rows.push(row);
   }
 
-  return [
-    makeRow("Kilo", PROVIDER_KILO, "🔥", {
-      hourlyLimit: 200, // 200 req/hr per IP (anonymous)
-      credits: kiloMetrics?.balance,
-      creditsLabel: "balance",
-    }),
-    makeRow("OpenRouter", PROVIDER_OPENROUTER, "🔀", {
-      dailyLimit: orMetrics?.rateLimit?.requestsPerDay,
-      remainingToday: orMetrics?.rateLimit?.remainingToday,
-      credits: orMetrics?.credits,
-      creditsLabel: "credits",
-    }),
-    makeRow("Zen", PROVIDER_ZEN, "✦"),
-    makeRow("NVIDIA", PROVIDER_NVIDIA, "⚡"),
-    makeRow("Cline", PROVIDER_CLINE, "🤖"),
-  ];
+  // Sort: known providers first (in order), then unknown, then inactive
+  const order = Object.keys(KNOWN_PROVIDERS);
+  rows.sort((a, b) => {
+    const ai = order.indexOf(a.key);
+    const bi = order.indexOf(b.key);
+    const aOrder = ai >= 0 ? ai : 100;
+    const bOrder = bi >= 0 ? bi : 100;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    // Secondary: active first
+    return (b.sessionReqs + b.totalRequests) - (a.sessionReqs + a.totalRequests);
+  });
+
+  return rows;
 }
 
 // =============================================================================
@@ -179,6 +206,10 @@ function renderHTML(rows: ProviderRow[]): string {
     if (r.credits !== undefined) {
       infoParts.push(`💰 ${formatCost(r.credits)}`);
     }
+    // Local models are always free
+    if (r.key === "local" && r.totalRequests > 0) {
+      infoParts.push("always free");
+    }
 
     const infoHTML = infoParts.length > 0
       ? `<div style="font-size: 10px; color: #777; margin-top: 2px;">${infoParts.join(" · ")}</div>`
@@ -226,7 +257,7 @@ let glimpseWin: any = null;
 export async function openUsageWidget(): Promise<void> {
   const { open } = await import(GLIMPSE_PATH);
   glimpseWin = open(renderHTML(collectRows()), {
-    width: 340, height: 380,
+    width: 340, height: 400,
     title: "Pi Free Usage",
     frameless: true, transparent: true, floating: true,
     x: 20, y: 20,
@@ -257,6 +288,19 @@ export function registerUsageWidget(pi: ExtensionAPI): void {
     },
   });
 
-  // Refresh widget after each turn
-  pi.on("turn_end", async () => { updateWidget(); });
+  // Track tokens for ANY provider (including local, custom, etc.)
+  // and refresh the widget
+  pi.on("turn_end", async (_event, ctx) => {
+    const msg = _event.message;
+    const provider = ctx.model?.provider;
+    if (msg.role === "assistant" && provider) {
+      // Record cumulative usage for this provider
+      recordTurn(provider, msg.usage.input, msg.usage.output, msg.usage.cost.total);
+
+      // Track session requests for providers not handled by provider-helper
+      const current = sessionRequestCounts.get(provider) ?? 0;
+      sessionRequestCounts.set(provider, current + 1);
+    }
+    updateWidget();
+  });
 }
