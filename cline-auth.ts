@@ -145,7 +145,7 @@ font-family:system-ui,sans-serif;background:#fff;color:#333}
     fn();
   };
 
-  const server = http.createServer((req, res) => {
+  let server = http.createServer((req, res) => {
     try {
       const parsed = new NodeURL(req.url ?? "", `http://127.0.0.1:${selectedPort}`);
       if (parsed.pathname !== AUTH_PATH) {
