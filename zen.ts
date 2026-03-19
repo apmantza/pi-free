@@ -327,7 +327,7 @@ export default async function (pi: ExtensionAPI) {
     ctx_modelRegistry_register = (m: ProviderModelConfig[]) => {
       ctx.modelRegistry.registerProvider(PROVIDER_ZEN, {
         baseUrl: BASE_URL_ZEN,
-        apiKey: CONFIG_API_KEY ? ZEN_KEY_VAR : undefined,
+        apiKey: ZEN_KEY_VAR,
         api: "openai-completions" as const,
         headers: {
           "X-Title": "Pi",
