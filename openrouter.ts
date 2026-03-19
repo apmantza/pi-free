@@ -136,6 +136,7 @@ export default async function (pi: ExtensionAPI) {
       reRegisterFn = (m: ProviderModelConfig[]) => {
         ctx.modelRegistry.registerProvider(PROVIDER_OPENROUTER, {
           baseUrl: BASE_URL_OPENROUTER,
+          apiKey: "OPENROUTER_API_KEY",
           api: "openai-completions" as const,
           headers: {
             "HTTP-Referer": "https://github.com/apmantza/pi-free",
