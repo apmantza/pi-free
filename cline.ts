@@ -10,9 +10,7 @@
  *   # Models appear immediately; run /login cline to start chatting
  */
 
-import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { loginCline, refreshClineToken } from "./cline-auth.ts";
 import { fetchClineModels } from "./cline-models.ts";
 import { PROVIDER_CLINE, BASE_URL_CLINE } from "./constants.ts";
 import { logWarning } from "./util.ts";
@@ -186,16 +184,9 @@ export default async function (pi: ExtensionAPI) {
   function registerProvider(m = models) {
     pi.registerProvider(PROVIDER_CLINE, {
       baseUrl: BASE_URL_CLINE,
-      authHeader: true,
       api: "openai-completions" as const,
       headers: buildClineHeaders(),
       models: m,
-      oauth: {
-        name: "Cline",
-        login: loginCline,
-        refreshToken: refreshClineToken,
-        getApiKey: (cred: OAuthCredentials) => cred.access,
-      },
     });
   }
 
