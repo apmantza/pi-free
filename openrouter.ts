@@ -15,6 +15,10 @@ import { isUsableModel, mapOpenRouterModel, fetchWithRetry, logWarning } from ".
 import { BASE_URL_OPENROUTER, DEFAULT_FETCH_TIMEOUT_MS } from "./constants.ts";
 import { fetchOpenRouterMetrics, setCachedMetrics, incrementRequestCount } from "./metrics.ts";
 
+// Module-level storage for models (persists across session_start calls)
+let storedFreeModels: ProviderModelConfig[] = [];
+let storedAllModels: ProviderModelConfig[] = [];
+
 // =============================================================================
 // Fetch
 // =============================================================================
@@ -85,6 +89,53 @@ async function fetchOpenRouterModels(apiKey: string): Promise<{
 export default async function (pi: ExtensionAPI) {
   const apiKey = CONFIG_API_KEY;
 
+  // Register commands for toggling model visibility
+  pi.registerCommand("openrouter-free", {
+    description: "Show only free OpenRouter models",
+    handler: async (_args, ctx) => {
+      if (storedFreeModels.length === 0) {
+        ctx.ui.notify("No free models loaded", "warning");
+        return;
+      }
+      // Re-register with free models only
+      ctx.modelRegistry.registerProvider(PROVIDER_OPENROUTER, {
+        baseUrl: BASE_URL_OPENROUTER,
+        apiKey: apiKey ? "OPENROUTER_API_KEY" : undefined,
+        api: "openai-completions" as const,
+        headers: {
+          "HTTP-Referer": "https://github.com/apmantza/pi-free",
+          "X-Title": "Pi",
+          "User-Agent": "pi-free-providers",
+        },
+        models: storedFreeModels,
+      });
+      ctx.ui.notify(`OpenRouter: showing ${storedFreeModels.length} free models`, "info");
+    },
+  });
+
+  pi.registerCommand("openrouter-all", {
+    description: "Show all OpenRouter models (free + paid)",
+    handler: async (_args, ctx) => {
+      if (storedAllModels.length === 0) {
+        ctx.ui.notify("No models loaded", "warning");
+        return;
+      }
+      // Re-register with all models
+      ctx.modelRegistry.registerProvider(PROVIDER_OPENROUTER, {
+        baseUrl: BASE_URL_OPENROUTER,
+        apiKey: apiKey ? "OPENROUTER_API_KEY" : undefined,
+        api: "openai-completions" as const,
+        headers: {
+          "HTTP-Referer": "https://github.com/apmantza/pi-free",
+          "X-Title": "Pi",
+          "User-Agent": "pi-free-providers",
+        },
+        models: storedAllModels,
+      });
+      ctx.ui.notify(`OpenRouter: showing all ${storedAllModels.length} models`, "info");
+    },
+  });
+
   // Check in session_start if user already has auth for this provider
   // If yes: filter their models to free-only, use their key
   // If no: use our extension's key with filtered models
@@ -115,6 +166,10 @@ export default async function (pi: ExtensionAPI) {
         return;
       }
 
+      // Store for command toggle
+      storedFreeModels = freeModels;
+      storedAllModels = existingModels;
+
       // Register filtered version (no apiKey - uses existing Pi auth)
       ctx.modelRegistry.registerProvider(PROVIDER_OPENROUTER, {
         baseUrl: BASE_URL_OPENROUTER,
@@ -139,16 +194,23 @@ export default async function (pi: ExtensionAPI) {
 
     let models: ProviderModelConfig[] = [];
     let freeCount = 0;
+    let fetchResult: { free: ProviderModelConfig[]; all: ProviderModelConfig[] } | null = null;
 
     try {
-      const result = await fetchOpenRouterModels(apiKey);
-      freeCount = result.free.length;
-      models = SHOW_PAID ? result.all : result.free;
+      fetchResult = await fetchOpenRouterModels(apiKey);
+      freeCount = fetchResult.free.length;
+      models = SHOW_PAID ? fetchResult.all : fetchResult.free;
     } catch (error) {
       logWarning("openrouter", "Failed to fetch models", error);
     }
 
     if (models.length === 0) return;
+
+    // Store for command toggle
+    if (fetchResult) {
+      storedFreeModels = fetchResult.free;
+      storedAllModels = fetchResult.all;
+    }
 
     // Register our filtered provider
     ctx.modelRegistry.registerProvider(PROVIDER_OPENROUTER, {

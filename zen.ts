@@ -20,6 +20,10 @@ import { incrementRequestCount } from "./metrics.ts";
 // Module-level so it persists across sessions within the same process.
 let noticeShown = false;
 
+// Module-level storage for models (persists across session_start calls)
+let storedFreeModels: ProviderModelConfig[] = [];
+let storedAllModels: ProviderModelConfig[] = [];
+
 // =============================================================================
 // Static fallback models (from Pi's built-in + OpenCode docs)
 // Used when /models API is unavailable
@@ -254,6 +258,53 @@ export default async function (pi: ExtensionAPI) {
   // opencode provider, which also watches OPENCODE_API_KEY.
   const ZEN_KEY_VAR = "PI_FREE_ZEN_API_KEY";
 
+  // Register commands for toggling model visibility
+  pi.registerCommand("zen-free", {
+    description: "Show only free Zen models",
+    handler: async (_args, ctx) => {
+      if (storedFreeModels.length === 0) {
+        ctx.ui.notify("No free models loaded", "warning");
+        return;
+      }
+      // Re-register with free models only
+      ctx.modelRegistry.registerProvider(PROVIDER_ZEN, {
+        baseUrl: BASE_URL_ZEN,
+        apiKey: CONFIG_API_KEY ? ZEN_KEY_VAR : undefined,
+        api: "openai-completions" as const,
+        headers: {
+          "X-Title": "Pi",
+          "HTTP-Referer": "https://opencode.ai/",
+          "User-Agent": "pi-free-providers",
+        },
+        models: storedFreeModels,
+      });
+      ctx.ui.notify(`Zen: showing ${storedFreeModels.length} free models`, "info");
+    },
+  });
+
+  pi.registerCommand("zen-all", {
+    description: "Show all Zen models (free + paid)",
+    handler: async (_args, ctx) => {
+      if (storedAllModels.length === 0) {
+        ctx.ui.notify("No models loaded", "warning");
+        return;
+      }
+      // Re-register with all models
+      ctx.modelRegistry.registerProvider(PROVIDER_ZEN, {
+        baseUrl: BASE_URL_ZEN,
+        apiKey: CONFIG_API_KEY ? ZEN_KEY_VAR : undefined,
+        api: "openai-completions" as const,
+        headers: {
+          "X-Title": "Pi",
+          "HTTP-Referer": "https://opencode.ai/",
+          "User-Agent": "pi-free-providers",
+        },
+        models: storedAllModels,
+      });
+      ctx.ui.notify(`Zen: showing all ${storedAllModels.length} models`, "info");
+    },
+  });
+
   // Check in session_start if user already has auth for this provider
   // If yes: filter their models to free-only, use their key
   // If no: use our extension's key with filtered models
@@ -284,6 +335,10 @@ export default async function (pi: ExtensionAPI) {
         return;
       }
 
+      // Store for command toggle
+      storedFreeModels = freeModels;
+      storedAllModels = existingModels;
+
       // Register filtered version (no apiKey - uses existing Pi auth)
       ctx.modelRegistry.registerProvider(PROVIDER_ZEN, {
         baseUrl: BASE_URL_ZEN,
@@ -312,6 +367,10 @@ export default async function (pi: ExtensionAPI) {
       models = hasKey && SHOW_PAID ? result.all : result.free;
       freeCount = result.free.length;
       useStaticFallback = result.useStaticFallback;
+
+      // Store for command toggle
+      storedFreeModels = result.free;
+      storedAllModels = result.all;
     } catch (error) {
       logWarning("zen", "Failed to fetch models", error);
     }
