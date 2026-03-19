@@ -41,7 +41,7 @@ function formatPwdLine(width: number, footerData: any): string {
 }
 
 /** Build stats parts array from session data. */
-function buildStatsParts(ctx: any, theme: any): { parts: string[]; width: number } {
+function buildStatsParts(ctx: any, theme: any, footerData: any): { parts: string[]; width: number } {
   const model = ctx.model;
   const parts: string[] = [];
 
@@ -85,8 +85,8 @@ function buildStatsParts(ctx: any, theme: any): { parts: string[]; width: number
       : contextDisplay;
   parts.push(contextStr);
 
-  // Credits status
-  const creditsStatus = ctx.ui.getStatus?.("kilo-credits") || footerData.getExtensionStatuses?.().get("kilo-credits");
+  // Provider-specific status
+  const creditsStatus = ctx.ui.getStatus?.("kilo-credits") || ctx.ui.getStatus?.("openrouter-metrics") || footerData.getExtensionStatuses?.().get("kilo-credits");
   if (creditsStatus) parts.push(creditsStatus);
 
   const width = visibleWidth(parts.join(" "));
@@ -150,7 +150,7 @@ export function registerKiloFooter(pi: ExtensionAPI, ctx: any) {
           const pwdLine = theme.fg("dim", formatPwdLine(width, footerData));
 
           // Line 2: stats
-          const { parts: statsParts, width: statsLeftWidth } = buildStatsParts(ctx, theme);
+          const { parts: statsParts, width: statsLeftWidth } = buildStatsParts(ctx, theme, footerData);
           const statsLeft = statsParts.join(" ");
 
           const rightSide = buildRightSide(ctx, width, width - statsLeftWidth - 2, theme, footerData);

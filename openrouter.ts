@@ -13,6 +13,7 @@ import { SHOW_PAID, OPENROUTER_API_KEY as CONFIG_API_KEY, applyHidden, PROVIDER_
 import { getCached, setCached } from "./cache.ts";
 import { isUsableModel, mapOpenRouterModel, fetchWithRetry, logWarning } from "./util.ts";
 import { BASE_URL_OPENROUTER, DEFAULT_FETCH_TIMEOUT_MS } from "./constants.ts";
+import { fetchOpenRouterMetrics, setCachedMetrics } from "./metrics.ts";
 
 // =============================================================================
 // Fetch
@@ -122,6 +123,17 @@ export default async function (pi: ExtensionAPI) {
       ? `🔀 OpenRouter (${models.length} models)`
       : `🔀 OpenRouter (${freeCount} free)`;
     ctx.ui.setStatus("openrouter-status", theme.fg("accent", label));
+
+    // Fetch and cache metrics
+    const metrics = await fetchOpenRouterMetrics();
+    if (metrics) {
+      setCachedMetrics(PROVIDER_OPENROUTER, metrics);
+      if (metrics.rateLimit?.remainingToday !== undefined) {
+        const remaining = metrics.rateLimit.remainingToday;
+        const display = remaining > 900 ? `${remaining} remaining/day` : `${remaining}/day`;
+        ctx.ui.setStatus("openrouter-metrics", theme.fg("dim", `📊 ${display}`));
+      }
+    }
   });
 
   pi.on("model_select", (_event, ctx) => {

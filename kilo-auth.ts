@@ -25,7 +25,7 @@ const DEVICE_AUTH_ENDPOINT = `${KILO_API_BASE}/api/device-auth/codes`;
 const PROFILE_ENDPOINT = `${KILO_API_BASE}/api/profile`;
 
 // =============================================================================
-// Balance
+// Balance & Rate Limit
 // =============================================================================
 
 export async function fetchKiloBalance(token: string): Promise<number | null> {
