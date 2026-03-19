@@ -21,6 +21,133 @@ import { incrementRequestCount } from "./metrics.ts";
 let noticeShown = false;
 
 // =============================================================================
+// Static fallback models (from Pi's built-in + OpenCode docs)
+// Used when /models API is unavailable
+// =============================================================================
+
+const STATIC_ZEN_MODELS: ProviderModelConfig[] = [
+  // Free models (from OpenCode Zen docs)
+  {
+    id: "big-pickle",
+    name: "Big Pickle",
+    reasoning: true,
+    input: ["text"],
+    cost: { input: 0, output: 0 },
+    contextWindow: 200000,
+    maxTokens: 128000,
+  },
+  {
+    id: "minimax-m2.5-free",
+    name: "MiniMax M2.5 Free",
+    reasoning: true,
+    input: ["text"],
+    cost: { input: 0, output: 0 },
+    contextWindow: 200000,
+    maxTokens: 16384,
+  },
+  {
+    id: "mimo-v2-pro-free",
+    name: "MiMo V2 Pro Free",
+    reasoning: false,
+    input: ["text"],
+    cost: { input: 0, output: 0 },
+    contextWindow: 128000,
+    maxTokens: 16384,
+  },
+  {
+    id: "mimo-v2-omni-free",
+    name: "MiMo V2 Omni Free",
+    reasoning: false,
+    input: ["text", "image"],
+    cost: { input: 0, output: 0 },
+    contextWindow: 128000,
+    maxTokens: 16384,
+  },
+  {
+    id: "nemotron-3-super-free",
+    name: "Nemotron 3 Super Free",
+    reasoning: false,
+    input: ["text"],
+    cost: { input: 0, output: 0 },
+    contextWindow: 128000,
+    maxTokens: 16384,
+  },
+  {
+    id: "gpt-5-nano",
+    name: "GPT 5 Nano",
+    reasoning: false,
+    input: ["text"],
+    cost: { input: 0, output: 0 },
+    contextWindow: 128000,
+    maxTokens: 16384,
+  },
+  // Paid models (available when show_paid: true and API key set)
+  {
+    id: "claude-3-5-haiku",
+    name: "Claude Haiku 3.5",
+    reasoning: false,
+    input: ["text", "image"],
+    cost: { input: 0.8, output: 4 },
+    contextWindow: 200000,
+    maxTokens: 8192,
+  },
+  {
+    id: "claude-haiku-4-5",
+    name: "Claude Haiku 4.5",
+    reasoning: true,
+    input: ["text", "image"],
+    cost: { input: 1, output: 5 },
+    contextWindow: 200000,
+    maxTokens: 64000,
+  },
+  {
+    id: "claude-opus-4-5",
+    name: "Claude Opus 4.5",
+    reasoning: true,
+    input: ["text", "image"],
+    cost: { input: 5, output: 25 },
+    contextWindow: 200000,
+    maxTokens: 64000,
+  },
+  {
+    id: "claude-sonnet-4-5",
+    name: "Claude Sonnet 4.5",
+    reasoning: true,
+    input: ["text", "image"],
+    cost: { input: 3, output: 15 },
+    contextWindow: 200000,
+    maxTokens: 64000,
+  },
+  {
+    id: "gemini-3-flash",
+    name: "Gemini 3 Flash",
+    reasoning: false,
+    input: ["text", "image"],
+    cost: { input: 0.5, output: 3 },
+    contextWindow: 128000,
+    maxTokens: 16384,
+  },
+  {
+    id: "gemini-3.1-pro",
+    name: "Gemini 3.1 Pro",
+    reasoning: false,
+    input: ["text", "image"],
+    cost: { input: 2, output: 12 },
+    contextWindow: 200000,
+    maxTokens: 16384,
+  },
+  {
+    id: "minimax-m2.5",
+    name: "MiniMax M2.5",
+    reasoning: true,
+    input: ["text"],
+    cost: { input: 0.3, output: 1.2 },
+    contextWindow: 200000,
+    maxTokens: 16384,
+  },
+];
+
+// =============================================================================
 // Fetch helpers
 // =============================================================================
 
@@ -69,42 +196,53 @@ async function fetchZenModels(token: string): Promise<{
     return { all: cachedAll, free: cachedAll.filter((m) => (m.cost.input ?? 0) === 0) };
   }
 
-  const [gatewayIds, meta] = await Promise.all([
-    fetchGatewayModels(token),
-    fetchModelsMeta(),
-  ]);
+  try {
+    const [gatewayIds, meta] = await Promise.all([
+      fetchGatewayModels(token),
+      fetchModelsMeta(),
+    ]);
 
-  const all: ProviderModelConfig[] = [];
-  const free: ProviderModelConfig[] = [];
+    const all: ProviderModelConfig[] = [];
+    const free: ProviderModelConfig[] = [];
 
-  for (const id of gatewayIds) {
-    const m = meta[id];
+    for (const id of gatewayIds) {
+      const m = meta[id];
 
-    // Skip image-output models
-    if (m?.modalities?.output?.includes("image")) continue;
+      // Skip image-output models
+      if (m?.modalities?.output?.includes("image")) continue;
 
-    const config: ProviderModelConfig = {
-      id,
-      name: m?.name ?? id,
-      reasoning: m?.reasoning ?? false,
-      input: m?.modalities?.input?.includes("image") ? ["text", "image"] : ["text"],
-      cost: {
-        input: m?.cost?.input ?? 0,
-        output: m?.cost?.output ?? 0,
-        cacheRead: m?.cost?.cache_read,
-        cacheWrite: m?.cost?.cache_write,
-      },
-      contextWindow: m?.limit?.context ?? 128_000,
-      maxTokens: m?.limit?.output ?? 16_384,
+      const config: ProviderModelConfig = {
+        id,
+        name: m?.name ?? id,
+        reasoning: m?.reasoning ?? false,
+        input: m?.modalities?.input?.includes("image") ? ["text", "image"] : ["text"],
+        cost: {
+          input: m?.cost?.input ?? 0,
+          output: m?.cost?.output ?? 0,
+          cacheRead: m?.cost?.cache_read,
+          cacheWrite: m?.cost?.cache_write,
+        },
+        contextWindow: m?.limit?.context ?? 128_000,
+        maxTokens: m?.limit?.output ?? 16_384,
+      };
+
+      all.push(config);
+      if ((m?.cost?.input ?? 0) === 0) free.push(config);
+    }
+
+    const result = { all: applyHidden(all), free: applyHidden(free) };
+    setCached(PROVIDER_ZEN, result.all);
+    return result;
+  } catch (error) {
+    // Fallback to static models if API fails
+    logWarning("zen", "Using static fallback models (API unavailable)", error);
+    const result = {
+      all: applyHidden(STATIC_ZEN_MODELS),
+      free: applyHidden(STATIC_ZEN_MODELS.filter((m) => (m.cost.input ?? 0) === 0)),
     };
-
-    all.push(config);
-    if ((m?.cost?.input ?? 0) === 0) free.push(config);
+    setCached(PROVIDER_ZEN, result.all);
+    return result;
   }
-
-  const result = { all: applyHidden(all), free: applyHidden(free) };
-  setCached(PROVIDER_ZEN, result.all);
-  return result;
 }
 
 // =============================================================================
