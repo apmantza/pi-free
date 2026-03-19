@@ -2,7 +2,7 @@
 
 All-in-one free model providers for [Pi](https://pi.dev) — the coding agent CLI.
 
-Adds four providers in a single install:
+Adds five providers in a single install:
 
 | Provider | Free models | Needs key? |
 |---|---|---|
@@ -10,6 +10,7 @@ Adds four providers in a single install:
 | **OpenCode Zen** | 11 (no signup) | No — optional key for paid |
 | **OpenRouter** | 29 | Yes (free account) |
 | **NVIDIA NIM** | 70B+ models | Yes (free credits) |
+| **Cline** | Free tier | Yes (free account) |
 
 ---
 
@@ -31,6 +32,19 @@ pi
 ```
 
 Press `Ctrl+L` to open the model selector and pick any Kilo or Zen model.
+
+---
+
+## Usage dashboard
+
+Press `/usage` to open a floating dashboard showing free quota status across all providers:
+
+- Request counts per provider (session + daily)
+- Credit balances (Kilo, OpenRouter)
+- Progress bars for daily limits (OpenRouter)
+- Cumulative token usage and cost saved across all sessions
+
+Requires [glimpseui](https://github.com/nicehash/glimpseui) — run `/usage` again to close.
 
 ---
 
@@ -72,6 +86,7 @@ export PI_FREE_KILO_FREE_ONLY=true
 | OpenRouter | [openrouter.ai/keys](https://openrouter.ai/keys) — free account, no credit card |
 | NVIDIA NIM | [build.nvidia.com](https://build.nvidia.com) — free credits on signup |
 | OpenCode Zen | [opencode.ai/auth](https://opencode.ai/auth) — optional, free models work without one |
+| Cline | [cline.bot](https://cline.bot) — free account |
 
 ---
 
@@ -92,6 +107,18 @@ To log out:
 ```
 
 Alternatively, set `KILO_API_KEY` directly if you have a Kilo API key.
+
+---
+
+## Cline authentication
+
+Cline uses a browser-based OAuth flow. Inside Pi:
+
+```
+/login cline
+```
+
+A browser window opens for sign-in. Once approved, free Cline models are available. Auth flow is based on [pi-cline](https://github.com/sudosubin/pi-frontier/tree/main/pi-cline)'s implementation.
 
 ---
 
@@ -117,10 +144,14 @@ You can also toggle between free and all models **live** using slash commands:
 
 | Command | Description |
 |---------|-------------|
+| `/kilo-free` | Show only free Kilo models |
+| `/kilo-all` | Show all Kilo models (free + paid) |
 | `/openrouter-free` | Show only free OpenRouter models |
 | `/openrouter-all` | Show all OpenRouter models (free + paid) |
 | `/zen-free` | Show only free Zen models |
 | `/zen-all` | Show all Zen models (free + paid) |
+| `/nvidia-free` | Show only free NVIDIA models |
+| `/nvidia-all` | Show all NVIDIA models (free + paid) |
 
 These commands let you switch instantly without restarting Pi.
 
@@ -160,6 +191,7 @@ This works for all providers and persists across sessions.
 | OpenCode Zen | 11 free models | All models (requires `opencode_api_key`) |
 | OpenRouter | 29 free models | 300+ models (requires `openrouter_api_key`) |
 | NVIDIA NIM | All 70B+ models | Same (uses free credits) |
+| Cline | Free tier models | Free tier only |
 
 ---
 
@@ -179,36 +211,49 @@ This removes noise like small Phi, Gemma, and 7B variants. If you want everythin
 ```
 ~/.pi/free.json       ← your API keys and config (create this)
 ~/.pi/free-cache.json ← model cache (auto-managed, 1hr TTL)
+~/.pi/free-usage.json ← cumulative usage stats (auto-managed)
 
 # Extension files (managed by Pi):
 kilo.ts               ← Kilo provider entry point
 kilo-auth.ts          ← Kilo device OAuth flow
 kilo-models.ts        ← Kilo model fetch + mapping
-kilo-footer.ts        ← Kilo custom footer (tokens, credits)
 zen.ts                ← OpenCode Zen provider
 openrouter.ts         ← OpenRouter provider
 nvidia.ts             ← NVIDIA NIM provider
+cline.ts              ← Cline provider (free models, message shaping)
+cline-auth.ts         ← Cline OAuth flow
+cline-models.ts       ← Cline model fetch
 
-# Shared utilities:
+# Shared:
+provider-helper.ts    ← shared provider boilerplate (commands, events)
+usage-widget.ts       ← glimpseui floating usage dashboard
+usage-store.ts        ← persistent cumulative usage tracking
 config.ts             ← config loading (keys, flags)
 constants.ts          ← provider names, URLs, thresholds
 types.ts              ← TypeScript interfaces
 util.ts               ← parsePrice, fetchWithRetry, isUsableModel, etc.
 cache.ts              ← file-backed model cache
+metrics.ts            ← request counting, rate limit tracking
 ```
 
 ---
 
 ## Troubleshooting
 
-**No models appearing for OpenRouter / NVIDIA**
+**No models appearing for OpenRouter / NVIDIA / Cline**
 → Check that your key is set correctly in `~/.pi/free.json` or as an env var.
 
 **Kilo models disappeared after restart**
 → Run `/login kilo` again — the session token may have expired.
 
+**Cline login not completing**
+→ The callback server scans ports 48801-48811. Make sure these aren't blocked by a firewall. If on a remote machine, paste the full callback URL from the browser when prompted.
+
 **`zen` provider not working with a key**
 → Make sure `opencode_api_key` is in `~/.pi/free.json`, or `OPENCODE_API_KEY` is exported before starting Pi.
+
+**Usage widget won't open**
+→ The `/usage` command requires [glimpseui](https://github.com/nicehash/glimpseui). If it's not installed, Pi's built-in footer still shows token/cost info.
 
 **Want to see what models loaded**
 → Press `Ctrl+L` in Pi to open the model selector — all active providers and their models are listed there.
