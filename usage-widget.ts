@@ -23,9 +23,10 @@ interface ProviderRow {
   icon: string;
   // This session
   sessionReqs: number;
-  // Today
   dailyReqs: number;
+  // Known limits (static or from API)
   dailyLimit?: number;
+  hourlyLimit?: number;
   remainingToday?: number;
   // Cumulative (all time)
   totalTokensIn: number;
@@ -76,6 +77,7 @@ function collectRows(): ProviderRow[] {
 
   function makeRow(provider: string, key: string, icon: string, opts?: {
     dailyLimit?: number;
+    hourlyLimit?: number;
     remainingToday?: number;
     credits?: number;
     creditsLabel?: string;
@@ -86,6 +88,7 @@ function collectRows(): ProviderRow[] {
       sessionReqs: getRequestCount(key),
       dailyReqs: getDailyRequestCount(key),
       dailyLimit: opts?.dailyLimit,
+      hourlyLimit: opts?.hourlyLimit,
       remainingToday: opts?.remainingToday,
       totalTokensIn: c?.tokensIn ?? 0,
       totalTokensOut: c?.tokensOut ?? 0,
@@ -99,6 +102,7 @@ function collectRows(): ProviderRow[] {
 
   return [
     makeRow("Kilo", PROVIDER_KILO, "🔥", {
+      hourlyLimit: 200, // 200 req/hr per IP (anonymous)
       credits: kiloMetrics?.balance,
       creditsLabel: "balance",
     }),
@@ -155,7 +159,7 @@ function renderHTML(rows: ProviderRow[]): string {
         </div>`;
     }
 
-    // Info line: cumulative + credits
+    // Info line: cumulative + credits + limits
     const infoParts: string[] = [];
     if (r.totalRequests > 0) {
       infoParts.push(`${formatTokens(r.totalTokensIn + r.totalTokensOut)} tok · ${r.totalRequests} reqs`);
@@ -168,6 +172,9 @@ function renderHTML(rows: ProviderRow[]): string {
     }
     if (r.remainingToday !== undefined) {
       infoParts.push(`${r.remainingToday} left today`);
+    }
+    if (r.hourlyLimit) {
+      infoParts.push(`${r.hourlyLimit}/hr limit`);
     }
     if (r.credits !== undefined) {
       infoParts.push(`💰 ${formatCost(r.credits)}`);
@@ -204,6 +211,9 @@ function renderHTML(rows: ProviderRow[]): string {
   <div class="header">Free Usage</div>
   ${summaryHTML}
   ${providerRows}
+  <div style="font-size: 10px; color: #555; margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.05);">
+    Each gateway has independent quotas — using multiple providers multiplies capacity.
+  </div>
 </body></html>`;
 }
 
