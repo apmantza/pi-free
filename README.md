@@ -36,23 +36,33 @@ Press `Ctrl+L` to open the model selector and pick any Kilo or Zen model.
 
 ## Adding API keys
 
-For OpenRouter and NVIDIA, create `~/.pi/free.json`:
+Create `~/.pi/free.json` for persistent config:
 
 ```json
 {
   "openrouter_api_key": "sk-or-v1-...",
   "nvidia_api_key":     "nvapi-...",
   "opencode_api_key":   "oc-...",
-  "show_paid":          false
+  "show_paid":          false,
+  "kilo_free_only":     false,
+  "hidden_models":      []
 }
 ```
 
-Or use environment variables (take priority over the config file):
+| Option | Description |
+|--------|-------------|
+| `show_paid` | Include paid models for providers where you have a key |
+| `kilo_free_only` | Restrict Kilo to free models even after login |
+| `hidden_models` | Array of model IDs to hide from the selector |
+
+Or use environment variables (take priority over config file):
 
 ```bash
 export OPENROUTER_API_KEY="sk-or-v1-..."
 export NVIDIA_API_KEY="nvapi-..."
 export OPENCODE_API_KEY="oc-..."
+export PI_FREE_SHOW_PAID=true
+export PI_FREE_KILO_FREE_ONLY=true
 ```
 
 ### Get your free keys
@@ -101,14 +111,30 @@ Or via environment variable:
 export PI_FREE_SHOW_PAID=true
 ```
 
-Effect per provider:
+---
 
-| Provider | `show_paid: false` | `show_paid: true` |
-|---|---|---|
-| Kilo | Free models only | All models (after `/login kilo`) |
-| OpenCode Zen | Free models only | All models (requires `opencode_api_key`) |
+## Hiding specific models
+
+Add model IDs to `hidden_models` in `~/.pi/free.json` to remove them from the selector:
+
+```json
+{
+  "hidden_models": ["meta-llama/llama-3.1-8b-instruct", "some-unwanted-model"]
+}
+```
+
+This works for all providers and persists across sessions.
+
+---
+
+## Provider model availability
+
+| Provider | Free only | With key (show_paid: true) |
+|----------|------------|----------------------------|
+| Kilo | 14 free models | All 300+ models (after `/login kilo`) |
+| OpenCode Zen | 11 free models | All models (requires `opencode_api_key`) |
 | OpenRouter | 29 free models | 300+ models (requires `openrouter_api_key`) |
-| NVIDIA NIM | All 70B+ free-credit models | Same (no paid distinction) |
+| NVIDIA NIM | All 70B+ models | Same (uses free credits) |
 
 ---
 
@@ -127,17 +153,20 @@ This removes noise like small Phi, Gemma, and 7B variants. If you want everythin
 
 ```
 ~/.pi/free.json       ← your API keys and config (create this)
+~/.pi/free-cache.json ← model cache (auto-managed, 1hr TTL)
 
 # Extension files (managed by Pi):
 kilo.ts               ← Kilo provider entry point
 kilo-auth.ts          ← Kilo device OAuth flow
 kilo-models.ts        ← Kilo model fetch + mapping
-kilo-footer.ts        ← Kilo status footer
+kilo-footer.ts        ← Kilo custom footer (tokens, credits)
 zen.ts                ← OpenCode Zen provider
 openrouter.ts         ← OpenRouter provider
 nvidia.ts             ← NVIDIA NIM provider
-config.ts             ← shared key resolution + SHOW_PAID flag
-package.json          ← Pi extension manifest
+config.ts             ← shared config (keys, flags)
+cache.ts              ← file-backed model cache
+model-filter.ts       ← quality filter (removes small models)
+fetch-util.ts         ← fetch with retry logic
 ```
 
 ---
