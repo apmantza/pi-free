@@ -3,14 +3,17 @@
  *
  * Keys and flags are resolved in this order (first wins):
  *   1. Environment variable
- *   2. ~/.pi-free.json  (auto-created on first run)
+ *   2. ~/.pi/free.json
  *
  * PI_FREE_SHOW_PAID=true — include paid models for providers where an API key
  *                          is set. Free-only providers (no key) are unaffected.
+ *
+ * PI_FREE_KILO_FREE_ONLY=true — restrict Kilo to free models even after login.
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
+import { PROVIDER_KILO, PROVIDER_OPENROUTER, PROVIDER_NVIDIA, PROVIDER_ZEN } from "./constants.ts";
 
 interface PiFreeConfig {
   openrouter_api_key?: string;
@@ -77,3 +80,6 @@ export function applyHidden<T extends { id: string }>(models: T[]): T[] {
 export const OPENROUTER_API_KEY = resolve("OPENROUTER_API_KEY", file.openrouter_api_key);
 export const NVIDIA_API_KEY     = resolve("NVIDIA_API_KEY",     file.nvidia_api_key);
 export const OPENCODE_API_KEY   = resolve("OPENCODE_API_KEY",   file.opencode_api_key);
+
+// Re-export provider names for consistency
+export { PROVIDER_KILO, PROVIDER_OPENROUTER, PROVIDER_NVIDIA, PROVIDER_ZEN };

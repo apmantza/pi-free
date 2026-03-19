@@ -12,46 +12,23 @@
  */
 
 import type { ExtensionAPI, ProviderModelConfig } from "@mariozechner/pi-coding-agent";
-import { SHOW_PAID, NVIDIA_API_KEY as CONFIG_API_KEY, applyHidden } from "./config.ts";
+import type { ModelsDevProvider } from "./types.ts";
+import { SHOW_PAID, NVIDIA_API_KEY as CONFIG_API_KEY, applyHidden, PROVIDER_NVIDIA } from "./config.ts";
 import { getCached, setCached } from "./cache.ts";
-import { isUsableModel } from "./model-filter.ts";
-import { fetchWithRetry } from "./fetch-util.ts";
-
-const NVIDIA_GATEWAY_BASE = "https://integrate.api.nvidia.com/v1";
-const MODELS_DEV_URL = "https://models.dev/api.json";
-const MODELS_FETCH_TIMEOUT_MS = 10_000;
-const NVIDIA_MIN_SIZE_B = 70;
-
-// =============================================================================
-// Types (models.dev schema)
-// =============================================================================
-
-interface ModelsDevModel {
-  id: string;
-  name: string;
-  reasoning: boolean;
-  cost?: { input: number; output: number; cache_read?: number; cache_write?: number };
-  limit: { context: number; output: number };
-  modalities?: { input?: string[]; output?: string[] };
-}
-
-interface ModelsDevProvider {
-  id: string;
-  api: string;
-  models: Record<string, ModelsDevModel>;
-}
+import { isUsableModel, fetchWithRetry, logWarning } from "./util.ts";
+import { BASE_URL_NVIDIA, URL_MODELS_DEV, NVIDIA_MIN_SIZE_B, DEFAULT_FETCH_TIMEOUT_MS } from "./constants.ts";
 
 // =============================================================================
 // Fetch + map
 // =============================================================================
 
 async function fetchNvidiaModels(): Promise<ProviderModelConfig[]> {
-  const cached = getCached<ProviderModelConfig>("nvidia");
+  const cached = getCached<ProviderModelConfig>(PROVIDER_NVIDIA);
   if (cached) return cached;
 
-  const response = await fetchWithRetry(MODELS_DEV_URL, {
+  const response = await fetchWithRetry(URL_MODELS_DEV, {
     headers: { "User-Agent": "pi-free-providers" },
-    signal: AbortSignal.timeout(MODELS_FETCH_TIMEOUT_MS),
+    timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
   });
 
   if (!response.ok) {
@@ -85,7 +62,7 @@ async function fetchNvidiaModels(): Promise<ProviderModelConfig[]> {
       maxTokens: m.limit.output,
     })));
 
-  setCached("nvidia", result);
+  setCached(PROVIDER_NVIDIA, result);
   return result;
 }
 
@@ -107,13 +84,13 @@ export default async function (pi: ExtensionAPI) {
   try {
     models = await fetchNvidiaModels();
   } catch (error) {
-    console.warn("[nvidia] Failed to fetch models:", error instanceof Error ? error.message : error);
+    logWarning("nvidia", "Failed to fetch models", error);
   }
 
   if (models.length === 0) return;
 
-  pi.registerProvider("nvidia", {
-    baseUrl: NVIDIA_GATEWAY_BASE,
+  pi.registerProvider(PROVIDER_NVIDIA, {
+    baseUrl: BASE_URL_NVIDIA,
     apiKey: "NVIDIA_API_KEY",
     api: "openai-completions" as const,
     headers: {
@@ -128,6 +105,6 @@ export default async function (pi: ExtensionAPI) {
   });
 
   pi.on("model_select", (_event, ctx) => {
-    if (_event.model?.provider !== "nvidia") ctx.ui.setStatus("nvidia-status", undefined);
+    if (_event.model?.provider !== PROVIDER_NVIDIA) ctx.ui.setStatus("nvidia-status", undefined);
   });
 }

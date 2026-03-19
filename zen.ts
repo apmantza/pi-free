@@ -10,35 +10,14 @@
  */
 
 import type { ExtensionAPI, ProviderModelConfig } from "@mariozechner/pi-coding-agent";
-import { SHOW_PAID, OPENCODE_API_KEY as CONFIG_API_KEY, applyHidden } from "./config.ts";
+import type { ZenGatewayModel, ModelsDevModel } from "./types.ts";
+import { SHOW_PAID, OPENCODE_API_KEY as CONFIG_API_KEY, applyHidden, PROVIDER_ZEN } from "./config.ts";
 import { getCached, setCached } from "./cache.ts";
-import { fetchWithRetry } from "./fetch-util.ts";
-
-const ZEN_GATEWAY_BASE = "https://opencode.ai/zen/v1";
-const MODELS_DEV_URL = "https://models.dev/api.json";
-const ZEN_TOS_URL = "https://opencode.ai/terms";
-const FETCH_TIMEOUT_MS = 10_000;
+import { fetchWithRetry, logWarning } from "./util.ts";
+import { BASE_URL_ZEN, URL_MODELS_DEV, URL_ZEN_TOS, DEFAULT_FETCH_TIMEOUT_MS } from "./constants.ts";
 
 // Module-level so it persists across sessions within the same process.
 let noticeShown = false;
-
-// =============================================================================
-// Types
-// =============================================================================
-
-interface GatewayModel {
-  id: string;
-  object?: string;
-}
-
-interface ModelsDevModel {
-  id: string;
-  name: string;
-  reasoning: boolean;
-  cost?: { input: number; output: number; cache_read?: number; cache_write?: number };
-  limit: { context: number; output: number };
-  modalities?: { input?: string[]; output?: string[] };
-}
 
 // =============================================================================
 // Fetch helpers
@@ -46,27 +25,27 @@ interface ModelsDevModel {
 
 /** Fetch the model list from the Zen gateway — authoritative for what's deployed. */
 async function fetchGatewayModels(token: string): Promise<string[]> {
-  const response = await fetchWithRetry(`${ZEN_GATEWAY_BASE}/models`, {
+  const response = await fetchWithRetry(`${BASE_URL_ZEN}/models`, {
     headers: {
       Authorization: `Bearer ${token}`,
       "User-Agent": "pi-free-providers",
     },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
   });
 
   if (!response.ok) {
     throw new Error(`Zen /models returned ${response.status} ${response.statusText}`);
   }
 
-  const json = (await response.json()) as { data?: GatewayModel[] };
+  const json = (await response.json()) as { data?: ZenGatewayModel[] };
   return (json.data ?? []).map((m) => m.id);
 }
 
 /** Fetch metadata for the opencode provider from models.dev. */
 async function fetchModelsMeta(): Promise<Record<string, ModelsDevModel>> {
-  const response = await fetchWithRetry(MODELS_DEV_URL, {
+  const response = await fetchWithRetry(URL_MODELS_DEV, {
     headers: { "User-Agent": "pi-free-providers" },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
   });
 
   if (!response.ok) return {};
@@ -84,7 +63,7 @@ async function fetchZenModels(token: string): Promise<{
   all: ProviderModelConfig[];
   free: ProviderModelConfig[];
 }> {
-  const cachedAll = getCached<ProviderModelConfig>("zen");
+  const cachedAll = getCached<ProviderModelConfig>(PROVIDER_ZEN);
   if (cachedAll) {
     return { all: cachedAll, free: cachedAll.filter((m) => (m.cost.input ?? 0) === 0) };
   }
@@ -123,7 +102,7 @@ async function fetchZenModels(token: string): Promise<{
   }
 
   const result = { all: applyHidden(all), free: applyHidden(free) };
-  setCached("zen", result.all);
+  setCached(PROVIDER_ZEN, result.all);
   return result;
 }
 
@@ -148,13 +127,13 @@ export default async function (pi: ExtensionAPI) {
     models = hasKey && SHOW_PAID ? result.all : result.free;
     freeCount = result.free.length;
   } catch (error) {
-    console.warn("[zen] Failed to fetch models:", error instanceof Error ? error.message : error);
+    logWarning("zen", "Failed to fetch models", error);
   }
 
   if (models.length === 0) return;
 
-  pi.registerProvider("zen", {
-    baseUrl: ZEN_GATEWAY_BASE,
+  pi.registerProvider(PROVIDER_ZEN, {
+    baseUrl: BASE_URL_ZEN,
     apiKey: ZEN_KEY_VAR,
     api: "openai-completions" as const,
     headers: {
@@ -174,16 +153,16 @@ export default async function (pi: ExtensionAPI) {
   });
 
   pi.on("model_select", (_event, ctx) => {
-    if (_event.model?.provider !== "zen") ctx.ui.setStatus("zen-status", undefined);
+    if (_event.model?.provider !== PROVIDER_ZEN) ctx.ui.setStatus("zen-status", undefined);
   });
 
   pi.on("before_agent_start", async (_event, ctx) => {
-    if (noticeShown || hasKey || ctx.model?.provider !== "zen") return;
+    if (noticeShown || hasKey || ctx.model?.provider !== PROVIDER_ZEN) return;
     noticeShown = true;
     return {
       message: {
         customType: "zen",
-        content: `Using OpenCode Zen free models. Set OPENCODE_API_KEY for paid access.\nTerms: ${ZEN_TOS_URL}`,
+        content: `Using OpenCode Zen free models. Set OPENCODE_API_KEY for paid access.\nTerms: ${URL_ZEN_TOS}`,
         display: "inline",
       },
     };

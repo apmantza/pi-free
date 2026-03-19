@@ -2,85 +2,14 @@
  * Kilo model fetching and mapping (OpenRouter-compatible format).
  */
 
-import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
+import type { ProviderModelConfig } from "./types.ts";
 import { getCached, setCached } from "./cache.ts";
-import { applyHidden } from "./config.ts";
-import { isUsableModel } from "./model-filter.ts";
-import { fetchWithRetry } from "./fetch-util.ts";
+import { applyHidden, PROVIDER_KILO } from "./config.ts";
+import { isUsableModel, mapOpenRouterModel, fetchWithRetry, parsePrice } from "./util.ts";
+import { BASE_URL_KILO, DEFAULT_FETCH_TIMEOUT_MS } from "./constants.ts";
 
 const KILO_API_BASE = process.env.KILO_API_URL || "https://api.kilo.ai";
 export const KILO_GATEWAY_BASE = `${KILO_API_BASE}/api/gateway`;
-const MODELS_FETCH_TIMEOUT_MS = 10_000;
-
-// =============================================================================
-// Types
-// =============================================================================
-
-interface OpenRouterModel {
-  id: string;
-  name: string;
-  context_length: number;
-  max_completion_tokens?: number | null;
-  pricing?: {
-    prompt?: string | null;
-    completion?: string | null;
-    input_cache_write?: string | null;
-    input_cache_read?: string | null;
-  };
-  architecture?: {
-    input_modalities?: string[] | null;
-    output_modalities?: string[] | null;
-  };
-  top_provider?: { max_completion_tokens?: number | null };
-  supported_parameters?: string[];
-}
-
-// =============================================================================
-// Helpers
-// =============================================================================
-
-function parsePrice(price: string | null | undefined): number {
-  if (!price) return 0;
-  const parsed = parseFloat(price);
-  if (isNaN(parsed)) return 0;
-  // OpenRouter prices are per-token; Pi expects per-million-token
-  return parsed * 1_000_000;
-}
-
-function isFreeModel(m: OpenRouterModel): boolean {
-  const prompt = parseFloat(m.pricing?.prompt ?? "1");
-  const completion = parseFloat(m.pricing?.completion ?? "1");
-  if (prompt !== 0 || completion !== 0) return false;
-  if (m.id.includes(":free")) return true;
-  if (!m.id.includes("/")) return true;
-  if (m.id.startsWith("kilo/") || m.id.startsWith("openrouter/")) return true;
-  return false;
-}
-
-function mapOpenRouterModel(m: OpenRouterModel): ProviderModelConfig {
-  const inputModalities = m.architecture?.input_modalities ?? ["text"];
-  const supportsImages = inputModalities.includes("image");
-  const supportsReasoning = m.supported_parameters?.includes("reasoning") ?? false;
-  const maxTokens =
-    m.top_provider?.max_completion_tokens ??
-    m.max_completion_tokens ??
-    Math.ceil(m.context_length * 0.2);
-
-  return {
-    id: m.id,
-    name: m.name,
-    reasoning: supportsReasoning,
-    input: supportsImages ? ["text", "image"] : ["text"],
-    cost: {
-      input: parsePrice(m.pricing?.prompt),
-      output: parsePrice(m.pricing?.completion),
-      cacheRead: parsePrice(m.pricing?.input_cache_read),
-      cacheWrite: parsePrice(m.pricing?.input_cache_write),
-    },
-    contextWindow: m.context_length,
-    maxTokens,
-  };
-}
 
 // =============================================================================
 // Fetch
@@ -102,14 +31,14 @@ export async function fetchKiloModels(options?: {
 
   const response = await fetchWithRetry(`${KILO_GATEWAY_BASE}/models`, {
     headers,
-    signal: AbortSignal.timeout(MODELS_FETCH_TIMEOUT_MS),
+    signal: AbortSignal.timeout(DEFAULT_FETCH_TIMEOUT_MS),
   });
 
   if (!response.ok) {
     throw new Error(`Failed to fetch models: ${response.status} ${response.statusText}`);
   }
 
-  const json = (await response.json()) as { data?: OpenRouterModel[] };
+  const json = (await response.json()) as { data?: { id: string; name: string; context_length: number; max_completion_tokens?: number | null; pricing?: { prompt?: string | null; completion?: string | null; input_cache_read?: string | null; input_cache_write?: string | null }; architecture?: { input_modalities?: string[] | null; output_modalities?: string[] | null }; top_provider?: { max_completion_tokens?: number | null }; supported_parameters?: string[] }[] };
   if (!json.data || !Array.isArray(json.data)) {
     throw new Error("Invalid models response: missing data array");
   }
@@ -118,7 +47,11 @@ export async function fetchKiloModels(options?: {
     .filter((m) => {
       const outputMods = m.architecture?.output_modalities ?? [];
       if (outputMods.includes("image")) return false;
-      if (options?.freeOnly && !isFreeModel(m)) return false;
+      if (options?.freeOnly) {
+        const prompt = parseFloat(m.pricing?.prompt ?? "1");
+        const completion = parseFloat(m.pricing?.completion ?? "1");
+        if (prompt !== 0 || completion !== 0) return false;
+      }
       if (!isUsableModel(m.id)) return false;
       return true;
     })

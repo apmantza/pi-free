@@ -163,10 +163,13 @@ kilo-footer.ts        ← Kilo custom footer (tokens, credits)
 zen.ts                ← OpenCode Zen provider
 openrouter.ts         ← OpenRouter provider
 nvidia.ts             ← NVIDIA NIM provider
-config.ts             ← shared config (keys, flags)
+
+# Shared utilities:
+config.ts             ← config loading (keys, flags)
+constants.ts          ← provider names, URLs, thresholds
+types.ts              ← TypeScript interfaces
+util.ts               ← parsePrice, fetchWithRetry, isUsableModel, etc.
 cache.ts              ← file-backed model cache
-model-filter.ts       ← quality filter (removes small models)
-fetch-util.ts         ← fetch with retry logic
 ```
 
 ---

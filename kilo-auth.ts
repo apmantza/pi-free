@@ -4,11 +4,11 @@
 
 import type { OAuthCredentials, OAuthLoginCallbacks } from "@mariozechner/pi-ai";
 import { spawn } from "child_process";
+import { KILO_POLL_INTERVAL_MS, KILO_TOKEN_EXPIRATION_MS } from "./constants.ts";
 
 function openBrowser(url: string): void {
   try {
     if (process.platform === "win32") {
-      // start needs an empty title arg or it chokes on URLs containing special chars
       spawn("cmd", ["/c", "start", "", url], { detached: true, shell: false }).unref();
     } else if (process.platform === "darwin") {
       spawn("open", [url], { detached: true }).unref();
@@ -23,8 +23,6 @@ function openBrowser(url: string): void {
 const KILO_API_BASE = process.env.KILO_API_URL || "https://api.kilo.ai";
 const DEVICE_AUTH_ENDPOINT = `${KILO_API_BASE}/api/device-auth/codes`;
 const PROFILE_ENDPOINT = `${KILO_API_BASE}/api/profile`;
-const POLL_INTERVAL_MS = 3000;
-const TOKEN_EXPIRATION_MS = 365 * 24 * 60 * 60 * 1000;
 
 // =============================================================================
 // Balance
@@ -105,13 +103,13 @@ export async function loginKilo(callbacks: OAuthLoginCallbacks): Promise<OAuthCr
   const deadline = Date.now() + expiresIn * 1000;
   while (Date.now() < deadline) {
     if (callbacks.signal?.aborted) throw new Error("Login cancelled");
-    await abortableSleep(POLL_INTERVAL_MS, callbacks.signal);
+    await abortableSleep(KILO_POLL_INTERVAL_MS, callbacks.signal);
 
     const result = await pollDeviceAuth(code);
     if (result.status === "approved") {
       if (!result.token) throw new Error("Authorization approved but no token received");
       callbacks.onProgress?.("Login successful!");
-      return { refresh: result.token, access: result.token, expires: Date.now() + TOKEN_EXPIRATION_MS };
+      return { refresh: result.token, access: result.token, expires: Date.now() + KILO_TOKEN_EXPIRATION_MS };
     }
     if (result.status === "denied") throw new Error("Authorization denied by user.");
     if (result.status === "expired") throw new Error("Authorization code expired. Please try again.");

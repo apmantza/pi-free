@@ -6,11 +6,11 @@
  * provider lookups (e.g. session_start + model_select) don't hit disk.
  */
 
-import { readFileSync, writeFileSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
+import { CACHE_TTL_MS } from "./constants.ts";
 
 const CACHE_PATH = join(process.env.HOME || process.env.USERPROFILE || "", ".pi", "free-cache.json");
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 interface CacheEntry {
   models: unknown[];
@@ -37,6 +37,9 @@ function load(): CacheStore {
 function save(): void {
   if (!mem) return;
   try {
+    // Ensure directory exists
+    const dir = join(process.env.HOME || process.env.USERPROFILE || "", ".pi");
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     writeFileSync(CACHE_PATH, JSON.stringify(mem, null, 2) + "\n", "utf8");
   } catch { /* non-fatal */ }
 }
@@ -60,5 +63,11 @@ export function setCached<T>(key: string, models: T[]): void {
 export function invalidate(key: string): void {
   const store = load();
   delete store[key];
+  save();
+}
+
+/** Clears all cache entries. */
+export function clearCache(): void {
+  mem = {};
   save();
 }
