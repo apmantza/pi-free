@@ -15,6 +15,7 @@ import { SHOW_PAID, OPENCODE_API_KEY as CONFIG_API_KEY, applyHidden, PROVIDER_ZE
 import { getCached, setCached } from "./cache.ts";
 import { fetchWithRetry, logWarning } from "./util.ts";
 import { BASE_URL_ZEN, URL_MODELS_DEV, URL_ZEN_TOS, DEFAULT_FETCH_TIMEOUT_MS } from "./constants.ts";
+import { incrementRequestCount } from "./metrics.ts";
 
 // Module-level so it persists across sessions within the same process.
 let noticeShown = false;
@@ -154,6 +155,12 @@ export default async function (pi: ExtensionAPI) {
 
   pi.on("model_select", (_event, ctx) => {
     if (_event.model?.provider !== PROVIDER_ZEN) ctx.ui.setStatus("zen-status", undefined);
+  });
+
+  pi.on("turn_end", async (_event, ctx) => {
+    if (ctx.model?.provider === PROVIDER_ZEN) {
+      incrementRequestCount(PROVIDER_ZEN);
+    }
   });
 
   pi.on("before_agent_start", async (_event, ctx) => {

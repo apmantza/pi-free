@@ -2,9 +2,9 @@
  * Provider usage metrics - tracks rate limits and usage for each provider.
  */
 
-import { OPENROUTER_API_KEY } from "./config.ts";
+import { OPENROUTER_API_KEY, OPENCODE_API_KEY } from "./config.ts";
 import { fetchWithRetry, formatError, logWarning } from "./util.ts";
-import { BASE_URL_OPENROUTER, DEFAULT_FETCH_TIMEOUT_MS } from "./constants.ts";
+import { BASE_URL_OPENROUTER, BASE_URL_ZEN, DEFAULT_FETCH_TIMEOUT_MS } from "./constants.ts";
 
 // =============================================================================
 // Types
@@ -19,7 +19,45 @@ export interface ProviderMetrics {
   };
   balance?: number;
   credits?: number;
+  requestsToday: number;
   lastUpdated: number;
+}
+
+// =============================================================================
+// Request counting (in-memory per session)
+// =============================================================================
+
+const requestCounts: Map<string, number> = new Map();
+const dailyRequestCounts: Map<string, { count: number; date: string }> = new Map();
+
+function getTodayDate(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
+export function incrementRequestCount(provider: string): void {
+  const key = `${provider}_session`;
+  const count = requestCounts.get(key) || 0;
+  requestCounts.set(key, count + 1);
+
+  // Daily counter
+  const today = getTodayDate();
+  const dailyKey = `${provider}_daily`;
+  const daily = dailyRequestCounts.get(dailyKey);
+  if (daily && daily.date === today) {
+    daily.count++;
+  } else {
+    dailyRequestCounts.set(dailyKey, { count: 1, date: today });
+  }
+}
+
+export function getRequestCount(provider: string): number {
+  return requestCounts.get(`${provider}_session`) || 0;
+}
+
+export function getDailyRequestCount(provider: string): number {
+  const today = getTodayDate();
+  const daily = dailyRequestCounts.get(`${provider}_daily`);
+  return (daily && daily.date === today) ? daily.count : 0;
 }
 
 // =============================================================================
@@ -53,7 +91,6 @@ export async function fetchOpenRouterMetrics(): Promise<ProviderMetrics | null> 
     });
 
     if (!response.ok) {
-      // 404 or other error - key may be invalid, but not critical
       return null;
     }
 
@@ -61,6 +98,7 @@ export async function fetchOpenRouterMetrics(): Promise<ProviderMetrics | null> 
     
     const limit24h = data.limit?.["24h"];
     const usage24h = data.usage?.["24h"];
+    const dailyCount = getDailyRequestCount("openrouter");
     
     return {
       provider: "openrouter",
@@ -69,10 +107,47 @@ export async function fetchOpenRouterMetrics(): Promise<ProviderMetrics | null> 
         requestsPerDay: limit24h,
         remainingToday: limit24h && usage24h ? limit24h - usage24h : undefined,
       },
+      requestsToday: dailyCount,
       lastUpdated: Date.now(),
     };
   } catch (error) {
     logWarning("openrouter", "Failed to fetch metrics", error);
+    return null;
+  }
+}
+
+// =============================================================================
+// OpenCode metrics (balance only - no rate limits known)
+// =============================================================================
+
+export async function fetchOpenCodeMetrics(): Promise<ProviderMetrics | null> {
+  if (!OPENCODE_API_KEY) return null;
+
+  try {
+    const response = await fetchWithRetry(`${BASE_URL_ZEN}/user`, {
+      headers: {
+        Authorization: `Bearer ${OPENCODE_API_KEY}`,
+        "User-Agent": "pi-free-providers",
+      },
+      timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = (await response.json()) as { balance?: number; credits?: number };
+    const dailyCount = getDailyRequestCount("opencode");
+    
+    return {
+      provider: "opencode",
+      balance: data.balance,
+      credits: data.credits,
+      requestsToday: dailyCount,
+      lastUpdated: Date.now(),
+    };
+  } catch (error) {
+    logWarning("opencode", "Failed to fetch metrics", error);
     return null;
   }
 }

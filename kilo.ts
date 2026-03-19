@@ -17,6 +17,7 @@ import { registerKiloFooter } from "./kilo-footer.ts";
 import { KILO_FREE_ONLY, PROVIDER_KILO } from "./config.ts";
 import { URL_KILO_TOS } from "./constants.ts";
 import { logWarning } from "./util.ts";
+import { incrementRequestCount } from "./metrics.ts";
 
 const KILO_PROVIDER_CONFIG = {
   baseUrl: KILO_GATEWAY_BASE,
@@ -114,7 +115,10 @@ export default async function (pi: ExtensionAPI) {
   });
 
   pi.on("turn_end", async (_event, ctx) => {
-    await updateCredits(ctx);
+    if (ctx.model?.provider === PROVIDER_KILO) {
+      incrementRequestCount(PROVIDER_KILO);
+      await updateCredits(ctx);
+    }
   });
 
   // ── ToS notice on first free use ─────────────────────────────────────────
