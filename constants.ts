@@ -32,7 +32,7 @@ export const CACHE_KEY_CLINE = "cline";
 // =============================================================================
 
 export const BASE_URL_KILO = "https://api.kilo.ai/api/gateway";
-export const BASE_URL_ZEN = "https://opencode.ai/zen";
+export const BASE_URL_ZEN = "https://opencode.ai/zen/v1";
 export const BASE_URL_OPENROUTER = "https://openrouter.ai/api/v1";
 export const BASE_URL_NVIDIA = "https://integrate.api.nvidia.com/v1";
 export const BASE_URL_CLINE = "https://api.cline.bot/api/v1";
