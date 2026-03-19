@@ -253,40 +253,53 @@ export default async function (pi: ExtensionAPI) {
   // Use a private env var so we don't accidentally activate Pi's built-in
   // opencode provider, which also watches OPENCODE_API_KEY.
   const ZEN_KEY_VAR = "PI_FREE_ZEN_API_KEY";
-  process.env[ZEN_KEY_VAR] = token;
 
-  let models: ProviderModelConfig[] = [];
-  let freeCount = 0;
-  let useStaticFallback = false;
-
-  try {
-    const result = await fetchZenModels(token);
-    models = hasKey && SHOW_PAID ? result.all : result.free;
-    freeCount = result.free.length;
-    useStaticFallback = result.useStaticFallback;
-  } catch (error) {
-    logWarning("zen", "Failed to fetch models", error);
-  }
-
-  // If API failed, don't register our provider - let Pi use its built-in
-  if (useStaticFallback || models.length === 0) {
-    console.log("[zen] API unavailable, using Pi's built-in provider");
-    return;
-  }
-
-  pi.registerProvider(PROVIDER_ZEN, {
-    baseUrl: BASE_URL_ZEN,
-    apiKey: ZEN_KEY_VAR,
-    api: "openai-completions" as const,
-    headers: {
-      "X-Title": "Pi",
-      "HTTP-Referer": "https://opencode.ai/",
-      "User-Agent": "pi-free-providers",
-    },
-    models,
-  });
-
+  // Check in session_start if user already has auth for this provider
+  // Only register our filtered version if they don't have existing setup
   pi.on("session_start", async (_event, ctx) => {
+    const existingModels = ctx.modelRegistry.getAvailable();
+    const hasExistingAuth = existingModels.some((m) => m.provider === PROVIDER_ZEN);
+
+    if (hasExistingAuth) {
+      console.log("[zen] User already has OpenCode/Zen auth configured — using existing setup");
+      return;
+    }
+
+    // User doesn't have existing auth — use our extension
+    process.env[ZEN_KEY_VAR] = token;
+
+    let models: ProviderModelConfig[] = [];
+    let freeCount = 0;
+    let useStaticFallback = false;
+
+    try {
+      const result = await fetchZenModels(token);
+      models = hasKey && SHOW_PAID ? result.all : result.free;
+      freeCount = result.free.length;
+      useStaticFallback = result.useStaticFallback;
+    } catch (error) {
+      logWarning("zen", "Failed to fetch models", error);
+    }
+
+    // If API failed, don't register our provider - let Pi use its built-in
+    if (useStaticFallback || models.length === 0) {
+      console.log("[zen] API unavailable, using Pi's built-in provider");
+      return;
+    }
+
+    // Register our filtered provider
+    ctx.modelRegistry.registerProvider(PROVIDER_ZEN, {
+      baseUrl: BASE_URL_ZEN,
+      apiKey: ZEN_KEY_VAR,
+      api: "openai-completions" as const,
+      headers: {
+        "X-Title": "Pi",
+        "HTTP-Referer": "https://opencode.ai/",
+        "User-Agent": "pi-free-providers",
+      },
+      models,
+    });
+
     const theme = ctx.ui.theme;
     const label = hasKey
       ? `✦ Zen (${models.length} models)`

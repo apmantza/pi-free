@@ -84,40 +84,53 @@ async function fetchOpenRouterModels(apiKey: string): Promise<{
 
 export default async function (pi: ExtensionAPI) {
   const apiKey = CONFIG_API_KEY;
-  // Inject into process.env so Pi's apiKey lookup finds it even when loaded from ~/.pi/free.json.
-  if (apiKey) process.env.OPENROUTER_API_KEY = apiKey;
 
-  if (!apiKey) {
-    console.warn("[openrouter] No API key found — set OPENROUTER_API_KEY or add openrouter_api_key to ~/.pi/free.json. Free key at https://openrouter.ai");
-    return;
-  }
-
-  let models: ProviderModelConfig[] = [];
-  let freeCount = 0;
-
-  try {
-    const result = await fetchOpenRouterModels(apiKey);
-    freeCount = result.free.length;
-    models = SHOW_PAID ? result.all : result.free;
-  } catch (error) {
-    logWarning("openrouter", "Failed to fetch models", error);
-  }
-
-  if (models.length === 0) return;
-
-  pi.registerProvider(PROVIDER_OPENROUTER, {
-    baseUrl: BASE_URL_OPENROUTER,
-    apiKey: "OPENROUTER_API_KEY",
-    api: "openai-completions" as const,
-    headers: {
-      "HTTP-Referer": "https://github.com/apmantza/pi-free",
-      "X-Title": "Pi",
-      "User-Agent": "pi-free-providers",
-    },
-    models,
-  });
-
+  // Check in session_start if user already has auth for this provider
+  // Only register our filtered version if they don't have existing setup
   pi.on("session_start", async (_event, ctx) => {
+    const existingModels = ctx.modelRegistry.getAvailable();
+    const hasExistingAuth = existingModels.some((m) => m.provider === PROVIDER_OPENROUTER);
+
+    if (hasExistingAuth) {
+      console.log("[openrouter] User already has OpenRouter auth configured — using existing setup");
+      return;
+    }
+
+    // User doesn't have existing auth — use our extension's key
+    if (apiKey) {
+      process.env.OPENROUTER_API_KEY = apiKey;
+    } else {
+      console.warn("[openrouter] No API key found — set OPENROUTER_API_KEY or add openrouter_api_key to ~/.pi/free.json. Free key at https://openrouter.ai");
+      return;
+    }
+
+    let models: ProviderModelConfig[] = [];
+    let freeCount = 0;
+
+    try {
+      const result = await fetchOpenRouterModels(apiKey);
+      freeCount = result.free.length;
+      models = SHOW_PAID ? result.all : result.free;
+    } catch (error) {
+      logWarning("openrouter", "Failed to fetch models", error);
+    }
+
+    if (models.length === 0) return;
+
+    // Register our filtered provider
+    ctx.modelRegistry.registerProvider(PROVIDER_OPENROUTER, {
+      baseUrl: BASE_URL_OPENROUTER,
+      apiKey: "OPENROUTER_API_KEY",
+      api: "openai-completions" as const,
+      headers: {
+        "HTTP-Referer": "https://github.com/apmantza/pi-free",
+        "X-Title": "Pi",
+        "User-Agent": "pi-free-providers",
+      },
+      models,
+    });
+
+    // ... rest of the session_start handler for status/metrics
     const theme = ctx.ui.theme;
     const label = SHOW_PAID
       ? `🔀 OpenRouter (${models.length} models)`
