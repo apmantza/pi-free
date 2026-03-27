@@ -15,6 +15,7 @@ import { SHOW_PAID, OPENCODE_API_KEY as CONFIG_API_KEY, applyHidden, PROVIDER_ZE
 import { fetchWithRetry, logWarning } from "./util.ts";
 import { BASE_URL_ZEN, URL_MODELS_DEV, URL_ZEN_TOS, DEFAULT_FETCH_TIMEOUT_MS } from "./constants.ts";
 import { setupProvider, type StoredModels } from "./provider-helper.ts";
+import { registerLoadBalancer } from "./load-balancer.ts";
 
 // =============================================================================
 // Session/Request ID generation (matches OpenCode behavior)
@@ -369,4 +370,7 @@ export default async function (pi: ExtensionAPI) {
 		// Generate a new request ID for this turn
 		getRequestId();
 	});
+
+	// Register the free model load balancer (429 detection + auto-compact + hop)
+	registerLoadBalancer(pi);
 }

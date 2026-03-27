@@ -45,12 +45,12 @@
     },
     "zen.ts": {
       "latest": {
-        "commit": "112632c",
-        "timestamp": "2026-03-27T15:44:06.360Z",
-        "mi": 26.8,
+        "commit": "886ead1",
+        "timestamp": "2026-03-27T18:04:44.810Z",
+        "mi": 29.2,
         "cognitive": 43,
         "nesting": 4,
-        "lines": 310
+        "lines": 289
       },
       "history": [
         {
@@ -68,9 +68,17 @@
           "cognitive": 43,
           "nesting": 4,
           "lines": 310
+        },
+        {
+          "commit": "886ead1",
+          "timestamp": "2026-03-27T18:04:44.810Z",
+          "mi": 29.2,
+          "cognitive": 43,
+          "nesting": 4,
+          "lines": 289
         }
       ],
-      "trend": "stable"
+      "trend": "improving"
     },
     "openrouter.ts": {
       "latest": {
@@ -335,7 +343,28 @@
         }
       ],
       "trend": "stable"
+    },
+    "load-balancer.ts": {
+      "latest": {
+        "commit": "886ead1",
+        "timestamp": "2026-03-27T18:04:12.685Z",
+        "mi": 36,
+        "cognitive": 60,
+        "nesting": 5,
+        "lines": 166
+      },
+      "history": [
+        {
+          "commit": "886ead1",
+          "timestamp": "2026-03-27T18:04:12.685Z",
+          "mi": 36,
+          "cognitive": 60,
+          "nesting": 5,
+          "lines": 166
+        }
+      ],
+      "trend": "stable"
     }
   },
-  "capturedAt": "2026-03-27T15:44:16.258Z"
+  "capturedAt": "2026-03-27T18:04:54.282Z"
 }
