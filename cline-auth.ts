@@ -219,7 +219,7 @@ export async function loginCline(callbacks: OAuthLoginCallbacks): Promise<OAuthC
   const callbackServer = await startCallbackServer(callbacks.signal);
 
   try {
-    // Get authorize URL
+    // Get authorize URL (follow pi-cline: fetch redirect from Cline server)
     const authUrl = new NodeURL("auth/authorize", `${BASE_URL_CLINE}/`);
     authUrl.searchParams.set("client_type", "extension");
     authUrl.searchParams.set("callback_url", callbackServer.callbackUrl);
@@ -227,20 +227,30 @@ export async function loginCline(callbacks: OAuthLoginCallbacks): Promise<OAuthC
 
     let finalAuthUrl: string;
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
       const res = await fetch(authUrl.toString(), {
         method: "GET",
         redirect: "manual",
+        credentials: "include",  // Required for WorkOS SSO sessions
         headers: buildClineHeaders(),
-        signal: callbacks.signal,
+        signal: callbacks.signal ?? controller.signal,
       });
+      clearTimeout(timeout);
+
       if (res.status >= 300 && res.status < 400) {
-        finalAuthUrl = res.headers.get("Location") ?? authUrl.toString();
+        finalAuthUrl = res.headers.get("Location");
+        if (!finalAuthUrl) throw new Error("No redirect URL found in auth response");
       } else {
         const json = (await res.json()) as { redirect_url?: string };
-        finalAuthUrl = json.redirect_url ?? authUrl.toString();
+        if (typeof json?.redirect_url === "string" && json.redirect_url.length > 0) {
+          finalAuthUrl = json.redirect_url;
+        } else {
+          throw new Error(`Unexpected auth response: ${JSON.stringify(json)}`);
+        }
       }
-    } catch {
-      finalAuthUrl = authUrl.toString();
+    } catch (error) {
+      throw new Error(`Authentication request failed: ${error instanceof Error ? error.message : "unknown error"}`);
     }
 
     callbacks.onAuth({
