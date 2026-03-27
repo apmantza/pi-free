@@ -366,35 +366,6 @@ export default async function (pi: ExtensionAPI) {
 	// Update request count before each agent turn (for request ID generation)
 	pi.on("before_agent_start", async (_event, ctx) => {
 		if (ctx.model?.provider !== PROVIDER_ZEN) return;
-		// Generate a new request ID for this turn
 		getRequestId();
-	});
-
-	// Auto-compact when 429 is detected (slow turn = likely rate limited)
-	let turnStartTime = 0;
-
-	pi.on("turn_start", async (_event, ctx) => {
-		if (ctx.model?.provider !== PROVIDER_ZEN) return;
-		turnStartTime = Date.now();
-	});
-
-	pi.on("turn_end", async (_event, ctx) => {
-		if (ctx.model?.provider !== PROVIDER_ZEN || !turnStartTime) return;
-
-		const turnDuration = Date.now() - turnStartTime;
-		turnStartTime = 0;
-
-		// Heuristic: Long turn (>45s) with minimal output = likely 429
-		if (turnDuration > 45_000) {
-			ctx.ui.notify("⏳ Rate limit detected — compacting context...", "warning");
-			ctx.compact({
-				onComplete: () => {
-					ctx.ui.notify("✓ Context compacted. Use Ctrl+L to switch models if needed.", "info");
-				},
-				onError: () => {
-					ctx.ui.notify("Compaction failed, continuing anyway", "warning");
-				},
-			});
-		}
 	});
 }
