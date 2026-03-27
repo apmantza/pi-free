@@ -227,24 +227,37 @@ export async function loginCline(callbacks: OAuthLoginCallbacks): Promise<OAuthC
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
+      const reqHeaders = buildClineHeaders();
+      console.log("[cline] Auth URL:", authUrl.toString());
+      console.log("[cline] Auth headers:", JSON.stringify(reqHeaders, null, 2));
       const res = await fetch(authUrl.toString(), {
         method: "GET",
         redirect: "manual",
-        credentials: "include",  // Required for WorkOS SSO sessions
-        headers: buildClineHeaders(),
+        credentials: "include", // Real Cline uses this
+        headers: reqHeaders,
         signal: callbacks.signal ?? controller.signal,
       });
       clearTimeout(timeout);
 
+      console.log("[cline] Auth response status:", res.status);
+      console.log("[cline] Auth response headers:", JSON.stringify(Object.fromEntries(res.headers.entries()), null, 2));
+
       if (res.status >= 300 && res.status < 400) {
         finalAuthUrl = res.headers.get("Location");
+        console.log("[cline] Redirect Location:", finalAuthUrl);
         if (!finalAuthUrl) throw new Error("No redirect URL found in auth response");
       } else {
-        const json = (await res.json()) as { redirect_url?: string };
-        if (typeof json?.redirect_url === "string" && json.redirect_url.length > 0) {
-          finalAuthUrl = json.redirect_url;
-        } else {
-          throw new Error(`Unexpected auth response: ${JSON.stringify(json)}`);
+        const body = await res.text();
+        console.log("[cline] Auth response body:", body);
+        try {
+          const json = JSON.parse(body) as { redirect_url?: string };
+          if (typeof json?.redirect_url === "string" && json.redirect_url.length > 0) {
+            finalAuthUrl = json.redirect_url;
+          } else {
+            throw new Error(`Unexpected auth response: ${body}`);
+          }
+        } catch (parseErr) {
+          throw new Error(`Failed to parse auth response: ${body}`);
         }
       }
     } catch (error) {
