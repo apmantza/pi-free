@@ -2,21 +2,21 @@
 
 All-in-one free model providers for [Pi](https://pi.dev) — the coding agent CLI.
 
-Add five AI providers with **50+ free models** in a single install:
+Add five AI providers with **60+ free models** in a single install:
 
 | Provider | Free models | Needs key? |
 |---|---|---|
-| **Kilo** | 14 | Yes (OAuth or API key) |
-| **OpenCode Zen** | 11 (no signup) | No — optional key for paid models |
-| **OpenRouter** | 29 | Yes (free account, no credit card) |
-| **NVIDIA NIM** | 70B+ curated models | Yes (free credits on signup) |
-| **Cline** | Free tier models | Yes (free account) |
+| **Kilo** | 14 | Free account (OAuth) |
+| **OpenCode Zen** | 11 | No signup needed |
+| **OpenRouter** | 29 | Free account |
+| **NVIDIA NIM** | 70B+ curated models | Free credits on signup |
+| **Cline** | Free tier models | Free account |
 
 ---
 
 ## Why use this?
 
-- **Start immediately** — Zen works with zero configuration
+- **Start immediately** — Zen works with zero configuration, Kilo only needs free signup
 - **One config file** — Manage all API keys in `~/.pi/free.json`
 - **Smart defaults** — Only free models shown unless you opt into paid
 - **Usage dashboard** — Track quotas and costs across all providers
@@ -50,11 +50,11 @@ Press `Ctrl+L` to see all available models.
 
 ---
 
-**That's it.** Zen models are ready to use immediately. For Kilo, OpenRouter, NVIDIA, or Cline, add your API keys (see below).
+**That's it.** Zen models work immediately. Kilo needs a free signup (`/login kilo`), and OpenRouter/NVIDIA/Cline need API keys.
 
 ---
 
-## Quick start
+## Quick start (no keys needed)
 
 **OpenCode Zen works immediately** — no account, no API key required:
 
@@ -64,7 +64,9 @@ pi
 
 Then press `Ctrl+L` to open the model selector and pick any model prefixed with `zen/`.
 
-**Want more models?** Add API keys for Kilo, OpenRouter, NVIDIA, or Cline (see [Adding API keys](#adding-api-keys)).
+**Kilo** offers 14 free models after a quick one-time OAuth signup (`/login kilo`).
+
+**Want more models?** Add API keys for OpenRouter, NVIDIA, or Cline (see [Adding API keys](#adding-api-keys)).
 
 ---
 
@@ -135,26 +137,26 @@ export PI_FREE_KILO_FREE_ONLY=true
 
 ---
 
-## Kilo authentication
+## Kilo authentication (free)
 
-Kilo requires authentication to use any model (including free ones). Authenticate via browser:
+Kilo requires a free account to use models. Sign up once via OAuth:
 
 Inside Pi:
 ```
 /login kilo
 ```
 
-This opens your browser to authorize the session. Once approved:
-- All Kilo models appear in the model selector (`Ctrl+L`)
-- Your session is saved locally — no re-login needed
-- Use `/kilo-all` to show paid models, `/kilo-free` to show only free ones
+This opens your browser to authorize the session. **No payment required** — just free account creation. Once approved:
+- 14 Kilo models available for free
+- Session saved locally — no re-login needed
+- After login, optionally use `/kilo-all` to see 300+ paid models
 
 To log out:
 ```
 /logout kilo
 ```
 
-**Alternative:** Set `KILO_API_KEY` environment variable if you have a Kilo API key directly.
+**Alternative:** Set `KILO_API_KEY` environment variable if you have an API key.
 
 ---
 
@@ -260,13 +262,13 @@ Hidden models persist across sessions and can be set globally or per-provider.
 
 | Provider | Free models | With key / login | Notes |
 |----------|-------------|------------------|-------|
-| **Kilo** | 14 | 300+ all models | Requires `/login kilo` OAuth or `KILO_API_KEY` |
-| **OpenCode Zen** | 11 | All models | `opencode_api_key` unlocks paid |
-| **OpenRouter** | 29 | 300+ models | `openrouter_api_key` required |
-| **NVIDIA NIM** | All 70B+ curated | Same | Uses free credits, 70B+ parameter filter |
-| **Cline** | Free tier | Free tier only | Curated selection, no paid tier |
+| **Kilo** | 14 | 300+ paid models | Free signup via `/login kilo` |
+| **OpenCode Zen** | 11 | All models | No signup for free, `opencode_api_key` for paid |
+| **OpenRouter** | 29 | 300+ models | Free account, `openrouter_api_key` required |
+| **NVIDIA NIM** | All 70B+ curated | Same | Free credits on signup |
+| **Cline** | Free tier | Free tier only | Free account required |
 
-**Total free models:** 50+ models (Zen works without a key, others require auth).
+**Total free models:** 60+ models across all providers.
 
 ---
 
