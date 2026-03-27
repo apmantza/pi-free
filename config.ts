@@ -93,4 +93,4 @@ export const OPENCODE_API_KEY   = resolve("OPENCODE_API_KEY",   file.opencode_ap
 export const GROQ_API_KEY       = resolve("GROQ_API_KEY",       file.groq_api_key);
 
 // Re-export provider names for consistency
-export { PROVIDER_KILO, PROVIDER_OPENROUTER, PROVIDER_NVIDIA, PROVIDER_ZEN, PROVIDER_CLINE, PROVIDER_GROQ };
+export { PROVIDER_KILO, PROVIDER_OPENROUTER, PROVIDER_NVIDIA, PROVIDER_ZEN, PROVIDER_CLINE, PROVIDER_GROQ } from "./constants.ts";
