@@ -2,11 +2,11 @@
 
 All-in-one free model providers for [Pi](https://pi.dev) — the coding agent CLI.
 
-Add five AI providers with **60+ free models** in a single install:
+Add five AI providers with **50+ free models** in a single install:
 
 | Provider | Free models | Needs key? |
 |---|---|---|
-| **Kilo** | 14 (no signup) | No — optional OAuth for 300+ paid models |
+| **Kilo** | 14 | Yes (OAuth or API key) |
 | **OpenCode Zen** | 11 (no signup) | No — optional key for paid models |
 | **OpenRouter** | 29 | Yes (free account, no credit card) |
 | **NVIDIA NIM** | 70B+ curated models | Yes (free credits on signup) |
@@ -16,7 +16,7 @@ Add five AI providers with **60+ free models** in a single install:
 
 ## Why use this?
 
-- **Start immediately** — Kilo and Zen work with zero configuration
+- **Start immediately** — Zen works with zero configuration
 - **One config file** — Manage all API keys in `~/.pi/free.json`
 - **Smart defaults** — Only free models shown unless you opt into paid
 - **Usage dashboard** — Track quotas and costs across all providers
@@ -50,21 +50,21 @@ Press `Ctrl+L` to see all available models.
 
 ---
 
-**That's it.** Kilo and Zen models are ready to use immediately. For OpenRouter, NVIDIA, or Cline, add your API keys (see below).
+**That's it.** Zen models are ready to use immediately. For Kilo, OpenRouter, NVIDIA, or Cline, add your API keys (see below).
 
 ---
 
-## Quick start (no keys needed)
+## Quick start
 
-**Kilo and OpenCode Zen work immediately** — no account, no API key required:
+**OpenCode Zen works immediately** — no account, no API key required:
 
 ```bash
 pi
 ```
 
-Then press `Ctrl+L` to open the model selector and pick any model prefixed with `kilo/` or `zen/`.
+Then press `Ctrl+L` to open the model selector and pick any model prefixed with `zen/`.
 
-**Want more models?** Add API keys for OpenRouter, NVIDIA, or Cline (see [Adding API keys](#adding-api-keys)).
+**Want more models?** Add API keys for Kilo, OpenRouter, NVIDIA, or Cline (see [Adding API keys](#adding-api-keys)).
 
 ---
 
@@ -135,9 +135,9 @@ export PI_FREE_KILO_FREE_ONLY=true
 
 ---
 
-## Kilo authentication (for paid / all models)
+## Kilo authentication
 
-Kilo offers 14 free models without an account. To unlock **300+ paid models**, authenticate via browser:
+Kilo requires authentication to use any model (including free ones). Authenticate via browser:
 
 Inside Pi:
 ```
@@ -145,9 +145,9 @@ Inside Pi:
 ```
 
 This opens your browser to authorize the session. Once approved:
-- All 300+ Kilo models appear in the model selector (`Ctrl+L`)
+- All Kilo models appear in the model selector (`Ctrl+L`)
 - Your session is saved locally — no re-login needed
-- Use `/kilo-all` to show paid models, `/kilo-free` to hide them
+- Use `/kilo-all` to show paid models, `/kilo-free` to show only free ones
 
 To log out:
 ```
@@ -260,13 +260,13 @@ Hidden models persist across sessions and can be set globally or per-provider.
 
 | Provider | Free models | With key / login | Notes |
 |----------|-------------|------------------|-------|
-| **Kilo** | 14 | 300+ all models | Requires `/login kilo` OAuth for paid |
+| **Kilo** | 14 | 300+ all models | Requires `/login kilo` OAuth or `KILO_API_KEY` |
 | **OpenCode Zen** | 11 | All models | `opencode_api_key` unlocks paid |
 | **OpenRouter** | 29 | 300+ models | `openrouter_api_key` required |
 | **NVIDIA NIM** | All 70B+ curated | Same | Uses free credits, 70B+ parameter filter |
 | **Cline** | Free tier | Free tier only | Curated selection, no paid tier |
 
-**Total free models:** 60+ models available immediately with zero configuration.
+**Total free models:** 50+ models (Zen works without a key, others require auth).
 
 ---
 
