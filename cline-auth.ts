@@ -16,19 +16,19 @@ import { spawn } from "child_process";
 import { BASE_URL_CLINE, CLINE_AUTH_TIMEOUT_MS } from "./constants.ts";
 
 // =============================================================================
-// Constants (aligned with pi-cline)
+// Constants (aligned with ditfetzt's pi-cline-free-models)
 // =============================================================================
 
-const CLINE_CLIENT_VERSION = "2.7.0";
-const CLINE_CORE_VERSION = "3.72.0";
+const CLINE_CLIENT_VERSION = "3.63.0";
+const CLINE_CORE_VERSION = "3.63.0";
 
-// Port range for callback server (pi-cline scans 48801-48811)
-const CALLBACK_PORT_START = 48801;
-const CALLBACK_PORT_END = 48811;
+// Port range for callback server (pi-cline scans 48801-48811, ditfetzt uses 31234)
+const CALLBACK_PORT_START = 31234;
+const CALLBACK_PORT_END = 31234;
 const AUTH_PATH = "/auth";
 
 // =============================================================================
-// Headers (must match pi-cline exactly for auth to work)
+// Headers (aligned with ditfetzt's pi-cline-free-models which works)
 // =============================================================================
 
 function buildClineHeaders(): Record<string, string> {
@@ -36,9 +36,9 @@ function buildClineHeaders(): Record<string, string> {
     Accept: "application/json",
     "Content-Type": "application/json",
     "User-Agent": `Cline/${CLINE_CORE_VERSION}`,
-    "X-PLATFORM": "Cline CLI - Node.js",
+    "X-PLATFORM": "Visual Studio Code",
     "X-PLATFORM-VERSION": CLINE_CLIENT_VERSION,
-    "X-CLIENT-TYPE": "CLI",
+    "X-CLIENT-TYPE": "VSCode Extension",
     "X-CLIENT-VERSION": CLINE_CLIENT_VERSION,
     "X-CORE-VERSION": CLINE_CORE_VERSION,
   };

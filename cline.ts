@@ -21,11 +21,11 @@ import { logWarning } from "./util.ts";
 import { incrementRequestCount } from "./metrics.ts";
 
 // =============================================================================
-// Cline API headers (aligned with pi-cline)
+// Cline API headers (aligned with ditfetzt's pi-cline-free-models)
 // =============================================================================
 
-const CLINE_CLIENT_VERSION = "2.7.0";
-const CLINE_CORE_VERSION = "3.72.0";
+const CLINE_CLIENT_VERSION = "3.63.0";
+const CLINE_CORE_VERSION = "3.63.0";
 let _currentTaskId = generateUlid();
 
 function generateUlid(): string {
