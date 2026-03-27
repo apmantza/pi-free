@@ -15,7 +15,6 @@ import { SHOW_PAID, OPENCODE_API_KEY as CONFIG_API_KEY, applyHidden, PROVIDER_ZE
 import { fetchWithRetry, logWarning } from "./util.ts";
 import { BASE_URL_ZEN, URL_MODELS_DEV, URL_ZEN_TOS, DEFAULT_FETCH_TIMEOUT_MS } from "./constants.ts";
 import { setupProvider, type StoredModels } from "./provider-helper.ts";
-import { registerLoadBalancer } from "./load-balancer.ts";
 
 // =============================================================================
 // Session/Request ID generation (matches OpenCode behavior)
@@ -371,32 +370,31 @@ export default async function (pi: ExtensionAPI) {
 		getRequestId();
 	});
 
-	// Register the free model load balancer (429 detection + auto-compact + hop)
-	registerLoadBalancer(pi);
+	// Auto-compact when 429 is detected (slow turn = likely rate limited)
+	let turnStartTime = 0;
 
-	// Test command: show model selector to swap mimo models
-	pi.registerCommand("test-swap", {
-		description: "Open model selector to swap between Zen mimo models",
-		handler: async (_args, ctx) => {
-			const current = ctx.model;
-			if (!current) {
-				ctx.ui.notify("No model active", "warning");
-				return;
-			}
+	pi.on("turn_start", async (_event, ctx) => {
+		if (ctx.model?.provider !== PROVIDER_ZEN) return;
+		turnStartTime = Date.now();
+	});
 
-			// Show current model and list available Zen models
-			const allModels = ctx.modelRegistry.getAll();
-			const zenModels = allModels.filter((m) => m.provider === PROVIDER_ZEN);
-			
-			const modelNames = zenModels.map((m) => {
-				const current = m.id === ctx.model?.id ? " ← current" : "";
-				return `${m.id}${current}`;
+	pi.on("turn_end", async (_event, ctx) => {
+		if (ctx.model?.provider !== PROVIDER_ZEN || !turnStartTime) return;
+
+		const turnDuration = Date.now() - turnStartTime;
+		turnStartTime = 0;
+
+		// Heuristic: Long turn (>45s) with minimal output = likely 429
+		if (turnDuration > 45_000) {
+			ctx.ui.notify("⏳ Rate limit detected — compacting context...", "warning");
+			ctx.compact({
+				onComplete: () => {
+					ctx.ui.notify("✓ Context compacted. Use Ctrl+L to switch models if needed.", "info");
+				},
+				onError: () => {
+					ctx.ui.notify("Compaction failed, continuing anyway", "warning");
+				},
 			});
-
-			ctx.ui.notify(
-				`Current: ${current.id}\n\nZen models:\n${modelNames.join("\n")}\n\nUse Ctrl+L to switch.`,
-				"info"
-			);
-		},
+		}
 	});
 }

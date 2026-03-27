@@ -45,12 +45,12 @@
     },
     "zen.ts": {
       "latest": {
-        "commit": "9123ecd",
-        "timestamp": "2026-03-27T18:38:25.355Z",
+        "commit": "60d2459",
+        "timestamp": "2026-03-27T18:44:42.145Z",
         "mi": 27.9,
-        "cognitive": 58,
+        "cognitive": 50,
         "nesting": 4,
-        "lines": 314
+        "lines": 311
       },
       "history": [
         {
@@ -92,9 +92,17 @@
           "cognitive": 58,
           "nesting": 4,
           "lines": 314
+        },
+        {
+          "commit": "60d2459",
+          "timestamp": "2026-03-27T18:44:42.145Z",
+          "mi": 27.9,
+          "cognitive": 50,
+          "nesting": 4,
+          "lines": 311
         }
       ],
-      "trend": "regressing"
+      "trend": "stable"
     },
     "openrouter.ts": {
       "latest": {
@@ -390,5 +398,5 @@
       "trend": "stable"
     }
   },
-  "capturedAt": "2026-03-27T18:38:35.960Z"
+  "capturedAt": "2026-03-27T18:44:52.173Z"
 }
