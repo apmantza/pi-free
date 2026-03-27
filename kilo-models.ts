@@ -3,7 +3,6 @@
  */
 
 import type { ProviderModelConfig } from "./types.ts";
-import { getCached, setCached } from "./cache.ts";
 import { applyHidden, PROVIDER_KILO } from "./config.ts";
 import { isUsableModel, mapOpenRouterModel, fetchWithRetry, parsePrice } from "./util.ts";
 import { BASE_URL_KILO, DEFAULT_FETCH_TIMEOUT_MS } from "./constants.ts";
@@ -19,9 +18,6 @@ export async function fetchKiloModels(options?: {
   token?: string;
   freeOnly?: boolean;
 }): Promise<ProviderModelConfig[]> {
-  const cacheKey = options?.freeOnly ? "kilo-free" : "kilo-all";
-  const cached = getCached<ProviderModelConfig>(cacheKey);
-  if (cached) return cached;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -57,6 +53,5 @@ export async function fetchKiloModels(options?: {
     })
     .map(mapOpenRouterModel);
 
-  setCached(cacheKey, result);
   return applyHidden(result);
 }

@@ -45,12 +45,12 @@
     },
     "zen.ts": {
       "latest": {
-        "commit": "f88661e",
-        "timestamp": "2026-03-27T13:21:11.741Z",
-        "mi": 26.6,
+        "commit": "112632c",
+        "timestamp": "2026-03-27T15:44:06.360Z",
+        "mi": 26.8,
         "cognitive": 43,
         "nesting": 4,
-        "lines": 312
+        "lines": 310
       },
       "history": [
         {
@@ -60,15 +60,23 @@
           "cognitive": 43,
           "nesting": 4,
           "lines": 312
+        },
+        {
+          "commit": "112632c",
+          "timestamp": "2026-03-27T15:44:06.360Z",
+          "mi": 26.8,
+          "cognitive": 43,
+          "nesting": 4,
+          "lines": 310
         }
       ],
       "trend": "stable"
     },
     "openrouter.ts": {
       "latest": {
-        "commit": "f88661e",
-        "timestamp": "2026-03-27T13:21:18.037Z",
-        "mi": 33,
+        "commit": "112632c",
+        "timestamp": "2026-03-27T15:41:49.131Z",
+        "mi": 33.3,
         "cognitive": 71,
         "nesting": 4,
         "lines": 197
@@ -78,6 +86,14 @@
           "commit": "f88661e",
           "timestamp": "2026-03-27T13:21:18.037Z",
           "mi": 33,
+          "cognitive": 71,
+          "nesting": 4,
+          "lines": 197
+        },
+        {
+          "commit": "112632c",
+          "timestamp": "2026-03-27T15:41:49.131Z",
+          "mi": 33.3,
           "cognitive": 71,
           "nesting": 4,
           "lines": 197
@@ -256,7 +272,70 @@
         }
       ],
       "trend": "stable"
+    },
+    "kilo-models.ts": {
+      "latest": {
+        "commit": "112632c",
+        "timestamp": "2026-03-27T15:35:54.137Z",
+        "mi": 45.9,
+        "cognitive": 26,
+        "nesting": 4,
+        "lines": 52
+      },
+      "history": [
+        {
+          "commit": "112632c",
+          "timestamp": "2026-03-27T15:35:54.137Z",
+          "mi": 45.9,
+          "cognitive": 26,
+          "nesting": 4,
+          "lines": 52
+        }
+      ],
+      "trend": "stable"
+    },
+    "cline-models.ts": {
+      "latest": {
+        "commit": "112632c",
+        "timestamp": "2026-03-27T15:37:43.201Z",
+        "mi": 44.1,
+        "cognitive": 14,
+        "nesting": 3,
+        "lines": 56
+      },
+      "history": [
+        {
+          "commit": "112632c",
+          "timestamp": "2026-03-27T15:37:43.201Z",
+          "mi": 44.1,
+          "cognitive": 14,
+          "nesting": 3,
+          "lines": 56
+        }
+      ],
+      "trend": "stable"
+    },
+    "nvidia.ts": {
+      "latest": {
+        "commit": "112632c",
+        "timestamp": "2026-03-27T15:39:35.469Z",
+        "mi": 42.3,
+        "cognitive": 22,
+        "nesting": 3,
+        "lines": 109
+      },
+      "history": [
+        {
+          "commit": "112632c",
+          "timestamp": "2026-03-27T15:39:35.469Z",
+          "mi": 42.3,
+          "cognitive": 22,
+          "nesting": 3,
+          "lines": 109
+        }
+      ],
+      "trend": "stable"
     }
   },
-  "capturedAt": "2026-03-27T15:22:33.234Z"
+  "capturedAt": "2026-03-27T15:44:16.258Z"
 }
