@@ -12,8 +12,6 @@ export const PROVIDER_ZEN = "zen";
 export const PROVIDER_OPENROUTER = "openrouter";
 export const PROVIDER_NVIDIA = "nvidia";
 export const PROVIDER_CLINE = "cline";
-export const PROVIDER_GROQ = "groq";
-
 export const ALL_PROVIDERS = [PROVIDER_KILO, PROVIDER_ZEN, PROVIDER_OPENROUTER, PROVIDER_NVIDIA, PROVIDER_CLINE] as const;
 
 // =============================================================================
@@ -37,9 +35,7 @@ export const BASE_URL_ZEN = "https://opencode.ai/zen/v1";
 export const BASE_URL_OPENROUTER = "https://openrouter.ai/api/v1";
 export const BASE_URL_NVIDIA = "https://integrate.api.nvidia.com/v1";
 export const BASE_URL_CLINE = "https://api.cline.bot/api/v1";
-export const BASE_URL_GROQ = "https://api.groq.com/openai/v1";
 
-// =============================================================================
 // External URLs
 // =============================================================================
 

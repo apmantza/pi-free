@@ -1,24 +1,23 @@
 {
-  "name": "pi-free-providers",
-  "version": "1.0.0",
-  "type": "module",
-  "description": "All-in-one free model providers for Pi: Kilo (300+ models) and OpenCode Zen",
-  "keywords": [
-    "pi-package"
-  ],
-  "license": "MIT",
-  "pi": {
-    "extensions": [
-      "./kilo.ts",
-      "./zen.ts",
-      "./openrouter.ts",
-      "./nvidia.ts",
-      "./cline.ts",
-      "./groq.ts"
-    ]
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/your-username/pi-free-providers.git"
-  }
+	"name": "pi-free-providers",
+	"version": "1.0.0",
+	"type": "module",
+	"description": "All-in-one free model providers for Pi: Kilo (300+ models) and OpenCode Zen",
+	"keywords": [
+		"pi-package"
+	],
+	"license": "MIT",
+	"pi": {
+		"extensions": [
+			"./kilo.ts",
+			"./zen.ts",
+			"./openrouter.ts",
+			"./nvidia.ts",
+			"./cline.ts"
+		]
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/your-username/pi-free-providers.git"
+	}
 }
