@@ -84,7 +84,49 @@
         }
       ],
       "trend": "stable"
+    },
+    "cline-auth.ts": {
+      "latest": {
+        "commit": "27d4ff1",
+        "timestamp": "2026-03-27T13:26:25.355Z",
+        "mi": 24.9,
+        "cognitive": 134,
+        "nesting": 6,
+        "lines": 326
+      },
+      "history": [
+        {
+          "commit": "27d4ff1",
+          "timestamp": "2026-03-27T13:26:25.355Z",
+          "mi": 24.9,
+          "cognitive": 134,
+          "nesting": 6,
+          "lines": 326
+        }
+      ],
+      "trend": "stable"
+    },
+    "cline.ts": {
+      "latest": {
+        "commit": "27d4ff1",
+        "timestamp": "2026-03-27T13:27:03.930Z",
+        "mi": 30,
+        "cognitive": 92,
+        "nesting": 5,
+        "lines": 221
+      },
+      "history": [
+        {
+          "commit": "27d4ff1",
+          "timestamp": "2026-03-27T13:27:03.930Z",
+          "mi": 30,
+          "cognitive": 92,
+          "nesting": 5,
+          "lines": 221
+        }
+      ],
+      "trend": "stable"
     }
   },
-  "capturedAt": "2026-03-27T13:21:28.026Z"
+  "capturedAt": "2026-03-27T13:27:13.587Z"
 }
