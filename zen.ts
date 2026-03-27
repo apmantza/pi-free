@@ -393,7 +393,8 @@ export default async function (pi: ExtensionAPI) {
 				return;
 			}
 
-			const success = await ctx.modelRegistry.setModel(target);
+			// Use ctx.setModel (not ctx.modelRegistry.setModel)
+			const success = await ctx.setModel(target);
 			ctx.ui.notify(
 				success
 					? `✓ Swapped to ${targetId}`

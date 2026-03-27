@@ -45,12 +45,12 @@
     },
     "zen.ts": {
       "latest": {
-        "commit": "886ead1",
-        "timestamp": "2026-03-27T18:04:44.810Z",
-        "mi": 29.2,
-        "cognitive": 43,
+        "commit": "639131c",
+        "timestamp": "2026-03-27T18:35:03.942Z",
+        "mi": 27.7,
+        "cognitive": 58,
         "nesting": 4,
-        "lines": 289
+        "lines": 314
       },
       "history": [
         {
@@ -76,9 +76,17 @@
           "cognitive": 43,
           "nesting": 4,
           "lines": 289
+        },
+        {
+          "commit": "639131c",
+          "timestamp": "2026-03-27T18:35:03.942Z",
+          "mi": 27.7,
+          "cognitive": 58,
+          "nesting": 4,
+          "lines": 314
         }
       ],
-      "trend": "improving"
+      "trend": "regressing"
     },
     "openrouter.ts": {
       "latest": {
@@ -346,12 +354,12 @@
     },
     "load-balancer.ts": {
       "latest": {
-        "commit": "886ead1",
-        "timestamp": "2026-03-27T18:04:12.685Z",
-        "mi": 36,
-        "cognitive": 60,
-        "nesting": 5,
-        "lines": 166
+        "commit": "639131c",
+        "timestamp": "2026-03-27T18:35:18.506Z",
+        "mi": 35.2,
+        "cognitive": 56,
+        "nesting": 3,
+        "lines": 174
       },
       "history": [
         {
@@ -361,10 +369,18 @@
           "cognitive": 60,
           "nesting": 5,
           "lines": 166
+        },
+        {
+          "commit": "639131c",
+          "timestamp": "2026-03-27T18:35:18.506Z",
+          "mi": 35.2,
+          "cognitive": 56,
+          "nesting": 3,
+          "lines": 174
         }
       ],
       "trend": "stable"
     }
   },
-  "capturedAt": "2026-03-27T18:04:54.282Z"
+  "capturedAt": "2026-03-27T18:35:27.909Z"
 }

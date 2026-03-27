@@ -142,7 +142,7 @@ async function hotSwapModel(
   ctx.compact({
     onComplete: async () => {
       // Hot-swap the model
-      const success = await ctx.modelRegistry.setModel(nextModel);
+      const success = await ctx.setModel(nextModel);
       if (success) {
         recordRequest(next.provider, next.modelId);
         ctx.ui.notify(
@@ -155,7 +155,7 @@ async function hotSwapModel(
     },
     onError: async () => {
       // Try switching even if compact fails
-      const success = await ctx.modelRegistry.setModel(nextModel);
+      const success = await ctx.setModel(nextModel);
       if (success) {
         recordRequest(next.provider, next.modelId);
         ctx.ui.notify(
