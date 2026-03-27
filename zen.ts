@@ -17,6 +17,29 @@ import { BASE_URL_ZEN, URL_MODELS_DEV, URL_ZEN_TOS, DEFAULT_FETCH_TIMEOUT_MS } f
 import { setupProvider, type StoredModels } from "./provider-helper.ts";
 
 // =============================================================================
+// Session/Request ID generation (matches OpenCode behavior)
+// =============================================================================
+
+let _sessionId: string = "";
+let _requestCount = 0;
+
+function generateId(): string {
+	return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
+function getSessionId(): string {
+	if (!_sessionId) {
+		_sessionId = generateId();
+	}
+	return _sessionId;
+}
+
+function getRequestId(): string {
+	_requestCount++;
+	return `${getSessionId()}-${_requestCount}`;
+}
+
+// =============================================================================
 // Static fallback models (from Pi's built-in + OpenCode docs)
 // Used when /models API is unavailable
 // =============================================================================
@@ -315,6 +338,9 @@ export default async function (pi: ExtensionAPI) {
 			return;
 		}
 
+		// Generate session ID for this session (used in headers)
+		const sessionId = getSessionId();
+
 		// Set up the re-registration closure with this ctx
 		ctx_modelRegistry_register = (m: ProviderModelConfig[]) => {
 			ctx.modelRegistry.registerProvider(PROVIDER_ZEN, {
@@ -325,6 +351,9 @@ export default async function (pi: ExtensionAPI) {
 					"X-Title": "Pi",
 					"HTTP-Referer": "https://opencode.ai/",
 					"User-Agent": "pi-free-providers",
+					// Session affinity headers (matches OpenCode behavior)
+					"x-opencode-session": sessionId,
+					"x-session-affinity": sessionId,
 				},
 				models: m,
 			});
@@ -336,5 +365,12 @@ export default async function (pi: ExtensionAPI) {
 		const theme = ctx.ui.theme;
 		const label = hasKey ? `✦ Zen (${models.length} models)` : `✦ Zen (${freeCount} free)`;
 		ctx.ui.setStatus("zen-status", theme.fg("accent", label));
+	});
+
+	// Update request count before each agent turn (for request ID generation)
+	pi.on("before_agent_start", async (_event, ctx) => {
+		if (ctx.model?.provider !== PROVIDER_ZEN) return;
+		// Generate a new request ID for this turn
+		getRequestId();
 	});
 }
