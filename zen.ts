@@ -373,4 +373,33 @@ export default async function (pi: ExtensionAPI) {
 
 	// Register the free model load balancer (429 detection + auto-compact + hop)
 	registerLoadBalancer(pi);
+
+	// Test command: swap between mimo models on same provider
+	pi.registerCommand("test-swap", {
+		description: "Test hot-swap between mimo-v2-omni-free and mimo-v2-pro-free",
+		handler: async (_args, ctx) => {
+			const current = ctx.model;
+			if (!current) {
+				ctx.ui.notify("No model active", "warning");
+				return;
+			}
+
+			// Toggle between the two mimo models
+			const targetId = current.id.includes("omni") ? "mimo-v2-pro-free" : "mimo-v2-omni-free";
+
+			const target = ctx.modelRegistry.find(PROVIDER_ZEN, targetId);
+			if (!target) {
+				ctx.ui.notify(`Model not found: ${targetId}`, "error");
+				return;
+			}
+
+			const success = await ctx.modelRegistry.setModel(target);
+			ctx.ui.notify(
+				success
+					? `✓ Swapped to ${targetId}`
+					: `✗ Failed to swap to ${targetId}`,
+				success ? "info" : "error"
+			);
+		},
+	});
 }
