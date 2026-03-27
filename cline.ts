@@ -21,11 +21,11 @@ import { logWarning } from "./util.ts";
 import { incrementRequestCount } from "./metrics.ts";
 
 // =============================================================================
-// Cline API headers (aligned with ditfetzt's pi-cline-free-models)
+// Cline API headers (must match real Cline VS Code extension exactly)
 // =============================================================================
 
-const CLINE_CLIENT_VERSION = "3.63.0";
-const CLINE_CORE_VERSION = "3.63.0";
+const VS_CODE_VERSION = "1.109.3";        // vscode.version
+const CLINE_EXTENSION_VERSION = "3.76.0"; // ExtensionRegistryInfo.version
 let _currentTaskId = generateUlid();
 
 function generateUlid(): string {
@@ -47,10 +47,10 @@ function buildClineHeaders(): Record<string, string> {
     "X-Title": "Cline",
     "X-Task-ID": _currentTaskId,
     "X-PLATFORM": "Visual Studio Code",
-    "X-PLATFORM-VERSION": CLINE_CLIENT_VERSION,
+    "X-PLATFORM-VERSION": VS_CODE_VERSION,            // VS Code version, NOT Cline version
     "X-CLIENT-TYPE": "VSCode Extension",
-    "X-CLIENT-VERSION": CLINE_CLIENT_VERSION,
-    "X-CORE-VERSION": CLINE_CORE_VERSION,
+    "X-CLIENT-VERSION": CLINE_EXTENSION_VERSION,      // Cline extension version
+    "X-CORE-VERSION": CLINE_EXTENSION_VERSION,        // Cline extension version
     "X-Is-Multiroot": "false",
   };
 }

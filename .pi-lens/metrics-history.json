@@ -87,8 +87,8 @@
     },
     "cline-auth.ts": {
       "latest": {
-        "commit": "d7980b8",
-        "timestamp": "2026-03-27T13:35:39.775Z",
+        "commit": "0e3c809",
+        "timestamp": "2026-03-27T13:40:58.380Z",
         "mi": 24.4,
         "cognitive": 150,
         "nesting": 6,
@@ -126,14 +126,22 @@
           "cognitive": 150,
           "nesting": 6,
           "lines": 335
+        },
+        {
+          "commit": "0e3c809",
+          "timestamp": "2026-03-27T13:40:58.380Z",
+          "mi": 24.4,
+          "cognitive": 150,
+          "nesting": 6,
+          "lines": 335
         }
       ],
-      "trend": "regressing"
+      "trend": "stable"
     },
     "cline.ts": {
       "latest": {
-        "commit": "d7980b8",
-        "timestamp": "2026-03-27T13:36:40.115Z",
+        "commit": "0e3c809",
+        "timestamp": "2026-03-27T13:42:26.458Z",
         "mi": 30,
         "cognitive": 92,
         "nesting": 5,
@@ -155,10 +163,18 @@
           "cognitive": 92,
           "nesting": 5,
           "lines": 221
+        },
+        {
+          "commit": "0e3c809",
+          "timestamp": "2026-03-27T13:42:26.458Z",
+          "mi": 30,
+          "cognitive": 92,
+          "nesting": 5,
+          "lines": 221
         }
       ],
       "trend": "stable"
     }
   },
-  "capturedAt": "2026-03-27T13:36:49.655Z"
+  "capturedAt": "2026-03-27T13:42:36.325Z"
 }

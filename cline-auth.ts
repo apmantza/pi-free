@@ -16,31 +16,29 @@ import { spawn } from "child_process";
 import { BASE_URL_CLINE, CLINE_AUTH_TIMEOUT_MS } from "./constants.ts";
 
 // =============================================================================
-// Constants (aligned with ditfetzt's pi-cline-free-models)
-// =============================================================================
-
-const CLINE_CLIENT_VERSION = "3.63.0";
-const CLINE_CORE_VERSION = "3.63.0";
-
 // Port range for callback server (pi-cline scans 48801-48811, ditfetzt uses 31234)
 const CALLBACK_PORT_START = 31234;
 const CALLBACK_PORT_END = 31234;
 const AUTH_PATH = "/auth";
 
 // =============================================================================
-// Headers (aligned with ditfetzt's pi-cline-free-models which works)
+// Headers (must match real Cline VS Code extension exactly)
+// From Cline source: X-PLATFORM-VERSION = vscode.version, X-CLIENT/CORE-VERSION = extension version
 // =============================================================================
+
+const VS_CODE_VERSION = "1.109.3";        // vscode.version
+const CLINE_EXTENSION_VERSION = "3.76.0"; // ExtensionRegistryInfo.version
 
 function buildClineHeaders(): Record<string, string> {
   return {
     Accept: "application/json",
     "Content-Type": "application/json",
-    "User-Agent": `Cline/${CLINE_CORE_VERSION}`,
+    "User-Agent": `Cline/${CLINE_EXTENSION_VERSION}`,
     "X-PLATFORM": "Visual Studio Code",
-    "X-PLATFORM-VERSION": CLINE_CLIENT_VERSION,
+    "X-PLATFORM-VERSION": VS_CODE_VERSION,         // VS Code version, NOT Cline version
     "X-CLIENT-TYPE": "VSCode Extension",
-    "X-CLIENT-VERSION": CLINE_CLIENT_VERSION,
-    "X-CORE-VERSION": CLINE_CORE_VERSION,
+    "X-CLIENT-VERSION": CLINE_EXTENSION_VERSION,   // Cline extension version
+    "X-CORE-VERSION": CLINE_EXTENSION_VERSION,     // Cline extension version
   };
 }
 
