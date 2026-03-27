@@ -1,8 +1,10 @@
 /**
- * Free model load balancer with 429 handling.
+ * Free model load balancer with hot-swap.
  * 
- * Tracks request counts per provider, detects potential rate limiting,
- * and auto-compacts + hops to next model when needed.
+ * When rate limited, automatically:
+ * 1. Finds next available free model
+ * 2. Hot-swaps to it (same terminal, same context)
+ * 3. Compacts conversation if needed
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
@@ -20,76 +22,83 @@ import {
 
 interface ModelEntry {
   provider: string;
-  model: string;
+  modelId: string;
   requestCount: number;
   lastUsed: number;
-  rateLimitedUntil: number; // timestamp when rate limit expires
+  rateLimitedUntil: number;
 }
 
 // =============================================================================
-// Model queue (round-robin across free models)
+// Free model queue - order matters (most reliable first)
 // =============================================================================
 
-const modelQueue: ModelEntry[] = [
-  // Zen free models (no auth needed)
-  { provider: PROVIDER_ZEN, model: "big-pickle", requestCount: 0, lastUsed: 0, rateLimitedUntil: 0 },
-  { provider: PROVIDER_ZEN, model: "glm-5-free", requestCount: 0, lastUsed: 0, rateLimitedUntil: 0 },
-  { provider: PROVIDER_ZEN, model: "minimax-m2.5-free", requestCount: 0, lastUsed: 0, rateLimitedUntil: 0 },
-  { provider: PROVIDER_ZEN, model: "mimo-v2-pro-free", requestCount: 0, lastUsed: 0, rateLimitedUntil: 0 },
-  { provider: PROVIDER_ZEN, model: "nemotron-3-super-free", requestCount: 0, lastUsed: 0, rateLimitedUntil: 0 },
+const freeModels: ModelEntry[] = [
+  // Zen free models (most reliable, no auth needed)
+  { provider: PROVIDER_ZEN, modelId: "big-pickle", requestCount: 0, lastUsed: 0, rateLimitedUntil: 0 },
+  { provider: PROVIDER_ZEN, modelId: "glm-5-free", requestCount: 0, lastUsed: 0, rateLimitedUntil: 0 },
+  { provider: PROVIDER_ZEN, modelId: "minimax-m2.5-free", requestCount: 0, lastUsed: 0, rateLimitedUntil: 0 },
+  { provider: PROVIDER_ZEN, modelId: "mimo-v2-pro-free", requestCount: 0, lastUsed: 0, rateLimitedUntil: 0 },
+  { provider: PROVIDER_ZEN, modelId: "nemotron-3-super-free", requestCount: 0, lastUsed: 0, rateLimitedUntil: 0 },
+  { provider: PROVIDER_ZEN, modelId: "mimo-v2-omni-free", requestCount: 0, lastUsed: 0, rateLimitedUntil: 0 },
+  { provider: PROVIDER_ZEN, modelId: "mimo-v2-flash-free", requestCount: 0, lastUsed: 0, rateLimitedUntil: 0 },
 
-  // Kilo free models (requires free auth)
-  { provider: PROVIDER_KILO, model: "deepseek-r1", requestCount: 0, lastUsed: 0, rateLimitedUntil: 0 },
-  { provider: PROVIDER_KILO, model: "llama-3.1-70b-instruct", requestCount: 0, lastUsed: 0, rateLimitedUntil: 0 },
+  // Kilo free models (requires free auth via /login kilo)
+  { provider: PROVIDER_KILO, modelId: "deepseek-r1", requestCount: 0, lastUsed: 0, rateLimitedUntil: 0 },
+  { provider: PROVIDER_KILO, modelId: "llama-3.1-70b-instruct", requestCount: 0, lastUsed: 0, rateLimitedUntil: 0 },
 
   // OpenRouter free models
-  { provider: PROVIDER_OPENROUTER, model: "meta-llama/llama-3.1-8b-instruct:free", requestCount: 0, lastUsed: 0, rateLimitedUntil: 0 },
-  { provider: PROVIDER_OPENROUTER, model: "google/gemma-2-9b-it:free", requestCount: 0, lastUsed: 0, rateLimitedUntil: 0 },
+  { provider: PROVIDER_OPENROUTER, modelId: "meta-llama/llama-3.1-8b-instruct:free", requestCount: 0, lastUsed: 0, rateLimitedUntil: 0 },
+  { provider: PROVIDER_OPENROUTER, modelId: "google/gemma-2-9b-it:free", requestCount: 0, lastUsed: 0, rateLimitedUntil: 0 },
+
+  // Cline models
+  { provider: PROVIDER_CLINE, modelId: "anthropic/claude-3.5-sonnet", requestCount: 0, lastUsed: 0, rateLimitedUntil: 0 },
 ];
 
-// =============================================================================
-// Detection heuristics
-// =============================================================================
+const RATE_LIMIT_COOLDOWN_MS = 90_000; // 90 seconds cooldown after suspected 429
 
-const RATE_LIMIT_COOLDOWN_MS = 60_000; // Assume 1 min cooldown after suspected 429
-
-let turnStartTime: number = 0;
-let turnModel: string = "";
-let turnProvider: string = "";
+let turnStartTime = 0;
+let turnProvider = "";
+let turnModelId = "";
 
 // =============================================================================
 // Core functions
 // =============================================================================
 
-/** Get next available model, skipping rate-limited ones */
-export function getNextModel(): { provider: string; model: string } | null {
+function getAvailableModels(): ModelEntry[] {
   const now = Date.now();
-  const available = modelQueue.filter((m) => m.rateLimitedUntil < now);
+  return freeModels.filter((m) => m.rateLimitedUntil < now);
+}
 
-  if (available.length === 0) {
-    return null; // All models rate-limited
-  }
+function selectNextModel(currentProvider: string, currentModelId: string): ModelEntry | null {
+  const available = getAvailableModels();
 
-  // Sort by: least requests, then oldest usage
-  available.sort((a, b) => {
+  if (available.length === 0) return null;
+
+  // Filter out current model
+  const others = available.filter(
+    (m) => !(m.provider === currentProvider && m.modelId === currentModelId)
+  );
+
+  const candidates = others.length > 0 ? others : available;
+
+  // Sort by: least used, then oldest
+  candidates.sort((a, b) => {
     if (a.requestCount !== b.requestCount) return a.requestCount - b.requestCount;
     return a.lastUsed - b.lastUsed;
   });
 
-  return available[0];
+  return candidates[0];
 }
 
-/** Mark a model as rate-limited */
-export function markRateLimited(provider: string, model: string): void {
-  const entry = modelQueue.find((m) => m.provider === provider && m.model === model);
+function markRateLimited(provider: string, modelId: string): void {
+  const entry = freeModels.find((m) => m.provider === provider && m.modelId === modelId);
   if (entry) {
     entry.rateLimitedUntil = Date.now() + RATE_LIMIT_COOLDOWN_MS;
   }
 }
 
-/** Record a successful request */
-export function recordRequest(provider: string, model: string): void {
-  const entry = modelQueue.find((m) => m.provider === provider && m.model === model);
+function recordRequest(provider: string, modelId: string): void {
+  const entry = freeModels.find((m) => m.provider === provider && m.modelId === modelId);
   if (entry) {
     entry.requestCount++;
     entry.lastUsed = Date.now();
@@ -97,104 +106,142 @@ export function recordRequest(provider: string, model: string): void {
 }
 
 // =============================================================================
-// Extension integration
+// Hot-swap logic
+// =============================================================================
+
+async function hotSwapModel(
+  ctx: any,
+  currentProvider: string,
+  currentModelId: string,
+  reason: string
+): Promise<boolean> {
+  const next = selectNextModel(currentProvider, currentModelId);
+
+  if (!next) {
+    ctx.ui.notify("🔴 All free models rate-limited. Wait ~90s.", "error");
+    return false;
+  }
+
+  // Find the model in Pi's registry
+  const nextModel = ctx.modelRegistry.find(next.provider, next.modelId);
+  if (!nextModel) {
+    ctx.ui.notify(`Model not available: ${next.provider}/${next.modelId}`, "warning");
+    // Mark as unavailable and try next
+    markRateLimited(next.provider, next.modelId);
+    return hotSwapModel(ctx, currentProvider, currentModelId, reason);
+  }
+
+  // Check if model has auth configured (for providers that need it)
+  if (!ctx.modelRegistry.hasConfiguredAuth(nextModel)) {
+    // Skip models that need auth but don't have it
+    markRateLimited(next.provider, next.modelId);
+    return hotSwapModel(ctx, currentProvider, currentModelId, reason);
+  }
+
+  // Compact context first (optional, reduces token count for new model)
+  ctx.compact({
+    onComplete: async () => {
+      // Hot-swap the model
+      const success = await ctx.modelRegistry.setModel(nextModel);
+      if (success) {
+        recordRequest(next.provider, next.modelId);
+        ctx.ui.notify(
+          `🔄 ${reason} → Switched to ${next.modelId} (${next.provider})`,
+          "info"
+        );
+      } else {
+        ctx.ui.notify(`Failed to switch to ${next.modelId}`, "warning");
+      }
+    },
+    onError: async () => {
+      // Try switching even if compact fails
+      const success = await ctx.modelRegistry.setModel(nextModel);
+      if (success) {
+        recordRequest(next.provider, next.modelId);
+        ctx.ui.notify(
+          `🔄 ${reason} → Switched to ${next.modelId} (${next.provider}) [no compact]`,
+          "info"
+        );
+      }
+    },
+  });
+
+  return true;
+}
+
+// =============================================================================
+// Extension registration
 // =============================================================================
 
 export function registerLoadBalancer(pi: ExtensionAPI): void {
   // Track turn start
   pi.on("turn_start", async (_event, ctx) => {
-    const model = ctx.model;
-    if (!model) return;
-
+    if (!ctx.model) return;
     turnStartTime = Date.now();
-    turnModel = model.id;
-    turnProvider = model.provider;
+    turnProvider = ctx.model.provider;
+    turnModelId = ctx.model.id;
   });
 
-  // Track turn end and detect issues
+  // Detect potential rate limiting on turn end
   pi.on("turn_end", async (event, ctx) => {
-    if (!turnStartTime) return;
+    if (!turnStartTime || !turnProvider || !turnModelId) return;
 
     const turnDuration = Date.now() - turnStartTime;
-    const message = event.message;
 
-    // Check for potential rate limiting based on heuristics
-    // Short response after long wait = likely rate limited
-    const isShortResponse = turnDuration > 30_000;
-    const hasNoTools = !event.toolResults || event.toolResults.length === 0;
+    // Heuristic: Long turn with minimal output = likely rate limited
+    const isSuspected429 = turnDuration > 45_000;
 
-    if (isShortResponse && hasNoTools) {
-      markRateLimited(turnProvider, turnModel);
-
-      const next = getNextModel();
-      if (next) {
-        ctx.ui.notify(
-          `⚠️ Possible rate limit → will use ${next.provider}/${next.model} next`,
-          "warning"
-        );
-
-        // Trigger compaction to reduce context
-        ctx.compact({
-          onComplete: () => {
-            ctx.ui.notify("✓ Context compacted", "info");
-          },
-          onError: () => {
-            // Silent - compaction is best-effort
-          },
-        });
-      }
+    if (isSuspected429) {
+      markRateLimited(turnProvider, turnModelId);
+      ctx.ui.notify("⏳ Slow response detected — preparing to rotate models...", "warning");
     } else {
-      // Successful turn - record it
-      recordRequest(turnProvider, turnModel);
+      recordRequest(turnProvider, turnModelId);
     }
 
     turnStartTime = 0;
+    turnProvider = "";
+    turnModelId = "";
   });
 
-  // Manual hop command
+  // /hop command - manual model rotation
   pi.registerCommand("hop", {
-    description: "Compact context and switch to next free model",
+    description: "Hot-swap to next free model (rate limit workaround)",
     handler: async (_args, ctx) => {
-      const next = getNextModel();
-
-      if (!next) {
-        ctx.ui.notify("All free models rate-limited. Wait a minute.", "warning");
+      if (!ctx.model) {
+        ctx.ui.notify("No active model", "warning");
         return;
       }
 
-      // Compact context before switching
-      ctx.compact({
-        onComplete: () => {
-          ctx.ui.notify(
-            `✓ Compacted → Next: ${next.provider}/${next.model} (Ctrl+L to select)`,
-            "info"
-          );
-        },
-        onError: () => {
-          ctx.ui.notify(`→ Next: ${next.provider}/${next.model} (Ctrl+L to select)`, "info");
-        },
-      });
-
-      // Mark current as used to rotate
-      if (ctx.model) {
-        markRateLimited(ctx.model.provider, ctx.model.id);
-      }
+      await hotSwapModel(ctx, ctx.model.provider, ctx.model.id, "Manual hop");
     },
   });
 
-  // Status command
+  // /free-status - show model queue status
   pi.registerCommand("free-status", {
-    description: "Show free model rate limit status",
+    description: "Show free model availability status",
     handler: async (_args, ctx) => {
       const now = Date.now();
-      const lines = modelQueue.map((m) => {
+      const lines = freeModels.map((m) => {
         const limited = m.rateLimitedUntil > now;
         const remaining = limited ? Math.ceil((m.rateLimitedUntil - now) / 1000) : 0;
-        const icon = limited ? "🔴" : "🟢";
-        return `${icon} ${m.model} — ${m.requestCount} reqs${limited ? ` (${remaining}s)` : ""}`;
+        const icon = limited ? "🔴" : m.requestCount > 0 ? "🟡" : "🟢";
+        const stats = `${m.requestCount} reqs${limited ? ` (limited ${remaining}s)` : ""}`;
+        return `${icon} ${m.modelId} — ${stats}`;
       });
 
       ctx.ui.notify(lines.join("\n"), "info");
+    },
+  });
+
+  // /free-reset - reset rate limits (for testing)
+  pi.registerCommand("free-reset", {
+    description: "Reset all rate limits",
+    handler: async (_args, ctx) => {
+      freeModels.forEach((m) => {
+        m.rateLimitedUntil = 0;
+        m.requestCount = 0;
+      });
+      ctx.ui.notify("✓ All rate limits reset", "info");
     },
   });
 }
