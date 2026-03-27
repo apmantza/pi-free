@@ -304,16 +304,12 @@ export default async function (pi: ExtensionAPI) {
 	);
 
 	// Check in session_start if user already has auth for this provider
-	// Only register our filtered version if they don't have existing setup
+	// If they do, we still register with session headers for better reliability
 	pi.on("session_start", async (_event, ctx) => {
 		const availableModels = ctx.modelRegistry.getAvailable();
 		const hasExistingAuth = availableModels.some((m) => m.provider === PROVIDER_ZEN);
 
-		if (hasExistingAuth) {
-			return;
-		}
-
-		// User doesn't have existing auth — use our extension
+		// Set up the env var regardless - either for our use or to supplement existing auth
 		process.env[ZEN_KEY_VAR] = token;
 
 		let models: ProviderModelConfig[] = [];
