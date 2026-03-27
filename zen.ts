@@ -374,9 +374,9 @@ export default async function (pi: ExtensionAPI) {
 	// Register the free model load balancer (429 detection + auto-compact + hop)
 	registerLoadBalancer(pi);
 
-	// Test command: swap between mimo models on same provider
+	// Test command: show model selector to swap mimo models
 	pi.registerCommand("test-swap", {
-		description: "Test hot-swap between mimo-v2-omni-free and mimo-v2-pro-free",
+		description: "Open model selector to swap between Zen mimo models",
 		handler: async (_args, ctx) => {
 			const current = ctx.model;
 			if (!current) {
@@ -384,22 +384,18 @@ export default async function (pi: ExtensionAPI) {
 				return;
 			}
 
-			// Toggle between the two mimo models
-			const targetId = current.id.includes("omni") ? "mimo-v2-pro-free" : "mimo-v2-omni-free";
+			// Show current model and list available Zen models
+			const allModels = ctx.modelRegistry.getAll();
+			const zenModels = allModels.filter((m) => m.provider === PROVIDER_ZEN);
+			
+			const modelNames = zenModels.map((m) => {
+				const current = m.id === ctx.model?.id ? " ← current" : "";
+				return `${m.id}${current}`;
+			});
 
-			const target = ctx.modelRegistry.find(PROVIDER_ZEN, targetId);
-			if (!target) {
-				ctx.ui.notify(`Model not found: ${targetId}`, "error");
-				return;
-			}
-
-			// Use ctx.setModel (not ctx.modelRegistry.setModel)
-			const success = await ctx.setModel(target);
 			ctx.ui.notify(
-				success
-					? `✓ Swapped to ${targetId}`
-					: `✗ Failed to swap to ${targetId}`,
-				success ? "info" : "error"
+				`Current: ${current.id}\n\nZen models:\n${modelNames.join("\n")}\n\nUse Ctrl+L to switch.`,
+				"info"
 			);
 		},
 	});
