@@ -12,7 +12,6 @@
 import type { OAuthCredentials, OAuthLoginCallbacks } from "@mariozechner/pi-ai";
 import * as http from "node:http";
 import { URL as NodeURL } from "node:url";
-import { spawn } from "child_process";
 import { BASE_URL_CLINE, CLINE_AUTH_TIMEOUT_MS } from "./constants.ts";
 
 // =============================================================================
@@ -40,24 +39,6 @@ function buildClineHeaders(): Record<string, string> {
     "X-CLIENT-VERSION": CLINE_EXTENSION_VERSION,   // Cline extension version
     "X-CORE-VERSION": CLINE_EXTENSION_VERSION,     // Cline extension version
   };
-}
-
-// =============================================================================
-// Browser open
-// =============================================================================
-
-function openBrowser(url: string): void {
-  try {
-    if (process.platform === "win32") {
-      spawn("cmd", ["/c", "start", "", url], { detached: true, shell: false }).unref();
-    } else if (process.platform === "darwin") {
-      spawn("open", [url], { detached: true }).unref();
-    } else {
-      spawn("xdg-open", [url], { detached: true }).unref();
-    }
-  } catch {
-    // non-fatal
-  }
 }
 
 // =============================================================================
@@ -227,37 +208,24 @@ export async function loginCline(callbacks: OAuthLoginCallbacks): Promise<OAuthC
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
-      const reqHeaders = buildClineHeaders();
-      console.log("[cline] Auth URL:", authUrl.toString());
-      console.log("[cline] Auth headers:", JSON.stringify(reqHeaders, null, 2));
       const res = await fetch(authUrl.toString(), {
         method: "GET",
         redirect: "manual",
-        credentials: "include", // Real Cline uses this
-        headers: reqHeaders,
+        credentials: "include",
+        headers: buildClineHeaders(),
         signal: callbacks.signal ?? controller.signal,
       });
       clearTimeout(timeout);
 
-      console.log("[cline] Auth response status:", res.status);
-      console.log("[cline] Auth response headers:", JSON.stringify(Object.fromEntries(res.headers.entries()), null, 2));
-
       if (res.status >= 300 && res.status < 400) {
         finalAuthUrl = res.headers.get("Location");
-        console.log("[cline] Redirect Location:", finalAuthUrl);
         if (!finalAuthUrl) throw new Error("No redirect URL found in auth response");
       } else {
-        const body = await res.text();
-        console.log("[cline] Auth response body:", body);
-        try {
-          const json = JSON.parse(body) as { redirect_url?: string };
-          if (typeof json?.redirect_url === "string" && json.redirect_url.length > 0) {
-            finalAuthUrl = json.redirect_url;
-          } else {
-            throw new Error(`Unexpected auth response: ${body}`);
-          }
-        } catch (parseErr) {
-          throw new Error(`Failed to parse auth response: ${body}`);
+        const json = (await res.json()) as { redirect_url?: string };
+        if (typeof json?.redirect_url === "string" && json.redirect_url.length > 0) {
+          finalAuthUrl = json.redirect_url;
+        } else {
+          throw new Error("Unexpected response from auth server");
         }
       }
     } catch (error) {
@@ -266,11 +234,10 @@ export async function loginCline(callbacks: OAuthLoginCallbacks): Promise<OAuthC
 
     callbacks.onAuth({
       url: finalAuthUrl,
-      instructions: "Complete the sign-in in your browser.",
+      instructions: "Copy this URL and open it in a new browser tab:\n(The link may wrap — copy the full URL, not just the visible portion)",
     });
 
     callbacks.onProgress?.("Waiting for authentication callback...");
-    openBrowser(finalAuthUrl);
 
     // Wait for callback (with manual input fallback)
     let code: string;
