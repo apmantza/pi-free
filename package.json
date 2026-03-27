@@ -13,7 +13,8 @@
       "./zen.ts",
       "./openrouter.ts",
       "./nvidia.ts",
-      "./cline.ts"
+      "./cline.ts",
+      "./groq.ts"
     ]
   },
   "repository": {

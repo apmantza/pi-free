@@ -190,7 +190,49 @@
         }
       ],
       "trend": "stable"
+    },
+    "constants.ts": {
+      "latest": {
+        "commit": "a41982b",
+        "timestamp": "2026-03-27T14:45:05.018Z",
+        "mi": 53,
+        "cognitive": 0,
+        "nesting": 0,
+        "lines": 57
+      },
+      "history": [
+        {
+          "commit": "a41982b",
+          "timestamp": "2026-03-27T14:45:05.018Z",
+          "mi": 53,
+          "cognitive": 0,
+          "nesting": 0,
+          "lines": 57
+        }
+      ],
+      "trend": "stable"
+    },
+    "config.ts": {
+      "latest": {
+        "commit": "a41982b",
+        "timestamp": "2026-03-27T14:46:55.573Z",
+        "mi": 46.7,
+        "cognitive": 26,
+        "nesting": 4,
+        "lines": 78
+      },
+      "history": [
+        {
+          "commit": "a41982b",
+          "timestamp": "2026-03-27T14:46:55.573Z",
+          "mi": 46.7,
+          "cognitive": 26,
+          "nesting": 4,
+          "lines": 78
+        }
+      ],
+      "trend": "stable"
     }
   },
-  "capturedAt": "2026-03-27T14:15:27.988Z"
+  "capturedAt": "2026-03-27T14:47:05.032Z"
 }

@@ -19,6 +19,7 @@ interface PiFreeConfig {
   openrouter_api_key?: string;
   nvidia_api_key?: string;
   opencode_api_key?: string;
+  groq_api_key?: string;
   show_paid?: boolean;
   kilo_free_only?: boolean;
   hidden_models?: string[];
@@ -28,6 +29,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
   openrouter_api_key: "",
   nvidia_api_key: "",
   opencode_api_key: "",
+  groq_api_key: "",
   show_paid: false,
   kilo_free_only: false,
   hidden_models: [],
@@ -88,6 +90,7 @@ export function applyHidden<T extends { id: string }>(models: T[]): T[] {
 export const OPENROUTER_API_KEY = resolve("OPENROUTER_API_KEY", file.openrouter_api_key);
 export const NVIDIA_API_KEY     = resolve("NVIDIA_API_KEY",     file.nvidia_api_key);
 export const OPENCODE_API_KEY   = resolve("OPENCODE_API_KEY",   file.opencode_api_key);
+export const GROQ_API_KEY       = resolve("GROQ_API_KEY",       file.groq_api_key);
 
 // Re-export provider names for consistency
-export { PROVIDER_KILO, PROVIDER_OPENROUTER, PROVIDER_NVIDIA, PROVIDER_ZEN, PROVIDER_CLINE };
+export { PROVIDER_KILO, PROVIDER_OPENROUTER, PROVIDER_NVIDIA, PROVIDER_ZEN, PROVIDER_CLINE, PROVIDER_GROQ };
