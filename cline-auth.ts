@@ -28,7 +28,7 @@ const CALLBACK_PORT_END = 48811;
 const AUTH_PATH = "/auth";
 
 // =============================================================================
-// Headers (aligned with pi-cline — Cline API requires VS Code identity)
+// Headers (must match pi-cline exactly for auth to work)
 // =============================================================================
 
 function buildClineHeaders(): Record<string, string> {
@@ -36,9 +36,9 @@ function buildClineHeaders(): Record<string, string> {
     Accept: "application/json",
     "Content-Type": "application/json",
     "User-Agent": `Cline/${CLINE_CORE_VERSION}`,
-    "X-PLATFORM": "Visual Studio Code",
+    "X-PLATFORM": "Cline CLI - Node.js",
     "X-PLATFORM-VERSION": CLINE_CLIENT_VERSION,
-    "X-CLIENT-TYPE": "VSCode Extension",
+    "X-CLIENT-TYPE": "CLI",
     "X-CLIENT-VERSION": CLINE_CLIENT_VERSION,
     "X-CORE-VERSION": CLINE_CORE_VERSION,
   };
