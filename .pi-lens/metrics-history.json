@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "files": {
+    "..\\..\\..\\..\\..\\..\\AppData\\Roaming\\npm\\node_modules\\pi-lens\\commands\\refactor.ts": {
+      "latest": {
+        "commit": "f88661e",
+        "timestamp": "2026-03-27T13:15:52.170Z",
+        "mi": 28.5,
+        "cognitive": 30,
+        "nesting": 2,
+        "lines": 152
+      },
+      "history": [
+        {
+          "commit": "f88661e",
+          "timestamp": "2026-03-27T13:15:52.170Z",
+          "mi": 28.5,
+          "cognitive": 30,
+          "nesting": 2,
+          "lines": 152
+        }
+      ],
+      "trend": "stable"
+    },
+    "..\\pi-lens\\commands\\refactor.ts": {
+      "latest": {
+        "commit": "f88661e",
+        "timestamp": "2026-03-27T13:17:19.283Z",
+        "mi": 28.5,
+        "cognitive": 30,
+        "nesting": 2,
+        "lines": 152
+      },
+      "history": [
+        {
+          "commit": "f88661e",
+          "timestamp": "2026-03-27T13:17:19.283Z",
+          "mi": 28.5,
+          "cognitive": 30,
+          "nesting": 2,
+          "lines": 152
+        }
+      ],
+      "trend": "stable"
+    },
+    "zen.ts": {
+      "latest": {
+        "commit": "f88661e",
+        "timestamp": "2026-03-27T13:21:11.741Z",
+        "mi": 26.6,
+        "cognitive": 43,
+        "nesting": 4,
+        "lines": 312
+      },
+      "history": [
+        {
+          "commit": "f88661e",
+          "timestamp": "2026-03-27T13:21:11.741Z",
+          "mi": 26.6,
+          "cognitive": 43,
+          "nesting": 4,
+          "lines": 312
+        }
+      ],
+      "trend": "stable"
+    },
+    "openrouter.ts": {
+      "latest": {
+        "commit": "f88661e",
+        "timestamp": "2026-03-27T13:21:18.037Z",
+        "mi": 33,
+        "cognitive": 71,
+        "nesting": 4,
+        "lines": 197
+      },
+      "history": [
+        {
+          "commit": "f88661e",
+          "timestamp": "2026-03-27T13:21:18.037Z",
+          "mi": 33,
+          "cognitive": 71,
+          "nesting": 4,
+          "lines": 197
+        }
+      ],
+      "trend": "stable"
+    }
+  },
+  "capturedAt": "2026-03-27T13:21:28.026Z"
+}

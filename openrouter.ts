@@ -109,7 +109,7 @@ export default async function (pi: ExtensionAPI) {
 
     if (hasExistingAuth && existingModels.length > 0) {
       // User has existing auth - filter to free models, use their key
-      console.log("[openrouter] User has existing auth - filtering to free models");
+      // User has existing auth - filtering to free models
 
       const freeModels = existingModels
         .filter((m) => (m.cost?.input ?? 0) === 0)

@@ -294,7 +294,6 @@ export default async function (pi: ExtensionAPI) {
     const hasExistingAuth = availableModels.some((m) => m.provider === PROVIDER_ZEN);
 
     if (hasExistingAuth) {
-      console.log("[zen] User already has OpenCode/Zen auth configured — using existing setup");
       return;
     }
 
@@ -320,7 +319,6 @@ export default async function (pi: ExtensionAPI) {
 
     // If API failed, don't register our provider - let Pi use its built-in
     if (useStaticFallback || models.length === 0) {
-      console.log("[zen] API unavailable, using Pi's built-in provider");
       return;
     }
 
