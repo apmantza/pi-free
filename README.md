@@ -26,16 +26,29 @@ Add five AI providers with **60+ free models** in a single install:
 
 ## Install
 
+### Prerequisites
+
+Install Pi (if you haven't already):
+
 ```bash
-# 1. Install Pi (if you haven't already)
 npm install -g @mariozechner/pi-coding-agent
+```
 
-# 2. Add this extension
+### Add the extension
+
+```bash
 pi install git:github.com/apmantza/pi-free
+```
 
-# 3. Start Pi and press Ctrl+L to see all available models
+### Start Pi
+
+```bash
 pi
 ```
+
+Press `Ctrl+L` to see all available models.
+
+---
 
 **That's it.** Kilo and Zen models are ready to use immediately. For OpenRouter, NVIDIA, or Cline, add your API keys (see below).
 
@@ -275,7 +288,6 @@ This removes smaller models (Phi, Gemma 7B, etc.) and non-chat models. The thres
 
 ```
 free.json       ← Your API keys and settings (create manually)
-free-cache.json ← Model cache (auto-managed, 1hr TTL)
 free-usage.json ← Cumulative usage stats (auto-managed)
 ```
 
@@ -304,7 +316,6 @@ free-usage.json ← Cumulative usage stats (auto-managed)
 | `constants.ts` | Provider names, URLs, thresholds |
 | `types.ts` | TypeScript interfaces |
 | `util.ts` | Helpers: `parsePrice`, `fetchWithRetry`, `isUsableModel` |
-| `cache.ts` | File-backed model cache with TTL |
 | `metrics.ts` | Request counting, rate limit tracking |
 
 ---
@@ -320,7 +331,6 @@ free-usage.json ← Cumulative usage stats (auto-managed)
 
 **Kilo models disappeared after restart**
 - Run `/login kilo` — session token may have expired
-- Check `~/.pi/free-cache.json` exists and is writable
 
 **Zen models not connecting**
 - Free models should work without a key — try `/zen-free` command
