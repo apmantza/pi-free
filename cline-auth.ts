@@ -16,9 +16,9 @@ import { spawn } from "child_process";
 import { BASE_URL_CLINE, CLINE_AUTH_TIMEOUT_MS } from "./constants.ts";
 
 // =============================================================================
-// Port range for callback server (pi-cline scans 48801-48811, ditfetzt uses 31234)
-const CALLBACK_PORT_START = 31234;
-const CALLBACK_PORT_END = 31234;
+// Port range for callback server (matches official Cline CLI AuthHandler)
+const CALLBACK_PORT_START = 48801;
+const CALLBACK_PORT_END = 48811;
 const AUTH_PATH = "/auth";
 
 // =============================================================================
