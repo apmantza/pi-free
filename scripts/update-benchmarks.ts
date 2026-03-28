@@ -50,7 +50,25 @@ async function fetchAIData(): Promise<AAModel[]> {
 		throw new Error(`API error: ${response.status} ${response.statusText}`);
 	}
 
-	return response.json() as Promise<AAModel[]>;
+	const rawData = (await response.json()) as unknown;
+
+	// API returns { data: [...] } or direct array
+	let models: AAModel[];
+	if (Array.isArray(rawData)) {
+		models = rawData as AAModel[];
+	} else if (rawData && typeof rawData === "object") {
+		const obj = rawData as Record<string, unknown>;
+		models = (obj.data || obj.models || []) as AAModel[];
+	} else {
+		models = [];
+	}
+
+	if (!Array.isArray(models) || models.length === 0) {
+		console.error("Unexpected API response structure");
+		throw new Error("API response did not contain models array");
+	}
+
+	return models;
 }
 
 function normalizeModelName(name: string): string {
