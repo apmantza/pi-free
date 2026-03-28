@@ -65,47 +65,80 @@ Control capability preservation when hopping (default: `"minor"`):
 
 ## Capability Ranking
 
-Models are ranked using **heuristic estimation** based on metadata (since most free models don't have published benchmarks).
+Models are ranked using **real benchmark data** when available, falling back to smart heuristics.
+
+### Data Sources
+
+**Primary: Artificial Analysis API**
+- Real benchmark scores for 300+ models
+- Intelligence Index (overall capability)
+- Coding, reasoning, agentic benchmarks
+- Updated regularly
+- Free API key at artificialanalysis.ai
+
+**Fallback: Smart Heuristics**
+- For models not in AA database
+- Context window, reasoning flag, vision
+- Parameter extraction from name
+
+### Setup
+
+Get free API key:
+```bash
+# 1. Sign up at https://artificialanalysis.ai
+# 2. Generate API key in account settings
+# 3. Add to ~/.pi/free.json or env:
+
+export ARTIFICIAL_ANALYSIS_API_KEY="your_key_here"
+```
+
+Or in config:
+```json
+{
+  "artificial_analysis_api_key": "your_key_here"
+}
+```
 
 ### How It Works
 
-We estimate capability from available metadata:
+```
+User asks Claude-3.5-Sonnet @ Kilo → 429
 
-| Factor | Weight | How Measured |
-|--------|--------|--------------|
-| Context window | 0.03 pts/1k tokens | From provider API |
-| Reasoning capability | +20 points | `reasoning: true` flag |
-| Vision support | +5 points | `input: ["image"]` |
-| Parameter count | 0.4 pts/billion | Extracted from model name (70b, 405b, etc.) |
+1. Check Artificial Analysis database
+   Found! Intelligence Index: 62.9 → Score: 90 (high tier)
+
+2. Find alternatives:
+   - GPT-4 @ OpenRouter: Index 64.2 → Score: 92 ✅ Equal
+   - Llama-3.1-70B @ Fireworks: Not in AA → Heuristic: 68 ⚠️ Minor down
+   - MiMo-V2-Pro @ Zen: Index 49.2 → Score: 70 ⬇️ Major down
+
+3. Hop to best equal-or-better option
+```
 
 ### Capability Tiers
 
-| Tier | Score | Typical Characteristics |
-|------|-------|------------------------|
-| **ultra** | 80+ | 400B+ params, 200k+ context, reasoning |
-| **high** | 65-79 | 70B+ params, 128k+ context |
-| **medium** | 45-64 | 30B+ params, good context |
-| **low** | 25-44 | 7B-13B params |
-| **minimal** | <25 | Small models, limited context |
+| Tier | Score | AA Intelligence Index | Typical Models |
+|------|-------|---------------------|----------------|
+| **ultra** | 80+ | 56+ | GPT-4o (64), Claude-3.5-Opus |
+| **high** | 65-79 | 45-55 | GPT-4 (58), Llama-3.1-405B (52) |
+| **medium** | 45-64 | 32-44 | Claude-3-Haiku (45), Qwen-72B |
+| **low** | 25-44 | 18-31 | 7B-13B models |
+| **minimal** | <25 | <18 | Small/free models |
 
-### Why Not Real Benchmarks?
+### Without API Key
 
-**Most free models aren't in public leaderboards** like LMSYS Chatbot Arena because:
-- They're too new
-- They're provider-specific
-- They're not widely adopted yet
-- Benchmarks cost money to run
+If no API key, system uses **heuristics only**:
+- Context window size × 0.03 points
+- Reasoning flag +20 points
+- Vision support +5 points
+- Parameter count × 0.4 points
 
-**What we actually know:**
-- Model name (e.g., "Llama 3.3 70B" → ~70B params)
-- Context window size (from API)
-- Feature flags (reasoning, vision)
+Less accurate but still prevents major downgrades (e.g., 70B → 7B).
 
-**What we estimate:**
-- Relative capability for failover decisions
-- Not absolute performance vs GPT-4
+### Cache
 
-This is sufficient for **preventing major downgrades** (e.g., Claude-Opus → Llama-3-8B) but won't tell you which model writes better poetry.
+Data cached at `~/.pi/cache/artificial-analysis.json` for 24 hours.
+Cache auto-refreshes on session start if stale.
 
 ## Smart Hopping with Capability Preservation
 
