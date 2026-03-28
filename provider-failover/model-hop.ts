@@ -1,129 +1,70 @@
 /**
- * Model Hop - Intelligent model-level failover
- * Tries same model family across different providers
- * Supports user-configured model priorities
+ * Dynamic Model Hop - Intelligent model-level failover
+ * Hierarchical matching without hardcoded patterns
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ProviderModelConfig,
+} from "@mariozechner/pi-coding-agent";
+import { classifyError } from "./errors.ts";
 import {
 	buildModelIndex,
-	getModelAlternatives,
+	findNextHop,
+	getRankedAlternatives,
 	type IndexedModel,
+	isExhausted,
+	markExhausted,
 } from "./model-index.ts";
 
-// User configuration for model priorities
+// User configuration for model hopping
 interface ModelHopConfig {
-	// Ordered list of preferred model families to try
-	// e.g., ["llama-3.3-70b", "qwen-2.5-72b", "deepseek-v3"]
 	preferredModels?: string[];
-	// Whether to auto-hop when hitting 429
 	autoHop?: boolean;
-	// Max number of hops before giving up
 	maxHops?: number;
+	isPaidMode?: boolean;
 }
 
-// Track exhausted (provider, model) pairs
-const exhaustedPairs = new Map<
+// Track hop state per session
+const hopState = new Map<
 	string,
-	{ exhaustedAt: number; cooldownMs: number }
+	{
+		hopCount: number;
+		triedModels: Set<string>;
+		originalModel: { provider: string; id: string };
+	}
 >();
-const DEFAULT_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
-function getExhaustedKey(provider: string, modelId: string): string {
+function getSessionKey(provider: string, modelId: string): string {
 	return `${provider}:${modelId}`;
 }
 
-export function markModelExhausted(
+function initHopState(
+	sessionId: string,
 	provider: string,
 	modelId: string,
-	cooldownMs: number = DEFAULT_COOLDOWN_MS,
 ): void {
-	const key = getExhaustedKey(provider, modelId);
-	exhaustedPairs.set(key, { exhaustedAt: Date.now(), cooldownMs });
+	hopState.set(sessionId, {
+		hopCount: 0,
+		triedModels: new Set([getSessionKey(provider, modelId)]),
+		originalModel: { provider, id: modelId },
+	});
 }
 
-export function isModelExhausted(provider: string, modelId: string): boolean {
-	const key = getExhaustedKey(provider, modelId);
-	const state = exhaustedPairs.get(key);
-	if (!state) return false;
-
-	const isStillExhausted = Date.now() - state.exhaustedAt < state.cooldownMs;
-	if (!isStillExhausted) {
-		// Clean up expired entry
-		exhaustedPairs.delete(key);
+function recordHop(sessionId: string, provider: string, modelId: string): void {
+	const state = hopState.get(sessionId);
+	if (state) {
+		state.hopCount++;
+		state.triedModels.add(getSessionKey(provider, modelId));
 	}
-	return isStillExhausted;
 }
 
-export function clearExhaustedModels(): void {
-	exhaustedPairs.clear();
+function getHopState(sessionId: string) {
+	return hopState.get(sessionId);
 }
 
-/**
- * Find next hop target - same model family, different provider
- * Respects user preferences if configured
- */
-export function findNextHop(
-	ctx: {
-		modelRegistry: {
-			getAll: () => Array<{ provider: string } & Record<string, unknown>>;
-			getAvailable: () => Array<{ provider: string } & Record<string, unknown>>;
-		};
-	},
-	currentProvider: string,
-	currentModelId: string,
-	currentModelName: string,
-	isPaidMode: boolean,
-	userConfig?: ModelHopConfig,
-): IndexedModel | null {
-	// Build fresh model index
-	const allModels = ctx.modelRegistry.getAll() as Array<
-		{ provider: string } & Record<string, unknown>
-	>;
-	const availableModels = ctx.modelRegistry.getAvailable() as Array<
-		{ provider: string } & Record<string, unknown>
-	>;
-	const modelIndex = buildModelIndex(allModels as any, availableModels as any);
-
-	// Get current model family
-	const alternatives = getModelAlternatives(
-		modelIndex,
-		currentProvider,
-		currentModelId,
-		currentModelName,
-		isPaidMode,
-		new Set(
-			Array.from(exhaustedPairs.keys()).filter((key) => {
-				const [provider, modelId] = key.split(":");
-				return isModelExhausted(provider, modelId);
-			}),
-		),
-	);
-
-	// If user has preferred models, prioritize those
-	if (userConfig?.preferredModels && userConfig.preferredModels.length > 0) {
-		for (const preferredFamily of userConfig.preferredModels) {
-			// Check if this preferred model is already exhausted
-			const preferredAlts = alternatives.filter((alt) => {
-				const altFamily = `${alt.name} ${alt.id}`.toLowerCase();
-				return (
-					altFamily.includes(preferredFamily.toLowerCase()) &&
-					!isModelExhausted(alt.provider, alt.id)
-				);
-			});
-
-			if (preferredAlts.length > 0) {
-				return preferredAlts[0]; // Return cheapest available
-			}
-		}
-	}
-
-	// Return best alternative from same family
-	if (alternatives.length > 0) {
-		return alternatives[0]; // Already sorted by cost
-	}
-
-	return null;
+function cleanupHopState(sessionId: string): void {
+	hopState.delete(sessionId);
 }
 
 /**
@@ -140,38 +81,28 @@ export async function executeModelHop(
 			}>;
 		};
 		modelRegistry: {
-			find: (id: string, provider: string) => unknown;
-			getAll: () => Array<{ provider: string } & Record<string, unknown>>;
-			getAvailable: () => Array<{ provider: string } & Record<string, unknown>>;
+			getAvailable: () => Array<ProviderModelConfig & { provider?: string }>;
 		};
+		session?: { id?: string };
 	},
-	target: IndexedModel,
+	target: ProviderModelConfig & { provider?: string },
 	reason: string,
 ): Promise<boolean> {
 	try {
-		// Find the full model object in registry
-		let targetModel = ctx.modelRegistry.find(target.id, "") as any;
-		if (!targetModel) {
-			const allModels = ctx.modelRegistry.getAll();
-			targetModel = allModels.find(
-				(m) => m.provider === target.provider,
-			) as any;
-		}
-
-		if (!targetModel) {
-			ctx.ui.notify(`Model ${target.name} not found in registry`, "error");
+		if (!target.provider) {
+			ctx.ui.notify("Target model has no provider", "error");
 			return false;
 		}
 
-		// Switch model
-		const success = await (pi as any).setModel?.(targetModel);
+		// Switch model using Pi's API
+		const success = await (pi as any).setModel?.(target);
 		if (!success) {
 			ctx.ui.notify(`Failed to switch to ${target.provider}`, "error");
 			return false;
 		}
 
 		ctx.ui.notify(
-			`🔄 ${reason} → ${target.provider} (${target.name})`,
+			`🔄 ${reason} → ${target.provider} (${target.name || target.id})`,
 			"warning",
 		);
 
@@ -201,8 +132,8 @@ export async function executeModelHop(
 }
 
 /**
- * Handle 429 with model hopping
- * Main entry point for automated failover
+ * Handle 429 with intelligent model hopping
+ * Main entry point - completely automated
  */
 export async function handleModelHop(
 	pi: ExtensionAPI,
@@ -215,50 +146,145 @@ export async function handleModelHop(
 			}>;
 		};
 		modelRegistry: {
-			find: (id: string, provider: string) => unknown;
-			getAll: () => Array<{ provider: string } & Record<string, unknown>>;
-			getAvailable: () => Array<{ provider: string } & Record<string, unknown>>;
+			getAvailable: () => Array<ProviderModelConfig & { provider?: string }>;
 		};
+		session?: { id?: string };
 	},
 	currentProvider: string,
 	currentModelId: string,
 	currentModelName: string,
-	isPaidMode: boolean,
-	hopCount: number = 0,
-	userConfig?: ModelHopConfig,
-): Promise<{ success: boolean; newProvider?: string; hops: number }> {
-	const maxHops = userConfig?.maxHops ?? 3;
+	error: unknown,
+	config?: ModelHopConfig,
+): Promise<{
+	success: boolean;
+	newProvider?: string;
+	hops: number;
+	message: string;
+}> {
+	const sessionId = ctx.session?.id || "default";
+	const maxHops = config?.maxHops ?? 3;
+	const autoHop = config?.autoHop ?? true;
 
-	if (hopCount >= maxHops) {
-		ctx.ui.notify(
-			"⚠️ Max model hops reached. Try a different model manually.",
-			"warning",
-		);
-		return { success: false, hops: hopCount };
+	// Classify the error
+	const classified = classifyError(error);
+
+	// Only hop on rate limits and capacity errors
+	if (classified.type !== "rate_limit" && classified.type !== "capacity") {
+		return {
+			success: false,
+			hops: 0,
+			message: `Not a rate limit error (${classified.type})`,
+		};
+	}
+
+	// Initialize or get hop state
+	let state = getHopState(sessionId);
+	if (!state) {
+		initHopState(sessionId, currentProvider, currentModelId);
+		state = getHopState(sessionId)!;
+	}
+
+	// Check max hops
+	if (state.hopCount >= maxHops) {
+		cleanupHopState(sessionId);
+		return {
+			success: false,
+			hops: state.hopCount,
+			message:
+				"⚠️ Max model hops reached. Try a different model manually with /model",
+		};
 	}
 
 	// Mark current as exhausted
-	markModelExhausted(currentProvider, currentModelId);
+	markExhausted(currentProvider, currentModelId);
 
-	// Find next hop
+	// Get available models
+	const availableModels = ctx.modelRegistry.getAvailable().map((m) => ({
+		...m,
+		provider: (m as any).provider || currentProvider, // Ensure provider is set
+	}));
+
+	if (availableModels.length === 0) {
+		return {
+			success: false,
+			hops: state.hopCount,
+			message: "⚠️ No alternative models available",
+		};
+	}
+
+	// Find next hop using hierarchical matching
 	const nextModel = findNextHop(
-		ctx,
 		currentProvider,
 		currentModelId,
-		currentModelName,
-		isPaidMode,
-		userConfig,
+		availableModels,
+		{
+			preferredModels: config?.preferredModels,
+			isPaidMode: config?.isPaidMode ?? false,
+		},
 	);
 
 	if (!nextModel) {
-		ctx.ui.notify(
-			"⚠️ No alternative models available. Try again later.",
-			"warning",
+		// No direct match - try to get any alternative
+		const alternatives = getRankedAlternatives(
+			currentProvider,
+			currentModelId,
+			availableModels.filter(
+				(m) =>
+					!state!.triedModels.has(
+						getSessionKey(m.provider || currentProvider, m.id),
+					),
+			),
+			{
+				preferredModels: config?.preferredModels,
+				isPaidMode: config?.isPaidMode ?? false,
+			},
+			1,
 		);
-		return { success: false, hops: hopCount };
+
+		if (alternatives.length === 0) {
+			cleanupHopState(sessionId);
+			return {
+				success: false,
+				hops: state.hopCount,
+				message: "⚠️ No suitable alternatives found",
+			};
+		}
+
+		// Try the best alternative
+		const alt = alternatives[0];
+		recordHop(sessionId, alt.model.provider || currentProvider, alt.model.id);
+
+		const success = await executeModelHop(
+			pi,
+			ctx,
+			alt.model,
+			`Trying ${alt.reason}`,
+		);
+
+		if (success) {
+			return {
+				success: true,
+				newProvider: alt.model.provider,
+				hops: state.hopCount,
+				message: `Hopped to ${alt.model.provider} (${alt.reason})`,
+			};
+		}
+
+		// Recursive retry with next alternative
+		return handleModelHop(
+			pi,
+			ctx,
+			alt.model.provider || currentProvider,
+			alt.model.id,
+			alt.model.name || alt.model.id,
+			error,
+			config,
+		);
 	}
 
-	// Execute hop
+	// Execute the hop
+	recordHop(sessionId, nextModel.provider || currentProvider, nextModel.id);
+
 	const success = await executeModelHop(
 		pi,
 		ctx,
@@ -270,19 +296,51 @@ export async function handleModelHop(
 		return {
 			success: true,
 			newProvider: nextModel.provider,
-			hops: hopCount + 1,
+			hops: state.hopCount,
+			message: `Hopped to ${nextModel.provider}`,
 		};
 	}
 
-	// If hop failed, try recursively (next alternative)
+	// If hop failed, try next alternative
+	markExhausted(nextModel.provider || currentProvider, nextModel.id);
+
 	return handleModelHop(
 		pi,
 		ctx,
-		nextModel.provider,
-		nextModel.id,
-		nextModel.name,
-		isPaidMode,
-		hopCount + 1,
-		userConfig,
+		currentProvider,
+		currentModelId,
+		currentModelName,
+		error,
+		config,
 	);
+}
+
+/**
+ * Reset hop state for a session
+ * Call this on successful completion
+ */
+export function resetHopState(sessionId?: string): void {
+	if (sessionId) {
+		cleanupHopState(sessionId);
+	} else {
+		hopState.clear();
+	}
+}
+
+/**
+ * Get current hop status for debugging
+ */
+export function getHopStatus(sessionId: string): {
+	hopCount: number;
+	triedCount: number;
+	originalProvider: string;
+} | null {
+	const state = hopState.get(sessionId);
+	if (!state) return null;
+
+	return {
+		hopCount: state.hopCount,
+		triedCount: state.triedModels.size,
+		originalProvider: state.originalModel.provider,
+	};
 }

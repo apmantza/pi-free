@@ -1,6 +1,12 @@
 /**
- * Model Index - Cross-provider model aggregation and family grouping
- * Builds an index of all available models grouped by model family
+ * Dynamic Model Index - Hierarchical model matching without hardcoded patterns
+ *
+ * Priority order:
+ * 1. Exact same model ID on different provider
+ * 2. Same provider, similar model (same family)
+ * 3. User's preferred_models from config
+ * 4. Same model family across other providers
+ * 5. Any available model (last resort)
  */
 
 import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
@@ -8,157 +14,342 @@ import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
 // Pi's registry models include provider field
 type ModelWithProvider = ProviderModelConfig & { provider: string };
 
-export interface IndexedModel {
-	provider: string;
-	id: string;
-	name: string;
-	cost: {
-		input: number;
-		output: number;
-		cacheRead?: number;
-		cacheWrite?: number;
-	};
-	contextWindow: number;
-	maxTokens: number;
-	reasoning: boolean;
-	input: ("text" | "image")[];
+export interface IndexedModel extends ModelWithProvider {
+	// Additional metadata for matching
+	tokens: string[]; // Tokenized model ID for fuzzy matching
+	family: string; // Extracted family name
 }
 
-export interface ModelFamily {
-	family: string; // Normalized family name (e.g., "llama-3.3-70b")
-	variants: IndexedModel[]; // Same model from different providers
-}
-
-// Model family extraction patterns
-const MODEL_FAMILY_PATTERNS = [
-	// DeepSeek
-	{ pattern: /deepseek[-_]?(v3|r1|v3\.1|v3\.2)/i, family: "deepseek-$1" },
-	// Llama
-	{
-		pattern: /llama[-_]?(3\.?3|3\.?1|3|2)[-_]?(70b|405b|8b|7b|13b)/i,
-		family: "llama-$1-$2",
-	},
-	// Qwen
-	{
-		pattern: /qwen[-_]?(2\.?5|2|3)[-_]?(72b|32b|14b|7b)/i,
-		family: "qwen-$1-$2",
-	},
-	// Mixtral
-	{ pattern: /mixtral[-_]?(8x22b|8x7b)/i, family: "mixtral-$1" },
-	// GPT/Claude direct matches
-	{ pattern: /(gpt-4|gpt-3\.5|claude-3|claude-2)/i, family: "$1" },
-	// Kimi
-	{ pattern: /kimi[-_]?(k2|k1\.5)/i, family: "kimi-$1" },
-	// Gemini
-	{
-		pattern: /gemini[-_]?(1\.5|2|2\.5)[-_]?(pro|flash|ultra)/i,
-		family: "gemini-$1-$2",
-	},
-];
+// Track exhausted (provider, model) pairs
+const exhaustedPairs = new Map<
+	string,
+	{ exhaustedAt: number; cooldownMs: number }
+>();
+const DEFAULT_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
- * Extract normalized model family from model ID or name
+ * Smart model ID tokenization
+ * Extracts meaningful parts for matching
  */
-export function extractModelFamily(
-	modelId: string,
-	modelName: string,
-): string | null {
-	const searchText = `${modelId} ${modelName}`;
+export function tokenizeModelId(id: string): string[] {
+	// Normalize: lowercase, remove common prefixes/suffixes
+	let normalized = id.toLowerCase();
 
-	for (const { pattern, family } of MODEL_FAMILY_PATTERNS) {
-		const match = searchText.match(pattern);
-		if (match) {
-			// Replace $1, $2 with captured groups
-			let result = family;
-			match.forEach((group, index) => {
-				if (index > 0) {
-					result = result.replace(`$${index}`, group.toLowerCase());
-				}
-			});
-			return result.toLowerCase().replace(/[\s_]+/g, "-");
-		}
+	// Remove provider-specific prefixes
+	const providerPrefixes = [
+		/^accounts\/[^/]+\/models\//, // Fireworks: accounts/fireworks/models/
+		/^[^/]+\//, // Provider prefixes like openrouter/, kilo/, etc.
+	];
+	for (const prefix of providerPrefixes) {
+		normalized = normalized.replace(prefix, "");
 	}
 
-	return null;
+	// Remove common suffixes
+	normalized = normalized
+		.replace(/-instruct$/, "")
+		.replace(/-chat$/, "")
+		.replace(/-preview$/, "")
+		.replace(/-free$/, "")
+		.replace(/-pro$/, "")
+		.replace(/-flash$/, "")
+		.replace(/-latest$/, "");
+
+	// Tokenize by separators
+	const tokens = normalized
+		.split(/[-_/:]+/)
+		.filter((t) => t.length > 0 && !/^\d{8}$/.test(t)); // Skip date tokens
+
+	return tokens;
 }
 
 /**
- * Build model index from all registered providers
+ * Extract model family from tokens
+ * Looks for: name + size pattern, or version numbers
+ */
+export function extractFamily(tokens: string[]): string {
+	// Look for name + size pattern (e.g., "llama", "3.3", "70b")
+	const sizeIndex = tokens.findIndex((t) => /^\d+(\.\d+)?[bkm]$/i.test(t));
+	if (sizeIndex > 0) {
+		// Include name parts + size
+		return tokens.slice(0, sizeIndex + 1).join("-");
+	}
+
+	// Look for version pattern (e.g., "deepseek", "v3", "r1")
+	const versionIndex = tokens.findIndex((t) =>
+		/^(v\d+|r\d+|\d+\.\d+)$/.test(t),
+	);
+	if (versionIndex > 0) {
+		return tokens.slice(0, versionIndex + 1).join("-");
+	}
+
+	// Fallback: first 2-3 meaningful tokens
+	const meaningful = tokens.filter((t) => t.length > 1 && !/^\d+$/.test(t));
+	return meaningful.slice(0, 3).join("-");
+}
+
+/**
+ * Calculate similarity score between two models
+ * Higher = more similar
+ */
+export function calculateSimilarity(
+	modelA: { id: string; tokens: string[]; family: string },
+	modelB: { id: string; tokens: string[]; family: string },
+): number {
+	let score = 0;
+
+	// Exact family match (e.g., both are "llama-3.3-70b")
+	if (modelA.family === modelB.family) {
+		score += 100;
+	}
+
+	// Partial family overlap
+	const familyTokensA = modelA.family.split("-");
+	const familyTokensB = modelB.family.split("-");
+	const familyOverlap = familyTokensA.filter((t) =>
+		familyTokensB.includes(t),
+	).length;
+	score += familyOverlap * 20;
+
+	// Token overlap (exact ID parts)
+	const tokenOverlap = modelA.tokens.filter((t) =>
+		modelB.tokens.includes(t),
+	).length;
+	score += tokenOverlap * 10;
+
+	// Same base name (first token)
+	if (modelA.tokens[0] === modelB.tokens[0]) {
+		score += 15;
+	}
+
+	return score;
+}
+
+/**
+ * Build searchable model index from available models
  */
 export function buildModelIndex(
-	allModels: ModelWithProvider[],
 	availableModels: ModelWithProvider[],
-): Map<string, ModelFamily> {
-	const index = new Map<string, ModelFamily>();
+): Map<string, IndexedModel> {
+	const index = new Map<string, IndexedModel>();
 
-	for (const model of allModels) {
-		const family = extractModelFamily(model.id, model.name);
-		if (!family) continue;
+	for (const model of availableModels) {
+		const tokens = tokenizeModelId(model.id);
+		const family = extractFamily(tokens);
 
-		// Check if this model is available (has auth)
-		const isAvailable = availableModels.some(
-			(m) => m.provider === model.provider && m.id === model.id,
-		);
-
-		if (!isAvailable) continue;
-
-		const indexedModel: IndexedModel = {
-			provider: model.provider,
-			id: model.id,
-			name: model.name,
-			cost: model.cost,
-			contextWindow: model.contextWindow,
-			maxTokens: model.maxTokens,
-			reasoning: model.reasoning,
-			input: model.input,
+		const indexed: IndexedModel = {
+			...model,
+			tokens,
+			family,
 		};
 
-		if (index.has(family)) {
-			index.get(family)!.variants.push(indexedModel);
-		} else {
-			index.set(family, { family, variants: [indexedModel] });
-		}
+		index.set(`${model.provider}:${model.id}`, indexed);
 	}
 
 	return index;
 }
 
 /**
- * Get all alternative providers for a given model
+ * Mark a (provider, model) pair as exhausted
  */
-export function getModelAlternatives(
-	modelIndex: Map<string, ModelFamily>,
-	currentProvider: string,
+export function markExhausted(
+	provider: string,
 	modelId: string,
-	modelName: string,
-	isPaidMode: boolean,
-	exhaustedPairs: Set<string>,
-): IndexedModel[] {
-	const family = extractModelFamily(modelId, modelName);
-	if (!family) return [];
+	cooldownMs: number = DEFAULT_COOLDOWN_MS,
+): void {
+	const key = `${provider}:${modelId}`;
+	exhaustedPairs.set(key, { exhaustedAt: Date.now(), cooldownMs });
 
-	const modelFamily = modelIndex.get(family);
-	if (!modelFamily) return [];
-
-	return modelFamily.variants
-		.filter((m) => m.provider !== currentProvider) // Exclude current
-		.filter((m) => isPaidMode || m.cost.input === 0) // Respect free mode
-		.filter((m) => !exhaustedPairs.has(`${m.provider}:${m.id}`)) // Exclude exhausted
-		.sort((a, b) => a.cost.input - b.cost.input); // Prefer cheaper
+	// Cleanup old entries periodically
+	if (exhaustedPairs.size > 50) {
+		const now = Date.now();
+		for (const [k, v] of exhaustedPairs) {
+			if (now - v.exhaustedAt > v.cooldownMs) {
+				exhaustedPairs.delete(k);
+			}
+		}
+	}
 }
 
 /**
- * Find model by family name in index
+ * Check if a (provider, model) pair is currently exhausted
  */
-export function findModelByFamily(
-	modelIndex: Map<string, ModelFamily>,
-	family: string,
-): IndexedModel | null {
-	const normalizedFamily = family.toLowerCase().replace(/[\s_]+/g, "-");
-	const modelFamily = modelIndex.get(normalizedFamily);
+export function isExhausted(provider: string, modelId: string): boolean {
+	const key = `${provider}:${modelId}`;
+	const state = exhaustedPairs.get(key);
+	if (!state) return false;
 
-	if (!modelFamily || modelFamily.variants.length === 0) return null;
+	const stillExhausted = Date.now() - state.exhaustedAt < state.cooldownMs;
+	if (!stillExhausted) {
+		exhaustedPairs.delete(key);
+	}
+	return stillExhausted;
+}
 
-	// Return cheapest available
-	return modelFamily.variants.sort((a, b) => a.cost.input - b.cost.input)[0];
+/**
+ * Find next hop target using hierarchical matching
+ *
+ * Priority:
+ * 1. Same model ID, different provider
+ * 2. Same provider, similar model
+ * 3. User's preferred models (if configured)
+ * 4. Same family, different provider
+ * 5. Similar models by score
+ */
+export function findNextHop(
+	currentProvider: string,
+	currentModelId: string,
+	availableModels: ModelWithProvider[],
+	userPreferences?: {
+		preferredModels?: string[];
+		isPaidMode?: boolean;
+	},
+): ModelWithProvider | null {
+	const index = buildModelIndex(availableModels);
+	const currentKey = `${currentProvider}:${currentModelId}`;
+	const current = index.get(currentKey);
+
+	if (!current) return null;
+
+	const candidates: Array<{
+		model: ModelWithProvider;
+		priority: number;
+		reason: string;
+	}> = [];
+
+	for (const [key, model] of index) {
+		if (key === currentKey) continue; // Skip current
+		if (isExhausted(model.provider, model.id)) continue; // Skip exhausted
+
+		// Check free mode
+		if (!userPreferences?.isPaidMode && model.cost.input > 0) continue;
+
+		// Priority 1: Same model ID, different provider
+		if (model.id === currentModelId) {
+			candidates.push({
+				model,
+				priority: 1,
+				reason: "same-model-different-provider",
+			});
+			continue;
+		}
+
+		// Priority 2: Same provider, similar model (same family)
+		if (model.provider === currentProvider && model.family === current.family) {
+			candidates.push({
+				model,
+				priority: 2,
+				reason: "same-provider-similar-model",
+			});
+			continue;
+		}
+
+		// Priority 3: User's preferred models
+		if (userPreferences?.preferredModels?.length) {
+			const isPreferred = userPreferences.preferredModels.some(
+				(pref) =>
+					model.family.includes(pref.toLowerCase()) ||
+					model.name.toLowerCase().includes(pref.toLowerCase()) ||
+					model.id.toLowerCase().includes(pref.toLowerCase()),
+			);
+			if (isPreferred) {
+				candidates.push({
+					model,
+					priority: 3,
+					reason: "user-preferred",
+				});
+				continue;
+			}
+		}
+
+		// Priority 4: Same family, different provider
+		if (model.family === current.family) {
+			candidates.push({
+				model,
+				priority: 4,
+				reason: "same-family",
+			});
+			continue;
+		}
+
+		// Priority 5: Calculate similarity score
+		const score = calculateSimilarity(current, model);
+		if (score > 30) {
+			// Threshold for "similar enough"
+			candidates.push({
+				model,
+				priority: 5 + Math.floor(100 - score) / 10, // Lower priority for lower scores
+				reason: "similar-model",
+			});
+		}
+	}
+
+	// Sort by priority, then by cost (cheaper first)
+	candidates.sort((a, b) => {
+		if (a.priority !== b.priority) return a.priority - b.priority;
+		return a.model.cost.input - b.model.cost.input;
+	});
+
+	return candidates[0]?.model ?? null;
+}
+
+/**
+ * Get alternative models ranked by preference
+ * Returns up to N alternatives
+ */
+export function getRankedAlternatives(
+	currentProvider: string,
+	currentModelId: string,
+	availableModels: ModelWithProvider[],
+	userPreferences?: {
+		preferredModels?: string[];
+		isPaidMode?: boolean;
+	},
+	maxResults: number = 5,
+): Array<{ model: ModelWithProvider; reason: string }> {
+	const results: Array<{ model: ModelWithProvider; reason: string }> = [];
+	const tried = new Set<string>([`${currentProvider}:${currentModelId}`]);
+
+	let currentProviderToTry = currentProvider;
+	let currentModelIdToTry = currentModelId;
+
+	// Try to find alternatives up to maxResults
+	for (let i = 0; i < maxResults; i++) {
+		const next = findNextHop(
+			currentProviderToTry,
+			currentModelIdToTry,
+			availableModels.filter((m) => !tried.has(`${m.provider}:${m.id}`)),
+			userPreferences,
+		);
+
+		if (!next) break;
+
+		// For subsequent hops, don't reuse the same provider we just tried
+		if (i > 0 && next.provider === currentProviderToTry) {
+			// Skip this one, try again excluding this provider
+			const alternatives = availableModels.filter(
+				(m) =>
+					m.provider !== currentProviderToTry &&
+					!tried.has(`${m.provider}:${m.id}`),
+			);
+			const alt = findNextHop(
+				currentProviderToTry,
+				currentModelIdToTry,
+				alternatives,
+				userPreferences,
+			);
+			if (!alt) break;
+
+			results.push({ model: alt, reason: "alternative-provider" });
+			tried.add(`${alt.provider}:${alt.id}`);
+			currentProviderToTry = alt.provider;
+			currentModelIdToTry = alt.id;
+		} else {
+			results.push({ model: next, reason: "alternative-provider" });
+			tried.add(`${next.provider}:${next.id}`);
+			currentProviderToTry = next.provider;
+			currentModelIdToTry = next.id;
+		}
+	}
+
+	return results;
 }
