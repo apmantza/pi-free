@@ -37,6 +37,8 @@ interface PiFreeConfig {
 	auto_model_hop?: boolean;
 	// Max model hops before giving up (default: 3)
 	max_model_hops?: number;
+	// Allow capability downgrades when hopping: "never", "minor", or "always" (default: "minor")
+	allow_downgrades?: "never" | "minor" | "always";
 }
 
 const CONFIG_TEMPLATE: PiFreeConfig = {
@@ -54,6 +56,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	preferred_models: [],
 	auto_model_hop: true,
 	max_model_hops: 3,
+	allow_downgrades: "minor",
 };
 
 const PI_DIR = join(process.env.HOME || process.env.USERPROFILE || "", ".pi");
@@ -152,6 +155,7 @@ export const KILO_FREE_ONLY = resolveBool(
 export const PREFERRED_MODELS = file.preferred_models ?? [];
 export const AUTO_MODEL_HOP = file.auto_model_hop ?? true;
 export const MAX_MODEL_HOPS = file.max_model_hops ?? 3;
+export const ALLOW_DOWNGRADES = file.allow_downgrades ?? "minor";
 
 const HIDDEN: Set<string> = new Set(file.hidden_models ?? []);
 

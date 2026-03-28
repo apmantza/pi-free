@@ -56,6 +56,58 @@ Enable/disable automatic hopping on 429 (default: `true`)
 
 Maximum provider switches before giving up (default: `3`)
 
+### allow_downgrades
+
+Control capability preservation when hopping (default: `"minor"`):
+- `"never"` - Only hop to equal or better models. If none available, ask user.
+- `"minor"` - Allow minor downgrades (one tier). Warn on major downgrades.
+- `"always"` - Allow any downgrade with notification.
+
+## Capability Tiers
+
+Models are automatically ranked by capability:
+
+| Tier | Score | Typical Models |
+|------|-------|----------------|
+| **ultra** | 85+ | GPT-4, Claude-3.5-Opus, Llama-405B, 200k+ context |
+| **high** | 70-84 | GPT-4o, Claude-3.5-Sonnet, Llama-70B, 128k context |
+| **medium** | 50-69 | GPT-3.5, Claude-Haiku, 30B models, 32k context |
+| **low** | 30-49 | 7B-13B models, 16k context |
+| **minimal** | <30 | Tiny models, basic tasks only |
+
+## Smart Hopping with Capability Preservation
+
+**Example 1: Capability preserved**
+```
+User: Complex reasoning task → Claude-3.5-Sonnet @ OpenRouter → 429
+Auto-hop: Claude-3.5-Sonnet @ Kilo (same capability) → Success ✓
+```
+
+**Example 2: Minor downgrade allowed**
+```
+User: Complex task → GPT-4 @ OpenRouter → 429
+No GPT-4 on other providers available...
+Hop: GPT-4o @ Fireworks (high tier, minor downgrade) → Success ⚠️
+Notification: "Slight downgrade: GPT-4o (high) vs GPT-4 (ultra)"
+```
+
+**Example 3: Major downgrade prevented**
+```
+User: Code analysis → Claude-3.5-Sonnet @ Kilo → 429
+Config: allow_downgrades: "minor"
+No equal-or-better alternatives found
+Result: ⚠️ "Cannot find equivalent model. Llama-3-8B is significantly less capable 
+than Claude-3.5-Sonnet. Use /model to switch manually or allow downgrades."
+```
+
+**Example 4: User overrides**
+```
+Config: allow_downgrades: "always"
+User: Task → GPT-4 @ Kilo → 429
+Hop: Qwen-7B @ OpenRouter (major downgrade) → Success ⬇️
+Notification: "Major downgrade: Qwen-7B (low, score: 35) vs GPT-4 (ultra, score: 92)"
+```
+
 ## Dynamic Family Extraction
 
 The system automatically extracts model families without hardcoded patterns:

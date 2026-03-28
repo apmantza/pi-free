@@ -7,6 +7,14 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
+import {
+	calculateCapability,
+	generateCapabilityMessage,
+	getMinimumAcceptableTier,
+	isCapabilityDowngrade,
+	type ModelCapabilities,
+	rankByCapability,
+} from "./capability-ranking.ts";
 import { classifyError } from "./errors.ts";
 import {
 	buildModelIndex,
@@ -23,6 +31,7 @@ interface ModelHopConfig {
 	autoHop?: boolean;
 	maxHops?: number;
 	isPaidMode?: boolean;
+	allowDowngrades?: "never" | "minor" | "always"; // Default: "minor"
 }
 
 // Track hop state per session
@@ -280,6 +289,82 @@ export async function handleModelHop(
 			error,
 			config,
 		);
+	}
+
+	// Check capability before hopping
+	const currentModel = availableModels.find(
+		(m) => m.provider === currentProvider && m.id === currentModelId,
+	);
+
+	if (currentModel) {
+		const currentCaps = calculateCapability(currentModel);
+		const nextCaps = calculateCapability(nextModel);
+		const { isDowngrade, severity } = isCapabilityDowngrade(
+			currentCaps,
+			nextCaps,
+		);
+
+		const allowDowngrades = config?.allowDowngrades ?? "minor";
+
+		if (isDowngrade) {
+			// Check if downgrade is allowed
+			if (
+				allowDowngrades === "never" ||
+				(allowDowngrades === "minor" && severity === "major")
+			) {
+				// Try to find equal-or-better alternative
+				const ranked = rankByCapability(
+					currentModel,
+					availableModels.filter(
+						(m) =>
+							!state!.triedModels.has(
+								getSessionKey(m.provider || currentProvider, m.id),
+							) && m.id !== nextModel.id,
+					),
+				);
+
+				if (ranked.equalOrBetter.length > 0) {
+					// Use equal-or-better model instead
+					const betterModel = ranked.equalOrBetter[0];
+					recordHop(
+						sessionId,
+						betterModel.provider || currentProvider,
+						betterModel.id,
+					);
+
+					const success = await executeModelHop(
+						pi,
+						ctx,
+						betterModel,
+						`Rate limited on ${currentProvider} (preserving capability)`,
+					);
+
+					if (success) {
+						return {
+							success: true,
+							newProvider: betterModel.provider,
+							hops: state.hopCount,
+							message: `Hopped to ${betterModel.name || betterModel.id} @ ${betterModel.provider} (capability preserved)`,
+						};
+					}
+				}
+
+				// No suitable alternative without downgrade
+				if (severity === "major") {
+					ctx.ui.notify(
+						`⚠️ Cannot find equivalent model. ${nextModel.name || nextModel.id} is significantly less capable than ${currentModelName}. Use /model to switch manually or allow downgrades in config.`,
+						"warning",
+					);
+				}
+			}
+
+			// Show capability message even if we proceed
+			const capMessage = generateCapabilityMessage(
+				{ name: currentModelName, capabilities: currentCaps },
+				{ name: nextModel.name || nextModel.id, capabilities: nextCaps },
+			);
+			ctx.ui.notify(capMessage, severity === "major" ? "warning" : "info");
+		}
 	}
 
 	// Execute the hop
