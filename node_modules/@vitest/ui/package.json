@@ -1,0 +1,89 @@
+{
+  "name": "@vitest/ui",
+  "type": "module",
+  "version": "1.6.1",
+  "description": "UI for Vitest",
+  "license": "MIT",
+  "funding": "https://opencollective.com/vitest",
+  "homepage": "https://github.com/vitest-dev/vitest/tree/main/packages/ui#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vitest-dev/vitest.git",
+    "directory": "packages/ui"
+  },
+  "bugs": {
+    "url": "https://github.com/vitest-dev/vitest/issues"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./reporter": {
+      "types": "./reporter.d.ts",
+      "default": "./dist/reporter.js"
+    },
+    "./*": "./*"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "*.d.ts",
+    "dist"
+  ],
+  "peerDependencies": {
+    "vitest": "1.6.1"
+  },
+  "dependencies": {
+    "fast-glob": "^3.3.2",
+    "fflate": "^0.8.1",
+    "flatted": "^3.2.9",
+    "pathe": "^1.1.1",
+    "picocolors": "^1.0.0",
+    "sirv": "^2.0.4",
+    "@vitest/utils": "1.6.1"
+  },
+  "devDependencies": {
+    "@faker-js/faker": "^8.2.0",
+    "@iconify-json/logos": "^1.1.42",
+    "@testing-library/cypress": "^10.0.1",
+    "@types/codemirror": "^5.60.15",
+    "@types/d3-force": "^3.0.9",
+    "@types/d3-selection": "^3.0.10",
+    "@types/ws": "^8.5.9",
+    "@unocss/reset": "^0.57.4",
+    "@vitejs/plugin-vue": "^5.0.3",
+    "@vitejs/plugin-vue-jsx": "^3.0.2",
+    "@vueuse/core": "^10.6.1",
+    "ansi-to-html": "^0.7.2",
+    "birpc": "0.2.15",
+    "codemirror": "^5.65.16",
+    "codemirror-theme-vars": "^0.1.2",
+    "cypress": "^13.6.2",
+    "d3-graph-controller": "^3.0.4",
+    "floating-vue": "^5.2.2",
+    "splitpanes": "^3.1.5",
+    "unocss": "^0.57.4",
+    "unplugin-auto-import": "^0.16.7",
+    "unplugin-vue-components": "^0.25.2",
+    "vite": "^5.0.0",
+    "vite-plugin-pages": "^0.31.0",
+    "vue": "^3.3.8",
+    "vue-router": "^4.2.5",
+    "@vitest/runner": "1.6.1",
+    "@vitest/ws-client": "1.6.1"
+  },
+  "scripts": {
+    "build": "rimraf dist && pnpm build:node && pnpm build:client",
+    "build:client": "vite build",
+    "build:node": "rollup -c",
+    "typecheck": "tsc --noEmit",
+    "dev:client": "vite",
+    "dev": "rollup -c --watch --watch.include 'node/**'",
+    "dev:ui": "pnpm run --stream '/^(dev|dev:client)$/'",
+    "test:run": "cypress run --component",
+    "test:open": "cypress open --component"
+  }
+}
