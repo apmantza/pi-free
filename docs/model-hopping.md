@@ -35,7 +35,8 @@ Add to `~/.pi/free.json`:
     "trinity-large"
   ],
   "auto_model_hop": true,
-  "max_model_hops": 3
+  "max_model_hops": 3,
+  "allow_downgrades": "minor"
 }
 ```
 
@@ -59,119 +60,9 @@ Maximum provider switches before giving up (default: `3`)
 ### allow_downgrades
 
 Control capability preservation when hopping (default: `"minor"`):
-- `"never"` - Only hop to equal or better models. If none available, ask user.
-- `"minor"` - Allow minor downgrades (one tier). Warn on major downgrades.
-- `"always"` - Allow any downgrade with notification.
-
-## Capability Ranking
-
-Models are ranked using **real benchmark data** when available, falling back to smart heuristics.
-
-### Data Sources
-
-**Primary: Artificial Analysis API**
-- Real benchmark scores for 300+ models
-- Intelligence Index (overall capability)
-- Coding, reasoning, agentic benchmarks
-- Updated regularly
-- Free API key at artificialanalysis.ai
-
-**Fallback: Smart Heuristics**
-- For models not in AA database
-- Context window, reasoning flag, vision
-- Parameter extraction from name
-
-### Setup
-
-Get free API key:
-```bash
-# 1. Sign up at https://artificialanalysis.ai
-# 2. Generate API key in account settings
-# 3. Add to ~/.pi/free.json or env:
-
-export ARTIFICIAL_ANALYSIS_API_KEY="your_key_here"
-```
-
-Or in config:
-```json
-{
-  "artificial_analysis_api_key": "your_key_here"
-}
-```
-
-### How It Works
-
-```
-User asks Claude-3.5-Sonnet @ Kilo → 429
-
-1. Check Artificial Analysis database
-   Found! Intelligence Index: 62.9 → Score: 90 (high tier)
-
-2. Find alternatives:
-   - GPT-4 @ OpenRouter: Index 64.2 → Score: 92 ✅ Equal
-   - Llama-3.1-70B @ Fireworks: Not in AA → Heuristic: 68 ⚠️ Minor down
-   - MiMo-V2-Pro @ Zen: Index 49.2 → Score: 70 ⬇️ Major down
-
-3. Hop to best equal-or-better option
-```
-
-### Capability Tiers
-
-| Tier | Score | AA Intelligence Index | Typical Models |
-|------|-------|---------------------|----------------|
-| **ultra** | 80+ | 56+ | GPT-4o (64), Claude-3.5-Opus |
-| **high** | 65-79 | 45-55 | GPT-4 (58), Llama-3.1-405B (52) |
-| **medium** | 45-64 | 32-44 | Claude-3-Haiku (45), Qwen-72B |
-| **low** | 25-44 | 18-31 | 7B-13B models |
-| **minimal** | <25 | <18 | Small/free models |
-
-### Without API Key
-
-If no API key, system uses **heuristics only**:
-- Context window size × 0.03 points
-- Reasoning flag +20 points
-- Vision support +5 points
-- Parameter count × 0.4 points
-
-Less accurate but still prevents major downgrades (e.g., 70B → 7B).
-
-### Cache
-
-Data cached at `~/.pi/cache/artificial-analysis.json` for 24 hours.
-Cache auto-refreshes on session start if stale.
-
-## Smart Hopping with Capability Preservation
-
-**Example 1: Capability preserved**
-```
-User: Complex reasoning task → Claude-3.5-Sonnet @ OpenRouter → 429
-Auto-hop: Claude-3.5-Sonnet @ Kilo (same capability) → Success ✓
-```
-
-**Example 2: Minor downgrade allowed**
-```
-User: Complex task → GPT-4 @ OpenRouter → 429
-No GPT-4 on other providers available...
-Hop: GPT-4o @ Fireworks (high tier, minor downgrade) → Success ⚠️
-Notification: "Slight downgrade: GPT-4o (high) vs GPT-4 (ultra)"
-```
-
-**Example 3: Major downgrade prevented**
-```
-User: Code analysis → Claude-3.5-Sonnet @ Kilo → 429
-Config: allow_downgrades: "minor"
-No equal-or-better alternatives found
-Result: ⚠️ "Cannot find equivalent model. Llama-3-8B is significantly less capable 
-than Claude-3.5-Sonnet. Use /model to switch manually or allow downgrades."
-```
-
-**Example 4: User overrides**
-```
-Config: allow_downgrades: "always"
-User: Task → GPT-4 @ Kilo → 429
-Hop: Qwen-7B @ OpenRouter (major downgrade) → Success ⬇️
-Notification: "Major downgrade: Qwen-7B (low, score: 35) vs GPT-4 (ultra, score: 92)"
-```
+- `"never"` - Only hop to equal or better models
+- `"minor"` - Allow minor downgrades (one tier) with warning
+- `"always"` - Allow any downgrade with warning
 
 ## Dynamic Family Extraction
 
@@ -217,6 +108,77 @@ User → Big Pickle @ Kilo → 429
 Hop 1: (no other Big Pickle found)
 Hop 2: Trinity Large @ Zen (similar free model) → Success!
 ```
+
+## Capability Ranking
+
+Models are ranked using **hardcoded benchmark data** from Artificial Analysis, updated monthly.
+
+### Data Source
+
+**Artificial Analysis** (https://artificialanalysis.ai)
+- Real benchmark scores for 50+ popular models
+- Intelligence Index (overall capability)
+- Coding, reasoning, agentic benchmarks
+- Updated monthly via GitHub Actions
+
+### How It Works
+
+```
+User asks Claude-3.5-Sonnet @ Kilo → 429
+
+1. Check hardcoded benchmark database
+   Found! Intelligence Index: 62.9 → Score: 90 (high tier)
+
+2. Find alternatives:
+   - GPT-4 @ OpenRouter: Index 58.0 → Score: 83 ✅ Equal
+   - MiMo-V2-Pro @ Zen: Index 49.2 → Score: 70 ⬇️ Major down
+   - Llama-3.1-70B @ Fireworks: Not in DB → Heuristic: 69 ⚠️ Minor down
+
+3. Hop to best equal-or-better option
+```
+
+### Hardcoded Models
+
+The extension includes benchmark data for:
+- **OpenAI**: GPT-4o, GPT-4, GPT-4o-mini, GPT-3.5
+- **Anthropic**: Claude-3.5-Sonnet, Claude-3-Opus, Claude-3.5/3-Haiku
+- **Meta**: Llama-3.1-405B, Llama-3.1-70B, Llama-3-70B
+- **Google**: Gemini-1.5-Pro, Gemini-1.5-Flash
+- **Alibaba**: Qwen-2.5-72B, Qwen-2.5-32B
+- **DeepSeek**: DeepSeek-V3, DeepSeek-R1
+- **Xiaomi**: MiMo-V2-Pro, MiMo-V2-Flash, MiMo-V2-Omni
+- **ZAI/OpenCode**: Big Pickle, Trinity, MiniMax
+- **And more...**
+
+### Capability Tiers
+
+| Tier | Score | Typical Models |
+|------|-------|----------------|
+| **ultra** | 80+ | GPT-4o (92), Claude-3.5-Opus |
+| **high** | 70-84 | GPT-4 (83), Llama-3.1-405B (75) |
+| **medium** | 45-69 | Claude-3-Haiku (69), Qwen-72B (70) |
+| **low** | 25-44 | 7B-13B models |
+| **minimal** | <25 | Small models (fallback heuristics) |
+
+### Fallback Heuristics
+
+For models not in the hardcoded database:
+- Context window × 0.03 points
+- Reasoning flag +20 points
+- Vision +5 points
+- Parameters × 0.4 points
+
+Still prevents major downgrades (e.g., 70B → 7B).
+
+### Updating Data
+
+Benchmarks are updated **monthly** via GitHub Actions:
+1. Fetches fresh data using maintainer's API key
+2. Updates `provider-failover/hardcoded-benchmarks.ts`
+3. Creates PR with new scores
+4. Merged → new release
+
+Users always have current data **without needing API keys**.
 
 ## Exhaustion Tracking
 
