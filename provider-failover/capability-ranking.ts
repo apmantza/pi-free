@@ -4,6 +4,11 @@
  */
 
 import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
+import {
+	calculateBenchmarkedCapability,
+	needsBenchmarkRefresh,
+	updateBenchmarkCache,
+} from "./benchmark-cache.ts";
 
 export type CapabilityTier = "ultra" | "high" | "medium" | "low" | "minimal";
 
@@ -64,10 +69,31 @@ export function extractParamCount(
 
 /**
  * Calculate capability score and tier for a model
+ * Uses real benchmark data if available, falls back to heuristics
  */
 export function calculateCapability(
 	model: ProviderModelConfig,
 ): ModelCapabilities {
+	// Try to use real benchmark data first
+	const benchmark = calculateBenchmarkedCapability(
+		model.id,
+		model.name,
+		model.contextWindow,
+		model.reasoning,
+		model.input.includes("image"),
+	);
+
+	if (benchmark.score > 0) {
+		return {
+			tier: benchmark.tier as CapabilityTier,
+			score: benchmark.score,
+			contextWindow: model.contextWindow,
+			reasoning: model.reasoning,
+			estimatedParams: extractParamCount(model.id, model.name),
+		};
+	}
+
+	// Fallback to heuristics
 	let score = 0;
 
 	// Context window contribution (max ~10 points for 200k)
@@ -245,4 +271,18 @@ export function getMinimumAcceptableTier(
 	// Allow one tier downgrade max
 	const minIdx = Math.min(currentIdx + 1, tierOrder.length - 1);
 	return tierOrder[minIdx];
+}
+
+/**
+ * Initialize capability ranking system
+ * Refreshes benchmark cache if needed
+ */
+export async function initCapabilityRanking(): Promise<void> {
+	if (needsBenchmarkRefresh()) {
+		console.log("[capability] Refreshing benchmark cache...");
+		const result = await updateBenchmarkCache();
+		console.log(
+			`[capability] Updated ${result.updated} models from: ${result.sources.join(", ") || "static snapshot"}`,
+		);
+	}
 }
