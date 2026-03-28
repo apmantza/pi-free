@@ -63,17 +63,49 @@ Control capability preservation when hopping (default: `"minor"`):
 - `"minor"` - Allow minor downgrades (one tier). Warn on major downgrades.
 - `"always"` - Allow any downgrade with notification.
 
-## Capability Tiers
+## Capability Ranking
 
-Models are automatically ranked by capability:
+Models are ranked using **real benchmark data** when available, falling back to intelligent heuristics.
 
-| Tier | Score | Typical Models |
-|------|-------|----------------|
-| **ultra** | 85+ | GPT-4, Claude-3.5-Opus, Llama-405B, 200k+ context |
-| **high** | 70-84 | GPT-4o, Claude-3.5-Sonnet, Llama-70B, 128k context |
-| **medium** | 50-69 | GPT-3.5, Claude-Haiku, 30B models, 32k context |
-| **low** | 30-49 | 7B-13B models, 16k context |
-| **minimal** | <30 | Tiny models, basic tasks only |
+### Data Sources
+
+**Primary: LMSYS Chatbot Arena Elo Ratings**
+- Crowdsourced human evaluations
+- 1M+ comparisons
+- Updated regularly
+- Cached locally (~/.pi/cache/model-benchmarks.json)
+
+**Fallback: Smart Heuristics**
+- Context window size
+- Reasoning capability flag
+- Vision support
+- Parameter extraction from model name
+
+### Capability Tiers
+
+| Tier | Score | Elo Range | Typical Models |
+|------|-------|-----------|--------------|
+| **ultra** | 85+ | 1260+ | GPT-4o (1286), Claude-3.5-Opus, Llama-405B |
+| **high** | 70-84 | 1240-1259 | GPT-4 (1253), Claude-3.5-Sonnet (1272), Llama-70B |
+| **medium** | 50-69 | 1200-1239 | GPT-3.5 (1154), Claude-Haiku (1178), Qwen-72B |
+| **low** | 30-49 | 1150-1199 | 7B-13B models |
+| **minimal** | <30 | <1150 | Tiny models |
+
+### Refreshing Benchmarks
+
+The cache auto-refreshes every 24 hours on session start. To force refresh:
+
+```typescript
+// In extension or skill
+import { updateBenchmarkCache } from "pi-free-providers/provider-failover/benchmark-cache";
+
+await updateBenchmarkCache();
+```
+
+Or manually delete the cache:
+```bash
+rm ~/.pi/cache/model-benchmarks.json
+```
 
 ## Smart Hopping with Capability Preservation
 
