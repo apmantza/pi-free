@@ -97,34 +97,46 @@ function resolve(envKey: string, fileVal?: string): string | undefined {
 	return process.env[envKey] || (fileVal?.trim() ? fileVal : undefined);
 }
 
+// Resolve boolean flag: env var takes priority, then config file.
+// If neither is set, defaults to false (free-only mode).
+function resolveBool(envKey: string, fileVal?: boolean): boolean {
+	const envValue = process.env[envKey];
+	if (envValue === "true") return true;
+	if (envValue === "false") return false;
+	return fileVal === true;
+}
+
 // Global fallback (deprecated, use per-provider flags)
-export const SHOW_PAID =
-	process.env.PI_FREE_SHOW_PAID === "true" ||
-	file.openrouter_show_paid === true ||
-	file.nvidia_show_paid === true ||
-	file.fireworks_show_paid === true ||
-	file.cline_show_paid === true;
+// Returns true only if explicitly enabled via env var
+export const SHOW_PAID = process.env.PI_FREE_SHOW_PAID === "true";
 
-// Per-provider paid model flags
-export const OPENROUTER_SHOW_PAID =
-	process.env.OPENROUTER_SHOW_PAID === "true" ||
-	file.openrouter_show_paid === true;
+// Per-provider paid model flags - default to false (free-only) if not set
+export const OPENROUTER_SHOW_PAID = resolveBool(
+	"OPENROUTER_SHOW_PAID",
+	file.openrouter_show_paid,
+);
 
-export const NVIDIA_SHOW_PAID =
-	process.env.NVIDIA_SHOW_PAID === "true" || file.nvidia_show_paid === true;
+export const NVIDIA_SHOW_PAID = resolveBool(
+	"NVIDIA_SHOW_PAID",
+	file.nvidia_show_paid,
+);
 
-export const FIREWORKS_SHOW_PAID =
-	process.env.FIREWORKS_SHOW_PAID === "true" ||
-	file.fireworks_show_paid === true;
+export const FIREWORKS_SHOW_PAID = resolveBool(
+	"FIREWORKS_SHOW_PAID",
+	file.fireworks_show_paid,
+);
 
-export const CLINE_SHOW_PAID =
-	process.env.CLINE_SHOW_PAID === "true" || file.cline_show_paid === true;
+export const CLINE_SHOW_PAID = resolveBool(
+	"CLINE_SHOW_PAID",
+	file.cline_show_paid,
+);
 
-export const ZEN_SHOW_PAID =
-	process.env.ZEN_SHOW_PAID === "true" || file.zen_show_paid === true;
+export const ZEN_SHOW_PAID = resolveBool("ZEN_SHOW_PAID", file.zen_show_paid);
 
-export const KILO_FREE_ONLY =
-	process.env.PI_FREE_KILO_FREE_ONLY === "true" || file.kilo_free_only === true;
+export const KILO_FREE_ONLY = resolveBool(
+	"PI_FREE_KILO_FREE_ONLY",
+	file.kilo_free_only,
+);
 
 const HIDDEN: Set<string> = new Set(file.hidden_models ?? []);
 
