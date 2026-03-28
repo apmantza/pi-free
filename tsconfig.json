@@ -1,0 +1,26 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext",
+		"lib": ["ES2022"],
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"forceConsistentCasingInFileNames": true,
+		"resolveJsonModule": true,
+		"declaration": true,
+		"declarationMap": true,
+		"sourceMap": true,
+		"allowImportingTsExtensions": true,
+		"noEmit": true,
+		"baseUrl": ".",
+		"paths": {
+			"@mariozechner/pi-coding-agent": [
+				"node_modules/@mariozechner/pi-coding-agent"
+			]
+		}
+	},
+	"include": ["**/*.ts", "providers/**/*.ts"],
+	"exclude": ["node_modules", ".pi-lens"]
+}
