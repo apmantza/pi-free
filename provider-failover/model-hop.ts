@@ -8,7 +8,7 @@ import type {
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
 import {
-	calculateCapability,
+	estimateCapability,
 	generateCapabilityMessage,
 	getMinimumAcceptableTier,
 	isCapabilityDowngrade,
@@ -297,8 +297,8 @@ export async function handleModelHop(
 	);
 
 	if (currentModel) {
-		const currentCaps = calculateCapability(currentModel);
-		const nextCaps = calculateCapability(nextModel);
+		const currentCaps = estimateCapability(currentModel);
+		const nextCaps = estimateCapability(nextModel);
 		const { isDowngrade, severity } = isCapabilityDowngrade(
 			currentCaps,
 			nextCaps,

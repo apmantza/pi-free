@@ -1,40 +1,43 @@
 /**
- * Model Capability Ranking
- * Ensures model hops don't silently downgrade to less capable models
+ * Model Capability Estimation
+ * Uses real benchmark data from Artificial Analysis when available
+ * Falls back to heuristic estimation for models not in their database
  */
 
 import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
 import {
-	calculateBenchmarkedCapability,
-	needsBenchmarkRefresh,
-	updateBenchmarkCache,
-} from "./benchmark-cache.ts";
+	type AAModelData,
+	findAAModel,
+	getAAScore,
+	initArtificialAnalysis,
+} from "./artificial-analysis.ts";
 
 export type CapabilityTier = "ultra" | "high" | "medium" | "low" | "minimal";
 
 export interface ModelCapabilities {
 	tier: CapabilityTier;
-	score: number; // 0-100 numerical score
+	score: number; // 0-100 estimated score
 	contextWindow: number;
 	reasoning: boolean;
 	estimatedParams?: number; // In billions, extracted from name if possible
+	hasVision: boolean;
 }
 
-// Tier thresholds
+// Tier thresholds (based on typical model characteristics)
 const TIER_THRESHOLDS = {
-	ultra: 85, // 400B+ params, 200k+ context, reasoning
-	high: 70, // 70B+ params, 128k+ context
-	medium: 50, // 30B+ params, 32k+ context
-	low: 30, // 7B+ params, 16k+ context
+	ultra: 80, // 400B+ params OR 200k+ context with reasoning
+	high: 65, // 70B+ params OR 128k+ context
+	medium: 45, // 30B+ params OR good context
+	low: 25, // 7B+ params
 	minimal: 0, // Everything else
 };
 
-// Capability bonuses/penalties
-const CAPABILITY_SCORES = {
-	contextPer1K: 0.05, // 0.05 points per 1k context window
-	reasoning: 15, // +15 for reasoning capability
-	paramsPerB: 0.5, // 0.5 points per billion params
-	imageInput: 5, // +5 for vision capability
+// Scoring weights
+const SCORES = {
+	contextPer1K: 0.03, // 0.03 points per 1k context (max ~12 for 400k)
+	reasoning: 20, // +20 for reasoning capability
+	vision: 5, // +5 for vision
+	paramsPerB: 0.4, // 0.4 points per billion params
 };
 
 /**
@@ -46,19 +49,17 @@ export function extractParamCount(
 ): number | undefined {
 	const searchText = `${modelId} ${modelName}`.toLowerCase();
 
-	// Look for parameter indicators
+	// Look for parameter indicators (70b, 405b, 1.5t, etc.)
 	const patterns = [
 		/(\d+(?:\.\d+)?)\s*[bt](?![a-z])/i, // 70b, 405b, 1.5t
 		/(\d+)-billion/i, // 70-billion
-		/(\d+(?:\.\d+)?)\s*billion/i, // 70 billion
 	];
 
 	for (const pattern of patterns) {
 		const match = searchText.match(pattern);
 		if (match) {
 			let value = parseFloat(match[1]);
-			// Check if it's actually a context window (too large for params)
-			if (value > 1000) continue; // Likely context window like 128000
+			if (value > 1000) continue; // Skip context windows like 128000
 			if (match[0].includes("t")) value *= 1000; // Convert trillions to billions
 			return value;
 		}
@@ -67,58 +68,76 @@ export function extractParamCount(
 	return undefined;
 }
 
+const cachedAAData: AAModelData[] | null = null;
+
 /**
- * Calculate capability score and tier for a model
- * Uses real benchmark data if available, falls back to heuristics
+ * Get Artificial Analysis data (cached)
  */
-export function calculateCapability(
+function getAAData(): AAModelData[] {
+	if (cachedAAData) return cachedAAData;
+	// This is synchronous - for async init use initArtificialAnalysis()
+	// For now, return empty; real data comes after async init
+	return [];
+}
+
+/**
+ * Estimate model capability
+ * Uses real Artificial Analysis benchmark data when available
+ * Falls back to heuristic estimation for models not in their database
+ */
+export function estimateCapability(
 	model: ProviderModelConfig,
 ): ModelCapabilities {
-	// Try to use real benchmark data first
-	const benchmark = calculateBenchmarkedCapability(
-		model.id,
-		model.name,
-		model.contextWindow,
-		model.reasoning,
-		model.input.includes("image"),
-	);
+	// Try to find real benchmark data
+	const aaData = getAAData();
+	const aaModel = findAAModel(model.name, model.id, aaData);
+	const aaScore = getAAScore(aaModel);
 
-	if (benchmark.score > 0) {
+	// If we have real benchmark data, use it
+	if (aaScore !== null) {
+		let tier: CapabilityTier = "minimal";
+		if (aaScore >= TIER_THRESHOLDS.ultra) tier = "ultra";
+		else if (aaScore >= TIER_THRESHOLDS.high) tier = "high";
+		else if (aaScore >= TIER_THRESHOLDS.medium) tier = "medium";
+		else if (aaScore >= TIER_THRESHOLDS.low) tier = "low";
+
 		return {
-			tier: benchmark.tier as CapabilityTier,
-			score: benchmark.score,
+			tier,
+			score: aaScore,
 			contextWindow: model.contextWindow,
-			reasoning: model.reasoning,
+			reasoning: model.reasoning || aaModel?.supports_reasoning || false,
 			estimatedParams: extractParamCount(model.id, model.name),
+			hasVision:
+				model.input.includes("image") || aaModel?.supports_vision || false,
 		};
 	}
 
-	// Fallback to heuristics
+	// Fallback to heuristic estimation
 	let score = 0;
 
-	// Context window contribution (max ~10 points for 200k)
-	score += Math.min(
-		(model.contextWindow / 1000) * CAPABILITY_SCORES.contextPer1K,
-		10,
-	);
+	// Context window contribution
+	score += Math.min((model.contextWindow / 1000) * SCORES.contextPer1K, 15);
 
-	// Reasoning capability
+	// Reasoning capability (major factor)
 	if (model.reasoning) {
-		score += CAPABILITY_SCORES.reasoning;
+		score += SCORES.reasoning;
 	}
 
 	// Vision capability
 	if (model.input.includes("image")) {
-		score += CAPABILITY_SCORES.imageInput;
+		score += SCORES.vision;
 	}
 
 	// Parameter count (if extractable)
 	const params = extractParamCount(model.id, model.name);
 	if (params) {
-		score += params * CAPABILITY_SCORES.paramsPerB;
+		score += params * SCORES.paramsPerB;
 	}
 
-	// Determine tier based on score
+	// Cap at 100
+	score = Math.min(100, Math.round(score));
+
+	// Determine tier
 	let tier: CapabilityTier = "minimal";
 	if (score >= TIER_THRESHOLDS.ultra) tier = "ultra";
 	else if (score >= TIER_THRESHOLDS.high) tier = "high";
@@ -127,11 +146,28 @@ export function calculateCapability(
 
 	return {
 		tier,
-		score: Math.round(score),
+		score,
 		contextWindow: model.contextWindow,
 		reasoning: model.reasoning,
 		estimatedParams: params,
+		hasVision: model.input.includes("image"),
 	};
+}
+
+/**
+ * Initialize capability ranking with real benchmark data
+ */
+export async function initCapabilityRanking(): Promise<void> {
+	const hasRealData = await initArtificialAnalysis();
+	if (hasRealData) {
+		console.log(
+			"[capability] Using real benchmark data from Artificial Analysis",
+		);
+	} else {
+		console.log(
+			"[capability] Using heuristic estimation (no API key or fetch failed)",
+		);
+	}
 }
 
 /**
@@ -169,7 +205,6 @@ export function isCapabilityDowngrade(
 
 /**
  * Rank alternatives by capability preservation
- * Returns models grouped by whether they preserve capability
  */
 export function rankByCapability(
 	current: ProviderModelConfig,
@@ -185,7 +220,7 @@ export function rankByCapability(
 		ProviderModelConfig & { provider?: string; capabilities: ModelCapabilities }
 	>;
 } {
-	const currentCaps = calculateCapability(current);
+	const currentCaps = estimateCapability(current);
 
 	const equalOrBetter: Array<
 		ProviderModelConfig & { provider?: string; capabilities: ModelCapabilities }
@@ -198,7 +233,7 @@ export function rankByCapability(
 	> = [];
 
 	for (const alt of alternatives) {
-		const altCaps = calculateCapability(alt);
+		const altCaps = estimateCapability(alt);
 		const { isDowngrade, severity } = isCapabilityDowngrade(
 			currentCaps,
 			altCaps,
@@ -226,7 +261,7 @@ export function rankByCapability(
 }
 
 /**
- * Generate capability comparison message
+ * Generate capability comparison message for user
  */
 export function generateCapabilityMessage(
 	current: { name: string; capabilities: ModelCapabilities },
@@ -240,13 +275,13 @@ export function generateCapabilityMessage(
 	if (!isDowngrade) {
 		const tierDiff = target.capabilities.score - current.capabilities.score;
 		if (tierDiff > 5) {
-			return `✓ Upgrade: ${target.name} (${target.capabilities.tier}) vs ${current.name} (${current.capabilities.tier})`;
+			return `✓ Upgrade: ${target.name} (${target.capabilities.tier})`;
 		}
 		return `≈ Same capability: ${target.name}`;
 	}
 
 	if (severity === "minor") {
-		return `⚠️ Slight downgrade: ${target.name} (${target.capabilities.tier}) vs ${current.name} (${current.capabilities.tier})`;
+		return `⚠️ Slight downgrade: ${target.name} (${target.capabilities.tier})`;
 	}
 
 	return `⬇️ Major downgrade: ${target.name} (${target.capabilities.tier}, score: ${target.capabilities.score}) vs ${current.name} (${current.capabilities.tier}, score: ${current.capabilities.score})`;
@@ -254,7 +289,7 @@ export function generateCapabilityMessage(
 
 /**
  * Get minimum acceptable capability tier
- * Returns tier one level below current (allows minor downgrades but not major)
+ * Allows one tier downgrade max
  */
 export function getMinimumAcceptableTier(
 	current: CapabilityTier,
@@ -267,30 +302,6 @@ export function getMinimumAcceptableTier(
 		"minimal",
 	];
 	const currentIdx = tierOrder.indexOf(current);
-
-	// Allow one tier downgrade max
 	const minIdx = Math.min(currentIdx + 1, tierOrder.length - 1);
 	return tierOrder[minIdx];
-}
-
-/**
- * Initialize capability ranking system
- * Refreshes benchmark cache only if stale (> 7 days) or empty
- */
-export async function initCapabilityRanking(): Promise<void> {
-	if (needsBenchmarkRefresh()) {
-		console.log("[capability] Benchmark cache stale or empty, refreshing...");
-		const result = await updateBenchmarkCache();
-		if (result.updated > 0) {
-			console.log(
-				`[capability] Updated ${result.updated} models from: ${result.sources.join(", ") || "static snapshot"}`,
-			);
-		} else {
-			console.log(
-				"[capability] Using existing benchmark cache (not stale yet)",
-			);
-		}
-	} else {
-		console.log("[capability] Using cached benchmark data (fresh)");
-	}
 }

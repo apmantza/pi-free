@@ -65,59 +65,47 @@ Control capability preservation when hopping (default: `"minor"`):
 
 ## Capability Ranking
 
-Models are ranked using **real benchmark data** when available, falling back to intelligent heuristics.
+Models are ranked using **heuristic estimation** based on metadata (since most free models don't have published benchmarks).
 
-### Data Sources
+### How It Works
 
-**Primary: LMSYS Chatbot Arena Elo Ratings**
-- Crowdsourced human evaluations
-- 1M+ comparisons
-- Updated regularly
-- Cached locally (~/.pi/cache/model-benchmarks.json)
+We estimate capability from available metadata:
 
-**Fallback: Smart Heuristics**
-- Context window size
-- Reasoning capability flag
-- Vision support
-- Parameter extraction from model name
+| Factor | Weight | How Measured |
+|--------|--------|--------------|
+| Context window | 0.03 pts/1k tokens | From provider API |
+| Reasoning capability | +20 points | `reasoning: true` flag |
+| Vision support | +5 points | `input: ["image"]` |
+| Parameter count | 0.4 pts/billion | Extracted from model name (70b, 405b, etc.) |
 
 ### Capability Tiers
 
-| Tier | Score | Elo Range | Typical Models |
-|------|-------|-----------|--------------|
-| **ultra** | 85+ | 1260+ | GPT-4o (1286), Claude-3.5-Opus, Llama-405B |
-| **high** | 70-84 | 1240-1259 | GPT-4 (1253), Claude-3.5-Sonnet (1272), Llama-70B |
-| **medium** | 50-69 | 1200-1239 | GPT-3.5 (1154), Claude-Haiku (1178), Qwen-72B |
-| **low** | 30-49 | 1150-1199 | 7B-13B models |
-| **minimal** | <30 | <1150 | Tiny models |
+| Tier | Score | Typical Characteristics |
+|------|-------|------------------------|
+| **ultra** | 80+ | 400B+ params, 200k+ context, reasoning |
+| **high** | 65-79 | 70B+ params, 128k+ context |
+| **medium** | 45-64 | 30B+ params, good context |
+| **low** | 25-44 | 7B-13B params |
+| **minimal** | <25 | Small models, limited context |
 
-### Refreshing Benchmarks
+### Why Not Real Benchmarks?
 
-**Smart Caching - Only refreshes when needed:**
+**Most free models aren't in public leaderboards** like LMSYS Chatbot Arena because:
+- They're too new
+- They're provider-specific
+- They're not widely adopted yet
+- Benchmarks cost money to run
 
-| Condition | Action |
-|-----------|--------|
-| Cache empty | ✅ Auto-refresh on session start |
-| Cache older than 7 days | ✅ Auto-refresh on session start |
-| Cache exists and fresh (< 7 days) | ❌ Skip refresh, use cache |
+**What we actually know:**
+- Model name (e.g., "Llama 3.3 70B" → ~70B params)
+- Context window size (from API)
+- Feature flags (reasoning, vision)
 
-**Manual refresh** (if you want fresh data):
+**What we estimate:**
+- Relative capability for failover decisions
+- Not absolute performance vs GPT-4
 
-```typescript
-import { forceRefreshBenchmarks } from "pi-free-providers/provider-failover/benchmark-cache";
-
-await forceRefreshBenchmarks();
-```
-
-Or delete the cache:
-```bash
-rm ~/.pi/cache/model-benchmarks.json
-```
-
-**Why 7 days?**
-- LMSYS leaderboard updates weekly, not daily
-- Most models don't change Elo significantly day-to-day
-- Avoids unnecessary network requests
+This is sufficient for **preventing major downgrades** (e.g., Claude-Opus → Llama-3-8B) but won't tell you which model writes better poetry.
 
 ## Smart Hopping with Capability Preservation
 
