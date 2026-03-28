@@ -22,9 +22,9 @@ import type {
 import {
 	FIREWORKS_API_KEY as CONFIG_API_KEY,
 	PROVIDER_FIREWORKS,
-} from "./config.ts";
-import { BASE_URL_FIREWORKS } from "./constants.ts";
-import { type StoredModels, setupProvider } from "./provider-helper.ts";
+} from "../config.ts";
+import { BASE_URL_FIREWORKS } from "../constants.ts";
+import { type StoredModels, setupProvider } from "../provider-helper.ts";
 
 // =============================================================================
 // Fireworks models - hardcoded (models.dev doesn't have Fireworks data yet)

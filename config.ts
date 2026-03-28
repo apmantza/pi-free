@@ -5,8 +5,11 @@
  *   1. Environment variable
  *   2. ~/.pi/free.json
  *
- * PI_FREE_SHOW_PAID=true — include paid models for providers where an API key
- *                          is set. Free-only providers (no key) are unaffected.
+ * Per-provider paid model flags:
+ *   OPENROUTER_SHOW_PAID=true or openrouter_show_paid: true
+ *   NVIDIA_SHOW_PAID=true or nvidia_show_paid: true
+ *   FIREWORKS_SHOW_PAID=true or fireworks_show_paid: true
+ *   CLINE_SHOW_PAID=true or cline_show_paid: true
  *
  * PI_FREE_KILO_FREE_ONLY=true — restrict Kilo to free models even after login.
  */
@@ -21,6 +24,12 @@ interface PiFreeConfig {
 	fireworks_api_key?: string;
 	kilo_free_only?: boolean;
 	hidden_models?: string[];
+	// Per-provider paid model flags
+	openrouter_show_paid?: boolean;
+	nvidia_show_paid?: boolean;
+	fireworks_show_paid?: boolean;
+	cline_show_paid?: boolean;
+	zen_show_paid?: boolean;
 }
 
 const CONFIG_TEMPLATE: PiFreeConfig = {
@@ -28,8 +37,13 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	nvidia_api_key: "",
 	opencode_api_key: "",
 	fireworks_api_key: "",
-	show_paid: false,
+	kilo_free_only: false,
 	hidden_models: [],
+	openrouter_show_paid: false,
+	nvidia_show_paid: false,
+	fireworks_show_paid: false,
+	cline_show_paid: false,
+	zen_show_paid: false,
 };
 
 const PI_DIR = join(process.env.HOME || process.env.USERPROFILE || "", ".pi");
@@ -83,8 +97,31 @@ function resolve(envKey: string, fileVal?: string): string | undefined {
 	return process.env[envKey] || (fileVal?.trim() ? fileVal : undefined);
 }
 
+// Global fallback (deprecated, use per-provider flags)
 export const SHOW_PAID =
-	process.env.PI_FREE_SHOW_PAID === "true" || file.show_paid === true;
+	process.env.PI_FREE_SHOW_PAID === "true" ||
+	file.openrouter_show_paid === true ||
+	file.nvidia_show_paid === true ||
+	file.fireworks_show_paid === true ||
+	file.cline_show_paid === true;
+
+// Per-provider paid model flags
+export const OPENROUTER_SHOW_PAID =
+	process.env.OPENROUTER_SHOW_PAID === "true" ||
+	file.openrouter_show_paid === true;
+
+export const NVIDIA_SHOW_PAID =
+	process.env.NVIDIA_SHOW_PAID === "true" || file.nvidia_show_paid === true;
+
+export const FIREWORKS_SHOW_PAID =
+	process.env.FIREWORKS_SHOW_PAID === "true" ||
+	file.fireworks_show_paid === true;
+
+export const CLINE_SHOW_PAID =
+	process.env.CLINE_SHOW_PAID === "true" || file.cline_show_paid === true;
+
+export const ZEN_SHOW_PAID =
+	process.env.ZEN_SHOW_PAID === "true" || file.zen_show_paid === true;
 
 export const KILO_FREE_ONLY =
 	process.env.PI_FREE_KILO_FREE_ONLY === "true" || file.kilo_free_only === true;

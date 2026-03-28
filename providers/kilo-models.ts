@@ -2,10 +2,10 @@
  * Kilo model fetching and mapping (OpenRouter-compatible format).
  */
 
-import type { ProviderModelConfig } from "./types.ts";
-import { applyHidden, PROVIDER_KILO } from "./config.ts";
-import { isUsableModel, mapOpenRouterModel, fetchWithRetry, parsePrice } from "./util.ts";
-import { BASE_URL_KILO, DEFAULT_FETCH_TIMEOUT_MS } from "./constants.ts";
+import type { ProviderModelConfig } from "../types.ts";
+import { applyHidden, PROVIDER_KILO } from "../config.ts";
+import { isUsableModel, mapOpenRouterModel, fetchWithRetry, parsePrice } from "../util.ts";
+import { BASE_URL_KILO, DEFAULT_FETCH_TIMEOUT_MS } from "../constants.ts";
 
 const KILO_API_BASE = process.env.KILO_API_URL || "https://api.kilo.ai";
 export const KILO_GATEWAY_BASE = `${KILO_API_BASE}/api/gateway`;

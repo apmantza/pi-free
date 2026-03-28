@@ -12,7 +12,7 @@
 import type { OAuthCredentials, OAuthLoginCallbacks } from "@mariozechner/pi-ai";
 import * as http from "node:http";
 import { URL as NodeURL } from "node:url";
-import { BASE_URL_CLINE, CLINE_AUTH_TIMEOUT_MS } from "./constants.ts";
+import { BASE_URL_CLINE, CLINE_AUTH_TIMEOUT_MS } from "../constants.ts";
 
 // =============================================================================
 // Port range for callback server (matches official Cline CLI AuthHandler)

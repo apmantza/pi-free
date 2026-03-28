@@ -11,13 +11,13 @@
 
 import type { Api, Model, OAuthCredentials } from "@mariozechner/pi-ai";
 import type { ExtensionAPI, ProviderModelConfig } from "@mariozechner/pi-coding-agent";
-import { loginKilo, refreshKiloToken, fetchKiloBalance, formatCredits } from "./kilo-auth.ts";
-import { fetchKiloModels, KILO_GATEWAY_BASE } from "./kilo-models.ts";
-import { KILO_FREE_ONLY, PROVIDER_KILO } from "./config.ts";
-import { URL_KILO_TOS } from "./constants.ts";
-import { logWarning } from "./util.ts";
-import { setupProvider, type StoredModels } from "./provider-helper.ts";
-import { registerUsageWidget } from "./usage-widget.ts";
+import { loginKilo, refreshKiloToken, fetchKiloBalance, formatCredits } from "../kilo-auth.ts";
+import { fetchKiloModels, KILO_GATEWAY_BASE } from "../kilo-models.ts";
+import { KILO_FREE_ONLY, PROVIDER_KILO } from "../config.ts";
+import { URL_KILO_TOS } from "../constants.ts";
+import { logWarning } from "../util.ts";
+import { setupProvider, type StoredModels } from "../provider-helper.ts";
+import { registerUsageWidget } from "../usage-widget.ts";
 
 const KILO_PROVIDER_CONFIG = {
   baseUrl: KILO_GATEWAY_BASE,

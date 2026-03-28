@@ -4,7 +4,7 @@
 
 import type { OAuthCredentials, OAuthLoginCallbacks } from "@mariozechner/pi-ai";
 import { spawn } from "child_process";
-import { KILO_POLL_INTERVAL_MS, KILO_TOKEN_EXPIRATION_MS } from "./constants.ts";
+import { KILO_POLL_INTERVAL_MS, KILO_TOKEN_EXPIRATION_MS } from "../constants.ts";
 
 function openBrowser(url: string): void {
   try {

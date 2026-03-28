@@ -9,12 +9,12 @@
 	"license": "MIT",
 	"pi": {
 		"extensions": [
-			"./kilo.ts",
-			"./zen.ts",
-			"./openrouter.ts",
-			"./nvidia.ts",
-			"./cline.ts",
-			"./fireworks.ts"
+			"./providers/kilo.ts",
+			"./providers/zen.ts",
+			"./providers/openrouter.ts",
+			"./providers/nvidia.ts",
+			"./providers/cline.ts",
+			"./providers/fireworks.ts"
 		]
 	},
 	"repository": {

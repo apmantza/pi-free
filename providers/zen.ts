@@ -9,12 +9,25 @@
  * are actually deployed. Metadata (pricing, context) enriched from models.dev.
  */
 
-import type { ExtensionAPI, ProviderModelConfig } from "@mariozechner/pi-coding-agent";
-import type { ZenGatewayModel, ModelsDevModel } from "./types.ts";
-import { SHOW_PAID, OPENCODE_API_KEY as CONFIG_API_KEY, applyHidden, PROVIDER_ZEN } from "./config.ts";
-import { fetchWithRetry, logWarning } from "./util.ts";
-import { BASE_URL_ZEN, URL_MODELS_DEV, URL_ZEN_TOS, DEFAULT_FETCH_TIMEOUT_MS } from "./constants.ts";
-import { setupProvider, type StoredModels } from "./provider-helper.ts";
+import type {
+	ExtensionAPI,
+	ProviderModelConfig,
+} from "@mariozechner/pi-coding-agent";
+import {
+	applyHidden,
+	OPENCODE_API_KEY as CONFIG_API_KEY,
+	PROVIDER_ZEN,
+	ZEN_ZEN_SHOW_PAID,
+} from "../config.ts";
+import {
+	BASE_URL_ZEN,
+	DEFAULT_FETCH_TIMEOUT_MS,
+	URL_MODELS_DEV,
+	URL_ZEN_TOS,
+} from "../constants.ts";
+import { type StoredModels, setupProvider } from "../provider-helper.ts";
+import type { ModelsDevModel, ZenGatewayModel } from "../types.ts";
+import { fetchWithRetry, logWarning } from "../util.ts";
 
 // =============================================================================
 // Session/Request ID generation (matches OpenCode behavior)
@@ -24,7 +37,10 @@ let _sessionId: string = "";
 let _requestCount = 0;
 
 function generateId(): string {
-	return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+	return (
+		Math.random().toString(36).substring(2, 15) +
+		Math.random().toString(36).substring(2, 15)
+	);
 }
 
 function getSessionId(): string {
@@ -196,11 +212,15 @@ async function fetchGatewayModels(token: string): Promise<string[]> {
 	});
 
 	if (!response.ok) {
-		throw new Error(`Zen /models returned ${response.status} ${response.statusText}`);
+		throw new Error(
+			`Zen /models returned ${response.status} ${response.statusText}`,
+		);
 	}
 
 	const json = (await response.json()) as { data?: ZenGatewayModel[] };
-	return (json.data ?? []).map((m) => m.id).filter((id) => !ZEN_BROKEN_MODELS.has(id));
+	return (json.data ?? [])
+		.map((m) => m.id)
+		.filter((id) => !ZEN_BROKEN_MODELS.has(id));
 }
 
 /** Fetch metadata for the opencode provider from models.dev. */
@@ -212,7 +232,10 @@ async function fetchModelsMeta(): Promise<Record<string, ModelsDevModel>> {
 
 	if (!response.ok) return {};
 
-	const json = (await response.json()) as Record<string, { id?: string; models?: Record<string, ModelsDevModel> }>;
+	const json = (await response.json()) as Record<
+		string,
+		{ id?: string; models?: Record<string, ModelsDevModel> }
+	>;
 	const provider = Object.values(json).find((p) => p?.id === "opencode");
 	return provider?.models ?? {};
 }
@@ -227,7 +250,10 @@ async function fetchZenModels(token: string): Promise<{
 	useStaticFallback: boolean;
 }> {
 	try {
-		const [gatewayIds, meta] = await Promise.all([fetchGatewayModels(token), fetchModelsMeta()]);
+		const [gatewayIds, meta] = await Promise.all([
+			fetchGatewayModels(token),
+			fetchModelsMeta(),
+		]);
 
 		const all: ProviderModelConfig[] = [];
 		const free: ProviderModelConfig[] = [];
@@ -242,7 +268,9 @@ async function fetchZenModels(token: string): Promise<{
 				id,
 				name: m?.name ?? id,
 				reasoning: m?.reasoning ?? false,
-				input: m?.modalities?.input?.includes("image") ? ["text", "image"] : ["text"],
+				input: m?.modalities?.input?.includes("image")
+					? ["text", "image"]
+					: ["text"],
 				cost: {
 					input: m?.cost?.input ?? 0,
 					output: m?.cost?.output ?? 0,
@@ -257,11 +285,19 @@ async function fetchZenModels(token: string): Promise<{
 			if ((m?.cost?.input ?? 0) === 0) free.push(config);
 		}
 
-		return { all: applyHidden(all), free: applyHidden(free), useStaticFallback: false };
+		return {
+			all: applyHidden(all),
+			free: applyHidden(free),
+			useStaticFallback: false,
+		};
 	} catch (error) {
 		// API failed - return special flag to skip registration
 		// Pi's built-in OpenCode provider will be used instead
-		logWarning("zen", "API unavailable, letting Pi use built-in provider", error);
+		logWarning(
+			"zen",
+			"API unavailable, letting Pi use built-in provider",
+			error,
+		);
 		return { all: [], free: [], useStaticFallback: true };
 	}
 }
@@ -287,7 +323,8 @@ export default async function (pi: ExtensionAPI) {
 
 	// We need a closure that captures the runtime ctx for re-registration.
 	// setupProvider's reRegister callback will call this with the current ctx.
-	let ctx_modelRegistry_register: (models: ProviderModelConfig[]) => void = () => {};
+	let ctx_modelRegistry_register: (models: ProviderModelConfig[]) => void =
+		() => {};
 
 	// Wire up shared boilerplate (commands, model_select, turn_end, ToS)
 	setupProvider(
@@ -307,7 +344,9 @@ export default async function (pi: ExtensionAPI) {
 	// If they do, we still register with session headers for better reliability
 	pi.on("session_start", async (_event, ctx) => {
 		const availableModels = ctx.modelRegistry.getAvailable();
-		const hasExistingAuth = availableModels.some((m) => m.provider === PROVIDER_ZEN);
+		const hasExistingAuth = availableModels.some(
+			(m) => m.provider === PROVIDER_ZEN,
+		);
 
 		// Set up the env var regardless - either for our use or to supplement existing auth
 		process.env[ZEN_KEY_VAR] = token;
@@ -318,7 +357,7 @@ export default async function (pi: ExtensionAPI) {
 
 		try {
 			const result = await fetchZenModels(token);
-			models = hasKey && SHOW_PAID ? result.all : result.free;
+			models = hasKey && ZEN_SHOW_PAID ? result.all : result.free;
 			freeCount = result.free.length;
 			useStaticFallback = result.useStaticFallback;
 
@@ -359,7 +398,9 @@ export default async function (pi: ExtensionAPI) {
 		ctx_modelRegistry_register(models);
 
 		const theme = ctx.ui.theme;
-		const label = hasKey ? `✦ Zen (${models.length} models)` : `✦ Zen (${freeCount} free)`;
+		const label = hasKey
+			? `✦ Zen (${models.length} models)`
+			: `✦ Zen (${freeCount} free)`;
 		ctx.ui.setStatus("zen-status", theme.fg("accent", label));
 	});
 

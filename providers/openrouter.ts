@@ -5,15 +5,28 @@
  * Requires OPENROUTER_API_KEY (free account at https://openrouter.ai).
  *
  * By default only free (:free) models are shown.
- * Set PI_FREE_SHOW_PAID=true to also include paid models.
+ * Set OPENROUTER_OPENROUTER_SHOW_PAID=true to also include paid models.
  */
 
-import type { ExtensionAPI, ProviderModelConfig } from "@mariozechner/pi-coding-agent";
-import { SHOW_PAID, OPENROUTER_API_KEY as CONFIG_API_KEY, applyHidden, PROVIDER_OPENROUTER } from "./config.ts";
-import { isUsableModel, mapOpenRouterModel, fetchWithRetry, logWarning } from "./util.ts";
-import { BASE_URL_OPENROUTER, DEFAULT_FETCH_TIMEOUT_MS } from "./constants.ts";
-import { fetchOpenRouterMetrics, setCachedMetrics } from "./metrics.ts";
-import { setupProvider, type StoredModels } from "./provider-helper.ts";
+import type {
+	ExtensionAPI,
+	ProviderModelConfig,
+} from "@mariozechner/pi-coding-agent";
+import {
+	applyHidden,
+	OPENROUTER_API_KEY as CONFIG_API_KEY,
+	OPENROUTER_OPENROUTER_SHOW_PAID,
+	PROVIDER_OPENROUTER,
+} from "../config.ts";
+import { BASE_URL_OPENROUTER, DEFAULT_FETCH_TIMEOUT_MS } from "../constants.ts";
+import { fetchOpenRouterMetrics, setCachedMetrics } from "../metrics.ts";
+import { type StoredModels, setupProvider } from "../provider-helper.ts";
+import {
+	fetchWithRetry,
+	isUsableModel,
+	logWarning,
+	mapOpenRouterModel,
+} from "../util.ts";
 
 // =============================================================================
 // Fetch
@@ -34,7 +47,9 @@ async function fetchOpenRouterModels(apiKey: string): Promise<{
 	});
 
 	if (!response.ok) {
-		throw new Error(`Failed to fetch OpenRouter models: ${response.status} ${response.statusText}`);
+		throw new Error(
+			`Failed to fetch OpenRouter models: ${response.status} ${response.statusText}`,
+		);
 	}
 
 	const json = (await response.json()) as {
@@ -43,8 +58,16 @@ async function fetchOpenRouterModels(apiKey: string): Promise<{
 			name: string;
 			context_length: number;
 			max_completion_tokens?: number | null;
-			pricing?: { prompt?: string | null; completion?: string | null; input_cache_write?: string | null; input_cache_read?: string | null };
-			architecture?: { input_modalities?: string[] | null; output_modalities?: string[] | null };
+			pricing?: {
+				prompt?: string | null;
+				completion?: string | null;
+				input_cache_write?: string | null;
+				input_cache_read?: string | null;
+			};
+			architecture?: {
+				input_modalities?: string[] | null;
+				output_modalities?: string[] | null;
+			};
 			top_provider?: { max_completion_tokens?: number | null };
 			supported_parameters?: string[];
 		}[];
@@ -69,8 +92,12 @@ async function fetchOpenRouterModels(apiKey: string): Promise<{
 		return false;
 	};
 
-	const free = chatModels.filter((m) => isFree(m) && isUsableModel(m.id)).map(mapOpenRouterModel);
-	const all = chatModels.filter((m) => isUsableModel(m.id)).map(mapOpenRouterModel);
+	const free = chatModels
+		.filter((m) => isFree(m) && isUsableModel(m.id))
+		.map(mapOpenRouterModel);
+	const all = chatModels
+		.filter((m) => isUsableModel(m.id))
+		.map(mapOpenRouterModel);
 
 	return { free: applyHidden(free), all: applyHidden(all) };
 }
@@ -104,8 +131,12 @@ export default async function (pi: ExtensionAPI) {
 	pi.on("session_start", async (_event, ctx) => {
 		const allModels = ctx.modelRegistry.getAll();
 		const availableModels = ctx.modelRegistry.getAvailable();
-		const existingModels = allModels.filter((m) => m.provider === PROVIDER_OPENROUTER);
-		const hasExistingAuth = availableModels.some((m) => m.provider === PROVIDER_OPENROUTER);
+		const existingModels = allModels.filter(
+			(m) => m.provider === PROVIDER_OPENROUTER,
+		);
+		const hasExistingAuth = availableModels.some(
+			(m) => m.provider === PROVIDER_OPENROUTER,
+		);
 
 		if (hasExistingAuth && existingModels.length > 0) {
 			// User has existing auth - filter to free models, use their key
@@ -122,7 +153,9 @@ export default async function (pi: ExtensionAPI) {
 				}));
 
 			if (freeModels.length === 0) {
-				console.warn("[openrouter] No free models available from existing auth");
+				console.warn(
+					"[openrouter] No free models available from existing auth",
+				);
 				return;
 			}
 
@@ -162,12 +195,15 @@ export default async function (pi: ExtensionAPI) {
 
 		let models: ProviderModelConfig[] = [];
 		let freeCount = 0;
-		let fetchResult: { free: ProviderModelConfig[]; all: ProviderModelConfig[] } | null = null;
+		let fetchResult: {
+			free: ProviderModelConfig[];
+			all: ProviderModelConfig[];
+		} | null = null;
 
 		try {
 			fetchResult = await fetchOpenRouterModels(apiKey);
 			freeCount = fetchResult.free.length;
-			models = SHOW_PAID ? fetchResult.all : fetchResult.free;
+			models = OPENROUTER_SHOW_PAID ? fetchResult.all : fetchResult.free;
 		} catch (error) {
 			logWarning("openrouter", "Failed to fetch models", error);
 		}
@@ -199,7 +235,9 @@ export default async function (pi: ExtensionAPI) {
 		reRegisterFn(models);
 
 		const theme = ctx.ui.theme;
-		const label = SHOW_PAID ? `🔀 OpenRouter (${models.length} models)` : `🔀 OpenRouter (${freeCount} free)`;
+		const label = OPENROUTER_SHOW_PAID
+			? `🔀 OpenRouter (${models.length} models)`
+			: `🔀 OpenRouter (${freeCount} free)`;
 		ctx.ui.setStatus("openrouter-status", theme.fg("accent", label));
 
 		// Fetch and cache metrics
@@ -212,7 +250,8 @@ export default async function (pi: ExtensionAPI) {
 			// Show remaining daily requests
 			if (metrics.rateLimit?.remainingToday !== undefined) {
 				const remaining = metrics.rateLimit.remainingToday;
-				const reqDisplay = remaining > 900 ? `${remaining} remaining/day` : `${remaining}/day`;
+				const reqDisplay =
+					remaining > 900 ? `${remaining} remaining/day` : `${remaining}/day`;
 				parts.push(`📊 ${reqDisplay}`);
 			}
 
@@ -222,7 +261,10 @@ export default async function (pi: ExtensionAPI) {
 			}
 
 			if (parts.length > 0) {
-				ctx.ui.setStatus("openrouter-metrics", theme.fg("dim", parts.join(" ")));
+				ctx.ui.setStatus(
+					"openrouter-metrics",
+					theme.fg("dim", parts.join(" ")),
+				);
 			}
 		}
 	});

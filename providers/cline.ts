@@ -14,11 +14,11 @@
 
 import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { fetchClineModels } from "./cline-models.ts";
-import { loginCline, refreshClineToken } from "./cline-auth.ts";
-import { PROVIDER_CLINE, BASE_URL_CLINE } from "./constants.ts";
-import { logWarning } from "./util.ts";
-import { incrementRequestCount } from "./metrics.ts";
+import { fetchClineModels } from "../cline-models.ts";
+import { loginCline, refreshClineToken } from "../cline-auth.ts";
+import { PROVIDER_CLINE, BASE_URL_CLINE } from "../constants.ts";
+import { logWarning } from "../util.ts";
+import { incrementRequestCount } from "../metrics.ts";
 
 // =============================================================================
 // Cline API headers (must match real Cline VS Code extension exactly)
