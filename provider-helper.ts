@@ -116,25 +116,66 @@ export function setupProvider(
 		}
 	});
 
-	// ── Track request count and reset failure count on success ───────────
+	// ── Track request count, reset failure count, handle errors ──────────
 
-	pi.on("turn_end", async (_event, ctx) => {
+	pi.on("turn_end", async (event, ctx) => {
 		if (ctx.model?.provider !== providerId) return;
+
+		const msg = (
+			event as { message?: { role?: string; errorMessage?: string } }
+		).message;
+
+		// Check for errors in the assistant message
+		if (msg?.role === "assistant" && msg.errorMessage) {
+			const errorMsg = msg.errorMessage;
+			console.log(`[${providerId}] Error detected: ${errorMsg.slice(0, 100)}`);
+
+			// Use custom error handler if provided
+			if (config.onError) {
+				const handled = await config.onError(errorMsg, ctx);
+				if (handled) return;
+			}
+
+			// Use default failover handler
+			const result = await handleProviderError(
+				errorMsg,
+				{
+					provider: providerId,
+					isPaidMode: config.isPaidMode ?? false,
+					enableAutocompact: config.enableAutocompact ?? true,
+				},
+				pi,
+				ctx as {
+					ui: {
+						notify: (m: string, t: "info" | "warning" | "error") => void;
+					};
+					session?: { id?: string };
+				},
+			);
+
+			// Show notification based on result
+			if (result.action === "autocompact") {
+				ctx.ui.notify(result.message, "warning");
+			} else if (result.action === "failover") {
+				ctx.ui.notify(result.message, "warning");
+				if (isProviderExhausted(providerId)) {
+					ctx.ui.setStatus(
+						`${providerId}-status`,
+						ctx.ui.theme.fg("dim", "⚠️ Rate limited - consider switching"),
+					);
+				}
+			} else if (result.action === "fail") {
+				ctx.ui.notify(result.message, "error");
+			}
+
+			// Don't reset failure count on error
+			return;
+		}
+
+		// Success - reset failure count and increment metrics
 		incrementRequestCount(providerId);
-		// Reset failure count on successful request
 		resetFailureCount(providerId);
 	});
-
-	// ── Error handling (failover) ────────────────────────────────────────
-	// NOTE: Pi doesn't have a global "error" event. Providers should use
-	// the onError callback in their fetch/request logic to trigger failover.
-	// Example:
-	//   try {
-	//     const response = await fetch(...);
-	//   } catch (error) {
-	//     if (config.onError && await config.onError(error, ctx)) return;
-	//     // Provider-specific fallback...
-	//   }
 
 	// ── One-time ToS notice on first free use ────────────────────────────
 
