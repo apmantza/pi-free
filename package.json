@@ -14,7 +14,8 @@
 	},
 	"devDependencies": {
 		"vitest": "^1.0.0",
-		"@vitest/ui": "^1.0.0"
+		"@vitest/ui": "^1.0.0",
+		"tsx": "^4.0.0"
 	},
 	"pi": {
 		"extensions": [
