@@ -30,6 +30,13 @@ interface PiFreeConfig {
 	fireworks_show_paid?: boolean;
 	cline_show_paid?: boolean;
 	zen_show_paid?: boolean;
+	// Model hopping preferences - ordered list of preferred model families
+	// e.g., ["llama-3.3-70b", "qwen-2.5-72b", "deepseek-v3"]
+	preferred_models?: string[];
+	// Auto-hop on 429 (default: true)
+	auto_model_hop?: boolean;
+	// Max model hops before giving up (default: 3)
+	max_model_hops?: number;
 }
 
 const CONFIG_TEMPLATE: PiFreeConfig = {
@@ -44,6 +51,9 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	fireworks_show_paid: false,
 	cline_show_paid: false,
 	zen_show_paid: false,
+	preferred_models: [],
+	auto_model_hop: true,
+	max_model_hops: 3,
 };
 
 const PI_DIR = join(process.env.HOME || process.env.USERPROFILE || "", ".pi");
@@ -137,6 +147,11 @@ export const KILO_FREE_ONLY = resolveBool(
 	"PI_FREE_KILO_FREE_ONLY",
 	file.kilo_free_only,
 );
+
+// Model hopping configuration
+export const PREFERRED_MODELS = file.preferred_models ?? [];
+export const AUTO_MODEL_HOP = file.auto_model_hop ?? true;
+export const MAX_MODEL_HOPS = file.max_model_hops ?? 3;
 
 const HIDDEN: Set<string> = new Set(file.hidden_models ?? []);
 
