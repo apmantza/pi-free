@@ -275,14 +275,22 @@ export function getMinimumAcceptableTier(
 
 /**
  * Initialize capability ranking system
- * Refreshes benchmark cache if needed
+ * Refreshes benchmark cache only if stale (> 7 days) or empty
  */
 export async function initCapabilityRanking(): Promise<void> {
 	if (needsBenchmarkRefresh()) {
-		console.log("[capability] Refreshing benchmark cache...");
+		console.log("[capability] Benchmark cache stale or empty, refreshing...");
 		const result = await updateBenchmarkCache();
-		console.log(
-			`[capability] Updated ${result.updated} models from: ${result.sources.join(", ") || "static snapshot"}`,
-		);
+		if (result.updated > 0) {
+			console.log(
+				`[capability] Updated ${result.updated} models from: ${result.sources.join(", ") || "static snapshot"}`,
+			);
+		} else {
+			console.log(
+				"[capability] Using existing benchmark cache (not stale yet)",
+			);
+		}
+	} else {
+		console.log("[capability] Using cached benchmark data (fresh)");
 	}
 }

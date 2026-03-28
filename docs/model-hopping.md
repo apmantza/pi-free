@@ -93,19 +93,31 @@ Models are ranked using **real benchmark data** when available, falling back to 
 
 ### Refreshing Benchmarks
 
-The cache auto-refreshes every 24 hours on session start. To force refresh:
+**Smart Caching - Only refreshes when needed:**
+
+| Condition | Action |
+|-----------|--------|
+| Cache empty | ✅ Auto-refresh on session start |
+| Cache older than 7 days | ✅ Auto-refresh on session start |
+| Cache exists and fresh (< 7 days) | ❌ Skip refresh, use cache |
+
+**Manual refresh** (if you want fresh data):
 
 ```typescript
-// In extension or skill
-import { updateBenchmarkCache } from "pi-free-providers/provider-failover/benchmark-cache";
+import { forceRefreshBenchmarks } from "pi-free-providers/provider-failover/benchmark-cache";
 
-await updateBenchmarkCache();
+await forceRefreshBenchmarks();
 ```
 
-Or manually delete the cache:
+Or delete the cache:
 ```bash
 rm ~/.pi/cache/model-benchmarks.json
 ```
+
+**Why 7 days?**
+- LMSYS leaderboard updates weekly, not daily
+- Most models don't change Elo significantly day-to-day
+- Avoids unnecessary network requests
 
 ## Smart Hopping with Capability Preservation
 

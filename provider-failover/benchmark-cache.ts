@@ -13,7 +13,8 @@ const CACHE_DIR = join(
 	"cache",
 );
 const BENCHMARK_CACHE_FILE = join(CACHE_DIR, "model-benchmarks.json");
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const STALE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days - only refresh if older than this
+const FORCE_REFRESH_AFTER_MS = 30 * 24 * 60 * 60 * 1000; // 30 days - force refresh regardless
 
 export interface BenchmarkData {
 	modelName: string;
@@ -69,9 +70,9 @@ export function loadBenchmarkCache(): Map<string, BenchmarkData> {
 		const now = Date.now();
 		const cache = new Map<string, BenchmarkData>();
 
-		// Filter out expired entries
+		// Filter out really old entries (> 30 days)
 		for (const [key, value] of Object.entries(data)) {
-			if (now - value.fetchedAt < CACHE_TTL_MS) {
+			if (now - value.fetchedAt < FORCE_REFRESH_AFTER_MS) {
 				cache.set(key, value);
 			}
 		}
@@ -276,17 +277,40 @@ export function calculateBenchmarkedCapability(
 
 /**
  * Check if benchmark cache needs refresh
+ * Only refreshes if:
+ * 1. Cache is empty
+ * 2. Cache is older than STALE_CACHE_TTL_MS (7 days)
+ * 3. No recent successful fetch (to avoid unnecessary updates)
  */
 export function needsBenchmarkRefresh(): boolean {
 	const cache = loadBenchmarkCache();
 	if (cache.size === 0) return true;
 
+	// Check if cache is stale (> 7 days)
 	const now = Date.now();
+	let oldestEntry = now;
+
 	for (const data of cache.values()) {
-		if (now - data.fetchedAt > CACHE_TTL_MS) {
-			return true;
+		if (data.fetchedAt < oldestEntry) {
+			oldestEntry = data.fetchedAt;
 		}
 	}
 
-	return false;
+	return now - oldestEntry > STALE_CACHE_TTL_MS;
+}
+
+/**
+ * Force refresh of benchmark cache
+ * Use this when user explicitly wants fresh data
+ */
+export async function forceRefreshBenchmarks(): Promise<{
+	updated: number;
+	sources: string[];
+}> {
+	console.log("[benchmark] Force refreshing benchmark cache...");
+	const result = await updateBenchmarkCache();
+	console.log(
+		`[benchmark] Force refreshed ${result.updated} models from: ${result.sources.join(", ") || "static snapshot"}`,
+	);
+	return result;
 }
