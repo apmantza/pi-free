@@ -45,7 +45,7 @@ jobs:
         if: steps.check-changes.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT_TOKEN }}
           commit-message: 'chore: update benchmark data from Artificial Analysis'
           title: 'chore: update benchmark data from Artificial Analysis'
           body: |
