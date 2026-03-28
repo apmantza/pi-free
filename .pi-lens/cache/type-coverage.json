@@ -1,0 +1,866 @@
+{
+  "success": true,
+  "percentage": 96.48,
+  "typed": 3923,
+  "total": 4066,
+  "untypedLocations": [
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline-auth.ts",
+      "line": 117,
+      "column": 44,
+      "name": "undefined as any"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline-auth.ts",
+      "line": 135,
+      "column": 38,
+      "name": "req.url!"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline-auth.ts",
+      "line": 141,
+      "column": 33,
+      "name": "error"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline-auth.ts",
+      "line": 139,
+      "column": 14,
+      "name": "error"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline-auth.ts",
+      "line": 152,
+      "column": 71,
+      "name": "err"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline-auth.ts",
+      "line": 151,
+      "column": 14,
+      "name": "err"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline-auth.ts",
+      "line": 232,
+      "column": 57,
+      "name": "error"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline-auth.ts",
+      "line": 231,
+      "column": 14,
+      "name": "error"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\config.ts",
+      "line": 64,
+      "column": 4,
+      "name": "err"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\config.ts",
+      "line": 64,
+      "column": 41,
+      "name": "err"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\config.ts",
+      "line": 61,
+      "column": 11,
+      "name": "err"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\util.ts",
+      "line": 119,
+      "column": 19,
+      "name": "err"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\util.ts",
+      "line": 119,
+      "column": 65,
+      "name": "err"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\util.ts",
+      "line": 118,
+      "column": 14,
+      "name": "err"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\metrics.ts",
+      "line": 140,
+      "column": 12,
+      "name": "error"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\metrics.ts",
+      "line": 176,
+      "column": 12,
+      "name": "error"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 106,
+      "column": 13,
+      "name": "content"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 107,
+      "column": 16,
+      "name": "p"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 107,
+      "column": 27,
+      "name": "p"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 107,
+      "column": 30,
+      "name": "type"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 107,
+      "column": 56,
+      "name": "p"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 107,
+      "column": 59,
+      "name": "text"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 108,
+      "column": 13,
+      "name": "p"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 108,
+      "column": 24,
+      "name": "p"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 108,
+      "column": 26,
+      "name": "text"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 117,
+      "column": 18,
+      "name": "content"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 118,
+      "column": 14,
+      "name": "p"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 118,
+      "column": 25,
+      "name": "p"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 118,
+      "column": 28,
+      "name": "type"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 118,
+      "column": 54,
+      "name": "p"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 118,
+      "column": 57,
+      "name": "text"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 119,
+      "column": 11,
+      "name": "p"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 119,
+      "column": 22,
+      "name": "p"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 119,
+      "column": 24,
+      "name": "text"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 129,
+      "column": 14,
+      "name": "p"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 130,
+      "column": 9,
+      "name": "p"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 130,
+      "column": 12,
+      "name": "type"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 130,
+      "column": 38,
+      "name": "p"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 130,
+      "column": 41,
+      "name": "text"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 131,
+      "column": 11,
+      "name": "m"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 131,
+      "column": 15,
+      "name": "p"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 131,
+      "column": 17,
+      "name": "text"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 131,
+      "column": 22,
+      "name": "match"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 132,
+      "column": 9,
+      "name": "m"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 132,
+      "column": 24,
+      "name": "m"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 132,
+      "column": 29,
+      "name": "trim"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 129,
+      "column": 19,
+      "name": "content"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 137,
+      "column": 32,
+      "name": "messages"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 140,
+      "column": 16,
+      "name": "messages"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 141,
+      "column": 9,
+      "name": "messages"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 141,
+      "column": 22,
+      "name": "role"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 142,
+      "column": 25,
+      "name": "messages"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 142,
+      "column": 38,
+      "name": "content"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 144,
+      "column": 38,
+      "name": "messages"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 144,
+      "column": 50,
+      "name": "content"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 151,
+      "column": 30,
+      "name": "messages"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 152,
+      "column": 11,
+      "name": "msg"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 152,
+      "column": 17,
+      "name": "messages"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 153,
+      "column": 11,
+      "name": "role"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 153,
+      "column": 18,
+      "name": "msg"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 153,
+      "column": 23,
+      "name": "role"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 154,
+      "column": 9,
+      "name": "role"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 155,
+      "column": 9,
+      "name": "role"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 155,
+      "column": 43,
+      "name": "msg"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 155,
+      "column": 48,
+      "name": "content"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 156,
+      "column": 30,
+      "name": "msg"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 156,
+      "column": 35,
+      "name": "content"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 159,
+      "column": 9,
+      "name": "role"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 161,
+      "column": 16,
+      "name": "role"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 162,
+      "column": 22,
+      "name": "role"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 169,
+      "column": 9,
+      "name": "collapsed"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 170,
+      "column": 9,
+      "name": "systemMsg"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 170,
+      "column": 21,
+      "name": "messages"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 170,
+      "column": 36,
+      "name": "m"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 170,
+      "column": 47,
+      "name": "m"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 170,
+      "column": 50,
+      "name": "role"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 171,
+      "column": 7,
+      "name": "systemMsg"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 172,
+      "column": 36,
+      "name": "systemMsg"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 172,
+      "column": 46,
+      "name": "content"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 173,
+      "column": 21,
+      "name": "collapsed"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 176,
+      "column": 3,
+      "name": "collapsed"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 185,
+      "column": 10,
+      "name": "collapsed"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 193,
+      "column": 48,
+      "name": "err"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 218,
+      "column": 13,
+      "name": "model"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 225,
+      "column": 13,
+      "name": "model"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 237,
+      "column": 17,
+      "name": "model"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 241,
+      "column": 14,
+      "name": "err"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 248,
+      "column": 16,
+      "name": "model"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\cline.ts",
+      "line": 254,
+      "column": 13,
+      "name": "model"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\provider-helper.ts",
+      "line": 89,
+      "column": 16,
+      "name": "model"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\provider-helper.ts",
+      "line": 97,
+      "column": 13,
+      "name": "model"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\provider-helper.ts",
+      "line": 105,
+      "column": 40,
+      "name": "_event"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\provider-helper.ts",
+      "line": 106,
+      "column": 27,
+      "name": "model"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\fireworks.ts",
+      "line": 103,
+      "column": 11,
+      "name": "error"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\usage-widget.ts",
+      "line": 100,
+      "column": 14,
+      "name": "key"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\usage-widget.ts",
+      "line": 101,
+      "column": 34,
+      "name": "key"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\usage-widget.ts",
+      "line": 102,
+      "column": 26,
+      "name": "key"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\usage-widget.ts",
+      "line": 119,
+      "column": 9,
+      "name": "key"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\usage-widget.ts",
+      "line": 124,
+      "column": 16,
+      "name": "key"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\usage-widget.ts",
+      "line": 255,
+      "column": 5,
+      "name": "glimpseWin"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\usage-widget.ts",
+      "line": 258,
+      "column": 11,
+      "name": "open"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\usage-widget.ts",
+      "line": 259,
+      "column": 3,
+      "name": "glimpseWin"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\usage-widget.ts",
+      "line": 259,
+      "column": 16,
+      "name": "open"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\usage-widget.ts",
+      "line": 265,
+      "column": 3,
+      "name": "glimpseWin"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\usage-widget.ts",
+      "line": 265,
+      "column": 14,
+      "name": "on"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\usage-widget.ts",
+      "line": 265,
+      "column": 35,
+      "name": "glimpseWin"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\usage-widget.ts",
+      "line": 269,
+      "column": 8,
+      "name": "glimpseWin"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\usage-widget.ts",
+      "line": 270,
+      "column": 9,
+      "name": "glimpseWin"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\usage-widget.ts",
+      "line": 270,
+      "column": 20,
+      "name": "setHTML"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\usage-widget.ts",
+      "line": 270,
+      "column": 66,
+      "name": "glimpseWin"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\usage-widget.ts",
+      "line": 274,
+      "column": 7,
+      "name": "glimpseWin"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\usage-widget.ts",
+      "line": 274,
+      "column": 21,
+      "name": "glimpseWin"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\usage-widget.ts",
+      "line": 274,
+      "column": 32,
+      "name": "close"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\usage-widget.ts",
+      "line": 274,
+      "column": 41,
+      "name": "glimpseWin"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\usage-widget.ts",
+      "line": 285,
+      "column": 11,
+      "name": "glimpseWin"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\usage-widget.ts",
+      "line": 295,
+      "column": 26,
+      "name": "model"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\kilo.ts",
+      "line": 36,
+      "column": 12,
+      "name": "error"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\kilo.ts",
+      "line": 50,
+      "column": 21,
+      "name": "callbacks"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\kilo.ts",
+      "line": 55,
+      "column": 18,
+      "name": "error"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\kilo.ts",
+      "line": 92,
+      "column": 32,
+      "name": "ctx"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\kilo.ts",
+      "line": 93,
+      "column": 11,
+      "name": "cred"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\kilo.ts",
+      "line": 93,
+      "column": 18,
+      "name": "ctx"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\kilo.ts",
+      "line": 93,
+      "column": 22,
+      "name": "modelRegistry"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\kilo.ts",
+      "line": 93,
+      "column": 36,
+      "name": "authStorage"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\kilo.ts",
+      "line": 93,
+      "column": 48,
+      "name": "get"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\kilo.ts",
+      "line": 94,
+      "column": 9,
+      "name": "cred"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\kilo.ts",
+      "line": 94,
+      "column": 15,
+      "name": "type"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\kilo.ts",
+      "line": 96,
+      "column": 46,
+      "name": "cred"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\kilo.ts",
+      "line": 96,
+      "column": 51,
+      "name": "access"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\kilo.ts",
+      "line": 98,
+      "column": 9,
+      "name": "ctx"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\kilo.ts",
+      "line": 98,
+      "column": 13,
+      "name": "ui"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\kilo.ts",
+      "line": 98,
+      "column": 16,
+      "name": "setStatus"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\kilo.ts",
+      "line": 98,
+      "column": 42,
+      "name": "ctx"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\kilo.ts",
+      "line": 98,
+      "column": 46,
+      "name": "ui"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\kilo.ts",
+      "line": 98,
+      "column": 49,
+      "name": "theme"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\kilo.ts",
+      "line": 98,
+      "column": 55,
+      "name": "fg"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\kilo.ts",
+      "line": 117,
+      "column": 16,
+      "name": "error"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\kilo.ts",
+      "line": 125,
+      "column": 15,
+      "name": "model"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\nvidia.ts",
+      "line": 87,
+      "column": 11,
+      "name": "error"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\openrouter.ts",
+      "line": 171,
+      "column": 12,
+      "name": "error"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\zen.ts",
+      "line": 261,
+      "column": 11,
+      "name": "error"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\zen.ts",
+      "line": 328,
+      "column": 12,
+      "name": "error"
+    },
+    {
+      "file": "C:\\Users\\R3LiC\\.pi\\agent\\git\\github.com\\apmantza\\pi-free\\zen.ts",
+      "line": 368,
+      "column": 11,
+      "name": "model"
+    }
+  ]
+}

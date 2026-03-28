@@ -1,0 +1,191 @@
+{
+  "success": true,
+  "issues": [
+    {
+      "type": "file",
+      "name": "cline-auth.ts",
+      "file": "cline-auth.ts"
+    },
+    {
+      "type": "file",
+      "name": "cline-models.ts",
+      "file": "cline-models.ts"
+    },
+    {
+      "type": "file",
+      "name": "cline.ts",
+      "file": "cline.ts"
+    },
+    {
+      "type": "file",
+      "name": "config.ts",
+      "file": "config.ts"
+    },
+    {
+      "type": "file",
+      "name": "constants.ts",
+      "file": "constants.ts"
+    },
+    {
+      "type": "file",
+      "name": "fireworks.ts",
+      "file": "fireworks.ts"
+    },
+    {
+      "type": "file",
+      "name": "kilo-auth.ts",
+      "file": "kilo-auth.ts"
+    },
+    {
+      "type": "file",
+      "name": "kilo-models.ts",
+      "file": "kilo-models.ts"
+    },
+    {
+      "type": "file",
+      "name": "kilo.ts",
+      "file": "kilo.ts"
+    },
+    {
+      "type": "file",
+      "name": "metrics.ts",
+      "file": "metrics.ts"
+    },
+    {
+      "type": "file",
+      "name": "nvidia.ts",
+      "file": "nvidia.ts"
+    },
+    {
+      "type": "file",
+      "name": "openrouter.ts",
+      "file": "openrouter.ts"
+    },
+    {
+      "type": "file",
+      "name": "provider-helper.ts",
+      "file": "provider-helper.ts"
+    },
+    {
+      "type": "file",
+      "name": "types.ts",
+      "file": "types.ts"
+    },
+    {
+      "type": "file",
+      "name": "usage-store.ts",
+      "file": "usage-store.ts"
+    },
+    {
+      "type": "file",
+      "name": "usage-widget.ts",
+      "file": "usage-widget.ts"
+    },
+    {
+      "type": "file",
+      "name": "util.ts",
+      "file": "util.ts"
+    },
+    {
+      "type": "file",
+      "name": "zen.ts",
+      "file": "zen.ts"
+    }
+  ],
+  "unusedExports": [],
+  "unusedFiles": [
+    {
+      "type": "file",
+      "name": "cline-auth.ts",
+      "file": "cline-auth.ts"
+    },
+    {
+      "type": "file",
+      "name": "cline-models.ts",
+      "file": "cline-models.ts"
+    },
+    {
+      "type": "file",
+      "name": "cline.ts",
+      "file": "cline.ts"
+    },
+    {
+      "type": "file",
+      "name": "config.ts",
+      "file": "config.ts"
+    },
+    {
+      "type": "file",
+      "name": "constants.ts",
+      "file": "constants.ts"
+    },
+    {
+      "type": "file",
+      "name": "fireworks.ts",
+      "file": "fireworks.ts"
+    },
+    {
+      "type": "file",
+      "name": "kilo-auth.ts",
+      "file": "kilo-auth.ts"
+    },
+    {
+      "type": "file",
+      "name": "kilo-models.ts",
+      "file": "kilo-models.ts"
+    },
+    {
+      "type": "file",
+      "name": "kilo.ts",
+      "file": "kilo.ts"
+    },
+    {
+      "type": "file",
+      "name": "metrics.ts",
+      "file": "metrics.ts"
+    },
+    {
+      "type": "file",
+      "name": "nvidia.ts",
+      "file": "nvidia.ts"
+    },
+    {
+      "type": "file",
+      "name": "openrouter.ts",
+      "file": "openrouter.ts"
+    },
+    {
+      "type": "file",
+      "name": "provider-helper.ts",
+      "file": "provider-helper.ts"
+    },
+    {
+      "type": "file",
+      "name": "types.ts",
+      "file": "types.ts"
+    },
+    {
+      "type": "file",
+      "name": "usage-store.ts",
+      "file": "usage-store.ts"
+    },
+    {
+      "type": "file",
+      "name": "usage-widget.ts",
+      "file": "usage-widget.ts"
+    },
+    {
+      "type": "file",
+      "name": "util.ts",
+      "file": "util.ts"
+    },
+    {
+      "type": "file",
+      "name": "zen.ts",
+      "file": "zen.ts"
+    }
+  ],
+  "unusedDeps": [],
+  "unlistedDeps": [],
+  "summary": "Found 18 issues"
+}

@@ -241,12 +241,12 @@
     },
     "constants.ts": {
       "latest": {
-        "commit": "e51c141",
-        "timestamp": "2026-03-27T15:22:06.161Z",
-        "mi": 52.4,
+        "commit": "4b5ffe9",
+        "timestamp": "2026-03-28T08:38:38.799Z",
+        "mi": 61.8,
         "cognitive": 0,
         "nesting": 0,
-        "lines": 59
+        "lines": 25
       },
       "history": [
         {
@@ -264,18 +264,26 @@
           "cognitive": 0,
           "nesting": 0,
           "lines": 59
+        },
+        {
+          "commit": "4b5ffe9",
+          "timestamp": "2026-03-28T08:38:38.799Z",
+          "mi": 61.8,
+          "cognitive": 0,
+          "nesting": 0,
+          "lines": 25
         }
       ],
-      "trend": "stable"
+      "trend": "improving"
     },
     "config.ts": {
       "latest": {
-        "commit": "e51c141",
-        "timestamp": "2026-03-27T15:21:56.958Z",
-        "mi": 46.1,
+        "commit": "4b5ffe9",
+        "timestamp": "2026-03-28T08:39:05.366Z",
+        "mi": 47.5,
         "cognitive": 26,
         "nesting": 4,
-        "lines": 81
+        "lines": 72
       },
       "history": [
         {
@@ -301,6 +309,14 @@
           "cognitive": 26,
           "nesting": 4,
           "lines": 81
+        },
+        {
+          "commit": "4b5ffe9",
+          "timestamp": "2026-03-28T08:39:05.366Z",
+          "mi": 47.5,
+          "cognitive": 26,
+          "nesting": 4,
+          "lines": 72
         }
       ],
       "trend": "stable"
@@ -396,7 +412,36 @@
         }
       ],
       "trend": "stable"
+    },
+    "fireworks.ts": {
+      "latest": {
+        "commit": "4b5ffe9",
+        "timestamp": "2026-03-28T15:43:45.299Z",
+        "mi": 40.6,
+        "cognitive": 18,
+        "nesting": 3,
+        "lines": 134
+      },
+      "history": [
+        {
+          "commit": "4b5ffe9",
+          "timestamp": "2026-03-28T08:40:08.254Z",
+          "mi": 34.3,
+          "cognitive": 18,
+          "nesting": 3,
+          "lines": 176
+        },
+        {
+          "commit": "4b5ffe9",
+          "timestamp": "2026-03-28T15:43:45.299Z",
+          "mi": 40.6,
+          "cognitive": 18,
+          "nesting": 3,
+          "lines": 134
+        }
+      ],
+      "trend": "improving"
     }
   },
-  "capturedAt": "2026-03-27T18:44:52.173Z"
+  "capturedAt": "2026-03-28T15:43:58.481Z"
 }

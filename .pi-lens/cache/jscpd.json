@@ -1,0 +1,24 @@
+{
+  "success": true,
+  "clones": [
+    {
+      "fileA": "openrouter.ts",
+      "startA": 183,
+      "fileB": "openrouter.ts",
+      "startB": 133,
+      "lines": 16,
+      "tokens": 0
+    },
+    {
+      "fileA": "fireworks.ts",
+      "startA": 89,
+      "fileB": "nvidia.ts",
+      "startB": 114,
+      "lines": 14,
+      "tokens": 0
+    }
+  ],
+  "duplicatedLines": 28,
+  "totalLines": 2998,
+  "percentage": 0.93
+}
