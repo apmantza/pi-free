@@ -25,7 +25,6 @@ import {
 	URL_MODELS_DEV,
 	URL_ZEN_TOS,
 } from "../constants.ts";
-import { enhanceModelNameWithCodingIndex } from "../provider-failover/hardcoded-benchmarks.ts";
 import { type StoredModels, setupProvider } from "../provider-helper.ts";
 import type { ModelsDevModel, ZenGatewayModel } from "../types.ts";
 import { fetchWithRetry, logWarning } from "../util.ts";
@@ -61,7 +60,7 @@ function getRequestId(): string {
 // Used when /models API is unavailable
 // =============================================================================
 
-const STATIC_ZEN_MODELS: ProviderModelConfig[] = [
+const _STATIC_ZEN_MODELS: ProviderModelConfig[] = [
 	// Free models (from OpenCode Zen docs)
 	{
 		id: "big-pickle",
@@ -318,7 +317,7 @@ export default async function (pi: ExtensionAPI) {
 	// Shared model storage (references held by setupProvider for commands)
 	const stored: StoredModels = { free: [], all: [] };
 
-	function registerZenModels(models: ProviderModelConfig[]) {
+	function _registerZenModels(models: ProviderModelConfig[]) {
 		ctx_modelRegistry_register(models);
 	}
 
@@ -345,7 +344,7 @@ export default async function (pi: ExtensionAPI) {
 	// If they do, we still register with session headers for better reliability
 	pi.on("session_start", async (_event, ctx) => {
 		const availableModels = ctx.modelRegistry.getAvailable();
-		const hasExistingAuth = availableModels.some(
+		const _hasExistingAuth = availableModels.some(
 			(m) => m.provider === PROVIDER_ZEN,
 		);
 
@@ -353,13 +352,13 @@ export default async function (pi: ExtensionAPI) {
 		process.env[ZEN_KEY_VAR] = token;
 
 		let models: ProviderModelConfig[] = [];
-		let freeCount = 0;
+		let _freeCount = 0;
 		let useStaticFallback = false;
 
 		try {
 			const result = await fetchZenModels(token);
 			models = hasKey && ZEN_SHOW_PAID ? result.all : result.free;
-			freeCount = result.free.length;
+			_freeCount = result.free.length;
 			useStaticFallback = result.useStaticFallback;
 
 			// Store for command toggle

@@ -8,46 +8,57 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { getRequestCount, getDailyRequestCount, getCachedMetrics } from "./metrics.ts";
+import {
+	PROVIDER_CLINE,
+	PROVIDER_KILO,
+	PROVIDER_NVIDIA,
+	PROVIDER_OPENROUTER,
+	PROVIDER_ZEN,
+} from "./constants.ts";
+import {
+	getCachedMetrics,
+	getDailyRequestCount,
+	getRequestCount,
+} from "./metrics.ts";
 import { getAllCumulativeUsage, recordTurn } from "./usage-store.ts";
-import { PROVIDER_KILO, PROVIDER_OPENROUTER, PROVIDER_ZEN, PROVIDER_NVIDIA, PROVIDER_CLINE } from "./constants.ts";
 
-const GLIMPSE_PATH = "file:///C:/Users/R3LiC/AppData/Roaming/npm/node_modules/glimpseui/src/glimpse.mjs";
+const GLIMPSE_PATH =
+	"file:///C:/Users/R3LiC/AppData/Roaming/npm/node_modules/glimpseui/src/glimpse.mjs";
 
 // =============================================================================
 // Types
 // =============================================================================
 
 interface ProviderRow {
-  provider: string;
-  key: string;
-  icon: string;
-  // This session
-  sessionReqs: number;
-  dailyReqs: number;
-  // Known limits (static or from API)
-  dailyLimit?: number;
-  hourlyLimit?: number;
-  remainingToday?: number;
-  // Cumulative (all time)
-  totalTokensIn: number;
-  totalTokensOut: number;
-  totalRequests: number;
-  costEquivalent: number;
-  firstUsed?: string;
-  // Credits
-  credits?: number;
-  creditsLabel?: string;
+	provider: string;
+	key: string;
+	icon: string;
+	// This session
+	sessionReqs: number;
+	dailyReqs: number;
+	// Known limits (static or from API)
+	dailyLimit?: number;
+	hourlyLimit?: number;
+	remainingToday?: number;
+	// Cumulative (all time)
+	totalTokensIn: number;
+	totalTokensOut: number;
+	totalRequests: number;
+	costEquivalent: number;
+	firstUsed?: string;
+	// Credits
+	credits?: number;
+	creditsLabel?: string;
 }
 
 // Known provider metadata
 const KNOWN_PROVIDERS: Record<string, { icon: string; label: string }> = {
-  [PROVIDER_KILO]:       { icon: "🔥", label: "Kilo" },
-  [PROVIDER_OPENROUTER]: { icon: "🔀", label: "OpenRouter" },
-  [PROVIDER_ZEN]:        { icon: "✦",  label: "Zen" },
-  [PROVIDER_NVIDIA]:     { icon: "⚡", label: "NVIDIA" },
-  [PROVIDER_CLINE]:      { icon: "🤖", label: "Cline" },
-  "local":               { icon: "💻", label: "Local" },
+	[PROVIDER_KILO]: { icon: "🔥", label: "Kilo" },
+	[PROVIDER_OPENROUTER]: { icon: "🔀", label: "OpenRouter" },
+	[PROVIDER_ZEN]: { icon: "✦", label: "Zen" },
+	[PROVIDER_NVIDIA]: { icon: "⚡", label: "NVIDIA" },
+	[PROVIDER_CLINE]: { icon: "🤖", label: "Cline" },
+	local: { icon: "💻", label: "Local" },
 };
 
 // Session-level request tracking for non-extension providers
@@ -58,26 +69,26 @@ const sessionRequestCounts: Map<string, number> = new Map();
 // =============================================================================
 
 function formatTokens(n: number): string {
-  if (n < 1000) return n.toString();
-  if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`;
-  if (n < 1_000_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  return `${(n / 1_000_000_000).toFixed(1)}B`;
+	if (n < 1000) return n.toString();
+	if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`;
+	if (n < 1_000_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+	return `${(n / 1_000_000_000).toFixed(1)}B`;
 }
 
 function formatCost(n: number): string {
-  if (n < 0.01) return `$${n.toFixed(4)}`;
-  if (n < 1) return `$${n.toFixed(3)}`;
-  return `$${n.toFixed(2)}`;
+	if (n < 0.01) return `$${n.toFixed(4)}`;
+	if (n < 1) return `$${n.toFixed(3)}`;
+	return `$${n.toFixed(2)}`;
 }
 
 function relativeTime(isoDate: string): string {
-  const diff = Date.now() - new Date(isoDate).getTime();
-  const days = Math.floor(diff / 86_400_000);
-  if (days === 0) return "today";
-  if (days === 1) return "yesterday";
-  if (days < 30) return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  return `${months}mo ago`;
+	const diff = Date.now() - new Date(isoDate).getTime();
+	const days = Math.floor(diff / 86_400_000);
+	if (days === 0) return "today";
+	if (days === 1) return "yesterday";
+	if (days < 30) return `${days}d ago`;
+	const months = Math.floor(days / 30);
+	return `${months}mo ago`;
 }
 
 // =============================================================================
@@ -85,64 +96,65 @@ function relativeTime(isoDate: string): string {
 // =============================================================================
 
 function collectRows(): ProviderRow[] {
-  const cumulative = getAllCumulativeUsage();
-  const orMetrics = getCachedMetrics(PROVIDER_OPENROUTER);
-  const kiloMetrics = getCachedMetrics(PROVIDER_KILO);
+	const cumulative = getAllCumulativeUsage();
+	const orMetrics = getCachedMetrics(PROVIDER_OPENROUTER);
+	const kiloMetrics = getCachedMetrics(PROVIDER_KILO);
 
-  // Discover all providers: known ones + any from cumulative store
-  const allKeys = new Set<string>(Object.keys(KNOWN_PROVIDERS));
-  for (const key of Object.keys(cumulative)) {
-    allKeys.add(key);
-  }
+	// Discover all providers: known ones + any from cumulative store
+	const allKeys = new Set<string>(Object.keys(KNOWN_PROVIDERS));
+	for (const key of Object.keys(cumulative)) {
+		allKeys.add(key);
+	}
 
-  const rows: ProviderRow[] = [];
+	const rows: ProviderRow[] = [];
 
-  for (const key of allKeys) {
-    const meta = KNOWN_PROVIDERS[key];
-    const c = cumulative[key];
-    const sessionReqs = getRequestCount(key) || sessionRequestCounts.get(key) || 0;
+	for (const key of allKeys) {
+		const meta = KNOWN_PROVIDERS[key];
+		const c = cumulative[key];
+		const sessionReqs =
+			getRequestCount(key) || sessionRequestCounts.get(key) || 0;
 
-    const row: ProviderRow = {
-      provider: meta?.label ?? key,
-      key,
-      icon: meta?.icon ?? "📦",
-      sessionReqs,
-      dailyReqs: getDailyRequestCount(key) || 0,
-      totalTokensIn: c?.tokensIn ?? 0,
-      totalTokensOut: c?.tokensOut ?? 0,
-      totalRequests: c?.requests ?? 0,
-      costEquivalent: c?.costEquivalent ?? 0,
-      firstUsed: c?.firstUsed,
-    };
+		const row: ProviderRow = {
+			provider: meta?.label ?? key,
+			key,
+			icon: meta?.icon ?? "📦",
+			sessionReqs,
+			dailyReqs: getDailyRequestCount(key) || 0,
+			totalTokensIn: c?.tokensIn ?? 0,
+			totalTokensOut: c?.tokensOut ?? 0,
+			totalRequests: c?.requests ?? 0,
+			costEquivalent: c?.costEquivalent ?? 0,
+			firstUsed: c?.firstUsed,
+		};
 
-    // Provider-specific known limits
-    if (key === PROVIDER_OPENROUTER) {
-      row.dailyLimit = orMetrics?.rateLimit?.requestsPerDay;
-      row.remainingToday = orMetrics?.rateLimit?.remainingToday;
-      row.credits = orMetrics?.credits;
-      row.creditsLabel = "credits";
-    } else if (key === PROVIDER_KILO) {
-      row.hourlyLimit = 200; // 200 req/hr per IP (anonymous)
-      row.credits = kiloMetrics?.balance;
-      row.creditsLabel = "balance";
-    }
+		// Provider-specific known limits
+		if (key === PROVIDER_OPENROUTER) {
+			row.dailyLimit = orMetrics?.rateLimit?.requestsPerDay;
+			row.remainingToday = orMetrics?.rateLimit?.remainingToday;
+			row.credits = orMetrics?.credits;
+			row.creditsLabel = "credits";
+		} else if (key === PROVIDER_KILO) {
+			row.hourlyLimit = 200; // 200 req/hr per IP (anonymous)
+			row.credits = kiloMetrics?.balance;
+			row.creditsLabel = "balance";
+		}
 
-    rows.push(row);
-  }
+		rows.push(row);
+	}
 
-  // Sort: known providers first (in order), then unknown, then inactive
-  const order = Object.keys(KNOWN_PROVIDERS);
-  rows.sort((a, b) => {
-    const ai = order.indexOf(a.key);
-    const bi = order.indexOf(b.key);
-    const aOrder = ai >= 0 ? ai : 100;
-    const bOrder = bi >= 0 ? bi : 100;
-    if (aOrder !== bOrder) return aOrder - bOrder;
-    // Secondary: active first
-    return (b.sessionReqs + b.totalRequests) - (a.sessionReqs + a.totalRequests);
-  });
+	// Sort: known providers first (in order), then unknown, then inactive
+	const order = Object.keys(KNOWN_PROVIDERS);
+	rows.sort((a, b) => {
+		const ai = order.indexOf(a.key);
+		const bi = order.indexOf(b.key);
+		const aOrder = ai >= 0 ? ai : 100;
+		const bOrder = bi >= 0 ? bi : 100;
+		if (aOrder !== bOrder) return aOrder - bOrder;
+		// Secondary: active first
+		return b.sessionReqs + b.totalRequests - (a.sessionReqs + a.totalRequests);
+	});
 
-  return rows;
+	return rows;
 }
 
 // =============================================================================
@@ -150,15 +162,19 @@ function collectRows(): ProviderRow[] {
 // =============================================================================
 
 function renderHTML(rows: ProviderRow[]): string {
-  // Summary totals across all providers
-  let totalTokens = 0, totalReqs = 0, totalCost = 0;
-  for (const r of rows) {
-    totalTokens += r.totalTokensIn + r.totalTokensOut;
-    totalReqs += r.totalRequests;
-    totalCost += r.costEquivalent;
-  }
+	// Summary totals across all providers
+	let totalTokens = 0,
+		totalReqs = 0,
+		totalCost = 0;
+	for (const r of rows) {
+		totalTokens += r.totalTokensIn + r.totalTokensOut;
+		totalReqs += r.totalRequests;
+		totalCost += r.costEquivalent;
+	}
 
-  const summaryHTML = totalReqs > 0 ? `
+	const summaryHTML =
+		totalReqs > 0
+			? `
   <div style="background: rgba(255,255,255,0.04); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;">
     <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 500;">
       <span>Total free value</span>
@@ -167,56 +183,64 @@ function renderHTML(rows: ProviderRow[]): string {
     <div style="font-size: 11px; color: #888; margin-top: 3px;">
       ${formatTokens(totalTokens)} tokens · ${totalReqs} requests
     </div>
-  </div>` : "";
+  </div>`
+			: "";
 
-  const providerRows = rows.map((r) => {
-    const hasActivity = r.sessionReqs > 0 || r.totalRequests > 0;
+	const providerRows = rows
+		.map((r) => {
+			const hasActivity = r.sessionReqs > 0 || r.totalRequests > 0;
 
-    // Progress bar for known daily limits
-    let quotaBar = "";
-    if (r.dailyLimit && r.dailyLimit > 0) {
-      const pct = Math.min(100, Math.round((r.dailyReqs / r.dailyLimit) * 100));
-      const color = pct > 80 ? "#e53e3e" : pct > 50 ? "#ecc94b" : "#48bb78";
-      quotaBar = `
+			// Progress bar for known daily limits
+			let quotaBar = "";
+			if (r.dailyLimit && r.dailyLimit > 0) {
+				const pct = Math.min(
+					100,
+					Math.round((r.dailyReqs / r.dailyLimit) * 100),
+				);
+				const color = pct > 80 ? "#e53e3e" : pct > 50 ? "#ecc94b" : "#48bb78";
+				quotaBar = `
         <div style="display: flex; align-items: center; gap: 8px; margin-top: 3px;">
           <div style="flex: 1; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden;">
             <div style="width: ${pct}%; height: 100%; background: ${color}; border-radius: 2px;"></div>
           </div>
           <span style="font-size: 10px; color: #666;">${r.dailyReqs}/${r.dailyLimit}</span>
         </div>`;
-    }
+			}
 
-    // Info line: cumulative + credits + limits
-    const infoParts: string[] = [];
-    if (r.totalRequests > 0) {
-      infoParts.push(`${formatTokens(r.totalTokensIn + r.totalTokensOut)} tok · ${r.totalRequests} reqs`);
-      if (r.costEquivalent > 0) {
-        infoParts.push(`≈${formatCost(r.costEquivalent)}`);
-      }
-      if (r.firstUsed) {
-        infoParts.push(`since ${relativeTime(r.firstUsed)}`);
-      }
-    }
-    if (r.remainingToday !== undefined) {
-      infoParts.push(`${r.remainingToday} left today`);
-    }
-    if (r.hourlyLimit) {
-      infoParts.push(`${r.hourlyLimit}/hr limit`);
-    }
-    if (r.credits !== undefined) {
-      infoParts.push(`💰 ${formatCost(r.credits)}`);
-    }
-    // Local models are always free
-    if (r.key === "local" && r.totalRequests > 0) {
-      infoParts.push("always free");
-    }
+			// Info line: cumulative + credits + limits
+			const infoParts: string[] = [];
+			if (r.totalRequests > 0) {
+				infoParts.push(
+					`${formatTokens(r.totalTokensIn + r.totalTokensOut)} tok · ${r.totalRequests} reqs`,
+				);
+				if (r.costEquivalent > 0) {
+					infoParts.push(`≈${formatCost(r.costEquivalent)}`);
+				}
+				if (r.firstUsed) {
+					infoParts.push(`since ${relativeTime(r.firstUsed)}`);
+				}
+			}
+			if (r.remainingToday !== undefined) {
+				infoParts.push(`${r.remainingToday} left today`);
+			}
+			if (r.hourlyLimit) {
+				infoParts.push(`${r.hourlyLimit}/hr limit`);
+			}
+			if (r.credits !== undefined) {
+				infoParts.push(`💰 ${formatCost(r.credits)}`);
+			}
+			// Local models are always free
+			if (r.key === "local" && r.totalRequests > 0) {
+				infoParts.push("always free");
+			}
 
-    const infoHTML = infoParts.length > 0
-      ? `<div style="font-size: 10px; color: #777; margin-top: 2px;">${infoParts.join(" · ")}</div>`
-      : "";
+			const infoHTML =
+				infoParts.length > 0
+					? `<div style="font-size: 10px; color: #777; margin-top: 2px;">${infoParts.join(" · ")}</div>`
+					: "";
 
-    return `
-      <div style="padding: 7px 0; ${hasActivity ? '' : 'opacity: 0.3;'}">
+			return `
+      <div style="padding: 7px 0; ${hasActivity ? "" : "opacity: 0.3;"}">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <span style="font-weight: 500; font-size: 13px;">${r.icon} ${r.provider}</span>
           <span style="font-size: 10px; color: #888;">${r.sessionReqs} this session</span>
@@ -224,9 +248,10 @@ function renderHTML(rows: ProviderRow[]): string {
         ${infoHTML}
         ${quotaBar}
       </div>`;
-  }).join("\n");
+		})
+		.join("\n");
 
-  return `<!DOCTYPE html>
+	return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -255,23 +280,36 @@ function renderHTML(rows: ProviderRow[]): string {
 let glimpseWin: any = null;
 
 export async function openUsageWidget(): Promise<void> {
-  const { open } = await import(GLIMPSE_PATH);
-  glimpseWin = open(renderHTML(collectRows()), {
-    width: 340, height: 400,
-    title: "Pi Free Usage",
-    frameless: true, transparent: true, floating: true,
-    x: 20, y: 20,
-  });
-  glimpseWin.on("closed", () => { glimpseWin = null; });
+	const { open } = await import(GLIMPSE_PATH);
+	glimpseWin = open(renderHTML(collectRows()), {
+		width: 340,
+		height: 400,
+		title: "Pi Free Usage",
+		frameless: true,
+		transparent: true,
+		floating: true,
+		x: 20,
+		y: 20,
+	});
+	glimpseWin.on("closed", () => {
+		glimpseWin = null;
+	});
 }
 
 function updateWidget(): void {
-  if (!glimpseWin) return;
-  try { glimpseWin.setHTML(renderHTML(collectRows())); } catch { glimpseWin = null; }
+	if (!glimpseWin) return;
+	try {
+		glimpseWin.setHTML(renderHTML(collectRows()));
+	} catch {
+		glimpseWin = null;
+	}
 }
 
 function closeWidget(): void {
-  if (glimpseWin) { glimpseWin.close(); glimpseWin = null; }
+	if (glimpseWin) {
+		glimpseWin.close();
+		glimpseWin = null;
+	}
 }
 
 // =============================================================================
@@ -279,28 +317,42 @@ function closeWidget(): void {
 // =============================================================================
 
 export function registerUsageWidget(pi: ExtensionAPI): void {
-  pi.registerCommand("usage", {
-    description: "Toggle free model usage dashboard",
-    handler: async (_args, ctx) => {
-      if (glimpseWin) { closeWidget(); return; }
-      try { await openUsageWidget(); }
-      catch { ctx.ui.notify("Failed to open usage widget (glimpseui required)", "warning"); }
-    },
-  });
+	pi.registerCommand("usage", {
+		description: "Toggle free model usage dashboard",
+		handler: async (_args, ctx) => {
+			if (glimpseWin) {
+				closeWidget();
+				return;
+			}
+			try {
+				await openUsageWidget();
+			} catch {
+				ctx.ui.notify(
+					"Failed to open usage widget (glimpseui required)",
+					"warning",
+				);
+			}
+		},
+	});
 
-  // Track tokens for ANY provider (including local, custom, etc.)
-  // and refresh the widget
-  pi.on("turn_end", async (_event, ctx) => {
-    const msg = _event.message;
-    const provider = ctx.model?.provider;
-    if (msg.role === "assistant" && provider) {
-      // Record cumulative usage for this provider
-      recordTurn(provider, msg.usage.input, msg.usage.output, msg.usage.cost.total);
+	// Track tokens for ANY provider (including local, custom, etc.)
+	// and refresh the widget
+	pi.on("turn_end", async (_event, ctx) => {
+		const msg = _event.message;
+		const provider = ctx.model?.provider;
+		if (msg.role === "assistant" && provider) {
+			// Record cumulative usage for this provider
+			recordTurn(
+				provider,
+				msg.usage.input,
+				msg.usage.output,
+				msg.usage.cost.total,
+			);
 
-      // Track session requests for providers not handled by provider-helper
-      const current = sessionRequestCounts.get(provider) ?? 0;
-      sessionRequestCounts.set(provider, current + 1);
-    }
-    updateWidget();
-  });
+			// Track session requests for providers not handled by provider-helper
+			const current = sessionRequestCounts.get(provider) ?? 0;
+			sessionRequestCounts.set(provider, current + 1);
+		}
+		updateWidget();
+	});
 }

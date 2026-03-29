@@ -10,18 +10,13 @@ import type {
 import {
 	estimateCapability,
 	generateCapabilityMessage,
-	getMinimumAcceptableTier,
 	isCapabilityDowngrade,
-	type ModelCapabilities,
 	rankByCapability,
 } from "./capability-ranking.ts";
 import { classifyError } from "./errors.ts";
 import {
-	buildModelIndex,
 	findNextHop,
 	getRankedAlternatives,
-	type IndexedModel,
-	isExhausted,
 	markExhausted,
 } from "./model-index.ts";
 
@@ -172,7 +167,7 @@ export async function handleModelHop(
 }> {
 	const sessionId = ctx.session?.id || "default";
 	const maxHops = config?.maxHops ?? 3;
-	const autoHop = config?.autoHop ?? true;
+	const _autoHop = config?.autoHop ?? true;
 
 	// Classify the error
 	const classified = classifyError(error);
@@ -239,7 +234,7 @@ export async function handleModelHop(
 			currentModelId,
 			availableModels.filter(
 				(m) =>
-					!state!.triedModels.has(
+					!state?.triedModels.has(
 						getSessionKey(m.provider || currentProvider, m.id),
 					),
 			),
@@ -317,7 +312,7 @@ export async function handleModelHop(
 					currentModel,
 					availableModels.filter(
 						(m) =>
-							!state!.triedModels.has(
+							!state?.triedModels.has(
 								getSessionKey(m.provider || currentProvider, m.id),
 							) && m.id !== nextModel.id,
 					),

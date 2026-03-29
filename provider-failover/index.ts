@@ -4,13 +4,11 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { autocompactAndRetry, triggerAutocompact } from "./autocompact";
+import { triggerAutocompact } from "./autocompact";
 import {
 	type ClassifiedError,
 	classifyError,
-	isRateLimit,
 	logErrorClassification,
-	shouldTriggerAutocompact,
 } from "./errors";
 
 export interface FailoverConfig {

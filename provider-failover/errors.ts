@@ -241,7 +241,7 @@ export function isCapacityError(error: unknown): boolean {
  */
 export function shouldTriggerAutocompact(
 	error: unknown,
-	provider: string,
+	_provider: string,
 	isPaidMode: boolean,
 ): boolean {
 	const classified = classifyError(error);
@@ -260,7 +260,7 @@ export function shouldTriggerAutocompact(
  * Log error classification for debugging
  */
 export function logErrorClassification(
-	error: unknown,
+	_error: unknown,
 	classified: ClassifiedError,
 ): void {
 	console.log(

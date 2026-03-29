@@ -16,12 +16,7 @@ import type {
 } from "@mariozechner/pi-coding-agent";
 import { KILO_FREE_ONLY, PROVIDER_KILO } from "../config.ts";
 import { URL_KILO_TOS } from "../constants.ts";
-import {
-	fetchKiloBalance,
-	formatCredits,
-	loginKilo,
-	refreshKiloToken,
-} from "../kilo-auth.ts";
+import { loginKilo, refreshKiloToken } from "../kilo-auth.ts";
 import { fetchKiloModels, KILO_GATEWAY_BASE } from "../kilo-models.ts";
 import {
 	enhanceWithCI,

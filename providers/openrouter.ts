@@ -19,7 +19,7 @@ import {
 	PROVIDER_OPENROUTER,
 } from "../config.ts";
 import { BASE_URL_OPENROUTER, DEFAULT_FETCH_TIMEOUT_MS } from "../constants.ts";
-import { fetchOpenRouterMetrics, setCachedMetrics } from "../metrics.ts";
+import { fetchOpenRouterMetrics } from "../metrics.ts";
 import { type StoredModels, setupProvider } from "../provider-helper.ts";
 import {
 	fetchWithRetry,

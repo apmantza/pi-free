@@ -427,8 +427,8 @@ function loadCumulative(): CumulativeUsage {
 			cachedCumulative = data;
 			return data;
 		}
-	} catch {
-		// Fall through to default
+	} catch (err) {
+		console.debug("[free-tier] Failed to load cumulative usage:", err);
 	}
 
 	cachedCumulative = {
@@ -452,8 +452,8 @@ function saveCumulative(): void {
 			JSON.stringify(cachedCumulative, null, 2),
 			"utf-8",
 		);
-	} catch {
-		// Silent fail - not critical
+	} catch (err) {
+		console.debug("[free-tier] Failed to save cumulative usage:", err);
 	}
 }
 

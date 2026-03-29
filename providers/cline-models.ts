@@ -4,10 +4,10 @@
  * Fetches zero-cost models from OpenRouter (Cline's gateway).
  */
 
-import type { ProviderModelConfig } from "../types.ts";
 import { applyHidden } from "../config.ts";
-import { isUsableModel, fetchWithRetry } from "../util.ts";
 import { BASE_URL_OPENROUTER, DEFAULT_FETCH_TIMEOUT_MS } from "../constants.ts";
+import type { ProviderModelConfig } from "../types.ts";
+import { fetchWithRetry, isUsableModel } from "../util.ts";
 
 interface OpenRouterRaw {
 	id: string;
@@ -32,7 +32,8 @@ export async function fetchClineModels(): Promise<ProviderModelConfig[]> {
 		timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
 	});
 
-	if (!response.ok) throw new Error(`Failed to fetch OpenRouter models: ${response.status}`);
+	if (!response.ok)
+		throw new Error(`Failed to fetch OpenRouter models: ${response.status}`);
 
 	const json = (await response.json()) as { data?: OpenRouterRaw[] };
 	const freeModels = (json.data ?? []).filter(
@@ -47,7 +48,8 @@ export async function fetchClineModels(): Promise<ProviderModelConfig[]> {
 			info.supported_parameters?.includes("include_reasoning") ||
 			info.supported_parameters?.includes("reasoning")
 		);
-		const hasImage = info.architecture?.input_modalities?.includes("image") ?? false;
+		const hasImage =
+			info.architecture?.input_modalities?.includes("image") ?? false;
 
 		models.push({
 			id: info.id,
