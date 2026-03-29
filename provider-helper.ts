@@ -17,6 +17,7 @@ import {
 	isProviderExhausted,
 	resetFailureCount,
 } from "./provider-failover";
+import { enhanceModelNameWithCodingIndex } from "./provider-failover/hardcoded-benchmarks.js";
 
 // =============================================================================
 // Types
@@ -69,12 +70,31 @@ export interface StoredModels {
  * @param config    Provider setup config
  * @param stored    Mutable reference to stored free/all model arrays
  */
+/**
+ * Enhance all model names with Coding Index scores
+ * Use this for direct provider registration (not through setupProvider)
+ */
+export function enhanceWithCI(
+	models: ProviderModelConfig[],
+): ProviderModelConfig[] {
+	return models.map((m) => ({
+		...m,
+		name: enhanceModelNameWithCodingIndex(m.name, m.id),
+	}));
+}
+
 export function setupProvider(
 	pi: ExtensionAPI,
 	config: ProviderSetupConfig,
 	stored: StoredModels,
 ): void {
-	const { providerId, tosUrl, reRegister } = config;
+	const { providerId, tosUrl } = config;
+
+	// Wrap reRegister to automatically add CI scores to all models
+	const reRegister = (models: ProviderModelConfig[], s: StoredModels) => {
+		const enhanced = enhanceWithCI(models);
+		config.reRegister(enhanced, s);
+	};
 
 	// ── Toggle commands ──────────────────────────────────────────────────
 

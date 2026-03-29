@@ -10,120 +10,159 @@
  */
 
 import type { Api, Model, OAuthCredentials } from "@mariozechner/pi-ai";
-import type { ExtensionAPI, ProviderModelConfig } from "@mariozechner/pi-coding-agent";
-import { loginKilo, refreshKiloToken, fetchKiloBalance, formatCredits } from "../kilo-auth.ts";
-import { fetchKiloModels, KILO_GATEWAY_BASE } from "../kilo-models.ts";
+import type {
+	ExtensionAPI,
+	ProviderModelConfig,
+} from "@mariozechner/pi-coding-agent";
 import { KILO_FREE_ONLY, PROVIDER_KILO } from "../config.ts";
 import { URL_KILO_TOS } from "../constants.ts";
-import { logWarning } from "../util.ts";
-import { setupProvider, type StoredModels } from "../provider-helper.ts";
+import {
+	fetchKiloBalance,
+	formatCredits,
+	loginKilo,
+	refreshKiloToken,
+} from "../kilo-auth.ts";
+import { fetchKiloModels, KILO_GATEWAY_BASE } from "../kilo-models.ts";
+import {
+	enhanceWithCI,
+	type StoredModels,
+	setupProvider,
+} from "../provider-helper.ts";
 import { registerUsageWidget } from "../usage-widget.ts";
+import { logWarning } from "../util.ts";
 
 const KILO_PROVIDER_CONFIG = {
-  baseUrl: KILO_GATEWAY_BASE,
-  apiKey: "KILO_API_KEY",
-  api: "openai-completions" as const,
-  headers: {
-    "X-KILOCODE-EDITORNAME": "Pi",
-    "User-Agent": "pi-free-providers",
-  },
+	baseUrl: KILO_GATEWAY_BASE,
+	apiKey: "KILO_API_KEY",
+	api: "openai-completions" as const,
+	headers: {
+		"X-KILOCODE-EDITORNAME": "Pi",
+		"User-Agent": "pi-free-providers",
+	},
 };
 
 export default async function (pi: ExtensionAPI) {
-  let freeModels: ProviderModelConfig[] = [];
-  try {
-    freeModels = await fetchKiloModels({ freeOnly: true });
-  } catch (error) {
-    logWarning("kilo", "Failed to fetch free models at startup", error);
-  }
+	let freeModels: ProviderModelConfig[] = [];
+	try {
+		freeModels = await fetchKiloModels({ freeOnly: true });
+	} catch (error) {
+		logWarning("kilo", "Failed to fetch free models at startup", error);
+	}
 
-  let cachedAllModels: ProviderModelConfig[] = [];
+	let cachedAllModels: ProviderModelConfig[] = [];
 
-  // Shared model storage for setupProvider commands
-  const stored: StoredModels = { free: freeModels, all: [] };
+	// Shared model storage for setupProvider commands
+	const stored: StoredModels = { free: freeModels, all: [] };
 
-  // Created once — the closure captures cachedAllModels by reference so
-  // updates to it are visible without recreating the config object.
-  const oauthConfig = (function makeOAuthConfig() {
-    return {
-      name: "Kilo",
-      login: async (callbacks: any) => {
-        const cred = await loginKilo(callbacks);
-        try {
-          cachedAllModels = await fetchKiloModels({ token: cred.access });
-          stored.all = cachedAllModels;
-        } catch (error) {
-          logWarning("kilo", "Failed to fetch models after login", error);
-        }
-        return cred;
-      },
-      refreshToken: refreshKiloToken,
-      getApiKey: (cred: OAuthCredentials) => cred.access,
-      modifyModels: (models: Model<Api>[], _cred: OAuthCredentials) => {
-        if (KILO_FREE_ONLY || cachedAllModels.length === 0) return models;
-        const template = models.find((m) => m.provider === PROVIDER_KILO);
-        if (!template) return models;
-        const nonKilo = models.filter((m) => m.provider !== PROVIDER_KILO);
-        const fullModels = cachedAllModels.map((m) => ({
-          ...template, id: m.id, name: m.name, reasoning: m.reasoning,
-          input: m.input, cost: m.cost, contextWindow: m.contextWindow, maxTokens: m.maxTokens,
-        }));
-        return [...nonKilo, ...fullModels];
-      },
-    };
-  })();
+	// Created once — the closure captures cachedAllModels by reference so
+	// updates to it are visible without recreating the config object.
+	const oauthConfig = (function makeOAuthConfig() {
+		return {
+			name: "Kilo",
+			login: async (callbacks: any) => {
+				const cred = await loginKilo(callbacks);
+				try {
+					cachedAllModels = await fetchKiloModels({ token: cred.access });
+					stored.all = cachedAllModels;
+				} catch (error) {
+					logWarning("kilo", "Failed to fetch models after login", error);
+				}
+				return cred;
+			},
+			refreshToken: refreshKiloToken,
+			getApiKey: (cred: OAuthCredentials) => cred.access,
+			modifyModels: (models: Model<Api>[], _cred: OAuthCredentials) => {
+				if (KILO_FREE_ONLY || cachedAllModels.length === 0) return models;
+				const template = models.find((m) => m.provider === PROVIDER_KILO);
+				if (!template) return models;
+				const nonKilo = models.filter((m) => m.provider !== PROVIDER_KILO);
+				const fullModels = cachedAllModels.map((m) => ({
+					...template,
+					id: m.id,
+					name: m.name,
+					reasoning: m.reasoning,
+					input: m.input,
+					cost: m.cost,
+					contextWindow: m.contextWindow,
+					maxTokens: m.maxTokens,
+				}));
+				return [...nonKilo, ...fullModels];
+			},
+		};
+	})();
 
-  pi.registerProvider(PROVIDER_KILO, { ...KILO_PROVIDER_CONFIG, models: freeModels, oauth: oauthConfig });
+	pi.registerProvider(PROVIDER_KILO, {
+		...KILO_PROVIDER_CONFIG,
+		models: enhanceWithCI(freeModels),
+		oauth: oauthConfig,
+	});
 
-  // Wire up shared boilerplate (commands, model_select, turn_end, ToS)
-  setupProvider(pi, {
-    providerId: PROVIDER_KILO,
-    tosUrl: URL_KILO_TOS,
-    reRegister: (models) => {
-      pi.registerProvider(PROVIDER_KILO, { ...KILO_PROVIDER_CONFIG, models, oauth: oauthConfig });
-    },
-  }, stored);
+	// Wire up shared boilerplate (commands, model_select, turn_end, ToS)
+	setupProvider(
+		pi,
+		{
+			providerId: PROVIDER_KILO,
+			tosUrl: URL_KILO_TOS,
+			reRegister: (models) => {
+				pi.registerProvider(PROVIDER_KILO, {
+					...KILO_PROVIDER_CONFIG,
+					models,
+					oauth: oauthConfig,
+				});
+			},
+		},
+		stored,
+	);
 
-  // Register usage widget (glimpseui)
-  registerUsageWidget(pi);
+	// Register usage widget (glimpseui)
+	registerUsageWidget(pi);
 
-  // ── Kilo-specific: credits helpers ───────────────────────────────────
+	// ── Kilo-specific: credits helpers ───────────────────────────────────
 
-  async function updateCredits(ctx: any) {
-    const cred = ctx.modelRegistry.authStorage.get(PROVIDER_KILO);
-    if (cred?.type !== "oauth") return;
-    try {
-      const balance = await fetchKiloBalance(cred.access);
-      if (balance !== null) {
-        ctx.ui.setStatus("kilo-credits", ctx.ui.theme.fg("accent", `💰 ${formatCredits(balance)}`));
-      }
-    } catch { /* silent */ }
-  }
+	async function updateCredits(ctx: any) {
+		const cred = ctx.modelRegistry.authStorage.get(PROVIDER_KILO);
+		if (cred?.type !== "oauth") return;
+		try {
+			const balance = await fetchKiloBalance(cred.access);
+			if (balance !== null) {
+				ctx.ui.setStatus(
+					"kilo-credits",
+					ctx.ui.theme.fg("accent", `💰 ${formatCredits(balance)}`),
+				);
+			}
+		} catch {
+			/* silent */
+		}
+	}
 
-  // ── Kilo-specific: events ────────────────────────────────────────────
+	// ── Kilo-specific: events ────────────────────────────────────────────
 
-  pi.on("session_start", async (_event, ctx) => {
-    const cred = ctx.modelRegistry.authStorage.get(PROVIDER_KILO);
+	pi.on("session_start", async (_event, ctx) => {
+		const cred = ctx.modelRegistry.authStorage.get(PROVIDER_KILO);
 
-    if (cred?.type !== "oauth") {
-      ctx.ui.setStatus("kilo-credits", undefined);
-    } else {
-      try {
-        cachedAllModels = await fetchKiloModels({ token: cred.access });
-        stored.all = cachedAllModels;
-        if (cachedAllModels.length > 0) {
-          ctx.modelRegistry.registerProvider(PROVIDER_KILO, { ...KILO_PROVIDER_CONFIG, models: freeModels, oauth: oauthConfig });
-        }
-      } catch (error) {
-        logWarning("kilo", "Failed to fetch models at session start", error);
-      }
-      await updateCredits(ctx);
-    }
-  });
+		if (cred?.type !== "oauth") {
+			ctx.ui.setStatus("kilo-credits", undefined);
+		} else {
+			try {
+				cachedAllModels = await fetchKiloModels({ token: cred.access });
+				stored.all = cachedAllModels;
+				if (cachedAllModels.length > 0) {
+					ctx.modelRegistry.registerProvider(PROVIDER_KILO, {
+						...KILO_PROVIDER_CONFIG,
+						models: freeModels,
+						oauth: oauthConfig,
+					});
+				}
+			} catch (error) {
+				logWarning("kilo", "Failed to fetch models at session start", error);
+			}
+			await updateCredits(ctx);
+		}
+	});
 
-  pi.on("model_select", async (event, ctx) => {
-    if (event.model?.provider === PROVIDER_KILO) {
-      await updateCredits(ctx);
-    }
-  });
+	pi.on("model_select", async (event, ctx) => {
+		if (event.model?.provider === PROVIDER_KILO) {
+			await updateCredits(ctx);
+		}
+	});
 }

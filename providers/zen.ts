@@ -395,14 +395,8 @@ export default async function (pi: ExtensionAPI) {
 			});
 		};
 
-		// Enhance model names with Coding Index scores
-		const enhancedModels = models.map((m) => ({
-			...m,
-			name: enhanceModelNameWithCodingIndex(m.name, m.id),
-		}));
-
-		// Register our filtered provider
-		ctx_modelRegistry_register(enhancedModels);
+		// Register our filtered provider (CI enhancement handled by provider-helper)
+		ctx_modelRegistry_register(models);
 
 		const theme = ctx.ui.theme;
 		const label = hasKey
