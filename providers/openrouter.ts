@@ -235,10 +235,11 @@ export default async function (pi: ExtensionAPI) {
 		reRegisterFn(models);
 
 		const theme = ctx.ui.theme;
-		const label = OPENROUTER_SHOW_PAID
-			? `🔀 OpenRouter (${models.length} models)`
-			: `🔀 OpenRouter (${freeCount} free)`;
-		ctx.ui.setStatus("openrouter-status", theme.fg("accent", label));
+		// Footer status disabled
+		// const label = OPENROUTER_SHOW_PAID
+		// 	? `🔀 OpenRouter (${models.length} models)`
+		// 	: `🔀 OpenRouter (${freeCount} free)`;
+		// ctx.ui.setStatus("openrouter-status", theme.fg("accent", label));
 
 		// Fetch and cache metrics
 		const metrics = await fetchOpenRouterMetrics();
@@ -260,12 +261,13 @@ export default async function (pi: ExtensionAPI) {
 				parts.push(`💰 $${metrics.credits.toFixed(2)}`);
 			}
 
-			if (parts.length > 0) {
-				ctx.ui.setStatus(
-					"openrouter-metrics",
-					theme.fg("dim", parts.join(" ")),
-				);
-			}
+			// Footer status disabled
+			// if (parts.length > 0) {
+			// 	ctx.ui.setStatus(
+			// 		"openrouter-metrics",
+			// 		theme.fg("dim", parts.join(" ")),
+			// 	);
+			// }
 		}
 	});
 }

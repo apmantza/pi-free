@@ -142,10 +142,11 @@ export default async function (pi: ExtensionAPI) {
 	);
 
 	pi.on("session_start", async (_event, ctx) => {
-		const theme = ctx.ui.theme;
-		ctx.ui.setStatus(
-			"nvidia-status",
-			theme.fg("accent", `⚡ NVIDIA (${models.length} models)`),
-		);
+		// Footer status disabled
+		// const theme = ctx.ui.theme;
+		// ctx.ui.setStatus(
+		// 	"nvidia-status",
+		// 	theme.fg("accent", `⚡ NVIDIA (${models.length} models)`),
+		// );
 	});
 }

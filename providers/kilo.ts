@@ -124,12 +124,13 @@ export default async function (pi: ExtensionAPI) {
 		if (cred?.type !== "oauth") return;
 		try {
 			const balance = await fetchKiloBalance(cred.access);
-			if (balance !== null) {
-				ctx.ui.setStatus(
-					"kilo-credits",
-					ctx.ui.theme.fg("accent", `💰 ${formatCredits(balance)}`),
-				);
-			}
+			// Footer status disabled
+			// if (balance !== null) {
+			// 	ctx.ui.setStatus(
+			// 		"kilo-credits",
+			// 		ctx.ui.theme.fg("accent", `💰 ${formatCredits(balance)}`),
+			// 	);
+			// }
 		} catch {
 			/* silent */
 		}
@@ -141,7 +142,7 @@ export default async function (pi: ExtensionAPI) {
 		const cred = ctx.modelRegistry.authStorage.get(PROVIDER_KILO);
 
 		if (cred?.type !== "oauth") {
-			ctx.ui.setStatus("kilo-credits", undefined);
+			// Status disabled: ctx.ui.setStatus("kilo-credits", undefined);
 		} else {
 			try {
 				cachedAllModels = await fetchKiloModels({ token: cred.access });

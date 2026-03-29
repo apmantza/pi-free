@@ -402,7 +402,7 @@ export default async function (pi: ExtensionAPI) {
 		const label = hasKey
 			? `✦ Zen (${models.length} models)`
 			: `✦ Zen (${freeCount} free)`;
-		ctx.ui.setStatus("zen-status", theme.fg("accent", label));
+		// Status disabled: ctx.ui.setStatus("zen-status", theme.fg("accent", label));
 	});
 
 	// Update request count before each agent turn (for request ID generation)

@@ -97,10 +97,11 @@ export default async function (pi: ExtensionAPI) {
 	);
 
 	pi.on("session_start", async (_event, ctx) => {
-		const theme = ctx.ui.theme;
-		ctx.ui.setStatus(
-			"fireworks-status",
-			theme.fg("accent", `🎆 Fireworks (${models.length} models)`),
-		);
+		// Footer status disabled
+		// const theme = ctx.ui.theme;
+		// ctx.ui.setStatus(
+		// 	"fireworks-status",
+		// 	theme.fg("accent", `🎆 Fireworks (${models.length} models)`),
+		// );
 	});
 }
