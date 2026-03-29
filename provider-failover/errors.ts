@@ -3,6 +3,8 @@
  * Detects 429 rate limits, capacity errors, and other provider-specific errors
  */
 
+import { getFreeTierUsage, getLimitWarning } from "../free-tier-limits.ts";
+
 export type ErrorType =
 	| "rate_limit" // 429, quota exceeded
 	| "capacity" // No capacity, overloaded
@@ -268,4 +270,22 @@ export function logErrorClassification(
 			`retryAfter: ${classified.retryAfterMs ?? "unknown"}ms) ` +
 			`- ${classified.message.slice(0, 100)}`,
 	);
+}
+
+/**
+ * Log free tier usage when rate limit occurs
+ * Helps users understand their quota consumption
+ */
+export function logFreeTierUsage(provider: string): void {
+	const usage = getFreeTierUsage(provider);
+	const warning = getLimitWarning(provider);
+
+	if (warning) {
+		console.warn(`[free-tier] ${warning}`);
+	} else {
+		console.log(
+			`[free-tier] ${provider}: ${usage.requestsToday} requests today. ` +
+				`Limit: ${usage.limit.description}`,
+		);
+	}
 }
