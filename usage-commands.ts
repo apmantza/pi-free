@@ -39,12 +39,8 @@ export function registerUsageCommands(pi: ExtensionAPI): void {
 		});
 
 		usageCommandsRegistered = true;
-		console.log(
-			"[pi-free] Usage commands registered: /free-sessionusage, /free-totalusage",
-		);
 	} catch (error) {
-		// Commands might already exist - ignore error
-		console.log("[pi-free] Usage commands may already be registered:", error);
+		// Commands might already exist - ignore silently
 		usageCommandsRegistered = true;
 	}
 }
