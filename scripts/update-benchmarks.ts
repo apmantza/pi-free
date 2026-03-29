@@ -110,19 +110,36 @@ function generateBenchmarksFile(models: AAModel[]): string {
 	// Generate entries
 	const entries = scoredModels.map((model) => {
 		const key = normalizeModelName(model.name);
-		const score = model.evaluations.artificial_analysis_intelligence_index!;
+		const e = model.evaluations;
+		const score = e.artificial_analysis_intelligence_index!;
 		const normalized = Math.round((score / 70) * 100);
-		const codingScore = model.evaluations.artificial_analysis_coding_index;
+
+		// Helper to format optional number fields
+		const fmt = (v: number | null | undefined): string => {
+			if (v === null || v === undefined) return "undefined";
+			return v.toFixed(3); // Keep 3 decimals for precision
+		};
 
 		return `  "${key}": {
+    // AA Intelligence Index (composite score)
     intelligenceIndex: ${score.toFixed(1)},
     normalizedScore: ${normalized},
-    codingIndex: ${codingScore?.toFixed(1) || "undefined"},
-    agenticIndex: undefined,
-    reasoningIndex: undefined,
+    
+    // AA specific benchmarks
+    codingIndex: ${fmt(e.artificial_analysis_coding_index)},
+    mathIndex: ${fmt(e.artificial_analysis_math_index)},
+    
+    // Academic benchmarks
+    mmluPro: ${fmt(e.mmlu_pro)},
+    gpqa: ${fmt(e.gpqa)},
+    hle: ${fmt(e.hle)},
+    
+    // Capabilities
     contextWindow: ${model.context_window || 8192},
     supportsReasoning: ${model.supports_reasoning || false},
     supportsVision: ${model.supports_vision || false},
+    
+    // Metadata
     lastUpdated: "${today}",
   },`;
 	});
