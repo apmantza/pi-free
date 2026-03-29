@@ -12,41 +12,44 @@ import {
 	formatSessionUsage,
 } from "./free-tier-limits.js";
 
-// Track if we've already registered commands
-declare global {
-	var __PI_FREE_COMMANDS_REGISTERED__: boolean | undefined;
-}
+// Extend ExtensionAPI to track registration
+type PiWithFlag = ExtensionAPI & {
+	__piFreeCommandsRegistered?: boolean;
+};
 
 export function registerUsageCommands(pi: ExtensionAPI): void {
-	// Use global to track across provider instances
-	if (globalThis.__PI_FREE_COMMANDS_REGISTERED__) {
+	const piExtended = pi as PiWithFlag;
+
+	// Check flag on pi object itself (shared across all providers)
+	if (piExtended.__piFreeCommandsRegistered) {
 		return;
 	}
 
-	// Defer registration to avoid "runtime not initialized" error
-	// Register on next tick after extension loading completes
-	setImmediate(() => {
-		try {
-			pi.registerCommand("free-sessionusage", {
-				description: "Show current session usage (requests, tokens, per-model)",
-				handler: async (_args, ctx) => {
-					const report = formatSessionUsage();
-					ctx.ui.notify(report, "info");
-				},
-			});
+	// Mark as registered immediately (synchronously) to prevent race conditions
+	piExtended.__piFreeCommandsRegistered = true;
 
-			pi.registerCommand("free-totalusage", {
-				description: "Show cumulative usage across all sessions",
-				handler: async (_args, ctx) => {
-					const report = formatCumulativeUsage();
-					ctx.ui.notify(report, "info");
-				},
-			});
+	// Register commands
+	try {
+		pi.registerCommand("free-sessionusage", {
+			description: "Show current session usage (requests, tokens, per-model)",
+			handler: async (_args, ctx) => {
+				const report = formatSessionUsage();
+				ctx.ui.notify(report, "info");
+			},
+		});
+	} catch {
+		// Command may already exist, ignore
+	}
 
-			globalThis.__PI_FREE_COMMANDS_REGISTERED__ = true;
-		} catch (error) {
-			// Commands might already exist - ignore silently
-			globalThis.__PI_FREE_COMMANDS_REGISTERED__ = true;
-		}
-	});
+	try {
+		pi.registerCommand("free-totalusage", {
+			description: "Show cumulative usage across all sessions",
+			handler: async (_args, ctx) => {
+				const report = formatCumulativeUsage();
+				ctx.ui.notify(report, "info");
+			},
+		});
+	} catch {
+		// Command may already exist, ignore
+	}
 }
