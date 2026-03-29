@@ -13,7 +13,114 @@
  * - Fireworks: 1000 requests/month for free tier
  */
 
-import { getDailyRequestCount } from "./metrics.ts";
+import { getDailyRequestCount, incrementRequestCount } from "./metrics.ts";
+
+// =============================================================================
+// Per-Model Usage Tracking (more granular than provider-level)
+// =============================================================================
+
+interface ModelUsageEntry {
+	count: number;
+	lastUsed: number; // timestamp
+}
+
+// Map: "provider/modelId" -> usage stats
+const modelUsageCounts = new Map<string, ModelUsageEntry>();
+
+/**
+ * Track a request for a specific model
+ * Call this on every successful request to build usage patterns
+ */
+export function incrementModelRequestCount(
+	provider: string,
+	modelId: string,
+): void {
+	const key = `${provider}/${modelId}`;
+	const existing = modelUsageCounts.get(key);
+
+	if (existing) {
+		existing.count++;
+		existing.lastUsed = Date.now();
+	} else {
+		modelUsageCounts.set(key, { count: 1, lastUsed: Date.now() });
+	}
+
+	// Also increment provider-level count
+	incrementRequestCount(provider);
+}
+
+/**
+ * Get usage for a specific model
+ */
+export function getModelUsage(
+	provider: string,
+	modelId: string,
+): ModelUsageEntry | undefined {
+	return modelUsageCounts.get(`${provider}/${modelId}`);
+}
+
+/**
+ * Get all model usage for a provider
+ */
+export function getProviderModelUsage(
+	provider: string,
+): Array<{ modelId: string; count: number; lastUsed: number }> {
+	const results: Array<{ modelId: string; count: number; lastUsed: number }> =
+		[];
+	const prefix = `${provider}/`;
+
+	for (const [key, entry] of modelUsageCounts.entries()) {
+		if (key.startsWith(prefix)) {
+			results.push({
+				modelId: key.slice(prefix.length),
+				count: entry.count,
+				lastUsed: entry.lastUsed,
+			});
+		}
+	}
+
+	return results.sort((a, b) => b.count - a.count); // Most used first
+}
+
+/**
+ * Get top N most used models across all providers
+ */
+export function getTopModels(
+	n = 10,
+): Array<{ provider: string; modelId: string; count: number }> {
+	const all: Array<{ provider: string; modelId: string; count: number }> = [];
+
+	for (const [key, entry] of modelUsageCounts.entries()) {
+		const [provider, ...modelParts] = key.split("/");
+		all.push({
+			provider,
+			modelId: modelParts.join("/"),
+			count: entry.count,
+		});
+	}
+
+	return all.sort((a, b) => b.count - a.count).slice(0, n);
+}
+
+/**
+ * Log usage report for debugging limits
+ */
+export function logModelUsageReport(provider?: string): void {
+	if (provider) {
+		const models = getProviderModelUsage(provider);
+		const total = models.reduce((sum, m) => sum + m.count, 0);
+
+		console.log(`[usage-report] ${provider}: ${total} total requests`);
+		for (const m of models.slice(0, 5)) {
+			console.log(`  - ${m.modelId}: ${m.count} requests`);
+		}
+	} else {
+		console.log("[usage-report] Top 10 models across all providers:");
+		for (const m of getTopModels(10)) {
+			console.log(`  - ${m.provider}/${m.modelId}: ${m.count} requests`);
+		}
+	}
+}
 
 // =============================================================================
 // Free Tier Limits Configuration
