@@ -26,6 +26,7 @@ import {
 	isUsableModel,
 	logWarning,
 	mapOpenRouterModel,
+	parseModelResponse,
 } from "../util.ts";
 
 // =============================================================================
