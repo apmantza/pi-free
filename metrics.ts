@@ -8,7 +8,7 @@ import {
 	BASE_URL_ZEN,
 	DEFAULT_FETCH_TIMEOUT_MS,
 } from "./constants.ts";
-import { fetchWithRetry, logWarning } from "./util.ts";
+import { fetchWithRetry, fetchWithTimeout, logWarning } from "./util.ts";
 
 // =============================================================================
 // Types
@@ -96,20 +96,26 @@ export async function fetchOpenRouterMetrics(): Promise<ProviderMetrics | null> 
 	try {
 		// Fetch both key info and credits in parallel
 		const [keyResponse, creditsResponse] = await Promise.all([
-			fetchWithRetry(`${BASE_URL_OPENROUTER}/key`, {
-				headers: {
-					Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-					"User-Agent": "pi-free-providers",
+			fetchWithTimeout(
+				`${BASE_URL_OPENROUTER}/key`,
+				{
+					headers: {
+						Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+						"User-Agent": "pi-free-providers",
+					},
 				},
-				timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
-			}),
-			fetchWithRetry(`${BASE_URL_OPENROUTER}/credits`, {
-				headers: {
-					Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-					"User-Agent": "pi-free-providers",
+				DEFAULT_FETCH_TIMEOUT_MS,
+			),
+			fetchWithTimeout(
+				`${BASE_URL_OPENROUTER}/credits`,
+				{
+					headers: {
+						Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+						"User-Agent": "pi-free-providers",
+					},
 				},
-				timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
-			}),
+				DEFAULT_FETCH_TIMEOUT_MS,
+			),
 		]);
 
 		let limit24h: number | undefined;
@@ -158,13 +164,16 @@ export async function fetchOpenCodeMetrics(): Promise<ProviderMetrics | null> {
 	if (!OPENCODE_API_KEY) return null;
 
 	try {
-		const response = await fetchWithRetry(`${BASE_URL_ZEN}/user`, {
-			headers: {
-				Authorization: `Bearer ${OPENCODE_API_KEY}`,
-				"User-Agent": "pi-free-providers",
+		const response = await fetchWithTimeout(
+			`${BASE_URL_ZEN}/user`,
+			{
+				headers: {
+					Authorization: `Bearer ${OPENCODE_API_KEY}`,
+					"User-Agent": "pi-free-providers",
+				},
 			},
-			timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
-		});
+			DEFAULT_FETCH_TIMEOUT_MS,
+		);
 
 		if (!response.ok) {
 			return null;

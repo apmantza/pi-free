@@ -4,12 +4,12 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { triggerAutocompact } from "./autocompact";
+import { triggerAutocompact } from "./autocompact.js";
 import {
 	type ClassifiedError,
 	classifyError,
 	logErrorClassification,
-} from "./errors";
+} from "./errors.js";
 
 export interface FailoverConfig {
 	// Provider identifier (e.g., "kilo", "openrouter")

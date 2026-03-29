@@ -10,8 +10,8 @@
 export interface CostConfig {
 	input: number;
 	output: number;
-	cacheRead?: number;
-	cacheWrite?: number;
+	cacheRead: number;
+	cacheWrite: number;
 }
 
 export interface ProviderModelConfig {

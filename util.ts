@@ -16,19 +16,42 @@ export function logWarning(
 }
 
 /**
- * Fetch with retry logic
+ * Fetch with timeout using AbortController
+ */
+export async function fetchWithTimeout(
+	url: string,
+	options: RequestInit,
+	timeoutMs = 30000,
+): Promise<Response> {
+	const controller = new AbortController();
+	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+	try {
+		const response = await fetch(url, {
+			...options,
+			signal: controller.signal,
+		});
+		return response;
+	} finally {
+		clearTimeout(timeoutId);
+	}
+}
+
+/**
+ * Fetch with retry logic and timeout
  */
 export async function fetchWithRetry(
 	url: string,
 	options: RequestInit,
 	retries = 3,
 	delayMs = 1000,
+	timeoutMs = 30000,
 ): Promise<Response> {
 	let lastError: unknown;
 
 	for (let i = 0; i < retries; i++) {
 		try {
-			const response = await fetch(url, options);
+			const response = await fetchWithTimeout(url, options, timeoutMs);
 			if (response.ok) return response;
 
 			// If it's a rate limit, throw immediately
@@ -135,6 +158,8 @@ export function mapOpenRouterModel(m: {
 		cost: {
 			input: promptPrice,
 			output: completionPrice,
+			cacheRead: 0,
+			cacheWrite: 0,
 		},
 		contextWindow: m.context_length ?? 4096,
 		maxTokens:

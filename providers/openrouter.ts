@@ -37,15 +37,20 @@ async function fetchOpenRouterModels(apiKey: string): Promise<{
 	free: ProviderModelConfig[];
 	all: ProviderModelConfig[];
 }> {
-	const response = await fetchWithRetry(`${BASE_URL_OPENROUTER}/models`, {
-		headers: {
-			Authorization: `Bearer ${apiKey}`,
-			"User-Agent": "pi-free-providers",
-			"HTTP-Referer": "https://github.com/apmantza/pi-free",
-			"X-Title": "Pi",
+	const response = await fetchWithRetry(
+		`${BASE_URL_OPENROUTER}/models`,
+		{
+			headers: {
+				Authorization: `Bearer ${apiKey}`,
+				"User-Agent": "pi-free-providers",
+				"HTTP-Referer": "https://github.com/apmantza/pi-free",
+				"X-Title": "Pi",
+			},
 		},
-		timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
-	});
+		3,
+		1000,
+		DEFAULT_FETCH_TIMEOUT_MS,
+	);
 
 	if (!response.ok) {
 		throw new Error(

@@ -36,10 +36,15 @@ import { fetchWithRetry, isUsableModel, logWarning } from "../util.ts";
 // =============================================================================
 
 async function fetchNvidiaModels(): Promise<ProviderModelConfig[]> {
-	const response = await fetchWithRetry(URL_MODELS_DEV, {
-		headers: { "User-Agent": "pi-free-providers" },
-		timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
-	});
+	const response = await fetchWithRetry(
+		URL_MODELS_DEV,
+		{
+			headers: { "User-Agent": "pi-free-providers" },
+		},
+		3,
+		1000,
+		DEFAULT_FETCH_TIMEOUT_MS,
+	);
 
 	if (!response.ok) {
 		throw new Error(
@@ -72,8 +77,8 @@ async function fetchNvidiaModels(): Promise<ProviderModelConfig[]> {
 					cost: {
 						input: m.cost?.input ?? 0,
 						output: m.cost?.output ?? 0,
-						cacheRead: m.cost?.cache_read,
-						cacheWrite: m.cost?.cache_write,
+						cacheRead: m.cost?.cache_read ?? 0,
+						cacheWrite: m.cost?.cache_write ?? 0,
 					},
 					contextWindow: m.limit.context,
 					maxTokens: m.limit.output,

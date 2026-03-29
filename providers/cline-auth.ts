@@ -236,7 +236,7 @@ export async function loginCline(
 		authUrl.searchParams.set("callback_url", callbackServer.callbackUrl);
 		authUrl.searchParams.set("redirect_uri", callbackServer.callbackUrl);
 
-		let finalAuthUrl: string;
+		let finalAuthUrl: string | null;
 		try {
 			const controller = new AbortController();
 			const timeout = setTimeout(() => controller.abort(), 8000);

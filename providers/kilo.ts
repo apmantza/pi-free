@@ -16,8 +16,6 @@ import type {
 } from "@mariozechner/pi-coding-agent";
 import { KILO_FREE_ONLY, PROVIDER_KILO } from "../config.ts";
 import { URL_KILO_TOS } from "../constants.ts";
-import { loginKilo, refreshKiloToken } from "../kilo-auth.ts";
-import { fetchKiloModels, KILO_GATEWAY_BASE } from "../kilo-models.ts";
 import {
 	enhanceWithCI,
 	type StoredModels,
@@ -25,6 +23,8 @@ import {
 } from "../provider-helper.ts";
 import { registerUsageWidget } from "../usage-widget.ts";
 import { logWarning } from "../util.ts";
+import { loginKilo, refreshKiloToken } from "./kilo-auth.ts";
+import { fetchKiloModels, KILO_GATEWAY_BASE } from "./kilo-models.ts";
 
 const KILO_PROVIDER_CONFIG = {
 	baseUrl: KILO_GATEWAY_BASE,

@@ -12,13 +12,13 @@ import type {
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
 import { incrementModelRequestCount } from "./free-tier-limits.js";
-import { incrementRequestCount } from "./metrics";
+import { incrementRequestCount } from "./metrics.js";
+import { enhanceModelNameWithCodingIndex } from "./provider-failover/hardcoded-benchmarks.js";
 import {
 	handleProviderError,
 	isProviderExhausted,
 	resetFailureCount,
-} from "./provider-failover";
-import { enhanceModelNameWithCodingIndex } from "./provider-failover/hardcoded-benchmarks.js";
+} from "./provider-failover/index.js";
 import { registerUsageCommands } from "./usage-commands.js";
 
 // =============================================================================
@@ -257,21 +257,19 @@ export function setupProvider(
 
 	// ── One-time ToS notice on first free use ────────────────────────────
 
+	// ── ToS notice on first use ────────────────────────────────
 	if (tosUrl) {
 		let tosShown = false;
-		pi.on("before_agent_start", async (_event, ctx) => {
+		pi.on("model_select", async (_event, ctx) => {
 			if (tosShown || ctx.model?.provider !== providerId) return;
 			tosShown = true;
 			if (config.hasKey) return;
 			const cred = ctx.modelRegistry.authStorage.get(providerId);
 			if (cred?.type === "oauth") return;
-			return {
-				message: {
-					customType: providerId,
-					content: `Using ${providerId} free models. Set API key for paid access.\nTerms: ${tosUrl}`,
-					display: "inline" as const,
-				},
-			};
+			ctx.ui.notify(
+				`Using ${providerId} free models. Set API key for paid access. Terms: ${tosUrl}`,
+				"info",
+			);
 		});
 	}
 }

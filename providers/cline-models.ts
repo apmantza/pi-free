@@ -28,9 +28,13 @@ function extractNameFromId(id: string): string {
 }
 
 export async function fetchClineModels(): Promise<ProviderModelConfig[]> {
-	const response = await fetchWithRetry(`${BASE_URL_OPENROUTER}/models`, {
-		timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
-	});
+	const response = await fetchWithRetry(
+		`${BASE_URL_OPENROUTER}/models`,
+		{},
+		3,
+		1000,
+		DEFAULT_FETCH_TIMEOUT_MS,
+	);
 
 	if (!response.ok)
 		throw new Error(`Failed to fetch OpenRouter models: ${response.status}`);

@@ -67,7 +67,7 @@ const _STATIC_ZEN_MODELS: ProviderModelConfig[] = [
 		name: "Big Pickle",
 		reasoning: true,
 		input: ["text"],
-		cost: { input: 0, output: 0 },
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 200000,
 		maxTokens: 128000,
 	},
@@ -76,7 +76,7 @@ const _STATIC_ZEN_MODELS: ProviderModelConfig[] = [
 		name: "Trinity Large Preview Free",
 		reasoning: false,
 		input: ["text"],
-		cost: { input: 0, output: 0 },
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 128000,
 		maxTokens: 16384,
 	},
@@ -85,7 +85,7 @@ const _STATIC_ZEN_MODELS: ProviderModelConfig[] = [
 		name: "MiniMax M2.5 Free",
 		reasoning: true,
 		input: ["text"],
-		cost: { input: 0, output: 0 },
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 200000,
 		maxTokens: 16384,
 	},
@@ -94,7 +94,7 @@ const _STATIC_ZEN_MODELS: ProviderModelConfig[] = [
 		name: "MiMo V2 Pro Free",
 		reasoning: false,
 		input: ["text"],
-		cost: { input: 0, output: 0 },
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 128000,
 		maxTokens: 16384,
 	},
@@ -103,7 +103,7 @@ const _STATIC_ZEN_MODELS: ProviderModelConfig[] = [
 		name: "MiMo V2 Omni Free",
 		reasoning: false,
 		input: ["text", "image"],
-		cost: { input: 0, output: 0 },
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 128000,
 		maxTokens: 16384,
 	},
@@ -112,7 +112,7 @@ const _STATIC_ZEN_MODELS: ProviderModelConfig[] = [
 		name: "MiMo V2 Flash Free",
 		reasoning: false,
 		input: ["text"],
-		cost: { input: 0, output: 0 },
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 128000,
 		maxTokens: 16384,
 	},
@@ -121,7 +121,7 @@ const _STATIC_ZEN_MODELS: ProviderModelConfig[] = [
 		name: "Nemotron 3 Super Free",
 		reasoning: false,
 		input: ["text"],
-		cost: { input: 0, output: 0 },
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 128000,
 		maxTokens: 16384,
 	},
@@ -131,7 +131,7 @@ const _STATIC_ZEN_MODELS: ProviderModelConfig[] = [
 		name: "Claude Haiku 3.5",
 		reasoning: false,
 		input: ["text", "image"],
-		cost: { input: 0.8, output: 4 },
+		cost: { input: 0.8, output: 4, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 200000,
 		maxTokens: 8192,
 	},
@@ -140,7 +140,7 @@ const _STATIC_ZEN_MODELS: ProviderModelConfig[] = [
 		name: "Claude Haiku 4.5",
 		reasoning: true,
 		input: ["text", "image"],
-		cost: { input: 1, output: 5 },
+		cost: { input: 1, output: 5, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 200000,
 		maxTokens: 64000,
 	},
@@ -149,7 +149,7 @@ const _STATIC_ZEN_MODELS: ProviderModelConfig[] = [
 		name: "Claude Opus 4.5",
 		reasoning: true,
 		input: ["text", "image"],
-		cost: { input: 5, output: 25 },
+		cost: { input: 5, output: 25, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 200000,
 		maxTokens: 64000,
 	},
@@ -158,7 +158,7 @@ const _STATIC_ZEN_MODELS: ProviderModelConfig[] = [
 		name: "Claude Sonnet 4.5",
 		reasoning: true,
 		input: ["text", "image"],
-		cost: { input: 3, output: 15 },
+		cost: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 200000,
 		maxTokens: 64000,
 	},
@@ -167,7 +167,7 @@ const _STATIC_ZEN_MODELS: ProviderModelConfig[] = [
 		name: "Gemini 3 Flash",
 		reasoning: false,
 		input: ["text", "image"],
-		cost: { input: 0.5, output: 3 },
+		cost: { input: 0.5, output: 3, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 128000,
 		maxTokens: 16384,
 	},
@@ -176,7 +176,7 @@ const _STATIC_ZEN_MODELS: ProviderModelConfig[] = [
 		name: "Gemini 3.1 Pro",
 		reasoning: false,
 		input: ["text", "image"],
-		cost: { input: 2, output: 12 },
+		cost: { input: 2, output: 12, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 200000,
 		maxTokens: 16384,
 	},
@@ -185,7 +185,7 @@ const _STATIC_ZEN_MODELS: ProviderModelConfig[] = [
 		name: "MiniMax M2.5",
 		reasoning: true,
 		input: ["text"],
-		cost: { input: 0.3, output: 1.2 },
+		cost: { input: 0.3, output: 1.2, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 200000,
 		maxTokens: 16384,
 	},
@@ -203,13 +203,18 @@ const ZEN_BROKEN_MODELS = new Set([
 
 /** Fetch the model list from the Zen gateway — authoritative for what's deployed. */
 async function fetchGatewayModels(token: string): Promise<string[]> {
-	const response = await fetchWithRetry(`${BASE_URL_ZEN}/models`, {
-		headers: {
-			Authorization: `Bearer ${token}`,
-			"User-Agent": "pi-free-providers",
+	const response = await fetchWithRetry(
+		`${BASE_URL_ZEN}/models`,
+		{
+			headers: {
+				Authorization: `Bearer ${token}`,
+				"User-Agent": "pi-free-providers",
+			},
 		},
-		timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
-	});
+		3,
+		1000,
+		DEFAULT_FETCH_TIMEOUT_MS,
+	);
 
 	if (!response.ok) {
 		throw new Error(
@@ -225,10 +230,15 @@ async function fetchGatewayModels(token: string): Promise<string[]> {
 
 /** Fetch metadata for the opencode provider from models.dev. */
 async function fetchModelsMeta(): Promise<Record<string, ModelsDevModel>> {
-	const response = await fetchWithRetry(URL_MODELS_DEV, {
-		headers: { "User-Agent": "pi-free-providers" },
-		timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
-	});
+	const response = await fetchWithRetry(
+		URL_MODELS_DEV,
+		{
+			headers: { "User-Agent": "pi-free-providers" },
+		},
+		3,
+		1000,
+		DEFAULT_FETCH_TIMEOUT_MS,
+	);
 
 	if (!response.ok) return {};
 
@@ -274,8 +284,8 @@ async function fetchZenModels(token: string): Promise<{
 				cost: {
 					input: m?.cost?.input ?? 0,
 					output: m?.cost?.output ?? 0,
-					cacheRead: m?.cost?.cache_read,
-					cacheWrite: m?.cost?.cache_write,
+					cacheRead: m?.cost?.cache_read ?? 0,
+					cacheWrite: m?.cost?.cache_write ?? 0,
 				},
 				contextWindow: m?.limit?.context ?? 128_000,
 				maxTokens: m?.limit?.output ?? 16_384,
