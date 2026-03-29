@@ -25,6 +25,7 @@ import {
 	URL_MODELS_DEV,
 	URL_ZEN_TOS,
 } from "../constants.ts";
+import { enhanceModelNameWithCodingIndex } from "../provider-failover/hardcoded-benchmarks.ts";
 import { type StoredModels, setupProvider } from "../provider-helper.ts";
 import type { ModelsDevModel, ZenGatewayModel } from "../types.ts";
 import { fetchWithRetry, logWarning } from "../util.ts";
@@ -394,8 +395,14 @@ export default async function (pi: ExtensionAPI) {
 			});
 		};
 
+		// Enhance model names with Coding Index scores
+		const enhancedModels = models.map((m) => ({
+			...m,
+			name: enhanceModelNameWithCodingIndex(m.name, m.id),
+		}));
+
 		// Register our filtered provider
-		ctx_modelRegistry_register(models);
+		ctx_modelRegistry_register(enhancedModels);
 
 		const theme = ctx.ui.theme;
 		const label = hasKey

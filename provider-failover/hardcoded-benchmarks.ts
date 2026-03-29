@@ -4981,3 +4981,27 @@ export function getHardcodedScore(
 	const benchmark = findHardcodedBenchmark(modelName, modelId);
 	return benchmark?.normalizedScore ?? null;
 }
+
+/**
+ * Get coding index from hardcoded data
+ */
+export function getCodingIndex(
+	modelName: string,
+	modelId: string,
+): number | null {
+	const benchmark = findHardcodedBenchmark(modelName, modelId);
+	return benchmark?.codingIndex ?? null;
+}
+
+/**
+ * Enhance model name with Coding Index score
+ * Example: "MiMo V2 Pro Free" → "MiMo V2 Pro Free (CI 70)"
+ */
+export function enhanceModelNameWithCodingIndex(
+	name: string,
+	modelId: string,
+): string {
+	const ci = getCodingIndex(name, modelId);
+	if (ci === null) return name;
+	return `${name} (CI ${Math.round(ci)})`;
+}
