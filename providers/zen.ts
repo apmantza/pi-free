@@ -17,7 +17,7 @@ import {
 	applyHidden,
 	OPENCODE_API_KEY as CONFIG_API_KEY,
 	PROVIDER_ZEN,
-	ZEN_ZEN_SHOW_PAID,
+	ZEN_SHOW_PAID,
 } from "../config.ts";
 import {
 	BASE_URL_ZEN,
