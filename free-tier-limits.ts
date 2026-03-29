@@ -647,6 +647,12 @@ export interface CumulativeUsageReport {
 		modelCount: number;
 		firstUsed: string;
 		lastUsed: string;
+		topModels: Array<{
+			modelId: string;
+			count: number;
+			tokensIn: number;
+			tokensOut: number;
+		}>;
 	}>;
 	grandTotalRequests: number;
 	grandTotalTokensIn: number;
@@ -662,6 +668,17 @@ export function getCumulativeUsage(): CumulativeUsageReport {
 	const providers: CumulativeUsageReport["providers"] = [];
 
 	for (const [name, stats] of Object.entries(data.providers)) {
+		// Get top 5 models by request count
+		const topModels = Object.entries(stats.models)
+			.map(([modelId, m]) => ({
+				modelId,
+				count: m.count,
+				tokensIn: m.tokensIn,
+				tokensOut: m.tokensOut,
+			}))
+			.sort((a, b) => b.count - a.count)
+			.slice(0, 5);
+
 		providers.push({
 			name,
 			totalRequests: stats.totalRequests,
@@ -670,6 +687,7 @@ export function getCumulativeUsage(): CumulativeUsageReport {
 			modelCount: Object.keys(stats.models).length,
 			firstUsed: stats.firstUsed,
 			lastUsed: stats.lastUsed,
+			topModels,
 		});
 	}
 
@@ -707,6 +725,16 @@ export function formatCumulativeUsage(): string {
 			`   Tokens: ~${Math.round(p.totalTokensIn / 1000).toLocaleString()}K in, ~${Math.round(p.totalTokensOut / 1000).toLocaleString()}K out`,
 		);
 		lines.push(`   Models used: ${p.modelCount}`);
+
+		if (p.topModels.length > 0) {
+			lines.push(`   Top models:`);
+			for (const m of p.topModels.slice(0, 3)) {
+				lines.push(
+					`     • ${m.modelId.split("/").pop()}: ${m.count.toLocaleString()} req`,
+				);
+			}
+		}
+
 		lines.push(`   Active since: ${p.firstUsed.split("T")[0]}`);
 		lines.push("");
 	}
