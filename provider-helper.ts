@@ -161,6 +161,20 @@ export function setupProvider(
 			const errorMsg = msg.errorMessage;
 			console.log(`[${providerId}] Error detected: ${errorMsg.slice(0, 100)}`);
 
+			// Store last user message for potential auto-retry
+			const lastUserMsg = (
+				event as {
+					branch?: Array<{
+						type?: string;
+						message?: { role?: string; content?: string };
+					}>;
+				}
+			).branch
+				?.slice()
+				.reverse()
+				.find((e) => e.type === "message" && e.message?.role === "user")
+				?.message?.content;
+
 			// Use custom error handler if provided
 			if (config.onError) {
 				const handled = await config.onError(errorMsg, ctx);
@@ -187,6 +201,16 @@ export function setupProvider(
 			// Show notification based on result
 			if (result.action === "autocompact") {
 				ctx.ui.notify(result.message, "warning");
+
+				// Auto-retry with last user message after compact
+				if (lastUserMsg) {
+					setTimeout(async () => {
+						ctx.ui.notify("🔄 Auto-retrying after compact...", "info");
+						await (pi as any).sendUserMessage?.(lastUserMsg, {
+							deliverAs: "steer",
+						});
+					}, result.retryDelayMs ?? 2000);
+				}
 			} else if (result.action === "failover") {
 				ctx.ui.notify(result.message, "warning");
 				if (isProviderExhausted(providerId)) {
@@ -194,6 +218,16 @@ export function setupProvider(
 						`${providerId}-status`,
 						ctx.ui.theme.fg("dim", "⚠️ Rate limited - consider switching"),
 					);
+				}
+
+				// Auto-retry with last user message after failover
+				if (lastUserMsg) {
+					setTimeout(async () => {
+						ctx.ui.notify("🔄 Auto-retrying on new provider...", "info");
+						await (pi as any).sendUserMessage?.(lastUserMsg, {
+							deliverAs: "steer",
+						});
+					}, result.retryDelayMs ?? 3000);
 				}
 			} else if (result.action === "fail") {
 				ctx.ui.notify(result.message, "error");
