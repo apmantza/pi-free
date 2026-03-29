@@ -19,6 +19,7 @@ import {
 	resetFailureCount,
 } from "./provider-failover";
 import { enhanceModelNameWithCodingIndex } from "./provider-failover/hardcoded-benchmarks.js";
+import { registerUsageCommands } from "./usage-commands.js";
 
 // =============================================================================
 // Types
@@ -84,12 +85,21 @@ export function enhanceWithCI(
 	}));
 }
 
+// Track if global commands are registered
+let globalCommandsRegistered = false;
+
 export function setupProvider(
 	pi: ExtensionAPI,
 	config: ProviderSetupConfig,
 	stored: StoredModels,
 ): void {
 	const { providerId, tosUrl } = config;
+
+	// Register global commands once
+	if (!globalCommandsRegistered) {
+		registerUsageCommands(pi);
+		globalCommandsRegistered = true;
+	}
 
 	// Wrap reRegister to automatically add CI scores to all models
 	const reRegister = (models: ProviderModelConfig[], s: StoredModels) => {
@@ -199,7 +209,13 @@ export function setupProvider(
 		// Track per-model usage if we have a model selected
 		const modelId = ctx.model?.id;
 		if (modelId) {
-			incrementModelRequestCount(providerId, modelId);
+			// Extract token usage from the event if available
+			const msg = (
+				event as { message?: { usage?: { input?: number; output?: number } } }
+			).message;
+			const tokensIn = msg?.usage?.input ?? 0;
+			const tokensOut = msg?.usage?.output ?? 0;
+			incrementModelRequestCount(providerId, modelId, tokensIn, tokensOut);
 		}
 
 		resetFailureCount(providerId);
