@@ -23,14 +23,23 @@ interface AAModel {
 	id: string;
 	name: string;
 	slug: string;
-	creator: string;
-	context_window: number;
-	supports_reasoning: boolean;
-	supports_vision: boolean;
-	artificial_analysis_intelligence_index?: number;
-	coding_index?: number;
-	agentic_index?: number;
-	reasoning_index?: number;
+	model_creator: {
+		id: string;
+		name: string;
+		slug: string;
+	};
+	release_date: string;
+	evaluations: {
+		artificial_analysis_intelligence_index: number | null;
+		artificial_analysis_coding_index: number | null;
+		artificial_analysis_math_index: number | null;
+		mmlu_pro: number | null;
+		gpqa: number | null;
+		hle: number | null;
+	};
+	context_window?: number;
+	supports_reasoning?: boolean;
+	supports_vision?: boolean;
 }
 
 async function fetchAIData(): Promise<AAModel[]> {
@@ -91,7 +100,7 @@ function generateBenchmarksFile(models: AAModel[]): string {
 
 	// Filter to models with intelligence scores (allow 0, reject null/undefined)
 	const scoredModels = models.filter(
-		(m) => m.artificial_analysis_intelligence_index != null,
+		(m) => m.evaluations?.artificial_analysis_intelligence_index != null,
 	);
 
 	console.log(
@@ -101,18 +110,19 @@ function generateBenchmarksFile(models: AAModel[]): string {
 	// Generate entries
 	const entries = scoredModels.map((model) => {
 		const key = normalizeModelName(model.name);
-		const score = model.artificial_analysis_intelligence_index!;
+		const score = model.evaluations.artificial_analysis_intelligence_index!;
 		const normalized = Math.round((score / 70) * 100);
+		const codingScore = model.evaluations.artificial_analysis_coding_index;
 
 		return `  "${key}": {
     intelligenceIndex: ${score.toFixed(1)},
     normalizedScore: ${normalized},
-    codingIndex: ${model.coding_index?.toFixed(1) || "undefined"},
-    agenticIndex: ${model.agentic_index?.toFixed(1) || "undefined"},
-    reasoningIndex: ${model.reasoning_index?.toFixed(1) || "undefined"},
-    contextWindow: ${model.context_window},
-    supportsReasoning: ${model.supports_reasoning},
-    supportsVision: ${model.supports_vision},
+    codingIndex: ${codingScore?.toFixed(1) || "undefined"},
+    agenticIndex: undefined,
+    reasoningIndex: undefined,
+    contextWindow: ${model.context_window || 8192},
+    supportsReasoning: ${model.supports_reasoning || false},
+    supportsVision: ${model.supports_vision || false},
     lastUpdated: "${today}",
   },`;
 	});
