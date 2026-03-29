@@ -19,7 +19,6 @@ import {
 	isProviderExhausted,
 	resetFailureCount,
 } from "./provider-failover/index.js";
-import { registerUsageCommands } from "./usage-commands.js";
 
 // =============================================================================
 // Types
@@ -85,21 +84,12 @@ export function enhanceWithCI(
 	}));
 }
 
-// Track if global commands are registered
-let globalCommandsRegistered = false;
-
 export function setupProvider(
 	pi: ExtensionAPI,
 	config: ProviderSetupConfig,
 	stored: StoredModels,
 ): void {
 	const { providerId, tosUrl } = config;
-
-	// Register global commands once
-	if (!globalCommandsRegistered) {
-		registerUsageCommands(pi);
-		globalCommandsRegistered = true;
-	}
 
 	// Wrap reRegister to automatically add CI scores to all models
 	const reRegister = (models: ProviderModelConfig[], s: StoredModels) => {
