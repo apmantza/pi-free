@@ -11,6 +11,7 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
+import { incrementModelRequestCount } from "./free-tier-limits.js";
 import { incrementRequestCount } from "./metrics";
 import {
 	handleProviderError,
@@ -194,6 +195,13 @@ export function setupProvider(
 
 		// Success - reset failure count and increment metrics
 		incrementRequestCount(providerId);
+
+		// Track per-model usage if we have a model selected
+		const modelId = ctx.model?.id;
+		if (modelId) {
+			incrementModelRequestCount(providerId, modelId);
+		}
+
 		resetFailureCount(providerId);
 	});
 
