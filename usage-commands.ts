@@ -12,29 +12,41 @@ import {
 	formatSessionUsage,
 } from "./free-tier-limits.js";
 
+// Track if we've already registered commands
+declare global {
+	var __PI_FREE_COMMANDS_REGISTERED__: boolean | undefined;
+}
+
 export function registerUsageCommands(pi: ExtensionAPI): void {
-	// Check if commands already exist using Pi's API
-	const existingCommands =
-		(pi as unknown as { getCommands?: () => string[] }).getCommands?.() || [];
-
-	// Only register if commands don't already exist
-	if (!existingCommands.includes("free-sessionusage")) {
-		pi.registerCommand("free-sessionusage", {
-			description: "Show current session usage (requests, tokens, per-model)",
-			handler: async (_args, ctx) => {
-				const report = formatSessionUsage();
-				ctx.ui.notify(report, "info");
-			},
-		});
+	// Use global to track across provider instances
+	if (globalThis.__PI_FREE_COMMANDS_REGISTERED__) {
+		return;
 	}
 
-	if (!existingCommands.includes("free-totalusage")) {
-		pi.registerCommand("free-totalusage", {
-			description: "Show cumulative usage across all sessions",
-			handler: async (_args, ctx) => {
-				const report = formatCumulativeUsage();
-				ctx.ui.notify(report, "info");
-			},
-		});
-	}
+	// Defer registration to avoid "runtime not initialized" error
+	// Register on next tick after extension loading completes
+	setImmediate(() => {
+		try {
+			pi.registerCommand("free-sessionusage", {
+				description: "Show current session usage (requests, tokens, per-model)",
+				handler: async (_args, ctx) => {
+					const report = formatSessionUsage();
+					ctx.ui.notify(report, "info");
+				},
+			});
+
+			pi.registerCommand("free-totalusage", {
+				description: "Show cumulative usage across all sessions",
+				handler: async (_args, ctx) => {
+					const report = formatCumulativeUsage();
+					ctx.ui.notify(report, "info");
+				},
+			});
+
+			globalThis.__PI_FREE_COMMANDS_REGISTERED__ = true;
+		} catch (error) {
+			// Commands might already exist - ignore silently
+			globalThis.__PI_FREE_COMMANDS_REGISTERED__ = true;
+		}
+	});
 }
