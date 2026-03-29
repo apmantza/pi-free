@@ -1,4 +1,61 @@
 // =============================================================================
+// Shared Utilities
+// =============================================================================
+
+/**
+ * Log a warning message for provider operations
+ */
+export function logWarning(
+	provider: string,
+	message: string,
+	error?: unknown,
+): void {
+	console.warn(`[${provider}] ${message}`, error ?? "");
+}
+
+/**
+ * Fetch with retry logic
+ */
+export async function fetchWithRetry(
+	url: string,
+	options: RequestInit,
+	retries = 3,
+	delayMs = 1000,
+): Promise<Response> {
+	let lastError: unknown;
+
+	for (let i = 0; i < retries; i++) {
+		try {
+			const response = await fetch(url, options);
+			if (response.ok) return response;
+
+			// If it's a rate limit, throw immediately
+			if (response.status === 429) {
+				throw new Error(`Rate limited (429)`);
+			}
+
+			// For server errors, retry
+			if (response.status >= 500) {
+				lastError = new Error(`Server error ${response.status}`);
+				if (i < retries - 1) {
+					await new Promise((r) => setTimeout(r, delayMs * (i + 1)));
+					continue;
+				}
+			}
+
+			return response; // Return non-ok but non-retryable responses
+		} catch (error) {
+			lastError = error;
+			if (i < retries - 1) {
+				await new Promise((r) => setTimeout(r, delayMs * (i + 1)));
+			}
+		}
+	}
+
+	throw lastError;
+}
+
+// =============================================================================
 // Shared API Response Parsing
 // =============================================================================
 
