@@ -83,3 +83,19 @@ export async function parseModelResponse<T>(
 
 	return { data: json.data };
 }
+
+// =============================================================================
+// Model Filtering Utilities
+// =============================================================================
+
+/**
+ * Check if model is usable based on size constraints and naming
+ * Used by NVIDIA provider to filter out test/debug models
+ */
+export function isUsableModel(modelId: string, _minSizeGB?: number): boolean {
+	// Filter out models that are likely test or debug models
+	if (modelId.includes("test") || modelId.includes("debug")) {
+		return false;
+	}
+	return true;
+}
