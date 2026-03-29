@@ -1,3 +1,5 @@
+import type { ProviderModelConfig } from "./types.ts";
+
 // =============================================================================
 // Shared Utilities
 // =============================================================================
@@ -98,4 +100,44 @@ export function isUsableModel(modelId: string, _minSizeGB?: number): boolean {
 		return false;
 	}
 	return true;
+}
+
+// =============================================================================
+// Model Mapping
+// =============================================================================
+
+/**
+ * Map OpenRouter/Kilo API model to ProviderModelConfig
+ * Shared between OpenRouter and Kilo providers
+ */
+export function mapOpenRouterModel(m: {
+	id: string;
+	name: string;
+	context_length?: number;
+	max_completion_tokens?: number | null;
+	top_provider?: { max_completion_tokens?: number | null };
+	pricing?: { prompt?: string | null; completion?: string | null };
+	architecture?: {
+		input_modalities?: string[] | null;
+		output_modalities?: string[] | null;
+	};
+}): ProviderModelConfig {
+	const promptPrice = parseFloat(m.pricing?.prompt ?? "0");
+	const completionPrice = parseFloat(m.pricing?.completion ?? "0");
+
+	return {
+		id: m.id,
+		name: m.name,
+		reasoning: false, // OpenRouter doesn't expose reasoning flag directly
+		input: m.architecture?.input_modalities?.includes("image")
+			? (["text", "image"] as const)
+			: (["text"] as const),
+		cost: {
+			input: promptPrice,
+			output: completionPrice,
+		},
+		contextWindow: m.context_length ?? 4096,
+		maxTokens:
+			m.max_completion_tokens ?? m.top_provider?.max_completion_tokens ?? 4096,
+	};
 }
