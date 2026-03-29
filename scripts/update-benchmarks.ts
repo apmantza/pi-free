@@ -81,12 +81,22 @@ function normalizeModelName(name: string): string {
 function generateBenchmarksFile(models: AAModel[]): string {
 	const today = new Date().toISOString().split("T")[0];
 
-	// Filter to models with intelligence scores
+	// Debug: log first model to see structure
+	if (models.length > 0) {
+		console.log(
+			"Sample model:",
+			JSON.stringify(models[0], null, 2).slice(0, 500),
+		);
+	}
+
+	// Filter to models with intelligence scores (allow 0, reject null/undefined)
 	const scoredModels = models.filter(
-		(m) => m.artificial_analysis_intelligence_index,
+		(m) => m.artificial_analysis_intelligence_index != null,
 	);
 
-	console.log(`✅ Found ${scoredModels.length} models with benchmark scores`);
+	console.log(
+		`✅ Found ${scoredModels.length}/${models.length} models with benchmark scores`,
+	);
 
 	// Generate entries
 	const entries = scoredModels.map((model) => {
