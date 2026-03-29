@@ -15,7 +15,7 @@ import type {
 import {
 	applyHidden,
 	OPENROUTER_API_KEY as CONFIG_API_KEY,
-	OPENROUTER_OPENROUTER_SHOW_PAID,
+	OPENROUTER_SHOW_PAID,
 	PROVIDER_OPENROUTER,
 } from "../config.ts";
 import { BASE_URL_OPENROUTER, DEFAULT_FETCH_TIMEOUT_MS } from "../constants.ts";
@@ -194,7 +194,6 @@ export default async function (pi: ExtensionAPI) {
 		}
 
 		let models: ProviderModelConfig[] = [];
-		let freeCount = 0;
 		let fetchResult: {
 			free: ProviderModelConfig[];
 			all: ProviderModelConfig[];
@@ -202,7 +201,6 @@ export default async function (pi: ExtensionAPI) {
 
 		try {
 			fetchResult = await fetchOpenRouterModels(apiKey);
-			freeCount = fetchResult.free.length;
 			models = OPENROUTER_SHOW_PAID ? fetchResult.all : fetchResult.free;
 		} catch (error) {
 			logWarning("openrouter", "Failed to fetch models", error);
@@ -234,40 +232,7 @@ export default async function (pi: ExtensionAPI) {
 		// Register our filtered provider
 		reRegisterFn(models);
 
-		const theme = ctx.ui.theme;
-		// Footer status disabled
-		// const label = OPENROUTER_SHOW_PAID
-		// 	? `🔀 OpenRouter (${models.length} models)`
-		// 	: `🔀 OpenRouter (${freeCount} free)`;
-		// ctx.ui.setStatus("openrouter-status", theme.fg("accent", label));
-
-		// Fetch and cache metrics
-		const metrics = await fetchOpenRouterMetrics();
-		if (metrics) {
-			setCachedMetrics(PROVIDER_OPENROUTER, metrics);
-
-			const parts: string[] = [];
-
-			// Show remaining daily requests
-			if (metrics.rateLimit?.remainingToday !== undefined) {
-				const remaining = metrics.rateLimit.remainingToday;
-				const reqDisplay =
-					remaining > 900 ? `${remaining} remaining/day` : `${remaining}/day`;
-				parts.push(`📊 ${reqDisplay}`);
-			}
-
-			// Show credits balance
-			if (metrics.credits !== undefined && metrics.credits > 0) {
-				parts.push(`💰 $${metrics.credits.toFixed(2)}`);
-			}
-
-			// Footer status disabled
-			// if (parts.length > 0) {
-			// 	ctx.ui.setStatus(
-			// 		"openrouter-metrics",
-			// 		theme.fg("dim", parts.join(" ")),
-			// 	);
-			// }
-		}
+		// Fetch and cache metrics (used internally, not displayed)
+		await fetchOpenRouterMetrics();
 	});
 }

@@ -117,33 +117,12 @@ export default async function (pi: ExtensionAPI) {
 	// Register usage widget (glimpseui)
 	registerUsageWidget(pi);
 
-	// ── Kilo-specific: credits helpers ───────────────────────────────────
-
-	async function updateCredits(ctx: any) {
-		const cred = ctx.modelRegistry.authStorage.get(PROVIDER_KILO);
-		if (cred?.type !== "oauth") return;
-		try {
-			const balance = await fetchKiloBalance(cred.access);
-			// Footer status disabled
-			// if (balance !== null) {
-			// 	ctx.ui.setStatus(
-			// 		"kilo-credits",
-			// 		ctx.ui.theme.fg("accent", `💰 ${formatCredits(balance)}`),
-			// 	);
-			// }
-		} catch {
-			/* silent */
-		}
-	}
-
 	// ── Kilo-specific: events ────────────────────────────────────────────
 
 	pi.on("session_start", async (_event, ctx) => {
 		const cred = ctx.modelRegistry.authStorage.get(PROVIDER_KILO);
 
-		if (cred?.type !== "oauth") {
-			// Status disabled: ctx.ui.setStatus("kilo-credits", undefined);
-		} else {
+		if (cred?.type === "oauth") {
 			try {
 				cachedAllModels = await fetchKiloModels({ token: cred.access });
 				stored.all = cachedAllModels;
@@ -157,13 +136,6 @@ export default async function (pi: ExtensionAPI) {
 			} catch (error) {
 				logWarning("kilo", "Failed to fetch models at session start", error);
 			}
-			await updateCredits(ctx);
-		}
-	});
-
-	pi.on("model_select", async (event, ctx) => {
-		if (event.model?.provider === PROVIDER_KILO) {
-			await updateCredits(ctx);
 		}
 	});
 }

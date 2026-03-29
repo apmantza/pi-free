@@ -397,12 +397,6 @@ export default async function (pi: ExtensionAPI) {
 
 		// Register our filtered provider (CI enhancement handled by provider-helper)
 		ctx_modelRegistry_register(models);
-
-		const theme = ctx.ui.theme;
-		const label = hasKey
-			? `✦ Zen (${models.length} models)`
-			: `✦ Zen (${freeCount} free)`;
-		// Status disabled: ctx.ui.setStatus("zen-status", theme.fg("accent", label));
 	});
 
 	// Update request count before each agent turn (for request ID generation)

@@ -249,13 +249,7 @@ export default async function (pi: ExtensionAPI) {
 		}
 	});
 
-	// Shared: clear status when switching away, track requests
-	pi.on("model_select", (_event, ctx) => {
-		if (_event.model?.provider !== PROVIDER_CLINE) {
-			// Status disabled: ctx.ui.setStatus("cline-status", undefined);
-		}
-	});
-
+	// Track requests
 	pi.on("turn_end", async (_event, ctx) => {
 		if (ctx.model?.provider !== PROVIDER_CLINE) return;
 		incrementRequestCount(PROVIDER_CLINE);
