@@ -12,16 +12,13 @@ import {
 	formatSessionUsage,
 } from "./free-tier-limits.js";
 
-// Track if commands are registered (prevents duplicates across provider setups)
-let usageCommandsRegistered = false;
-
 export function registerUsageCommands(pi: ExtensionAPI): void {
-	// Skip if already registered in this session
-	if (usageCommandsRegistered) {
-		return;
-	}
+	// Check if commands already exist using Pi's API
+	const existingCommands =
+		(pi as unknown as { getCommands?: () => string[] }).getCommands?.() || [];
 
-	try {
+	// Only register if commands don't already exist
+	if (!existingCommands.includes("free-sessionusage")) {
 		pi.registerCommand("free-sessionusage", {
 			description: "Show current session usage (requests, tokens, per-model)",
 			handler: async (_args, ctx) => {
@@ -29,7 +26,9 @@ export function registerUsageCommands(pi: ExtensionAPI): void {
 				ctx.ui.notify(report, "info");
 			},
 		});
+	}
 
+	if (!existingCommands.includes("free-totalusage")) {
 		pi.registerCommand("free-totalusage", {
 			description: "Show cumulative usage across all sessions",
 			handler: async (_args, ctx) => {
@@ -37,10 +36,5 @@ export function registerUsageCommands(pi: ExtensionAPI): void {
 				ctx.ui.notify(report, "info");
 			},
 		});
-
-		usageCommandsRegistered = true;
-	} catch (error) {
-		// Commands might already exist - ignore silently
-		usageCommandsRegistered = true;
 	}
 }
