@@ -124,7 +124,9 @@ async function handleRateLimit(
 	}
 
 	// Fallback: If failover was already attempted or failed, try autocompact
-	if (!isPaidMode && enableAutocompact) {
+	// Disabled - autocompact crashes with "message.content is not iterable" bug
+	// TODO: Re-enable when Pi core bug is fixed
+	if (false) {
 		const compactResult = await triggerAutocompact(
 			pi,
 			ctx as unknown as {
