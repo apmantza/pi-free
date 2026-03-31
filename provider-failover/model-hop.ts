@@ -1,16 +1,17 @@
 /**
  * Dynamic Model Hop - Intelligent model-level failover
- * Hierarchical matching without hardcoded patterns
  */
 
 import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
+import { createLogger } from "../lib/logger.ts";
 import {
 	estimateCapability,
 	generateCapabilityMessage,
 	isCapabilityDowngrade,
+	type ModelCapabilities,
 	rankByCapability,
 } from "./capability-ranking.ts";
 import { classifyError } from "./errors.ts";
@@ -20,24 +21,24 @@ import {
 	markExhausted,
 } from "./model-index.ts";
 
-// User configuration for model hopping
-interface ModelHopConfig {
+const _logger = createLogger("model-hop");
+
+export interface ModelHopConfig {
 	preferredModels?: string[];
 	autoHop?: boolean;
 	maxHops?: number;
 	isPaidMode?: boolean;
-	allowDowngrades?: "never" | "minor" | "always"; // Default: "minor"
+	allowDowngrades?: "never" | "minor" | "always";
+}
+
+interface HopState {
+	hopCount: number;
+	triedModels: Set<string>;
+	originalModel: { provider: string; id: string };
 }
 
 // Track hop state per session
-const hopState = new Map<
-	string,
-	{
-		hopCount: number;
-		triedModels: Set<string>;
-		originalModel: { provider: string; id: string };
-	}
->();
+const hopState = new Map<string, HopState>();
 
 function getSessionKey(provider: string, modelId: string): string {
 	return `${provider}:${modelId}`;
@@ -63,7 +64,7 @@ function recordHop(sessionId: string, provider: string, modelId: string): void {
 	}
 }
 
-function getHopState(sessionId: string) {
+function getHopState(sessionId: string): HopState | undefined {
 	return hopState.get(sessionId);
 }
 
@@ -71,24 +72,27 @@ function cleanupHopState(sessionId: string): void {
 	hopState.delete(sessionId);
 }
 
-/**
- * Execute model hop - switch provider and retry
- */
+// =============================================================================
+// Model Hop Execution
+// =============================================================================
+
+interface HopContext {
+	ui: { notify: (msg: string, type: "info" | "warning" | "error") => void };
+	sessionManager: {
+		getBranch: () => Array<{
+			type: string;
+			message?: { role?: string; content?: string };
+		}>;
+	};
+	modelRegistry: {
+		getAvailable: () => Array<ProviderModelConfig & { provider?: string }>;
+	};
+	session?: { id?: string };
+}
+
 export async function executeModelHop(
 	pi: ExtensionAPI,
-	ctx: {
-		ui: { notify: (msg: string, type: "info" | "warning" | "error") => void };
-		sessionManager: {
-			getBranch: () => Array<{
-				type: string;
-				message?: { role?: string; content?: string };
-			}>;
-		};
-		modelRegistry: {
-			getAvailable: () => Array<ProviderModelConfig & { provider?: string }>;
-		};
-		session?: { id?: string };
-	},
+	ctx: HopContext,
 	target: ProviderModelConfig & { provider?: string },
 	reason: string,
 ): Promise<boolean> {
@@ -98,7 +102,6 @@ export async function executeModelHop(
 			return false;
 		}
 
-		// Switch model using Pi's API
 		const success = await (pi as any).setModel?.(target);
 		if (!success) {
 			ctx.ui.notify(`Failed to switch to ${target.provider}`, "error");
@@ -118,10 +121,7 @@ export async function executeModelHop(
 			.find((e) => e.type === "message" && e.message?.role === "user");
 
 		if (lastUser?.message?.content) {
-			// Small delay to let model switch settle
 			await new Promise((resolve) => setTimeout(resolve, 500));
-
-			// Retry with same prompt
 			await (pi as any).sendUserMessage?.(lastUser.message.content, {
 				deliverAs: "steer",
 			});
@@ -135,25 +135,128 @@ export async function executeModelHop(
 	}
 }
 
-/**
- * Handle 429 with intelligent model hopping
- * Main entry point - completely automated
- */
+// =============================================================================
+// Downgrade Handling
+// =============================================================================
+
+interface DowngradeDecision {
+	shouldProceed: boolean;
+	alternative?: ProviderModelConfig & { provider?: string };
+	message?: string;
+}
+
+function handleDowngradeDecision(
+	currentModel: ProviderModelConfig,
+	targetModel: ProviderModelConfig & { provider?: string },
+	availableModels: Array<ProviderModelConfig & { provider?: string }>,
+	currentCaps: ModelCapabilities,
+	targetCaps: ModelCapabilities,
+	triedModels: Set<string>,
+	currentProvider: string,
+	allowDowngrades: "never" | "minor" | "always",
+): DowngradeDecision {
+	const { isDowngrade, severity } = isCapabilityDowngrade(
+		currentCaps,
+		targetCaps,
+	);
+
+	if (!isDowngrade) {
+		return { shouldProceed: true };
+	}
+
+	// Check if downgrade is allowed
+	if (
+		allowDowngrades === "never" ||
+		(allowDowngrades === "minor" && severity === "major")
+	) {
+		// Try to find equal-or-better alternative
+		const ranked = rankByCapability(
+			currentModel,
+			availableModels.filter(
+				(m) =>
+					!triedModels.has(
+						getSessionKey(m.provider || currentProvider, m.id),
+					) && m.id !== targetModel.id,
+			),
+		);
+
+		if (ranked.equalOrBetter.length > 0) {
+			return {
+				shouldProceed: true,
+				alternative: ranked.equalOrBetter[0],
+			};
+		}
+
+		// No suitable alternative without downgrade
+		return {
+			shouldProceed: false,
+			message:
+				severity === "major"
+					? `⚠️ Cannot find equivalent model. ${targetModel.name || targetModel.id} is significantly less capable.`
+					: undefined,
+		};
+	}
+
+	return { shouldProceed: true };
+}
+
+// =============================================================================
+// Alternative Model Selection
+// =============================================================================
+
+async function tryAlternativeModel(
+	pi: ExtensionAPI,
+	ctx: HopContext,
+	alt: { model: ProviderModelConfig & { provider?: string }; reason: string },
+	sessionId: string,
+	currentProvider: string,
+	error: unknown,
+	config?: ModelHopConfig,
+): Promise<{
+	success: boolean;
+	newProvider?: string;
+	hops: number;
+	message: string;
+}> {
+	recordHop(sessionId, alt.model.provider || currentProvider, alt.model.id);
+
+	const success = await executeModelHop(
+		pi,
+		ctx,
+		alt.model,
+		`Trying ${alt.reason}`,
+	);
+
+	if (success) {
+		const state = getHopState(sessionId);
+		return {
+			success: true,
+			newProvider: alt.model.provider,
+			hops: state?.hopCount ?? 1,
+			message: `Hopped to ${alt.model.provider} (${alt.reason})`,
+		};
+	}
+
+	// Recursive retry with next alternative
+	markExhausted(alt.model.provider || currentProvider, alt.model.id);
+	return handleModelHop(
+		pi,
+		ctx,
+		alt.model.provider || currentProvider,
+		alt.model.id,
+		alt.model.name || alt.model.id,
+		error,
+		config,
+	);
+}
+
+// =============================================================================
+// Main Handler
+// =============================================================================
+
 export async function handleModelHop(
 	pi: ExtensionAPI,
-	ctx: {
-		ui: { notify: (msg: string, type: "info" | "warning" | "error") => void };
-		sessionManager: {
-			getBranch: () => Array<{
-				type: string;
-				message?: { role?: string; content?: string };
-			}>;
-		};
-		modelRegistry: {
-			getAvailable: () => Array<ProviderModelConfig & { provider?: string }>;
-		};
-		session?: { id?: string };
-	},
+	ctx: HopContext,
 	currentProvider: string,
 	currentModelId: string,
 	currentModelName: string,
@@ -167,12 +270,10 @@ export async function handleModelHop(
 }> {
 	const sessionId = ctx.session?.id || "default";
 	const maxHops = config?.maxHops ?? 3;
-	const _autoHop = config?.autoHop ?? true;
+	const allowDowngrades = config?.allowDowngrades ?? "minor";
 
 	// Classify the error
 	const classified = classifyError(error);
-
-	// Only hop on rate limits and capacity errors
 	if (classified.type !== "rate_limit" && classified.type !== "capacity") {
 		return {
 			success: false,
@@ -205,7 +306,7 @@ export async function handleModelHop(
 	// Get available models
 	const availableModels = ctx.modelRegistry.getAvailable().map((m) => ({
 		...m,
-		provider: (m as any).provider || currentProvider, // Ensure provider is set
+		provider: (m as any).provider || currentProvider,
 	}));
 
 	if (availableModels.length === 0) {
@@ -216,7 +317,7 @@ export async function handleModelHop(
 		};
 	}
 
-	// Find next hop using hierarchical matching
+	// Try hierarchical matching first
 	const nextModel = findNextHop(
 		currentProvider,
 		currentModelId,
@@ -227,8 +328,8 @@ export async function handleModelHop(
 		},
 	);
 
+	// No direct match - get ranked alternatives
 	if (!nextModel) {
-		// No direct match - try to get any alternative
 		const alternatives = getRankedAlternatives(
 			currentProvider,
 			currentModelId,
@@ -254,33 +355,12 @@ export async function handleModelHop(
 			};
 		}
 
-		// Try the best alternative
-		const alt = alternatives[0];
-		recordHop(sessionId, alt.model.provider || currentProvider, alt.model.id);
-
-		const success = await executeModelHop(
+		return tryAlternativeModel(
 			pi,
 			ctx,
-			alt.model,
-			`Trying ${alt.reason}`,
-		);
-
-		if (success) {
-			return {
-				success: true,
-				newProvider: alt.model.provider,
-				hops: state.hopCount,
-				message: `Hopped to ${alt.model.provider} (${alt.reason})`,
-			};
-		}
-
-		// Recursive retry with next alternative
-		return handleModelHop(
-			pi,
-			ctx,
-			alt.model.provider || currentProvider,
-			alt.model.id,
-			alt.model.name || alt.model.id,
+			alternatives[0],
+			sessionId,
+			currentProvider,
 			error,
 			config,
 		);
@@ -294,71 +374,59 @@ export async function handleModelHop(
 	if (currentModel) {
 		const currentCaps = estimateCapability(currentModel);
 		const nextCaps = estimateCapability(nextModel);
-		const { isDowngrade, severity } = isCapabilityDowngrade(
+
+		const decision = handleDowngradeDecision(
+			currentModel,
+			nextModel,
+			availableModels,
 			currentCaps,
 			nextCaps,
+			state.triedModels,
+			currentProvider,
+			allowDowngrades,
 		);
 
-		const allowDowngrades = config?.allowDowngrades ?? "minor";
+		if (decision.message) {
+			ctx.ui.notify(decision.message, "warning");
+		}
 
-		if (isDowngrade) {
-			// Check if downgrade is allowed
-			if (
-				allowDowngrades === "never" ||
-				(allowDowngrades === "minor" && severity === "major")
-			) {
-				// Try to find equal-or-better alternative
-				const ranked = rankByCapability(
-					currentModel,
-					availableModels.filter(
-						(m) =>
-							!state?.triedModels.has(
-								getSessionKey(m.provider || currentProvider, m.id),
-							) && m.id !== nextModel.id,
-					),
+		if (!decision.shouldProceed) {
+			// Try fallback to equal-or-better if available
+			if (decision.alternative) {
+				recordHop(
+					sessionId,
+					decision.alternative.provider || currentProvider,
+					decision.alternative.id,
+				);
+				const success = await executeModelHop(
+					pi,
+					ctx,
+					decision.alternative,
+					`Rate limited on ${currentProvider} (preserving capability)`,
 				);
 
-				if (ranked.equalOrBetter.length > 0) {
-					// Use equal-or-better model instead
-					const betterModel = ranked.equalOrBetter[0];
-					recordHop(
-						sessionId,
-						betterModel.provider || currentProvider,
-						betterModel.id,
-					);
-
-					const success = await executeModelHop(
-						pi,
-						ctx,
-						betterModel,
-						`Rate limited on ${currentProvider} (preserving capability)`,
-					);
-
-					if (success) {
-						return {
-							success: true,
-							newProvider: betterModel.provider,
-							hops: state.hopCount,
-							message: `Hopped to ${betterModel.name || betterModel.id} @ ${betterModel.provider} (capability preserved)`,
-						};
-					}
-				}
-
-				// No suitable alternative without downgrade
-				if (severity === "major") {
-					ctx.ui.notify(
-						`⚠️ Cannot find equivalent model. ${nextModel.name || nextModel.id} is significantly less capable than ${currentModelName}. Use /model to switch manually or allow downgrades in config.`,
-						"warning",
-					);
+				if (success) {
+					return {
+						success: true,
+						newProvider: decision.alternative.provider,
+						hops: state.hopCount,
+						message: `Hopped to ${decision.alternative.name || decision.alternative.id} @ ${decision.alternative.provider} (capability preserved)`,
+					};
 				}
 			}
-
-			// Show capability message even if we proceed
-			const capMessage = generateCapabilityMessage(
-				{ name: currentModelName, capabilities: currentCaps },
-				{ name: nextModel.name || nextModel.id, capabilities: nextCaps },
+		} else {
+			// Show capability message for downgrade
+			const { isDowngrade, severity } = isCapabilityDowngrade(
+				currentCaps,
+				nextCaps,
 			);
-			ctx.ui.notify(capMessage, severity === "major" ? "warning" : "info");
+			if (isDowngrade) {
+				const capMessage = generateCapabilityMessage(
+					{ name: currentModelName, capabilities: currentCaps },
+					{ name: nextModel.name || nextModel.id, capabilities: nextCaps },
+				);
+				ctx.ui.notify(capMessage, severity === "major" ? "warning" : "info");
+			}
 		}
 	}
 
@@ -395,10 +463,10 @@ export async function handleModelHop(
 	);
 }
 
-/**
- * Reset hop state for a session
- * Call this on successful completion
- */
+// =============================================================================
+// Public API
+// =============================================================================
+
 export function resetHopState(sessionId?: string): void {
 	if (sessionId) {
 		cleanupHopState(sessionId);
@@ -407,9 +475,6 @@ export function resetHopState(sessionId?: string): void {
 	}
 }
 
-/**
- * Get current hop status for debugging
- */
 export function getHopStatus(sessionId: string): {
 	hopCount: number;
 	triedCount: number;
