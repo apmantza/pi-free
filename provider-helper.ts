@@ -352,9 +352,10 @@ export function setupProvider(
 							},
 							modelRegistry: {
 								getAvailable: () => {
-									// Get all models from all stored providers
-									// For now, return empty - will be enhanced per-provider
-									return [];
+									// Get all models from pi's model registry, excluding current provider
+									return ctx.modelRegistry.getAll().filter(
+										(m: any) => m.provider !== providerId
+									) as any[];
 								},
 							},
 							session: (ctx as { session?: { id?: string } }).session,
