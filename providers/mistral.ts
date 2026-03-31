@@ -182,7 +182,10 @@ export default async function (pi: ExtensionAPI) {
 	// Filter out unsupported fields from requests to Mistral
 	pi.on("before_provider_request", (event) => {
 		const payload = event.payload as Record<string, unknown>;
+		_logger.info(`[FILTER] Called. model=${payload.model}, keys=${Object.keys(payload).join(",")}`);
 		if (isMistralPayload(payload)) {
+			const removed = Object.keys(payload).filter(k => MISTRAL_UNSUPPORTED_FIELDS.has(k));
+			_logger.info(`[FILTER] Removing: ${removed.join(", ") || "none"}`);
 			return filterMistralPayload(payload);
 		}
 		return undefined;
