@@ -128,7 +128,7 @@ const MISTRAL_UNSUPPORTED_FIELDS = new Set([
 	"prediction",
 ]);
 
-// Known Mistral model IDs for detection
+// Known Mistral model IDs for detection - covers all our registered models
 const MISTRAL_MODEL_IDS = new Set([
 	"mistral-small-latest",
 	"mistral-medium-latest",
@@ -136,6 +136,8 @@ const MISTRAL_MODEL_IDS = new Set([
 	"mistral-large-2411",
 	"mistral-small-2503",
 	"mistral-small-2505",
+	"mistral-medium-2505",
+	"mistral-large-2505",
 	"open-mistral-nemo",
 	"mistral-tiny",
 	"mistral-embed",
@@ -143,7 +145,12 @@ const MISTRAL_MODEL_IDS = new Set([
 
 function isMistralPayload(payload: Record<string, unknown>): boolean {
 	const modelId = payload.model as string | undefined;
-	return !!modelId && MISTRAL_MODEL_IDS.has(modelId);
+	const isMistral = !!modelId && modelId.includes("mistral");
+	// Debug logging to help diagnose issues
+	if (isMistral) {
+		_logger.info(`Detected Mistral payload for model: ${modelId}`);
+	}
+	return isMistral;
 }
 
 function filterMistralPayload(payload: Record<string, unknown>): Record<string, unknown> {
@@ -176,7 +183,11 @@ export default async function (pi: ExtensionAPI) {
 	// Filter out unsupported fields from requests to Mistral
 	pi.on("before_provider_request", (event) => {
 		const payload = event.payload as Record<string, unknown>;
+		// Log payload keys for debugging
+		_logger.info(`before_provider_request payload keys: ${Object.keys(payload).join(", ")}`);
+		_logger.info(`before_provider_request payload.model: ${payload.model}`);
 		if (isMistralPayload(payload)) {
+			_logger.info(`Filtering Mistral payload, removing fields: ${Object.keys(payload).filter(k => MISTRAL_UNSUPPORTED_FIELDS.has(k)).join(", ")}`);
 			return filterMistralPayload(payload);
 		}
 		return undefined;
