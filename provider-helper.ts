@@ -11,7 +11,7 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
-import { incrementModelRequestCount } from "./free-tier-limits.js";
+import { incrementModelRequestCount } from "./usage/tracking.ts";
 import { createLogger } from "./lib/logger.ts";
 import { incrementRequestCount } from "./metrics.js";
 
@@ -328,11 +328,32 @@ export function setupProvider(
 		if (modelId) {
 			// Extract token usage from the event if available
 			const msg = (
-				event as { message?: { usage?: { input?: number; output?: number } } }
+				event as {
+					message?: {
+						usage?: {
+							input?: number;
+							output?: number;
+							cacheRead?: number;
+							cacheWrite?: number;
+							cost?: { total?: number };
+						};
+					};
+				}
 			).message;
 			const tokensIn = msg?.usage?.input ?? 0;
 			const tokensOut = msg?.usage?.output ?? 0;
-			incrementModelRequestCount(providerId, modelId, tokensIn, tokensOut);
+			const cacheRead = msg?.usage?.cacheRead ?? 0;
+			const cacheWrite = msg?.usage?.cacheWrite ?? 0;
+			const cost = msg?.usage?.cost?.total ?? 0;
+			incrementModelRequestCount(
+				providerId,
+				modelId,
+				tokensIn,
+				tokensOut,
+				cacheRead,
+				cacheWrite,
+				cost,
+			);
 		}
 
 		resetFailureCount(providerId);

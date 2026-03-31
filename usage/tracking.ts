@@ -12,6 +12,9 @@ export interface ModelUsageEntry {
 	count: number;
 	tokensIn: number;
 	tokensOut: number;
+	cacheRead: number;
+	cacheWrite: number;
+	cost: number;
 	lastUsed: number;
 }
 
@@ -46,6 +49,9 @@ export function incrementModelRequestCount(
 	modelId: string,
 	tokensIn = 0,
 	tokensOut = 0,
+	cacheRead = 0,
+	cacheWrite = 0,
+	cost = 0,
 ): void {
 	const key = `${provider}/${modelId}`;
 	const existing = modelUsageCounts.get(key);
@@ -54,12 +60,18 @@ export function incrementModelRequestCount(
 		existing.count++;
 		existing.tokensIn += tokensIn;
 		existing.tokensOut += tokensOut;
+		existing.cacheRead += cacheRead;
+		existing.cacheWrite += cacheWrite;
+		existing.cost += cost;
 		existing.lastUsed = Date.now();
 	} else {
 		modelUsageCounts.set(key, {
 			count: 1,
 			tokensIn,
 			tokensOut,
+			cacheRead,
+			cacheWrite,
+			cost,
 			lastUsed: Date.now(),
 		});
 	}
@@ -92,12 +104,23 @@ export function incrementModelRequestCount(
 			count: 1,
 			tokensIn,
 			tokensOut,
+			cacheRead: 0,
+			cacheWrite: 0,
+			cost: 0,
 			lastUsed: Date.now(),
 		});
 	}
 
 	// Persist to disk
-	persistUsage(provider, modelId, tokensIn, tokensOut);
+	persistUsage(
+		provider,
+		modelId,
+		tokensIn,
+		tokensOut,
+		cacheRead,
+		cacheWrite,
+		cost,
+	);
 }
 
 export function getModelUsage(
@@ -209,16 +232,25 @@ export interface SessionUsageReport {
 		requests: number;
 		tokensIn: number;
 		tokensOut: number;
+		cacheRead: number;
+		cacheWrite: number;
+		cost: number;
 		topModels: Array<{
 			modelId: string;
 			count: number;
 			tokensIn: number;
 			tokensOut: number;
+			cacheRead: number;
+			cacheWrite: number;
+			cost: number;
 		}>;
 	}>;
 	totalRequests: number;
 	totalTokensIn: number;
 	totalTokensOut: number;
+	totalCacheRead: number;
+	totalCacheWrite: number;
+	totalCost: number;
 }
 
 function formatDuration(ms: number): string {
@@ -239,6 +271,9 @@ export function getSessionUsage(): SessionUsageReport {
 	let totalRequests = 0;
 	let totalTokensIn = 0;
 	let totalTokensOut = 0;
+	let totalCacheRead = 0;
+	let totalCacheWrite = 0;
+	let totalCost = 0;
 
 	for (const [providerName, stats] of sessionStats.providers) {
 		totalRequests += stats.requests;
@@ -251,15 +286,29 @@ export function getSessionUsage(): SessionUsageReport {
 				count: m.count,
 				tokensIn: m.tokensIn,
 				tokensOut: m.tokensOut,
+				cacheRead: m.cacheRead,
+				cacheWrite: m.cacheWrite,
+				cost: m.cost,
 			}))
 			.sort((a, b) => b.count - a.count)
 			.slice(0, 5);
+
+		// Sum cache and cost from models
+		const providerCacheRead = topModels.reduce((s, m) => s + m.cacheRead, 0);
+		const providerCacheWrite = topModels.reduce((s, m) => s + m.cacheWrite, 0);
+		const providerCost = topModels.reduce((s, m) => s + m.cost, 0);
+		totalCacheRead += providerCacheRead;
+		totalCacheWrite += providerCacheWrite;
+		totalCost += providerCost;
 
 		providers.push({
 			name: providerName,
 			requests: stats.requests,
 			tokensIn: stats.tokensIn,
 			tokensOut: stats.tokensOut,
+			cacheRead: providerCacheRead,
+			cacheWrite: providerCacheWrite,
+			cost: providerCost,
 			topModels,
 		});
 	}
@@ -273,5 +322,8 @@ export function getSessionUsage(): SessionUsageReport {
 		totalRequests,
 		totalTokensIn,
 		totalTokensOut,
+		totalCacheRead,
+		totalCacheWrite,
+		totalCost,
 	};
 }
