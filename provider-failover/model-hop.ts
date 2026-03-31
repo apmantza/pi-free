@@ -304,20 +304,12 @@ export async function handleModelHop(
 	markExhausted(currentProvider, currentModelId);
 
 	// Get available models
-	const rawModels = ctx.modelRegistry.getAvailable();
-	_logger.info(`[HOP] Got ${rawModels.length} raw models from registry`);
-
-	const availableModels = rawModels.map((m) => ({
+	const availableModels = ctx.modelRegistry.getAvailable().map((m) => ({
 		...m,
 		provider: (m as any).provider || currentProvider,
 	}));
 
-	_logger.info(
-		`[HOP] Available models after mapping: ${availableModels.map((m) => `${m.provider}/${m.id}`).join(", ")}`,
-	);
-
 	if (availableModels.length === 0) {
-		_logger.warn(`[HOP] No models returned from modelRegistry.getAvailable()`);
 		return {
 			success: false,
 			hops: state.hopCount,
@@ -338,33 +330,20 @@ export async function handleModelHop(
 
 	// No direct match - get ranked alternatives
 	if (!nextModel) {
-		_logger.info(
-			`[HOP] No direct match from findNextHop, trying ranked alternatives`,
-		);
-
-		const untriedModels = availableModels.filter(
-			(m) =>
-				!state?.triedModels.has(
-					getSessionKey(m.provider || currentProvider, m.id),
-				),
-		);
-		_logger.info(
-			`[HOP] Untried models: ${untriedModels.map((m) => `${m.provider}/${m.id}`).join(", ")}`,
-		);
-
 		const alternatives = getRankedAlternatives(
 			currentProvider,
 			currentModelId,
-			untriedModels,
+			availableModels.filter(
+				(m) =>
+					!state?.triedModels.has(
+						getSessionKey(m.provider || currentProvider, m.id),
+					),
+			),
 			{
 				preferredModels: config?.preferredModels,
 				isPaidMode: config?.isPaidMode ?? false,
 			},
 			1,
-		);
-
-		_logger.info(
-			`[HOP] getRankedAlternatives returned ${alternatives.length} alternatives: ${alternatives.map((a) => `${a.model.provider}/${a.model.id} (${a.reason})`).join(", ")}`,
 		);
 
 		if (alternatives.length === 0) {

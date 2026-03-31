@@ -220,8 +220,10 @@ export function findNextHop(
 		if (key === currentKey) continue; // Skip current
 		if (isExhausted(model.provider, model.id)) continue; // Skip exhausted
 
-		// Check free mode
-		if (!userPreferences?.isPaidMode && model.cost.input > 0) continue;
+		// Check free mode - only include truly free models (cost.input === 0)
+		// Models with undefined/missing cost are assumed free for failover
+		const inputCost = model.cost?.input ?? 0;
+		if (!userPreferences?.isPaidMode && inputCost > 0) continue;
 
 		// Priority 1: Same model ID, different provider
 		if (model.id === currentModelId) {
@@ -294,11 +296,11 @@ export function findNextHop(
 
 /**
  * Get alternative models ranked by preference
- * Returns up to N alternatives
+ * Returns up to N alternatives - simply find free models from different providers
  */
 export function getRankedAlternatives(
 	currentProvider: string,
-	currentModelId: string,
+	_currentModelId: string,
 	availableModels: ModelWithProvider[],
 	userPreferences?: {
 		preferredModels?: string[];
@@ -307,48 +309,17 @@ export function getRankedAlternatives(
 	maxResults: number = 5,
 ): Array<{ model: ModelWithProvider; reason: string }> {
 	const results: Array<{ model: ModelWithProvider; reason: string }> = [];
-	const tried = new Set<string>([`${currentProvider}:${currentModelId}`]);
 
-	let currentProviderToTry = currentProvider;
-	let currentModelIdToTry = currentModelId;
+	// Simple: just return free models from different providers
+	for (const model of availableModels) {
+		if (results.length >= maxResults) break;
+		if (model.provider === currentProvider) continue;
 
-	// Try to find alternatives up to maxResults
-	for (let i = 0; i < maxResults; i++) {
-		const next = findNextHop(
-			currentProviderToTry,
-			currentModelIdToTry,
-			availableModels.filter((m) => !tried.has(`${m.provider}:${m.id}`)),
-			userPreferences,
-		);
+		// Only include free models
+		const inputCost = (model as any).cost?.input ?? 0;
+		if (!userPreferences?.isPaidMode && inputCost > 0) continue;
 
-		if (!next) break;
-
-		// For subsequent hops, don't reuse the same provider we just tried
-		if (i > 0 && next.provider === currentProviderToTry) {
-			// Skip this one, try again excluding this provider
-			const alternatives = availableModels.filter(
-				(m) =>
-					m.provider !== currentProviderToTry &&
-					!tried.has(`${m.provider}:${m.id}`),
-			);
-			const alt = findNextHop(
-				currentProviderToTry,
-				currentModelIdToTry,
-				alternatives,
-				userPreferences,
-			);
-			if (!alt) break;
-
-			results.push({ model: alt, reason: "alternative-provider" });
-			tried.add(`${alt.provider}:${alt.id}`);
-			currentProviderToTry = alt.provider;
-			currentModelIdToTry = alt.id;
-		} else {
-			results.push({ model: next, reason: "alternative-provider" });
-			tried.add(`${next.provider}:${next.id}`);
-			currentProviderToTry = next.provider;
-			currentModelIdToTry = next.id;
-		}
+		results.push({ model, reason: "free-alternative" });
 	}
 
 	return results;
