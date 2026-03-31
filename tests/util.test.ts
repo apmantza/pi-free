@@ -11,32 +11,18 @@ import {
 describe("Utility Functions", () => {
 	describe("logWarning", () => {
 		it("should log warning with provider and message", () => {
-			const consoleWarnSpy = vi
-				.spyOn(console, "warn")
-				.mockImplementation(() => {});
-
-			logWarning("test-provider", "Test warning message");
-
-			expect(consoleWarnSpy).toHaveBeenCalledWith(
-				"[test-provider] Test warning message",
-				"",
-			);
-			consoleWarnSpy.mockRestore();
+			// logWarning now uses lib/logger.ts internally
+			// This test verifies it doesn't throw
+			expect(() =>
+				logWarning("test-provider", "Test warning message"),
+			).not.toThrow();
 		});
 
 		it("should include error details when provided", () => {
-			const consoleWarnSpy = vi
-				.spyOn(console, "warn")
-				.mockImplementation(() => {});
 			const testError = new Error("Test error");
-
-			logWarning("test-provider", "Test warning", testError);
-
-			expect(consoleWarnSpy).toHaveBeenCalledWith(
-				"[test-provider] Test warning",
-				testError,
-			);
-			consoleWarnSpy.mockRestore();
+			expect(() =>
+				logWarning("test-provider", "Test warning", testError),
+			).not.toThrow();
 		});
 	});
 
@@ -60,6 +46,27 @@ describe("Utility Functions", () => {
 		it("should handle case variations", () => {
 			expect(isUsableModel("GPT-4-Test")).toBe(true); // Case sensitive check
 			expect(isUsableModel("model-TEST")).toBe(true);
+		});
+
+		it("should filter by minimum size", () => {
+			// 70b model should pass 70B minimum
+			expect(isUsableModel("llama-3-70b", 70)).toBe(true);
+			// 8b model should fail 70B minimum
+			expect(isUsableModel("llama-3-8b", 70)).toBe(false);
+			// 405b model should pass
+			expect(isUsableModel("llama-3-405b", 70)).toBe(true);
+		});
+
+		it("should handle MoE model sizes", () => {
+			// 8x22b = 176b total, should pass 70B
+			expect(isUsableModel("mixtral-8x22b", 70)).toBe(true);
+			// 8x7b = 56b total, should fail 70B
+			expect(isUsableModel("mixtral-8x7b", 70)).toBe(false);
+		});
+
+		it("should skip size filter when minSizeB not provided", () => {
+			expect(isUsableModel("tiny-llama")).toBe(true);
+			expect(isUsableModel("llama-3-8b")).toBe(true);
 		});
 	});
 

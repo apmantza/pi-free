@@ -327,10 +327,6 @@ export default async function (pi: ExtensionAPI) {
 	// Shared model storage (references held by setupProvider for commands)
 	const stored: StoredModels = { free: [], all: [] };
 
-	function _registerZenModels(models: ProviderModelConfig[]) {
-		ctx_modelRegistry_register(models);
-	}
-
 	// We need a closure that captures the runtime ctx for re-registration.
 	// setupProvider's reRegister callback will call this with the current ctx.
 	let ctx_modelRegistry_register: (models: ProviderModelConfig[]) => void =

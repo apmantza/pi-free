@@ -1,4 +1,7 @@
+import { createLogger } from "./lib/logger.ts";
 import type { ProviderModelConfig } from "./types.ts";
+
+const _logger = createLogger("util");
 
 // =============================================================================
 // Shared Utilities
@@ -12,7 +15,7 @@ export function logWarning(
 	message: string,
 	error?: unknown,
 ): void {
-	console.warn(`[${provider}] ${message}`, error ?? "");
+	_logger.warn(`[${provider}] ${message}`, error ?? "");
 }
 
 /**
@@ -117,13 +120,34 @@ export async function parseModelResponse<T>(
 
 /**
  * Check if model is usable based on size constraints and naming
- * Used by NVIDIA provider to filter out test/debug models
+ * Used by NVIDIA provider to filter out test/debug and small models.
+ * Extracts model size from ID (e.g., "llama-3-70b" -> 70) and compares to minSizeB.
  */
-export function isUsableModel(modelId: string, _minSizeGB?: number): boolean {
+export function isUsableModel(modelId: string, minSizeB?: number): boolean {
 	// Filter out models that are likely test or debug models
 	if (modelId.includes("test") || modelId.includes("debug")) {
 		return false;
 	}
+
+	// Filter by minimum size if specified
+	if (minSizeB !== undefined) {
+		// Check Mixture-of-Experts models first (e.g., "8x22b" = 176b total)
+		const moeMatch = modelId.match(/(\d+)x(\d+(?:\.\d+)?)b/i);
+		if (moeMatch) {
+			const experts = Number.parseInt(moeMatch[1], 10);
+			const expertSize = Number.parseFloat(moeMatch[2]);
+			if (experts * expertSize < minSizeB) return false;
+			return true; // MoE model passed size check
+		}
+
+		// Standard model size (e.g., "70b", "8b")
+		const sizeMatch = modelId.match(/(\d+(?:\.\d+)?)b(?!\w)/i);
+		if (sizeMatch) {
+			const modelSize = Number.parseFloat(sizeMatch[1]);
+			if (modelSize < minSizeB) return false;
+		}
+	}
+
 	return true;
 }
 
