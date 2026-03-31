@@ -16,6 +16,9 @@ import type {
 	OAuthLoginCallbacks,
 } from "@mariozechner/pi-ai";
 import { BASE_URL_CLINE, CLINE_AUTH_TIMEOUT_MS } from "../constants.ts";
+import { createLogger } from "../lib/logger.ts";
+
+const logger = createLogger("cline-auth");
 
 // =============================================================================
 // Port range for callback server (matches official Cline CLI AuthHandler)
@@ -25,11 +28,8 @@ const AUTH_PATH = "/auth";
 
 // =============================================================================
 // Headers (must match real Cline VS Code extension exactly)
-// From Cline source: X-PLATFORM-VERSION = vscode.version, X-CLIENT/CORE-VERSION = extension version
-// =============================================================================
-
-const VS_CODE_VERSION = "1.109.3"; // vscode.version
-const CLINE_EXTENSION_VERSION = "3.76.0"; // ExtensionRegistryInfo.version
+const VS_CODE_VERSION = "1.109.3";
+const CLINE_EXTENSION_VERSION = "3.76.0";
 
 function buildClineHeaders(): Record<string, string> {
 	return {
@@ -37,15 +37,15 @@ function buildClineHeaders(): Record<string, string> {
 		"Content-Type": "application/json",
 		"User-Agent": `Cline/${CLINE_EXTENSION_VERSION}`,
 		"X-PLATFORM": "Visual Studio Code",
-		"X-PLATFORM-VERSION": VS_CODE_VERSION, // VS Code version, NOT Cline version
+		"X-PLATFORM-VERSION": VS_CODE_VERSION,
 		"X-CLIENT-TYPE": "VSCode Extension",
-		"X-CLIENT-VERSION": CLINE_EXTENSION_VERSION, // Cline extension version
-		"X-CORE-VERSION": CLINE_EXTENSION_VERSION, // Cline extension version
+		"X-CLIENT-VERSION": CLINE_EXTENSION_VERSION,
+		"X-CORE-VERSION": CLINE_EXTENSION_VERSION,
 	};
 }
 
 // =============================================================================
-// Callback server (port scanning like pi-cline)
+// Callback server
 // =============================================================================
 
 interface CallbackResult {
@@ -73,7 +73,6 @@ function parseCallback(rawUrl: string, port: number): CallbackResult {
 		parsed.search.slice(1).replace(/\+/g, "%2B"),
 	);
 
-	// pi-cline looks for refreshToken, idToken, or code
 	const token =
 		query.get("refreshToken") || query.get("idToken") || query.get("code");
 	if (!token) {
@@ -186,7 +185,6 @@ font-family:system-ui,sans-serif;background:#fff;color:#333}
 		);
 	}
 
-	// Timeout + abort handling (pi-cline uses 10min, we use our CLINE_AUTH_TIMEOUT_MS)
 	serverTimeout = setTimeout(() => {
 		settle(() => rejectWait?.(new Error("Callback server timed out")));
 	}, CLINE_AUTH_TIMEOUT_MS);
@@ -207,19 +205,182 @@ font-family:system-ui,sans-serif;background:#fff;color:#333}
 }
 
 // =============================================================================
-// Token helpers
+// Auth URL fetching
 // =============================================================================
+
+async function fetchAuthorizeUrl(
+	callbackUrl: string,
+	signal?: AbortSignal,
+): Promise<string> {
+	const authUrl = new NodeURL("auth/authorize", `${BASE_URL_CLINE}/`);
+	authUrl.searchParams.set("client_type", "extension");
+	authUrl.searchParams.set("callback_url", callbackUrl);
+	authUrl.searchParams.set("redirect_uri", callbackUrl);
+
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), 8000);
+
+	try {
+		const res = await fetch(authUrl.toString(), {
+			method: "GET",
+			redirect: "manual",
+			credentials: "include",
+			headers: buildClineHeaders(),
+			signal: signal ?? controller.signal,
+		});
+
+		if (res.status >= 300 && res.status < 400) {
+			const location = res.headers.get("Location");
+			if (location) return location;
+			throw new Error("No redirect URL found in auth response");
+		}
+
+		const json = (await res.json()) as { redirect_url?: string };
+		if (
+			typeof json?.redirect_url === "string" &&
+			json.redirect_url.length > 0
+		) {
+			return json.redirect_url;
+		}
+		throw new Error("Unexpected response from auth server");
+	} catch (error) {
+		throw new Error(
+			`Authentication request failed: ${error instanceof Error ? error.message : "unknown error"}`,
+		);
+	} finally {
+		clearTimeout(timeout);
+	}
+}
+
+// =============================================================================
+// Code input handling
+// =============================================================================
+
+function parseManualInput(input: string): {
+	code: string;
+	provider: string | null;
+} {
+	const trimmed = input.trim();
+
+	if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+		const cb = new NodeURL(trimmed);
+		const urlCode =
+			cb.searchParams.get("refreshToken") ||
+			cb.searchParams.get("idToken") ||
+			cb.searchParams.get("code");
+		if (!urlCode) throw new Error("No code found in callback URL");
+		return { code: urlCode, provider: cb.searchParams.get("provider") };
+	}
+
+	return { code: trimmed, provider: null };
+}
+
+type AuthCodeResult =
+	| { type: "local"; code: string; provider: string | null }
+	| { type: "manual"; code: string; provider: string | null };
+
+async function waitForAuthCode(
+	callbackServer: { waitForCode: Promise<CallbackResult>; close: () => void },
+	onManualInput: OAuthLoginCallbacks["onManualCodeInput"],
+	signal?: AbortSignal,
+): Promise<AuthCodeResult> {
+	if (!onManualInput) {
+		const result = await callbackServer.waitForCode;
+		return { type: "local", ...result };
+	}
+
+	const result = await Promise.race([
+		callbackServer.waitForCode.then((r) => ({ type: "local" as const, ...r })),
+		onManualInput().then((c) => ({ type: "manual" as const, code: c })),
+	]);
+
+	if (result.type === "local") {
+		return result;
+	}
+
+	// Manual input - close server and parse
+	callbackServer.close();
+	if (signal?.aborted) throw new Error("Login cancelled");
+	if (!result.code?.trim()) throw new Error("No code provided");
+
+	const parsed = parseManualInput(result.code);
+	return { type: "manual", ...parsed };
+}
+
+// =============================================================================
+// Token exchange
+// =============================================================================
+
+interface TokenData {
+	accessToken: string;
+	refreshToken?: string;
+	expiresAt: string;
+}
+
+async function exchangeCodeForTokens(
+	code: string,
+	provider: string | null,
+	callbackUrl: string,
+	signal?: AbortSignal,
+): Promise<TokenData> {
+	const providerCandidates: Array<string | null> = provider
+		? [provider]
+		: [null, "google", "github", "microsoft", "authkit"];
+
+	let tokenData: TokenData | null = null;
+	let lastError = "";
+
+	for (const candidate of providerCandidates) {
+		const payload: Record<string, string> = {
+			grant_type: "authorization_code",
+			code,
+			client_type: "extension",
+			redirect_uri: callbackUrl,
+		};
+		if (candidate) payload.provider = candidate;
+
+		const res = await fetch(`${BASE_URL_CLINE}/auth/token`, {
+			method: "POST",
+			headers: buildClineHeaders(),
+			body: JSON.stringify(payload),
+			signal,
+		});
+
+		if (!res.ok) {
+			lastError = `${res.status}: ${(await res.text().catch(() => "")).slice(0, 120)}`;
+			continue;
+		}
+
+		const data = (await res.json()) as {
+			success?: boolean;
+			data?: TokenData;
+		};
+
+		if (data?.success && data.data?.accessToken) {
+			tokenData = data.data;
+			break;
+		}
+		lastError = "Invalid token response";
+	}
+
+	if (!tokenData) {
+		throw new Error(
+			`Cline token exchange failed${lastError ? ` (${lastError})` : ""}`,
+		);
+	}
+
+	return tokenData;
+}
 
 function parseExpiresAt(expiresAt: string): number {
 	const ms = Date.parse(expiresAt);
 	if (Number.isNaN(ms))
 		throw new Error("Cline auth response has invalid expiresAt");
-	// Buffer: expire 5 min early to avoid edge-case failures
 	return Math.max(Date.now() + 30_000, ms - 5 * 60_000);
 }
 
 // =============================================================================
-// Login
+// Public API
 // =============================================================================
 
 export async function loginCline(
@@ -228,157 +389,42 @@ export async function loginCline(
 	callbacks.onProgress?.("Preparing Cline authentication...");
 
 	const callbackServer = await startCallbackServer(callbacks.signal);
+	logger.debug("Callback server started", { port: callbackServer.port });
 
 	try {
-		// Get authorize URL (follow pi-cline: fetch redirect from Cline server)
-		const authUrl = new NodeURL("auth/authorize", `${BASE_URL_CLINE}/`);
-		authUrl.searchParams.set("client_type", "extension");
-		authUrl.searchParams.set("callback_url", callbackServer.callbackUrl);
-		authUrl.searchParams.set("redirect_uri", callbackServer.callbackUrl);
-
-		let finalAuthUrl: string | null;
-		try {
-			const controller = new AbortController();
-			const timeout = setTimeout(() => controller.abort(), 8000);
-			const res = await fetch(authUrl.toString(), {
-				method: "GET",
-				redirect: "manual",
-				credentials: "include",
-				headers: buildClineHeaders(),
-				signal: callbacks.signal ?? controller.signal,
-			});
-			clearTimeout(timeout);
-
-			if (res.status >= 300 && res.status < 400) {
-				finalAuthUrl = res.headers.get("Location");
-				if (!finalAuthUrl)
-					throw new Error("No redirect URL found in auth response");
-			} else {
-				const json = (await res.json()) as { redirect_url?: string };
-				if (
-					typeof json?.redirect_url === "string" &&
-					json.redirect_url.length > 0
-				) {
-					finalAuthUrl = json.redirect_url;
-				} else {
-					throw new Error("Unexpected response from auth server");
-				}
-			}
-		} catch (error) {
-			throw new Error(
-				`Authentication request failed: ${error instanceof Error ? error.message : "unknown error"}`,
-			);
-		}
+		const authUrl = await fetchAuthorizeUrl(
+			callbackServer.callbackUrl,
+			callbacks.signal,
+		);
+		logger.debug("Auth URL fetched");
 
 		callbacks.onAuth({
-			url: finalAuthUrl,
+			url: authUrl,
 			instructions:
 				"Copy this URL and open it in a new browser tab:\n(The link may wrap — copy the full URL, not just the visible portion)",
 		});
 
 		callbacks.onProgress?.("Waiting for authentication callback...");
 
-		// Wait for callback (with manual input fallback)
-		let code: string;
-		let provider: string | null = null;
-
-		if (callbacks.onManualCodeInput) {
-			const result = await Promise.race([
-				callbackServer.waitForCode.then((r) => ({
-					type: "local" as const,
-					...r,
-				})),
-				callbacks
-					.onManualCodeInput()
-					.then((c) => ({ type: "manual" as const, code: c })),
-			]);
-
-			if (result.type === "local") {
-				code = result.code;
-				provider = result.provider;
-			} else {
-				callbackServer.close();
-				if (callbacks.signal?.aborted) throw new Error("Login cancelled");
-				if (!result.code?.trim()) throw new Error("No code provided");
-
-				const input = result.code.trim();
-				if (input.startsWith("http://") || input.startsWith("https://")) {
-					const cb = new NodeURL(input);
-					const urlCode =
-						cb.searchParams.get("refreshToken") ||
-						cb.searchParams.get("idToken") ||
-						cb.searchParams.get("code");
-					if (!urlCode) throw new Error("No code found in callback URL");
-					code = urlCode;
-					provider = cb.searchParams.get("provider");
-				} else {
-					code = input;
-				}
-			}
-		} else {
-			const result = await callbackServer.waitForCode;
-			code = result.code;
-			provider = result.provider;
-		}
+		const { code, provider } = await waitForAuthCode(
+			callbackServer,
+			callbacks.onManualCodeInput,
+			callbacks.signal,
+		);
+		logger.debug("Auth code received", {
+			provider,
+			type: code.length > 50 ? "token" : "short",
+		});
 
 		callbacks.onProgress?.("Completing Cline authentication...");
 
-		// Exchange code for tokens
-		const providerCandidates: Array<string | null> = provider
-			? [provider]
-			: [null, "google", "github", "microsoft", "authkit"];
-
-		let tokenData: {
-			accessToken: string;
-			refreshToken?: string;
-			expiresAt: string;
-		} | null = null;
-		let lastError = "";
-
-		for (const candidate of providerCandidates) {
-			const payload: Record<string, string> = {
-				grant_type: "authorization_code",
-				code,
-				client_type: "extension",
-				redirect_uri: callbackServer.callbackUrl,
-			};
-			if (candidate) payload.provider = candidate;
-
-			const res = await fetch(`${BASE_URL_CLINE}/auth/token`, {
-				method: "POST",
-				headers: buildClineHeaders(),
-				body: JSON.stringify(payload),
-				signal: callbacks.signal,
-			});
-
-			if (!res.ok) {
-				lastError = `${res.status}: ${(await res.text().catch(() => "")).slice(0, 120)}`;
-				continue;
-			}
-
-			const data = (await res.json()) as {
-				success?: boolean;
-				data?: {
-					accessToken: string;
-					refreshToken?: string;
-					expiresAt: string;
-				};
-			};
-
-			if (data?.success && data.data?.accessToken) {
-				tokenData = data.data;
-				break;
-			}
-			lastError = "Invalid token response";
-		}
-
-		if (!tokenData) {
-			throw new Error(
-				`Cline token exchange failed${lastError ? ` (${lastError})` : ""}`,
-			);
-		}
-
-		callbacks.onProgress?.("Login successful!");
+		const tokenData = await exchangeCodeForTokens(
+			code,
+			provider,
+			callbackServer.callbackUrl,
+			callbacks.signal,
+		);
+		logger.info("Login successful");
 
 		return {
 			access: tokenData.accessToken,
@@ -389,10 +435,6 @@ export async function loginCline(
 		callbackServer.close();
 	}
 }
-
-// =============================================================================
-// Refresh
-// =============================================================================
 
 export async function refreshClineToken(
 	credentials: OAuthCredentials,
