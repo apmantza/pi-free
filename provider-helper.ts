@@ -42,7 +42,9 @@ export function addToFreeModelsCache(
 	for (const model of models) {
 		freeModelsCache.push({ provider, model });
 	}
-	_logger.info(`Cached ${models.length} free models for ${provider}`);
+	_logger.info(
+		`Cached ${models.length} free models for ${provider}: [${models.map((m) => m.id).join(", ")}]`,
+	);
 }
 
 import { enhanceModelNameWithCodingIndex } from "./provider-failover/hardcoded-benchmarks.js";

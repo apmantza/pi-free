@@ -22,6 +22,7 @@ import {
 	setupProvider,
 	createReRegister,
 	createCtxReRegister,
+	addToFreeModelsCache,
 } from "../provider-helper.ts";
 import { registerUsageWidget } from "../usage-widget.ts";
 import { logWarning } from "../util.ts";

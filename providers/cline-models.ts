@@ -5,7 +5,11 @@
  */
 
 import { applyHidden } from "../config.ts";
-import { BASE_URL_OPENROUTER, DEFAULT_FETCH_TIMEOUT_MS } from "../constants.ts";
+import {
+	BASE_URL_OPENROUTER,
+	DEFAULT_FETCH_TIMEOUT_MS,
+	DEFAULT_MIN_SIZE_B,
+} from "../constants.ts";
 import type { ProviderModelConfig } from "../types.ts";
 import { fetchWithRetry, isUsableModel } from "../util.ts";
 
@@ -46,7 +50,7 @@ export async function fetchClineModels(): Promise<ProviderModelConfig[]> {
 
 	const models: ProviderModelConfig[] = [];
 	for (const info of freeModels) {
-		if (!isUsableModel(info.id)) continue;
+		if (!isUsableModel(info.id, DEFAULT_MIN_SIZE_B)) continue;
 
 		const isReasoning = !!(
 			info.supported_parameters?.includes("include_reasoning") ||

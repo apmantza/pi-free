@@ -25,7 +25,7 @@ import {
 	URL_MODELS_DEV,
 	URL_ZEN_TOS,
 } from "../constants.ts";
-import { type StoredModels, setupProvider, createCtxReRegister } from "../provider-helper.ts";
+import { type StoredModels, setupProvider, createCtxReRegister, addToFreeModelsCache } from "../provider-helper.ts";
 import type { ModelsDevModel, ZenGatewayModel } from "../types.ts";
 import { fetchWithRetry, logWarning } from "../util.ts";
 
@@ -376,6 +376,8 @@ export default async function (pi: ExtensionAPI) {
 			// Store for command toggle
 			stored.free = result.free;
 			stored.all = result.all;
+			// Update free models cache for model hopping
+			addToFreeModelsCache(PROVIDER_ZEN, result.free);
 		} catch (error) {
 			logWarning("zen", "Failed to fetch models", error);
 		}

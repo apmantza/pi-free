@@ -20,10 +20,8 @@ const LOG_LEVELS: Record<LogLevel, number> = {
 	error: 3,
 };
 
-// Default to info in production, debug in development
-const currentLevel: LogLevel =
-	(process.env.LOG_LEVEL as LogLevel) ||
-	(process.env.NODE_ENV === "development" ? "debug" : "info");
+// Default to error-only. Set LOG_LEVEL=debug or LOG_LEVEL=info to see more.
+const currentLevel: LogLevel = (process.env.LOG_LEVEL as LogLevel) || "error";
 
 function shouldLog(level: LogLevel): boolean {
 	return LOG_LEVELS[level] >= LOG_LEVELS[currentLevel];

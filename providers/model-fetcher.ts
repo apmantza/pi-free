@@ -3,7 +3,7 @@
  * Consolidates duplicate logic from openrouter.ts and kilo-models.ts
  */
 
-import { DEFAULT_FETCH_TIMEOUT_MS } from "../constants.ts";
+import { DEFAULT_FETCH_TIMEOUT_MS, DEFAULT_MIN_SIZE_B } from "../constants.ts";
 import type { ProviderModelConfig } from "../types.ts";
 import { fetchWithRetry, isUsableModel, mapOpenRouterModel } from "../util.ts";
 
@@ -105,8 +105,8 @@ export async function fetchOpenRouterCompatibleModels(
 				if (prompt !== 0 || completion !== 0) return false;
 			}
 
-			// Filter unusable models
-			if (!isUsableModel(m.id)) return false;
+			// Filter unusable and too-small models
+			if (!isUsableModel(m.id, DEFAULT_MIN_SIZE_B)) return false;
 
 			return true;
 		})
