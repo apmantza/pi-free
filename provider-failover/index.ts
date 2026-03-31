@@ -88,7 +88,7 @@ export async function handleProviderError(
 
 /**
  * Handle rate limit (429) error
- * Strategy: Compact → Retry same provider → Failover if still failing
+ * Strategy: Failover (model hop) → Autocompact as fallback
  */
 async function handleRateLimit(
 	classified: ClassifiedError,
@@ -105,39 +105,50 @@ async function handleRateLimit(
 
 	_logger.info(`Rate limit on ${provider}`, { isPaidMode, enableAutocompact });
 
-	// Check if we've already tried autocompact for this provider recently
-	const failureKey = `${provider}_compact_attempted`;
-	const compactAlreadyAttempted = failureCounts.get(failureKey) ?? 0;
+	// First: Try model hop to a different provider
+	// Check if we've already attempted failover for this error
+	const failureKey = `${provider}_failover_attempted`;
+	const failoverAlreadyAttempted = failureCounts.get(failureKey) ?? 0;
 
-	// In free mode with autocompact enabled: Try compact first, then retry same provider
-	if (!isPaidMode && enableAutocompact && compactAlreadyAttempted === 0) {
-		// Mark that we attempted compact
+	if (failoverAlreadyAttempted === 0) {
+		// Mark that we attempted failover
 		failureCounts.set(failureKey, 1);
 
+		const _waitTime = Math.round((classified.retryAfterMs ?? 60000) / 1000);
+		return {
+			action: "failover",
+			message: `Rate limit on ${provider}. Hopping to backup provider...`,
+			shouldRetry: false,
+			retryDelayMs: classified.retryAfterMs,
+		};
+	}
+
+	// Fallback: If failover was already attempted or failed, try autocompact
+	if (!isPaidMode && enableAutocompact) {
 		const compactResult = await triggerAutocompact(
 			pi,
 			ctx as unknown as {
 				ui: { notify: (m: string, t: "info" | "warning" | "error") => void };
 				session?: { id?: string };
 			},
-			`${provider} rate limit - compacting before retry`,
+			`${provider} rate limit - hop failed, compacting as fallback`,
 		);
 
 		if (compactResult.success) {
 			return {
 				action: "autocompact",
-				message: `Rate limit on ${provider}. ${compactResult.message} Please send your message again to retry.`,
+				message: `Rate limit on ${provider}. Model hop failed. ${compactResult.message} Please send your message again to retry.`,
 				shouldRetry: true,
-				retryDelayMs: 2000, // Short delay for compact to take effect
+				retryDelayMs: 2000,
 			};
 		}
 	}
 
-	// If compact was already attempted or failed, or we're in paid mode: Failover
+	// Both failed - give up
 	const waitTime = Math.round((classified.retryAfterMs ?? 60000) / 1000);
 	return {
-		action: "failover",
-		message: `Rate limit on ${provider}. Compact+retry failed. Hopping to backup provider or wait ${waitTime}s.`,
+		action: "fail",
+		message: `Rate limit on ${provider}. Model hop and autocompact both failed. Wait ${waitTime}s or switch providers manually with /model.`,
 		shouldRetry: false,
 		retryDelayMs: classified.retryAfterMs,
 	};
