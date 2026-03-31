@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-	type CapabilityTier,
 	estimateCapability,
 	generateCapabilityMessage,
 	getMinimumAcceptableTier,
@@ -129,28 +128,27 @@ describe("Capability Ranking", () => {
 
 	describe("isCapabilityDowngrade", () => {
 		it("should detect downgrade from high capability to low", () => {
-			const from = estimateCapability({
-				id: "high",
-				name: "High",
-				reasoning: true,
-				input: ["text"],
-				cost: { input: 30, output: 60, cacheRead: 0, cacheWrite: 0 },
+			// Explicitly construct capabilities to test the downgrade logic
+			// without relying on heuristic estimation
+			const from: ModelCapabilities = {
+				tier: "high",
+				score: 70,
 				contextWindow: 128000,
-				maxTokens: 4096,
-			} as ProviderModelConfig);
+				reasoning: true,
+				hasVision: false,
+			};
 
-			const to = estimateCapability({
-				id: "low",
-				name: "Low",
-				reasoning: false,
-				input: ["text"],
-				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			const to: ModelCapabilities = {
+				tier: "low",
+				score: 30,
 				contextWindow: 4096,
-				maxTokens: 2048,
-			} as ProviderModelConfig);
+				reasoning: false,
+				hasVision: false,
+			};
 
 			const result = isCapabilityDowngrade(from, to);
 			expect(result.isDowngrade).toBe(true);
+			expect(result.severity).toBe("major");
 		});
 
 		it("should not flag same capability as downgrade", () => {
@@ -219,28 +217,24 @@ describe("Capability Ranking", () => {
 		it("should generate downgrade message", () => {
 			const current = {
 				name: "Current Model",
-				capabilities: estimateCapability({
-					id: "current",
-					name: "Current",
-					reasoning: true,
-					input: ["text"],
-					cost: { input: 30, output: 60, cacheRead: 0, cacheWrite: 0 },
+				capabilities: {
+					tier: "high" as CapabilityTier,
+					score: 70,
 					contextWindow: 128000,
-					maxTokens: 4096,
-				} as ProviderModelConfig),
+					reasoning: true,
+					hasVision: false,
+				},
 			};
 
 			const target = {
 				name: "Worse Model",
-				capabilities: estimateCapability({
-					id: "target",
-					name: "Target",
-					reasoning: false,
-					input: ["text"],
-					cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				capabilities: {
+					tier: "low" as CapabilityTier,
+					score: 30,
 					contextWindow: 4096,
-					maxTokens: 2048,
-				} as ProviderModelConfig),
+					reasoning: false,
+					hasVision: false,
+				},
 			};
 
 			const message = generateCapabilityMessage(current, target);

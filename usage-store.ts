@@ -7,8 +7,9 @@
  * This answers: "how much free value have I gotten over time?"
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { createJSONStore } from "../lib/json-persistence.ts";
+import { createLogger } from "../lib/logger.ts";
 
 // =============================================================================
 // Types
@@ -40,27 +41,9 @@ export interface CumulativeUsageStore {
 const PI_DIR = join(process.env.HOME || process.env.USERPROFILE || "", ".pi");
 const USAGE_PATH = join(PI_DIR, "free-usage.json");
 
-let mem: CumulativeUsageStore | null = null;
+const logger = createLogger("usage-store");
 
-function load(): CumulativeUsageStore {
-	if (mem) return mem;
-	try {
-		mem = JSON.parse(readFileSync(USAGE_PATH, "utf8")) as CumulativeUsageStore;
-	} catch {
-		mem = {};
-	}
-	return mem;
-}
-
-function save(): void {
-	if (!mem) return;
-	try {
-		if (!existsSync(PI_DIR)) mkdirSync(PI_DIR, { recursive: true });
-		writeFileSync(USAGE_PATH, `${JSON.stringify(mem, null, 2)}\n`, "utf8");
-	} catch (err) {
-		console.debug("[usage-store] Failed to save usage data:", err);
-	}
-}
+const store = createJSONStore<CumulativeUsageStore>(USAGE_PATH, {});
 
 // =============================================================================
 // API
@@ -73,9 +56,9 @@ export function recordTurn(
 	tokensOut: number,
 	costEquivalent: number,
 ): void {
-	const store = load();
+	const data = store.load();
 	const now = new Date().toISOString();
-	const existing = store[provider];
+	const existing = data[provider];
 
 	if (existing) {
 		existing.tokensIn += tokensIn;
@@ -84,7 +67,7 @@ export function recordTurn(
 		existing.costEquivalent += costEquivalent;
 		existing.lastUsed = now;
 	} else {
-		store[provider] = {
+		data[provider] = {
 			tokensIn,
 			tokensOut,
 			requests: 1,
@@ -94,17 +77,23 @@ export function recordTurn(
 		};
 	}
 
-	save();
+	store.save(data);
+	logger.debug("recorded turn", {
+		provider,
+		tokensIn,
+		tokensOut,
+		costEquivalent,
+	});
 }
 
 /** Get cumulative usage for a specific provider. */
 export function getCumulativeUsage(
 	provider: string,
 ): ProviderCumulativeUsage | null {
-	return load()[provider] ?? null;
+	return store.load()[provider] ?? null;
 }
 
 /** Get all cumulative usage data. */
 export function getAllCumulativeUsage(): CumulativeUsageStore {
-	return load();
+	return store.load();
 }

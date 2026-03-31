@@ -66,6 +66,8 @@ export async function fetchWithRetry(
 					await new Promise((r) => setTimeout(r, delayMs * (i + 1)));
 					continue;
 				}
+				// Last retry exhausted - throw the error
+				throw lastError;
 			}
 
 			return response; // Return non-ok but non-retryable responses

@@ -21,13 +21,8 @@ import {
 import { BASE_URL_OPENROUTER, DEFAULT_FETCH_TIMEOUT_MS } from "../constants.ts";
 import { fetchOpenRouterMetrics } from "../metrics.ts";
 import { type StoredModels, setupProvider } from "../provider-helper.ts";
-import {
-	fetchWithRetry,
-	isUsableModel,
-	logWarning,
-	mapOpenRouterModel,
-	parseModelResponse,
-} from "../util.ts";
+import { logWarning } from "../util.ts";
+import { fetchOpenRouterModelsWithFree } from "./model-fetcher.ts";
 
 // =============================================================================
 // Fetch
@@ -37,73 +32,14 @@ async function fetchOpenRouterModels(apiKey: string): Promise<{
 	free: ProviderModelConfig[];
 	all: ProviderModelConfig[];
 }> {
-	const response = await fetchWithRetry(
-		`${BASE_URL_OPENROUTER}/models`,
-		{
-			headers: {
-				Authorization: `Bearer ${apiKey}`,
-				"User-Agent": "pi-free-providers",
-				"HTTP-Referer": "https://github.com/apmantza/pi-free",
-				"X-Title": "Pi",
-			},
+	const { free, all } = await fetchOpenRouterModelsWithFree({
+		baseUrl: BASE_URL_OPENROUTER,
+		apiKey,
+		extraHeaders: {
+			"HTTP-Referer": "https://github.com/apmantza/pi-free",
+			"X-Title": "Pi",
 		},
-		3,
-		1000,
-		DEFAULT_FETCH_TIMEOUT_MS,
-	);
-
-	if (!response.ok) {
-		throw new Error(
-			`Failed to fetch OpenRouter models: ${response.status} ${response.statusText}`,
-		);
-	}
-
-	const json = (await response.json()) as {
-		data?: {
-			id: string;
-			name: string;
-			context_length: number;
-			max_completion_tokens?: number | null;
-			pricing?: {
-				prompt?: string | null;
-				completion?: string | null;
-				input_cache_write?: string | null;
-				input_cache_read?: string | null;
-			};
-			architecture?: {
-				input_modalities?: string[] | null;
-				output_modalities?: string[] | null;
-			};
-			top_provider?: { max_completion_tokens?: number | null };
-			supported_parameters?: string[];
-		}[];
-	};
-
-	if (!json.data || !Array.isArray(json.data)) {
-		throw new Error("Invalid OpenRouter models response");
-	}
-
-	const chatModels = json.data.filter((m) => {
-		const out = m.architecture?.output_modalities ?? [];
-		if (out.includes("image")) return false;
-		return true;
 	});
-
-	const isFree = (m: (typeof chatModels)[0]): boolean => {
-		const prompt = parseFloat(m.pricing?.prompt ?? "1");
-		const completion = parseFloat(m.pricing?.completion ?? "1");
-		if (prompt !== 0 || completion !== 0) return false;
-		if (m.id.includes(":free")) return true;
-		if (m.id.startsWith("openrouter/")) return true;
-		return false;
-	};
-
-	const free = chatModels
-		.filter((m) => isFree(m) && isUsableModel(m.id))
-		.map(mapOpenRouterModel);
-	const all = chatModels
-		.filter((m) => isUsableModel(m.id))
-		.map(mapOpenRouterModel);
 
 	return { free: applyHidden(free), all: applyHidden(all) };
 }

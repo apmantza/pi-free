@@ -54,6 +54,9 @@ const AUTH_PATTERNS = [
 	/invalid.*token/i,
 	/authentication/i,
 	/api.*key.*invalid/i,
+	/key.*not.*valid/i,
+	/invalid.*api.*key/i,
+	/invalid.*auth/i,
 ];
 
 const NETWORK_PATTERNS = [

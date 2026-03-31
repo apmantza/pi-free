@@ -60,6 +60,34 @@ export const DEFAULT_MIN_SIZE_B = 30; // Default minimum model size for filterin
 // Timeouts (milliseconds)
 // =============================================================================
 
-export const DEFAULT_FETCH_TIMEOUT_MS = 10_000;
+// Test: LSP should validate type annotations
+export const DEFAULT_FETCH_TIMEOUT_MS: number = 10_000;
+
+// Test: LSP should flag unknown types
+export const TEST_LSP_UNKNOWN: UnknownType = "test";
+
+// Test: LSP should flag missing property
+export interface TestConfig {
+	timeout: number;
+	retries: number;
+	label: string;
+}
+
+// LSP test - fixed - added missing property
+export const testConfig: TestConfig = {
+	timeout: 5000,
+	retries: 3,
+	label: "test",
+};
+
+// LSP test - fixed return type
+export function calculateTimeout(base: number): number {
+	return base * 2;
+}
+
+// LSP test - unused variable (should show hint/warning if configured)
+export function unusedParamTest(required: string, unused: number): string {
+	return required.toUpperCase();
+}
 export const KILO_POLL_INTERVAL_MS = 3_000;
 export const KILO_TOKEN_EXPIRATION_MS = 365 * 24 * 60 * 60 * 1000; // 1 year

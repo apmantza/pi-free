@@ -13,9 +13,13 @@
  * - Fireworks: 1000 requests/month for free tier
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { createJSONStore } from "./lib/json-persistence.ts";
+import { createLogger } from "./lib/logger.ts";
 import { getDailyRequestCount, incrementRequestCount } from "./metrics.ts";
+
+// Module logger
+const logger = createLogger("free-tier");
 
 // =============================================================================
 // Per-Model Usage Tracking (more granular than provider-level)
@@ -49,6 +53,15 @@ const sessionStats: SessionStats = {
 	startTime: Date.now(),
 	providers: new Map(),
 };
+
+/**
+ * Reset session and model usage stats (for testing)
+ */
+export function resetUsageStats(): void {
+	modelUsageCounts.clear();
+	sessionStats.startTime = Date.now();
+	sessionStats.providers.clear();
+}
 
 /**
  * Track a request for a specific model with token usage
@@ -202,20 +215,27 @@ export function logModelUsageReport(provider?: string): void {
 		const totalTokensIn = models.reduce((sum, m) => sum + m.tokensIn, 0);
 		const totalTokensOut = models.reduce((sum, m) => sum + m.tokensOut, 0);
 
-		console.log(
-			`[usage-report] ${provider}: ${total} total requests, ~${Math.round(totalTokensIn / 1000)}K tokens in, ~${Math.round(totalTokensOut / 1000)}K out`,
-		);
+		logger.info(`${provider} usage summary: ${total} total requests`, {
+			total,
+			tokensInK: Math.round(totalTokensIn / 1000),
+			tokensOutK: Math.round(totalTokensOut / 1000),
+		});
 		for (const m of models.slice(0, 5)) {
-			console.log(
-				`  - ${m.modelId}: ${m.count} req, ~${Math.round(m.tokensIn / 1000)}K in`,
-			);
+			logger.debug(`${m.modelId} stats: ${m.count} requests`, {
+				modelId: m.modelId,
+				count: m.count,
+				tokensInK: Math.round(m.tokensIn / 1000),
+			});
 		}
 	} else {
-		console.log("[usage-report] Top 10 models across all providers:");
+		logger.info("Top 10 models across all providers");
 		for (const m of getTopModels(10)) {
-			console.log(
-				`  - ${m.provider}/${m.modelId}: ${m.count} req, ~${Math.round(m.tokensIn / 1000)}K in`,
-			);
+			logger.debug(`${m.provider}/${m.modelId}: ${m.count} requests`, {
+				provider: m.provider,
+				modelId: m.modelId,
+				count: m.count,
+				tokensInK: Math.round(m.tokensIn / 1000),
+			});
 		}
 	}
 }
@@ -416,46 +436,12 @@ interface CumulativeUsage {
 	grandTotalTokensOut: number;
 }
 
-let cachedCumulative: CumulativeUsage | null = null;
-
-function loadCumulative(): CumulativeUsage {
-	if (cachedCumulative) return cachedCumulative;
-
-	try {
-		if (existsSync(USAGE_FILE)) {
-			const data = JSON.parse(readFileSync(USAGE_FILE, "utf-8"));
-			cachedCumulative = data;
-			return data;
-		}
-	} catch (err) {
-		console.debug("[free-tier] Failed to load cumulative usage:", err);
-	}
-
-	cachedCumulative = {
-		providers: {},
-		grandTotalRequests: 0,
-		grandTotalTokensIn: 0,
-		grandTotalTokensOut: 0,
-	};
-	return cachedCumulative;
-}
-
-function saveCumulative(): void {
-	if (!cachedCumulative) return;
-
-	try {
-		if (!existsSync(PI_DIR)) {
-			mkdirSync(PI_DIR, { recursive: true });
-		}
-		writeFileSync(
-			USAGE_FILE,
-			JSON.stringify(cachedCumulative, null, 2),
-			"utf-8",
-		);
-	} catch (err) {
-		console.debug("[free-tier] Failed to save cumulative usage:", err);
-	}
-}
+const cumulativeStore = createJSONStore<CumulativeUsage>(USAGE_FILE, {
+	providers: {},
+	grandTotalRequests: 0,
+	grandTotalTokensIn: 0,
+	grandTotalTokensOut: 0,
+});
 
 /**
  * Persist usage to disk for cumulative tracking
@@ -466,7 +452,7 @@ function persistUsage(
 	tokensIn: number,
 	tokensOut: number,
 ): void {
-	const data = loadCumulative();
+	const data = cumulativeStore.load();
 	const now = new Date().toISOString();
 
 	let providerStats = data.providers[provider];
@@ -501,7 +487,8 @@ function persistUsage(
 	data.grandTotalTokensIn += tokensIn;
 	data.grandTotalTokensOut += tokensOut;
 
-	saveCumulative();
+	cumulativeStore.save(data);
+	logger.debug("persisted usage", { provider, modelId, tokensIn, tokensOut });
 }
 
 // =============================================================================
@@ -663,7 +650,7 @@ export interface CumulativeUsageReport {
  * Get cumulative usage from disk
  */
 export function getCumulativeUsage(): CumulativeUsageReport {
-	const data = loadCumulative();
+	const data = cumulativeStore.load();
 
 	const providers: CumulativeUsageReport["providers"] = [];
 
