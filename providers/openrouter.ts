@@ -18,11 +18,11 @@ import {
 	OPENROUTER_SHOW_PAID,
 	PROVIDER_OPENROUTER,
 } from "../config.ts";
-import { BASE_URL_OPENROUTER, DEFAULT_FETCH_TIMEOUT_MS } from "../constants.ts";
+import { BASE_URL_OPENROUTER, DEFAULT_FETCH_TIMEOUT_MS, DEFAULT_MIN_SIZE_B } from "../constants.ts";
 import { fetchOpenRouterMetrics } from "../metrics.ts";
 import { type StoredModels, setupProvider, createCtxReRegister, addToFreeModelsCache } from "../provider-helper.ts";
 import { createLogger } from "../lib/logger.ts";
-import { logWarning } from "../util.ts";
+import { isUsableModel, logWarning } from "../util.ts";
 import { fetchOpenRouterModelsWithFree } from "./model-fetcher.ts";
 
 const _logger = createLogger("openrouter");
@@ -97,6 +97,7 @@ export default async function (pi: ExtensionAPI) {
 			// User has existing auth - filter to free models, use their key
 			const freeModels = existingModels
 				.filter((m) => (m.cost?.input ?? 0) === 0)
+				.filter((m) => isUsableModel(m.id, DEFAULT_MIN_SIZE_B))
 				.map((m) => ({
 					id: m.id,
 					name: m.name,
