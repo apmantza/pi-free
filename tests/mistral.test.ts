@@ -162,8 +162,9 @@ describe("Mistral Provider", () => {
 			const handler = providerRequestCall?.[1];
 
 			// Test with Mistral model - should filter
+			// Event structure: { type: "before_provider_request", payload: {...} }
 			const mistralEvent = {
-				model: { provider: "mistral", id: "mistral-small-latest" },
+				type: "before_provider_request",
 				payload: {
 					model: "mistral-small-latest",
 					messages: [],
@@ -197,7 +198,7 @@ describe("Mistral Provider", () => {
 
 			// Test with non-Mistral model - should pass through unchanged
 			const otherEvent = {
-				model: { provider: "openrouter", id: "some-model" },
+				type: "before_provider_request",
 				payload: {
 					model: "some-model",
 					messages: [],

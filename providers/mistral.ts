@@ -128,6 +128,24 @@ const MISTRAL_UNSUPPORTED_FIELDS = new Set([
 	"prediction",
 ]);
 
+// Known Mistral model IDs for detection
+const MISTRAL_MODEL_IDS = new Set([
+	"mistral-small-latest",
+	"mistral-medium-latest",
+	"mistral-large-latest",
+	"mistral-large-2411",
+	"mistral-small-2503",
+	"mistral-small-2505",
+	"open-mistral-nemo",
+	"mistral-tiny",
+	"mistral-embed",
+]);
+
+function isMistralPayload(payload: Record<string, unknown>): boolean {
+	const modelId = payload.model as string | undefined;
+	return !!modelId && MISTRAL_MODEL_IDS.has(modelId);
+}
+
 function filterMistralPayload(payload: Record<string, unknown>): Record<string, unknown> {
 	const filtered: Record<string, unknown> = {};
 	for (const [key, value] of Object.entries(payload)) {
@@ -157,8 +175,9 @@ export default async function (pi: ExtensionAPI) {
 
 	// Filter out unsupported fields from requests to Mistral
 	pi.on("before_provider_request", (event) => {
-		if (event.model.provider === PROVIDER_MISTRAL) {
-			return filterMistralPayload(event.payload as Record<string, unknown>);
+		const payload = event.payload as Record<string, unknown>;
+		if (isMistralPayload(payload)) {
+			return filterMistralPayload(payload);
 		}
 		return undefined;
 	});
