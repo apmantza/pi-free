@@ -138,4 +138,78 @@ describe("Mistral Provider", () => {
 			);
 		});
 	});
+
+	describe("payload filtering", () => {
+		it("should register before_provider_request handler", async () => {
+			await mistralProvider(mockPi);
+
+			expect(mockPi.on).toHaveBeenCalledWith(
+				"before_provider_request",
+				expect.any(Function),
+			);
+		});
+
+		it("should filter out unsupported fields for Mistral requests", async () => {
+			await mistralProvider(mockPi);
+
+			// Get the handler registered via pi.on
+			const onCalls = (mockPi.on as ReturnType<typeof vi.fn>).mock.calls;
+			const providerRequestCall = onCalls.find(
+				(call: any[]) => call[0] === "before_provider_request",
+			);
+			expect(providerRequestCall).toBeDefined();
+
+			const handler = providerRequestCall?.[1];
+
+			// Test with Mistral model - should filter
+			const mistralEvent = {
+				model: { provider: "mistral", id: "mistral-small-latest" },
+				payload: {
+					model: "mistral-small-latest",
+					messages: [],
+					seed: 12345,
+					user: "test-user",
+					metadata: { foo: "bar" },
+					prediction: { type: "content", content: "test" },
+					temperature: 0.7,
+				},
+			};
+
+			const result = handler(mistralEvent);
+
+			expect(result).toBeDefined();
+			expect(result.seed).toBeUndefined();
+			expect(result.user).toBeUndefined();
+			expect(result.metadata).toBeUndefined();
+			expect(result.prediction).toBeUndefined();
+			expect(result.temperature).toBe(0.7);
+			expect(result.model).toBe("mistral-small-latest");
+		});
+
+		it("should not filter requests from other providers", async () => {
+			await mistralProvider(mockPi);
+
+			const onCalls = (mockPi.on as ReturnType<typeof vi.fn>).mock.calls;
+			const providerRequestCall = onCalls.find(
+				(call: any[]) => call[0] === "before_provider_request",
+			);
+			const handler = providerRequestCall?.[1];
+
+			// Test with non-Mistral model - should pass through unchanged
+			const otherEvent = {
+				model: { provider: "openrouter", id: "some-model" },
+				payload: {
+					model: "some-model",
+					messages: [],
+					seed: 12345,
+					user: "test-user",
+				},
+			};
+
+			const result = handler(otherEvent);
+
+			// Should return undefined to let payload through unchanged
+			expect(result).toBeUndefined();
+		});
+	});
 });

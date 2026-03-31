@@ -114,6 +114,31 @@ function getMistralModels(): ProviderModelConfig[] {
 }
 
 // =============================================================================
+// Mistral payload filter
+// =============================================================================
+// Mistral's API is OpenAI-compatible but stricter — it rejects unknown fields
+// with 422 Unprocessable Entity. Supported fields: stop, top_p,
+// frequency_penalty, presence_penalty, response_format, tool_choice,
+// parallel_tool_calls. NOT supported: seed, user, metadata, prediction.
+
+const MISTRAL_UNSUPPORTED_FIELDS = new Set([
+	"seed",
+	"user",
+	"metadata",
+	"prediction",
+]);
+
+function filterMistralPayload(payload: Record<string, unknown>): Record<string, unknown> {
+	const filtered: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(payload)) {
+		if (!MISTRAL_UNSUPPORTED_FIELDS.has(key)) {
+			filtered[key] = value;
+		}
+	}
+	return filtered;
+}
+
+// =============================================================================
 // Extension Entry Point
 // =============================================================================
 
@@ -129,6 +154,14 @@ export default async function (pi: ExtensionAPI) {
 		);
 		return;
 	}
+
+	// Filter out unsupported fields from requests to Mistral
+	pi.on("before_provider_request", (event) => {
+		if (event.model.provider === PROVIDER_MISTRAL) {
+			return filterMistralPayload(event.payload as Record<string, unknown>);
+		}
+		return undefined;
+	});
 
 	const allModels = getMistralModels();
 
