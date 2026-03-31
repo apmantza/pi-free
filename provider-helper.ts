@@ -17,6 +17,34 @@ import { incrementModelRequestCount } from "./usage/tracking.ts";
 
 const _logger = createLogger("provider-helper");
 
+// =============================================================================
+// Global free models cache for model hopping
+// =============================================================================
+
+export const freeModelsCache: Array<{
+	provider: string;
+	model: ProviderModelConfig;
+}> = [];
+
+export function addToFreeModelsCache(
+	provider: string,
+	models: ProviderModelConfig[],
+): void {
+	// Remove existing models for this provider first
+	const _idx = freeModelsCache.findIndex((m) => m.provider === provider);
+	while (freeModelsCache.findIndex((m) => m.provider === provider) !== -1) {
+		freeModelsCache.splice(
+			freeModelsCache.findIndex((m) => m.provider === provider),
+			1,
+		);
+	}
+	// Add new models
+	for (const model of models) {
+		freeModelsCache.push({ provider, model });
+	}
+	_logger.info(`Cached ${models.length} free models for ${provider}`);
+}
+
 import { enhanceModelNameWithCodingIndex } from "./provider-failover/hardcoded-benchmarks.js";
 import {
 	handleProviderError,
@@ -186,6 +214,8 @@ export function setupProvider(
 	const reRegister = (models: ProviderModelConfig[], s: StoredModels) => {
 		const enhanced = enhanceWithCI(models);
 		config.reRegister(enhanced, s);
+		// Update global free models cache for model hopping
+		addToFreeModelsCache(providerId, s.free);
 	};
 
 	// ── Toggle commands ──────────────────────────────────────────────────
@@ -352,10 +382,10 @@ export function setupProvider(
 							},
 							modelRegistry: {
 								getAvailable: () => {
-									// Get all models from pi's model registry, excluding current provider
-									return ctx.modelRegistry.getAll().filter(
-										(m: any) => m.provider !== providerId
-									) as any[];
+									// Use our free models cache - only providers we actually registered
+									return freeModelsCache
+										.filter((m) => m.provider !== providerId)
+										.map((m) => ({ ...m.model, provider: m.provider })) as any[];
 								},
 							},
 							session: (ctx as { session?: { id?: string } }).session,
@@ -448,4 +478,7 @@ export function setupProvider(
 			);
 		});
 	}
+
+	// ── Initialize free models cache ────────────────────────────────
+	addToFreeModelsCache(providerId, stored.free);
 }
