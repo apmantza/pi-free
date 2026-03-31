@@ -177,7 +177,8 @@ export default async function (pi: ExtensionAPI) {
 
 	// Filter out unsupported fields from requests to Mistral
 	// Using whitelist approach: only allow fields Mistral supports
-	pi.on("before_provider_request", (event) => {
+	// Note: before_provider_request is a runtime event not in SDK types
+	(pi.on as Function)("before_provider_request", (event: { type: string; payload: unknown }) => {
 		const payload = event.payload as Record<string, unknown>;
 		if (isMistralPayload(payload)) {
 			return filterMistralPayload(payload);

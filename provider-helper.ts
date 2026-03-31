@@ -11,9 +11,9 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
-import { incrementModelRequestCount } from "./usage/tracking.ts";
 import { createLogger } from "./lib/logger.ts";
 import { incrementRequestCount } from "./metrics.js";
+import { incrementModelRequestCount } from "./usage/tracking.ts";
 
 const _logger = createLogger("provider-helper");
 
@@ -23,6 +23,7 @@ import {
 	isProviderExhausted,
 	resetFailureCount,
 } from "./provider-failover/index.js";
+import { handleModelHop } from "./provider-failover/model-hop.js";
 
 // =============================================================================
 // Types
@@ -303,14 +304,84 @@ export function setupProvider(
 					);
 				}
 
-				// Auto-retry with last user message after failover
-				if (lastUserMsg) {
-					setTimeout(async () => {
-						ctx.ui.notify("🔄 Auto-retrying on new provider...", "info");
-						await (pi as any).sendUserMessage?.(lastUserMsg, {
-							deliverAs: "steer",
-						});
-					}, result.retryDelayMs ?? 3000);
+				// Attempt intelligent model hop
+				const currentModelId = ctx.model?.id ?? "";
+				const currentModelName = ctx.model?.name ?? currentModelId;
+
+				try {
+					const hopResult = await handleModelHop(
+						pi,
+						{
+							ui: ctx.ui as {
+								notify: (
+									msg: string,
+									type: "info" | "warning" | "error",
+								) => void;
+							},
+							sessionManager: {
+								getBranch: () => {
+									// Try to get branch from event, fallback to empty
+									const branch = (
+										event as {
+											branch?: Array<{
+												type: string;
+												message?: { role?: string; content?: unknown };
+											}>;
+										}
+									).branch;
+									return (branch ?? []).map((e) => ({
+										type: e.type ?? "message",
+										message: e.message
+											? {
+													role: e.message.role,
+													content:
+														typeof e.message.content === "string"
+															? e.message.content
+															: Array.isArray(e.message.content)
+																? e.message.content
+																		.map(
+																			(c: unknown) =>
+																				(c as { text?: string }).text ?? "",
+																		)
+																		.join("")
+																: "",
+												}
+											: undefined,
+									}));
+								},
+							},
+							modelRegistry: {
+								getAvailable: () => {
+									// Get all models from all stored providers
+									// For now, return empty - will be enhanced per-provider
+									return [];
+								},
+							},
+							session: (ctx as { session?: { id?: string } }).session,
+						},
+						providerId,
+						currentModelId,
+						currentModelName,
+						errorMsg,
+						{
+							isPaidMode: config.isPaidMode ?? false,
+							allowDowngrades: "minor",
+							maxHops: 3,
+						},
+					);
+
+					if (hopResult.success) {
+						ctx.ui.notify(`✅ ${hopResult.message}`, "info");
+					} else {
+						// Hop failed, notify user
+						ctx.ui.notify(`❌ ${hopResult.message}`, "warning");
+					}
+				} catch (err) {
+					_logger.error("Model hop failed", err);
+					ctx.ui.notify(
+						"Model hop failed, try /model to switch manually",
+						"warning",
+					);
 				}
 			} else if (result.action === "fail") {
 				ctx.ui.notify(result.message, "error");
