@@ -121,10 +121,45 @@ export async function parseModelResponse<T>(
 // Model Filtering Utilities
 // =============================================================================
 
+// Models known to be small (no "Xb" in their ID) that should be filtered.
+// Updated as new small free models appear on OpenRouter/Kilo.
+const KNOWN_SMALL_MODELS: ReadonlySet<string> = new Set([
+	// Microsoft Phi models (1.5B–14B)
+	"microsoft/phi-3-mini-128k-instruct",
+	"microsoft/phi-3-mini-4k-instruct",
+	"microsoft/phi-3-small-128k-instruct",
+	"microsoft/phi-3-small-8k-instruct",
+	"microsoft/phi-3-medium-128k-instruct",
+	"microsoft/phi-3-medium-4k-instruct",
+	"microsoft/phi-3.5-mini-instruct",
+	"microsoft/phi-4-mini-instruct",
+	"microsoft/phi-4-mini-reasoning",
+	"microsoft/phi-4-reasoning-plus",
+	// OpenChat (7B)
+	"openchat/openchat-3.5-0106",
+	"openchat/openchat-3.5-1210",
+	// Mistral 7B variants
+	"mistralai/mistral-7b-instruct-v0.1",
+	"mistralai/mistral-7b-instruct-v0.2",
+	"mistralai/mistral-7b-instruct-v0.3",
+	// Gemma small variants
+	"google/gemma-2b-it",
+	"google/gemma-1.1-2b-it",
+	// DeepSeek small variants
+	"deepseek/deepseek-r1-distill-qwen-1.5b",
+	"deepseek/deepseek-r1-distill-llama-8b",
+	"deepseek/deepseek-r1-distill-qwen-7b",
+	"deepseek/deepseek-r1-distill-qwen-14b",
+	// Stripe Hyena (2.7B)
+	"togethercomputer/stripedhy-2.7b",
+	// TinyLlama
+	"tinyllama/tinyllama-1.1b-chat-v1.0",
+]);
+
 /**
- * Check if model is usable based on size constraints and naming
- * Used by NVIDIA provider to filter out test/debug and small models.
+ * Check if model is usable based on size constraints and naming.
  * Extracts model size from ID (e.g., "llama-3-70b" -> 70) and compares to minSizeB.
+ * Falls back to a blocklist for models that don't encode size in the name.
  */
 export function isUsableModel(modelId: string, minSizeB?: number): boolean {
 	// Filter out models that are likely test or debug models
@@ -134,6 +169,11 @@ export function isUsableModel(modelId: string, minSizeB?: number): boolean {
 
 	// Filter by minimum size if specified
 	if (minSizeB !== undefined) {
+		// Known-small blocklist (models without "Xb" in the name)
+		// Strip :free suffix used by OpenRouter/Kilo
+		const baseId = modelId.replace(/:free$/, "");
+		if (KNOWN_SMALL_MODELS.has(baseId)) return false;
+
 		// Check Mixture-of-Experts models first (e.g., "8x22b" = 176b total)
 		const moeMatch = modelId.match(/(\d+)x(\d+(?:\.\d+)?)b/i);
 		if (moeMatch) {
