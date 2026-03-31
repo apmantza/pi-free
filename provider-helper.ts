@@ -147,6 +147,33 @@ export function createReRegister(
 	};
 }
 
+/**
+ * Create a reRegister function that uses ctx.modelRegistry.registerProvider.
+ * Used by providers that need to register with runtime context (session_start handlers).
+ */
+export function createCtxReRegister(
+	ctx: {
+		modelRegistry: { registerProvider: (id: string, config: unknown) => void };
+	},
+	config: OpenAICompatibleConfig,
+): (models: ProviderModelConfig[]) => void {
+	const { providerId, baseUrl, apiKey, headers, oauth } = config;
+
+	return (models: ProviderModelConfig[]) => {
+		ctx.modelRegistry.registerProvider(providerId, {
+			baseUrl,
+			apiKey,
+			api: "openai-completions" as const,
+			headers: {
+				"User-Agent": "pi-free-providers",
+				...headers,
+			},
+			models: enhanceWithCI(models),
+			...(oauth && { oauth }),
+		});
+	};
+}
+
 export function setupProvider(
 	pi: ExtensionAPI,
 	config: ProviderSetupConfig,

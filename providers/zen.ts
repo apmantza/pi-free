@@ -25,9 +25,19 @@ import {
 	URL_MODELS_DEV,
 	URL_ZEN_TOS,
 } from "../constants.ts";
-import { type StoredModels, setupProvider } from "../provider-helper.ts";
+import { type StoredModels, setupProvider, createCtxReRegister } from "../provider-helper.ts";
 import type { ModelsDevModel, ZenGatewayModel } from "../types.ts";
 import { fetchWithRetry, logWarning } from "../util.ts";
+
+const ZEN_CONFIG = {
+	providerId: PROVIDER_ZEN,
+	baseUrl: BASE_URL_ZEN,
+	apiKey: "PI_FREE_ZEN_API_KEY",
+	headers: {
+		"X-Title": "Pi",
+		"HTTP-Referer": "https://opencode.ai/",
+	},
+};
 
 // =============================================================================
 // Session/Request ID generation (matches OpenCode behavior)
@@ -327,10 +337,8 @@ export default async function (pi: ExtensionAPI) {
 	// Shared model storage (references held by setupProvider for commands)
 	const stored: StoredModels = { free: [], all: [] };
 
-	// We need a closure that captures the runtime ctx for re-registration.
-	// setupProvider's reRegister callback will call this with the current ctx.
-	let ctx_modelRegistry_register: (models: ProviderModelConfig[]) => void =
-		() => {};
+	// Re-registration function - will be set in session_start with ctx
+	let reRegisterFn: (models: ProviderModelConfig[]) => void = () => {};
 
 	// Wire up shared boilerplate (commands, model_select, turn_end, ToS)
 	setupProvider(
@@ -339,9 +347,7 @@ export default async function (pi: ExtensionAPI) {
 			providerId: PROVIDER_ZEN,
 			tosUrl: URL_ZEN_TOS,
 			hasKey,
-			reRegister: (models, _stored) => {
-				ctx_modelRegistry_register(models);
-			},
+			reRegister: (models) => reRegisterFn(models),
 		},
 		stored,
 	);
@@ -382,26 +388,19 @@ export default async function (pi: ExtensionAPI) {
 		// Generate session ID for this session (used in headers)
 		const sessionId = getSessionId();
 
-		// Set up the re-registration closure with this ctx
-		ctx_modelRegistry_register = (m: ProviderModelConfig[]) => {
-			ctx.modelRegistry.registerProvider(PROVIDER_ZEN, {
-				baseUrl: BASE_URL_ZEN,
-				apiKey: ZEN_KEY_VAR,
-				api: "openai-completions" as const,
-				headers: {
-					"X-Title": "Pi",
-					"HTTP-Referer": "https://opencode.ai/",
-					"User-Agent": "pi-free-providers",
-					// Session affinity headers (matches OpenCode behavior)
-					"x-opencode-session": sessionId,
-					"x-session-affinity": sessionId,
-				},
-				models: m,
-			});
+		// Create re-register function with session headers
+		const sessionConfig = {
+			...ZEN_CONFIG,
+			headers: {
+				...ZEN_CONFIG.headers,
+				"x-opencode-session": sessionId,
+				"x-session-affinity": sessionId,
+			},
 		};
+		reRegisterFn = createCtxReRegister(ctx, sessionConfig);
 
 		// Register our filtered provider (CI enhancement handled by provider-helper)
-		ctx_modelRegistry_register(models);
+		reRegisterFn(models);
 	});
 
 	// Update request count before each agent turn (for request ID generation)

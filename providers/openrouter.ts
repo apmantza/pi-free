@@ -20,12 +20,22 @@ import {
 } from "../config.ts";
 import { BASE_URL_OPENROUTER, DEFAULT_FETCH_TIMEOUT_MS } from "../constants.ts";
 import { fetchOpenRouterMetrics } from "../metrics.ts";
-import { type StoredModels, setupProvider } from "../provider-helper.ts";
+import { type StoredModels, setupProvider, createCtxReRegister } from "../provider-helper.ts";
 import { createLogger } from "../lib/logger.ts";
 import { logWarning } from "../util.ts";
 import { fetchOpenRouterModelsWithFree } from "./model-fetcher.ts";
 
 const _logger = createLogger("openrouter");
+
+const OPENROUTER_CONFIG = {
+	providerId: PROVIDER_OPENROUTER,
+	baseUrl: BASE_URL_OPENROUTER,
+	apiKey: "OPENROUTER_API_KEY",
+	headers: {
+		"HTTP-Referer": "https://github.com/apmantza/pi-free",
+		"X-Title": "Pi",
+	},
+};
 
 // =============================================================================
 // Fetch
@@ -57,7 +67,7 @@ export default async function (pi: ExtensionAPI) {
 	// Shared model storage (references held by setupProvider for commands)
 	const stored: StoredModels = { free: [], all: [] };
 
-	// Re-registration closure (set in session_start when we have ctx)
+	// Re-registration function - will be set in session_start with ctx
 	let reRegisterFn: (models: ProviderModelConfig[]) => void = () => {};
 
 	// Wire up shared boilerplate (commands, model_select, turn_end)
@@ -108,22 +118,8 @@ export default async function (pi: ExtensionAPI) {
 			stored.free = freeModels;
 			stored.all = existingModels;
 
-			// Set up re-registration closure
-			reRegisterFn = (m: ProviderModelConfig[]) => {
-				ctx.modelRegistry.registerProvider(PROVIDER_OPENROUTER, {
-					baseUrl: BASE_URL_OPENROUTER,
-					apiKey: "OPENROUTER_API_KEY",
-					api: "openai-completions" as const,
-					headers: {
-						"HTTP-Referer": "https://github.com/apmantza/pi-free",
-						"X-Title": "Pi",
-						"User-Agent": "pi-free-providers",
-					},
-					models: m,
-				});
-			};
-
-			// Register filtered version (no apiKey - uses existing Pi auth)
+			// Create re-register function using ctx
+			reRegisterFn = createCtxReRegister(ctx, OPENROUTER_CONFIG);
 			reRegisterFn(freeModels);
 			return;
 		}
@@ -159,22 +155,8 @@ export default async function (pi: ExtensionAPI) {
 			stored.all = fetchResult.all;
 		}
 
-		// Set up re-registration closure
-		reRegisterFn = (m: ProviderModelConfig[]) => {
-			ctx.modelRegistry.registerProvider(PROVIDER_OPENROUTER, {
-				baseUrl: BASE_URL_OPENROUTER,
-				apiKey: "OPENROUTER_API_KEY",
-				api: "openai-completions" as const,
-				headers: {
-					"HTTP-Referer": "https://github.com/apmantza/pi-free",
-					"X-Title": "Pi",
-					"User-Agent": "pi-free-providers",
-				},
-				models: m,
-			});
-		};
-
-		// Register our filtered provider
+		// Create re-register function using ctx and register
+		reRegisterFn = createCtxReRegister(ctx, OPENROUTER_CONFIG);
 		reRegisterFn(models);
 
 		// Fetch and cache metrics (used internally, not displayed)

@@ -20,6 +20,8 @@ import {
 	enhanceWithCI,
 	type StoredModels,
 	setupProvider,
+	createReRegister,
+	createCtxReRegister,
 } from "../provider-helper.ts";
 import { registerUsageWidget } from "../usage-widget.ts";
 import { logWarning } from "../util.ts";
@@ -27,12 +29,11 @@ import { loginKilo, refreshKiloToken } from "./kilo-auth.ts";
 import { fetchKiloModels, KILO_GATEWAY_BASE } from "./kilo-models.ts";
 
 const KILO_PROVIDER_CONFIG = {
+	providerId: PROVIDER_KILO,
 	baseUrl: KILO_GATEWAY_BASE,
 	apiKey: "KILO_API_KEY",
-	api: "openai-completions" as const,
 	headers: {
 		"X-KILOCODE-EDITORNAME": "Pi",
-		"User-Agent": "pi-free-providers",
 	},
 };
 
@@ -49,61 +50,67 @@ export default async function (pi: ExtensionAPI) {
 	// Shared model storage for setupProvider commands
 	const stored: StoredModels = { free: freeModels, all: [] };
 
-	// Created once — the closure captures cachedAllModels by reference so
-	// updates to it are visible without recreating the config object.
-	const oauthConfig = (function makeOAuthConfig() {
-		return {
-			name: "Kilo",
-			login: async (callbacks: any) => {
-				const cred = await loginKilo(callbacks);
-				try {
-					cachedAllModels = await fetchKiloModels({ token: cred.access });
-					stored.all = cachedAllModels;
-				} catch (error) {
-					logWarning("kilo", "Failed to fetch models after login", error);
-				}
-				return cred;
-			},
-			refreshToken: refreshKiloToken,
-			getApiKey: (cred: OAuthCredentials) => cred.access,
-			modifyModels: (models: Model<Api>[], _cred: OAuthCredentials) => {
-				if (KILO_FREE_ONLY || cachedAllModels.length === 0) return models;
-				const template = models.find((m) => m.provider === PROVIDER_KILO);
-				if (!template) return models;
-				const nonKilo = models.filter((m) => m.provider !== PROVIDER_KILO);
-				const fullModels = cachedAllModels.map((m) => ({
-					...template,
-					id: m.id,
-					name: m.name,
-					reasoning: m.reasoning,
-					input: m.input,
-					cost: m.cost,
-					contextWindow: m.contextWindow,
-					maxTokens: m.maxTokens,
-				}));
-				return [...nonKilo, ...fullModels];
-			},
-		};
-	})();
+	// OAuth config for Kilo (shared across registrations)
+	const oauthConfig = {
+		name: "Kilo",
+		login: async (callbacks: any) => {
+			const cred = await loginKilo(callbacks);
+			try {
+				cachedAllModels = await fetchKiloModels({ token: cred.access });
+				stored.all = cachedAllModels;
+			} catch (error) {
+				logWarning("kilo", "Failed to fetch models after login", error);
+			}
+			return cred;
+		},
+		refreshToken: refreshKiloToken,
+		getApiKey: (cred: OAuthCredentials) => cred.access,
+		modifyModels: (models: Model<Api>[], _cred: OAuthCredentials) => {
+			if (KILO_FREE_ONLY || cachedAllModels.length === 0) return models;
+			const template = models.find((m) => m.provider === PROVIDER_KILO);
+			if (!template) return models;
+			const nonKilo = models.filter((m) => m.provider !== PROVIDER_KILO);
+			const fullModels = cachedAllModels.map((m) => ({
+				...template,
+				id: m.id,
+				name: m.name,
+				reasoning: m.reasoning,
+				input: m.input,
+				cost: m.cost,
+				contextWindow: m.contextWindow,
+				maxTokens: m.maxTokens,
+			}));
+			return [...nonKilo, ...fullModels];
+		},
+	};
 
+	// Register initial provider
 	pi.registerProvider(PROVIDER_KILO, {
-		...KILO_PROVIDER_CONFIG,
+		baseUrl: KILO_GATEWAY_BASE,
+		apiKey: "KILO_API_KEY",
+		api: "openai-completions" as const,
+		headers: {
+			"X-KILOCODE-EDITORNAME": "Pi",
+			"User-Agent": "pi-free-providers",
+		},
 		models: enhanceWithCI(freeModels),
 		oauth: oauthConfig,
 	});
 
 	// Wire up shared boilerplate (commands, model_select, turn_end, ToS)
+	const reRegister = createReRegister(pi, {
+		...KILO_PROVIDER_CONFIG,
+		oauth: oauthConfig as any,
+	});
 	setupProvider(
 		pi,
 		{
 			providerId: PROVIDER_KILO,
 			tosUrl: URL_KILO_TOS,
 			reRegister: (models) => {
-				pi.registerProvider(PROVIDER_KILO, {
-					...KILO_PROVIDER_CONFIG,
-					models,
-					oauth: oauthConfig,
-				});
+				stored.free = models;
+				stored.all = models;
+				reRegister(models);
 			},
 		},
 		stored,
@@ -122,11 +129,11 @@ export default async function (pi: ExtensionAPI) {
 				cachedAllModels = await fetchKiloModels({ token: cred.access });
 				stored.all = cachedAllModels;
 				if (cachedAllModels.length > 0) {
-					ctx.modelRegistry.registerProvider(PROVIDER_KILO, {
+					const ctxReRegister = createCtxReRegister(ctx, {
 						...KILO_PROVIDER_CONFIG,
-						models: freeModels,
-						oauth: oauthConfig,
+						oauth: oauthConfig as any,
 					});
+					ctxReRegister(freeModels);
 				}
 			} catch (error) {
 				logWarning("kilo", "Failed to fetch models at session start", error);
