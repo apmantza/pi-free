@@ -117,33 +117,29 @@ function getMistralModels(): ProviderModelConfig[] {
 // Mistral payload filter
 // =============================================================================
 // Mistral's API is OpenAI-compatible but stricter — it rejects unknown fields
-// with 422 Unprocessable Entity. Supported fields: stop, top_p,
-// frequency_penalty, presence_penalty, response_format, tool_choice,
-// parallel_tool_calls. NOT supported: seed, user, metadata, prediction.
+// with 422 Unprocessable Entity. 
+//
+// Supported: stop, top_p, frequency_penalty, presence_penalty, response_format,
+// tool_choice, parallel_tool_calls, max_tokens, temperature
+//
+// NOT supported: store, stream_options, seed, user, metadata, prediction,
+// max_completion_tokens (use max_tokens instead)
 
-const MISTRAL_UNSUPPORTED_FIELDS = new Set([
-	// Fields that cause 422 from Mistral
-	"store",           // OpenAI-specific: stores completion for later access
-	"stream_options",  // May not be supported by Mistral
-	"prediction",      // OpenAI-specific
-	"metadata",        // OpenAI-specific
-	"user",            // OpenAI-specific
-	"seed",            // Not supported by Mistral
-]);
-
-// Known Mistral model IDs for detection - covers all our registered models
-const MISTRAL_MODEL_IDS = new Set([
-	"mistral-small-latest",
-	"mistral-medium-latest",
-	"mistral-large-latest",
-	"mistral-large-2411",
-	"mistral-small-2503",
-	"mistral-small-2505",
-	"mistral-medium-2505",
-	"mistral-large-2505",
-	"open-mistral-nemo",
-	"mistral-tiny",
-	"mistral-embed",
+// WHITELIST: Only include fields that Mistral explicitly supports
+const MISTRAL_ALLOWED_FIELDS = new Set([
+	"model",
+	"messages",
+	"tools",
+	"stream",
+	"stop",
+	"top_p",
+	"frequency_penalty",
+	"presence_penalty",
+	"response_format",
+	"tool_choice",
+	"parallel_tool_calls",
+	"temperature",
+	"max_tokens",
 ]);
 
 function isMistralPayload(payload: Record<string, unknown>): boolean {
@@ -155,7 +151,7 @@ function isMistralPayload(payload: Record<string, unknown>): boolean {
 function filterMistralPayload(payload: Record<string, unknown>): Record<string, unknown> {
 	const filtered: Record<string, unknown> = {};
 	for (const [key, value] of Object.entries(payload)) {
-		if (!MISTRAL_UNSUPPORTED_FIELDS.has(key)) {
+		if (MISTRAL_ALLOWED_FIELDS.has(key)) {
 			filtered[key] = value;
 		}
 	}
@@ -180,12 +176,10 @@ export default async function (pi: ExtensionAPI) {
 	}
 
 	// Filter out unsupported fields from requests to Mistral
+	// Using whitelist approach: only allow fields Mistral supports
 	pi.on("before_provider_request", (event) => {
 		const payload = event.payload as Record<string, unknown>;
-		_logger.info(`[FILTER] Called. model=${payload.model}, keys=${Object.keys(payload).join(",")}`);
 		if (isMistralPayload(payload)) {
-			const removed = Object.keys(payload).filter(k => MISTRAL_UNSUPPORTED_FIELDS.has(k));
-			_logger.info(`[FILTER] Removing: ${removed.join(", ") || "none"}`);
 			return filterMistralPayload(payload);
 		}
 		return undefined;

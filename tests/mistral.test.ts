@@ -149,7 +149,7 @@ describe("Mistral Provider", () => {
 			);
 		});
 
-		it("should filter out unsupported fields for Mistral requests", async () => {
+		it("should filter to only allowed fields for Mistral requests", async () => {
 			await mistralProvider(mockPi);
 
 			// Get the handler registered via pi.on
@@ -161,30 +161,41 @@ describe("Mistral Provider", () => {
 
 			const handler = providerRequestCall?.[1];
 
-			// Test with Mistral model - should filter
+			// Test with Mistral model - should whitelist only allowed fields
 			// Event structure: { type: "before_provider_request", payload: {...} }
 			const mistralEvent = {
 				type: "before_provider_request",
 				payload: {
 					model: "mistral-small-latest",
 					messages: [],
+					store: true, // OpenAI-specific, should be removed
+					stream_options: {}, // Not supported, should be removed
+					max_completion_tokens: 1000, // OpenAI field, should be removed
 					seed: 12345,
 					user: "test-user",
 					metadata: { foo: "bar" },
 					prediction: { type: "content", content: "test" },
 					temperature: 0.7,
+					max_tokens: 1000,
 				},
 			};
 
 			const result = handler(mistralEvent);
 
 			expect(result).toBeDefined();
+			// Allowed fields should be present
+			expect(result.model).toBe("mistral-small-latest");
+			expect(result.messages).toEqual([]);
+			expect(result.temperature).toBe(0.7);
+			expect(result.max_tokens).toBe(1000);
+			// Disallowed fields should be removed
 			expect(result.seed).toBeUndefined();
 			expect(result.user).toBeUndefined();
 			expect(result.metadata).toBeUndefined();
 			expect(result.prediction).toBeUndefined();
-			expect(result.temperature).toBe(0.7);
-			expect(result.model).toBe("mistral-small-latest");
+			expect(result.store).toBeUndefined();
+			expect(result.stream_options).toBeUndefined();
+			expect(result.max_completion_tokens).toBeUndefined();
 		});
 
 		it("should not filter requests from other providers", async () => {
