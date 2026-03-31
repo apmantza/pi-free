@@ -22,6 +22,7 @@ vi.mock("../kilo-models.ts", () => ({
 }));
 
 vi.mock("../provider-helper.ts", () => ({
+	createReRegister: vi.fn(() => vi.fn()),
 	setupProvider: (...args: unknown[]) => mockSetupProvider(...args),
 	enhanceWithCI: (models: unknown[]) => models,
 }));

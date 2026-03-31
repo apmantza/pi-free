@@ -88,6 +88,65 @@ export function enhanceWithCI(
 	}));
 }
 
+// =============================================================================
+// Provider Registration Helpers
+// =============================================================================
+
+export interface OpenAICompatibleConfig {
+	/** Provider identifier (e.g., "nvidia", "fireworks") */
+	providerId: string;
+	/** Base URL for the API */
+	baseUrl: string;
+	/** Environment variable name for the API key */
+	apiKey: string;
+	/** Additional headers to include */
+	headers?: Record<string, string>;
+	/** OAuth configuration (optional) */
+	oauth?: {
+		name: string;
+		login: (callbacks: unknown) => Promise<unknown>;
+		refreshToken?: (cred: unknown) => Promise<unknown>;
+		getApiKey?: (cred: unknown) => string;
+	};
+}
+
+/**
+ * Register an OpenAI-compatible provider with standard headers.
+ * Reduces boilerplate across providers that use the OpenAI API format.
+ */
+export function registerOpenAICompatible(
+	pi: ExtensionAPI,
+	config: OpenAICompatibleConfig,
+	models: ProviderModelConfig[],
+): void {
+	const { providerId, baseUrl, apiKey, headers, oauth } = config;
+
+	pi.registerProvider(providerId, {
+		baseUrl,
+		apiKey,
+		api: "openai-completions" as const,
+		headers: {
+			"User-Agent": "pi-free-providers",
+			...headers,
+		},
+		models: enhanceWithCI(models),
+		...(oauth && { oauth }),
+	});
+}
+
+/**
+ * Create a reRegister function for use with setupProvider.
+ * Returns a function that re-registers the provider with new models.
+ */
+export function createReRegister(
+	pi: ExtensionAPI,
+	config: OpenAICompatibleConfig,
+): (models: ProviderModelConfig[]) => void {
+	return (models: ProviderModelConfig[]) => {
+		registerOpenAICompatible(pi, config, models);
+	};
+}
+
 export function setupProvider(
 	pi: ExtensionAPI,
 	config: ProviderSetupConfig,

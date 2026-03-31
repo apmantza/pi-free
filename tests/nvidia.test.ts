@@ -25,6 +25,7 @@ vi.mock("../constants.ts", () => ({
 
 vi.mock("../provider-helper.ts", () => ({
 	setupProvider: vi.fn(),
+	createReRegister: vi.fn(() => vi.fn()),
 }));
 
 vi.mock("../util.ts", () => ({

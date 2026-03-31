@@ -25,9 +25,19 @@ import {
 } from "../config.ts";
 import { BASE_URL_FIREWORKS } from "../constants.ts";
 import { createLogger } from "../lib/logger.ts";
-import { type StoredModels, setupProvider } from "../provider-helper.ts";
+import {
+	type StoredModels,
+	setupProvider,
+	createReRegister,
+} from "../provider-helper.ts";
 
 const _logger = createLogger("fireworks");
+
+const FIREWORKS_CONFIG = {
+	providerId: PROVIDER_FIREWORKS,
+	baseUrl: BASE_URL_FIREWORKS,
+	apiKey: "FIREWORKS_API_KEY",
+};
 
 // =============================================================================
 // Fireworks models - hardcoded (models.dev doesn't have Fireworks data yet)
@@ -80,6 +90,7 @@ export default async function (pi: ExtensionAPI) {
 	});
 
 	// Wire up shared boilerplate (commands, model_select, turn_end)
+	const reRegister = createReRegister(pi, FIREWORKS_CONFIG);
 	setupProvider(
 		pi,
 		{
@@ -87,13 +98,7 @@ export default async function (pi: ExtensionAPI) {
 			reRegister: (m) => {
 				stored.free = m;
 				stored.all = m;
-				pi.registerProvider(PROVIDER_FIREWORKS, {
-					baseUrl: BASE_URL_FIREWORKS,
-					apiKey: "FIREWORKS_API_KEY",
-					api: "openai-completions" as const,
-					headers: { "User-Agent": "pi-free-providers" },
-					models: m,
-				});
+				reRegister(m);
 			},
 		},
 		stored,

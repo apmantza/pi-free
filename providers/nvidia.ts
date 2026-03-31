@@ -28,11 +28,17 @@ import {
 	URL_MODELS_DEV,
 } from "../constants.ts";
 import { createLogger } from "../lib/logger.ts";
-import { type StoredModels, setupProvider } from "../provider-helper.ts";
+import { type StoredModels, setupProvider, createReRegister } from "../provider-helper.ts";
 import type { ModelsDevProvider } from "../types.ts";
 import { fetchWithRetry, isUsableModel, logWarning } from "../util.ts";
 
 const _logger = createLogger("nvidia");
+
+const NVIDIA_CONFIG = {
+	providerId: PROVIDER_NVIDIA,
+	baseUrl: BASE_URL_NVIDIA,
+	apiKey: "NVIDIA_API_KEY",
+};
 
 // =============================================================================
 // Fetch + map
@@ -130,6 +136,7 @@ export default async function (pi: ExtensionAPI) {
 	});
 
 	// Wire up shared boilerplate (commands, model_select, turn_end)
+	const reRegister = createReRegister(pi, NVIDIA_CONFIG);
 	setupProvider(
 		pi,
 		{
@@ -137,13 +144,7 @@ export default async function (pi: ExtensionAPI) {
 			reRegister: (m) => {
 				stored.free = m;
 				stored.all = m;
-				pi.registerProvider(PROVIDER_NVIDIA, {
-					baseUrl: BASE_URL_NVIDIA,
-					apiKey: "NVIDIA_API_KEY",
-					api: "openai-completions" as const,
-					headers: { "User-Agent": "pi-free-providers" },
-					models: m,
-				});
+				reRegister(m);
 			},
 		},
 		stored,
