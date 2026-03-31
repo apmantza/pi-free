@@ -86,8 +86,26 @@ export function calculateTimeout(base: number): number {
 }
 
 // LSP test - unused variable (should show hint/warning if configured)
-export function unusedParamTest(required: string, unused: number): string {
+export function unusedParamTest(required: string, _unused: number): string {
 	return required.toUpperCase();
 }
 export const KILO_POLL_INTERVAL_MS = 3_000;
 export const KILO_TOKEN_EXPIRATION_MS = 365 * 24 * 60 * 60 * 1000; // 1 year
+
+// =============================================================================
+// Additional OpenAI-compatible providers
+// =============================================================================
+
+export const PROVIDER_GROQ = "groq";
+export const PROVIDER_TOGETHER = "together";
+export const PROVIDER_DEEPINFRA = "deepinfra";
+export const PROVIDER_MISTRAL = "mistral";
+export const PROVIDER_PERPLEXITY = "perplexity";
+export const PROVIDER_XAI = "xai";
+
+export const BASE_URL_GROQ = "https://api.groq.com/openai/v1";
+export const BASE_URL_TOGETHER = "https://api.together.xyz/v1";
+export const BASE_URL_DEEPINFRA = "https://api.deepinfra.com/v1/openai";
+export const BASE_URL_MISTRAL = "https://api.mistral.ai/v1";
+export const BASE_URL_PERPLEXITY = "https://api.perplexity.ai";
+export const BASE_URL_XAI = "https://api.x.ai/v1";

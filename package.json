@@ -24,7 +24,8 @@
 			"./providers/openrouter.ts",
 			"./providers/nvidia.ts",
 			"./providers/cline.ts",
-			"./providers/fireworks.ts"
+			"./providers/fireworks.ts",
+			"./providers/mistral.ts"
 		]
 	},
 	"repository": {
