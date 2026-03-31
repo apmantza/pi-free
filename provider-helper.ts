@@ -159,7 +159,7 @@ export function registerOpenAICompatible(
 			...headers,
 		},
 		models: enhanceWithCI(models),
-		...(oauth && { oauth }),
+		...(oauth && { oauth: oauth as any }),
 	});
 }
 
@@ -198,7 +198,7 @@ export function createCtxReRegister(
 				...headers,
 			},
 			models: enhanceWithCI(models),
-			...(oauth && { oauth }),
+			...(oauth && { oauth: oauth as any }),
 		});
 	};
 }
@@ -385,7 +385,10 @@ export function setupProvider(
 									// Use our free models cache - only providers we actually registered
 									return freeModelsCache
 										.filter((m) => m.provider !== providerId)
-										.map((m) => ({ ...m.model, provider: m.provider })) as any[];
+										.map((m) => ({
+											...m.model,
+											provider: m.provider,
+										})) as any[];
 								},
 							},
 							session: (ctx as { session?: { id?: string } }).session,
@@ -407,8 +410,8 @@ export function setupProvider(
 						// Hop failed, notify user
 						ctx.ui.notify(`❌ ${hopResult.message}`, "warning");
 					}
-				} catch (err) {
-					_logger.error("Model hop failed", err);
+				} catch (err: unknown) {
+					_logger.error("Model hop failed", { error: String(err) });
 					ctx.ui.notify(
 						"Model hop failed, try /model to switch manually",
 						"warning",

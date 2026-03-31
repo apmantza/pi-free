@@ -15,7 +15,10 @@ export function logWarning(
 	message: string,
 	error?: unknown,
 ): void {
-	_logger.warn(`[${provider}] ${message}`, error ?? "");
+	_logger.warn(
+		`[${provider}] ${message}`,
+		error ? { error: String(error) } : undefined,
+	);
 }
 
 /**

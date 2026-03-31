@@ -60,13 +60,9 @@ export const DEFAULT_MIN_SIZE_B = 30; // Default minimum model size for filterin
 // Timeouts (milliseconds)
 // =============================================================================
 
-// Test: LSP should validate type annotations
+// Timeout for fetch operations
 export const DEFAULT_FETCH_TIMEOUT_MS: number = 10_000;
 
-// Test: LSP should flag unknown types
-export const TEST_LSP_UNKNOWN: UnknownType = "test";
-
-// Test: LSP should flag missing property
 export interface TestConfig {
 	timeout: number;
 	retries: number;

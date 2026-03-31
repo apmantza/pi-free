@@ -129,7 +129,7 @@ export default async function (pi: ExtensionAPI) {
 				cachedAllModels = await fetchKiloModels({ token: cred.access });
 				stored.all = cachedAllModels;
 				if (cachedAllModels.length > 0) {
-					const ctxReRegister = createCtxReRegister(ctx, {
+					const ctxReRegister = createCtxReRegister(ctx as any, {
 						...KILO_PROVIDER_CONFIG,
 						oauth: oauthConfig as any,
 					});

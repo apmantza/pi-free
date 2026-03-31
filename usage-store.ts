@@ -8,8 +8,8 @@
  */
 
 import { join } from "node:path";
-import { createJSONStore } from "../lib/json-persistence.ts";
-import { createLogger } from "../lib/logger.ts";
+import { createJSONStore } from "./lib/json-persistence.js";
+import { createLogger } from "./lib/logger.js";
 
 // =============================================================================
 // Types

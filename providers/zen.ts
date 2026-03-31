@@ -397,7 +397,7 @@ export default async function (pi: ExtensionAPI) {
 				"x-session-affinity": sessionId,
 			},
 		};
-		reRegisterFn = createCtxReRegister(ctx, sessionConfig);
+		reRegisterFn = createCtxReRegister(ctx as any, sessionConfig);
 
 		// Register our filtered provider (CI enhancement handled by provider-helper)
 		reRegisterFn(models);

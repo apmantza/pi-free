@@ -119,7 +119,7 @@ export default async function (pi: ExtensionAPI) {
 			stored.all = existingModels;
 
 			// Create re-register function using ctx
-			reRegisterFn = createCtxReRegister(ctx, OPENROUTER_CONFIG);
+			reRegisterFn = createCtxReRegister(ctx as any, OPENROUTER_CONFIG);
 			reRegisterFn(freeModels);
 			return;
 		}
@@ -156,7 +156,7 @@ export default async function (pi: ExtensionAPI) {
 		}
 
 		// Create re-register function using ctx and register
-		reRegisterFn = createCtxReRegister(ctx, OPENROUTER_CONFIG);
+		reRegisterFn = createCtxReRegister(ctx as any, OPENROUTER_CONFIG);
 		reRegisterFn(models);
 
 		// Fetch and cache metrics (used internally, not displayed)

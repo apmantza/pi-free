@@ -8,7 +8,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { createLogger } from "./lib/logger.ts";
+import { createLogger } from "../lib/logger.ts";
 
 const _logger = createLogger("session-parser");
 
