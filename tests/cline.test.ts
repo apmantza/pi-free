@@ -82,9 +82,15 @@ describe("Cline Provider", () => {
 			await clineProvider(mockPi);
 
 			expect(mockOn).toHaveBeenCalledWith(
-				"before_request",
+				"before_agent_start",
 				expect.any(Function),
 			);
+			expect(mockOn).toHaveBeenCalledWith("context", expect.any(Function));
+			expect(mockOn).toHaveBeenCalledWith(
+				"session_start",
+				expect.any(Function),
+			);
+			expect(mockOn).toHaveBeenCalledWith("turn_end", expect.any(Function));
 		});
 	});
 
@@ -126,7 +132,7 @@ describe("Cline Provider", () => {
 			await clineProvider(mockPi);
 
 			const beforeRequestHandler = mockOn.mock.calls.find(
-				(call) => call[0] === "before_request",
+				(call) => call[0] === "before_agent_start",
 			)?.[1];
 
 			expect(beforeRequestHandler).toBeDefined();

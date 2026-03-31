@@ -5,19 +5,24 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// Create mock functions first
+const mockFetchKiloModels = vi.fn();
+const mockSetupProvider = vi.fn();
+const mockLoginKilo = vi.fn();
+
 // Mock dependencies before importing the provider
 vi.mock("../kilo-auth.ts", () => ({
-	loginKilo: vi.fn(),
+	loginKilo: (...args: unknown[]) => mockLoginKilo(...args),
 	refreshKiloToken: vi.fn(),
 }));
 
 vi.mock("../kilo-models.ts", () => ({
-	fetchKiloModels: vi.fn(),
+	fetchKiloModels: (...args: unknown[]) => mockFetchKiloModels(...args),
 	KILO_GATEWAY_BASE: "https://api.kilo.ai/api/gateway",
 }));
 
 vi.mock("../provider-helper.ts", () => ({
-	setupProvider: vi.fn(),
+	setupProvider: (...args: unknown[]) => mockSetupProvider(...args),
 	enhanceWithCI: (models: unknown[]) => models,
 }));
 
@@ -29,9 +34,28 @@ vi.mock("../util.ts", () => ({
 	logWarning: vi.fn(),
 }));
 
-import { setupProvider } from "../provider-helper.ts";
 import kiloProvider from "../providers/kilo.ts";
-import { fetchKiloModels } from "../providers/kilo-models.ts";
+
+describe("Kilo Provider", () => {
+	let _mockPi: ExtensionAPI;
+	let mockRegisterProvider: ReturnType<typeof vi.fn>;
+	let mockOn: ReturnType<typeof vi.fn>;
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockFetchKiloModels.mockReset();
+		mockSetupProvider.mockReset();
+		mockLoginKilo.mockReset();
+
+		mockRegisterProvider = vi.fn();
+		mockOn = vi.fn();
+
+		_mockPi = {
+			registerProvider: mockRegisterProvider,
+			on: mockOn,
+			registerCommand: vi.fn(),
+		} as unknown as ExtensionAPI;
+	});
 
 describe("Kilo Provider", () => {
 	let mockPi: ExtensionAPI;
@@ -157,4 +181,5 @@ describe("Kilo Provider", () => {
 			);
 		});
 	});
+});
 });

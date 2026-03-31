@@ -88,8 +88,10 @@ describe("Fireworks Provider", () => {
 		it("should have hardcoded models with correct structure", async () => {
 			await fireworksProvider(mockPi);
 
+			expect(mockRegisterProvider).toHaveBeenCalled();
 			const registerCall = mockRegisterProvider.mock.calls[0];
-			const models = registerCall[1].models;
+			expect(registerCall).toBeDefined();
+			const models = registerCall?.[1]?.models;
 
 			expect(models).toBeInstanceOf(Array);
 			expect(models.length).toBeGreaterThan(0);
