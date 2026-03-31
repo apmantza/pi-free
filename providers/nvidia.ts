@@ -27,9 +27,12 @@ import {
 	NVIDIA_MIN_SIZE_B,
 	URL_MODELS_DEV,
 } from "../constants.ts";
+import { createLogger } from "../lib/logger.ts";
 import { type StoredModels, setupProvider } from "../provider-helper.ts";
 import type { ModelsDevProvider } from "../types.ts";
 import { fetchWithRetry, isUsableModel, logWarning } from "../util.ts";
+
+const _logger = createLogger("nvidia");
 
 // =============================================================================
 // Fetch + map
@@ -100,8 +103,8 @@ export default async function (pi: ExtensionAPI) {
 	if (apiKey) process.env.NVIDIA_API_KEY = apiKey;
 
 	if (!apiKey) {
-		console.warn(
-			"[nvidia] No API key found — set NVIDIA_API_KEY or add nvidia_api_key to ~/.pi/free.json. Free key at https://build.nvidia.com",
+		_logger.warn(
+			"No API key found — set NVIDIA_API_KEY or add nvidia_api_key to ~/.pi/free.json. Free key at https://build.nvidia.com",
 		);
 		return;
 	}

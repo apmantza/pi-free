@@ -12,7 +12,11 @@ import type {
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
 import { incrementModelRequestCount } from "./free-tier-limits.js";
+import { createLogger } from "./lib/logger.ts";
 import { incrementRequestCount } from "./metrics.js";
+
+const _logger = createLogger("provider-helper");
+
 import { enhanceModelNameWithCodingIndex } from "./provider-failover/hardcoded-benchmarks.js";
 import {
 	handleProviderError,
@@ -149,7 +153,10 @@ export function setupProvider(
 		// Check for errors in the assistant message
 		if (msg?.role === "assistant" && msg.errorMessage) {
 			const errorMsg = msg.errorMessage;
-			console.log(`[${providerId}] Error detected: ${errorMsg.slice(0, 100)}`);
+			_logger.info("Error detected", {
+				provider: providerId,
+				error: errorMsg.slice(0, 100),
+			});
 
 			// Store last user message for potential auto-retry
 			const lastUserMsg = (

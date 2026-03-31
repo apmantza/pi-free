@@ -16,6 +16,9 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { createLogger } from "./lib/logger.ts";
+
+const _logger = createLogger("config");
 
 interface PiFreeConfig {
 	openrouter_api_key?: string;
@@ -86,10 +89,10 @@ function ensureConfigFile(): void {
 			);
 		}
 	} catch (err) {
-		console.warn(
-			`[pi-free] Could not create config file at ${CONFIG_PATH}:`,
-			err instanceof Error ? err.message : err,
-		);
+		_logger.warn("Could not create config file", {
+			path: CONFIG_PATH,
+			error: err instanceof Error ? err.message : String(err),
+		});
 	}
 }
 

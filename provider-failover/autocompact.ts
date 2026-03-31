@@ -4,6 +4,9 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { createLogger } from "../lib/logger.ts";
+
+const _logger = createLogger("autocompact");
 
 export interface AutocompactResult {
 	success: boolean;
@@ -62,7 +65,7 @@ async function sendAutocompactCommand(
 			| undefined;
 		if (session && "messages" in (session ?? {})) {
 			// Pi has a messages array we can inject into
-			console.log("[autocompact] Injecting compact command into session");
+			_logger.info("Injecting compact command into session");
 			return true;
 		}
 
@@ -91,7 +94,7 @@ async function sendAutocompactCommand(
 
 		return false;
 	} catch (err) {
-		console.debug("[autocompact] Command execution not available:", err);
+		_logger.debug("Command execution not available", { error: String(err) });
 		return false;
 	}
 }
@@ -121,7 +124,7 @@ export async function triggerAutocompact(
 	}
 
 	try {
-		console.log(`[failover] Triggering autocompact: ${reason}`);
+		_logger.info("Triggering autocompact", { reason });
 		ctx.ui.notify("🗜️ Auto-compacting conversation to reduce tokens...", "info");
 
 		markAutocompactTriggered(sessionId);
@@ -148,7 +151,7 @@ export async function triggerAutocompact(
 			message: "Autocompact suggestion shown (auto-execution not available)",
 		};
 	} catch (error) {
-		console.error("[failover] Autocompact failed:", error);
+		_logger.error("Autocompact failed", { error: String(error) });
 
 		return {
 			success: false,
@@ -208,7 +211,7 @@ export async function autocompactAndRetry<T>(
 			};
 		} catch (error) {
 			if (attempt < maxRetries - 1) {
-				console.log(`[failover] Retry ${attempt + 1} failed, waiting...`);
+				_logger.info(`Retry ${attempt + 1} failed, waiting...`);
 				await new Promise((resolve) => setTimeout(resolve, 1000));
 			} else {
 				return {

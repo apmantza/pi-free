@@ -4,6 +4,9 @@
  */
 
 import { getFreeTierUsage, getLimitWarning } from "../free-tier-limits.ts";
+import { createLogger } from "../lib/logger.ts";
+
+const _logger = createLogger("failover");
 
 export type ErrorType =
 	| "rate_limit" // 429, quota exceeded
@@ -266,13 +269,12 @@ export function logErrorClassification(
 	_error: unknown,
 	classified: ClassifiedError,
 ): void {
-	console.log(
-		`[failover] Error classified: ${classified.type} ` +
-			`(status: ${classified.statusCode ?? "unknown"}, ` +
-			`retryable: ${classified.retryable}, ` +
-			`retryAfter: ${classified.retryAfterMs ?? "unknown"}ms) ` +
-			`- ${classified.message.slice(0, 100)}`,
-	);
+	_logger.info(`Error classified: ${classified.type}`, {
+		statusCode: classified.statusCode,
+		retryable: classified.retryable,
+		retryAfterMs: classified.retryAfterMs,
+		message: classified.message.slice(0, 100),
+	});
 }
 
 /**
@@ -284,11 +286,11 @@ export function logFreeTierUsage(provider: string): void {
 	const warning = getLimitWarning(provider);
 
 	if (warning) {
-		console.warn(`[free-tier] ${warning}`);
+		_logger.warn(`Free tier warning: ${warning}`, { provider });
 	} else {
-		console.log(
-			`[free-tier] ${provider}: ${usage.requestsToday} requests today. ` +
-				`Limit: ${usage.limit.description}`,
-		);
+		_logger.info(`${provider} usage`, {
+			requestsToday: usage.requestsToday,
+			limit: usage.limit.description,
+		});
 	}
 }

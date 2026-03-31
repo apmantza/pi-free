@@ -214,5 +214,5 @@ export function getMinimumAcceptableTier(
 }
 
 export async function initCapabilityRanking(): Promise<void> {
-	console.log("[capability] Using hardcoded benchmark data");
+	// Initialization complete - hardcoded benchmarks loaded
 }

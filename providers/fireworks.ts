@@ -24,7 +24,10 @@ import {
 	PROVIDER_FIREWORKS,
 } from "../config.ts";
 import { BASE_URL_FIREWORKS } from "../constants.ts";
+import { createLogger } from "../lib/logger.ts";
 import { type StoredModels, setupProvider } from "../provider-helper.ts";
+
+const _logger = createLogger("fireworks");
 
 // =============================================================================
 // Fireworks models - hardcoded (models.dev doesn't have Fireworks data yet)
@@ -55,8 +58,8 @@ export default async function (pi: ExtensionAPI) {
 	if (apiKey) process.env.FIREWORKS_API_KEY = apiKey;
 
 	if (!apiKey) {
-		console.warn(
-			"[fireworks] No API key found — set FIREWORKS_API_KEY or add fireworks_api_key to ~/.pi/free.json. Get a key at https://app.fireworks.ai/settings/users/api-keys",
+		_logger.warn(
+			"No API key found — set FIREWORKS_API_KEY or add fireworks_api_key to ~/.pi/free.json. Get a key at https://app.fireworks.ai/settings/users/api-keys",
 		);
 		return;
 	}

@@ -4,12 +4,15 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { createLogger } from "../lib/logger.ts";
 import { triggerAutocompact } from "./autocompact.js";
 import {
 	type ClassifiedError,
 	classifyError,
 	logErrorClassification,
 } from "./errors.js";
+
+const _logger = createLogger("failover");
 
 export interface FailoverConfig {
 	// Provider identifier (e.g., "kilo", "openrouter")
@@ -60,8 +63,8 @@ export async function handleProviderError(
 
 	// Check for too many consecutive failures
 	if (currentFailures >= MAX_CONSECUTIVE_FAILURES) {
-		console.log(
-			`[failover] ${provider} has ${currentFailures} consecutive failures, suggesting failover`,
+		_logger.info(
+			`${provider} has ${currentFailures} consecutive failures, suggesting failover`,
 		);
 	}
 
@@ -100,9 +103,7 @@ async function handleRateLimit(
 ): Promise<FailoverResult> {
 	const { provider, isPaidMode, enableAutocompact } = config;
 
-	console.log(
-		`[failover] Rate limit on ${provider} (paid: ${isPaidMode}, autocompact: ${enableAutocompact})`,
-	);
+	_logger.info(`Rate limit on ${provider}`, { isPaidMode, enableAutocompact });
 
 	// Check if we've already tried autocompact for this provider recently
 	const failureKey = `${provider}_compact_attempted`;
@@ -151,7 +152,7 @@ function handleCapacityError(
 ): FailoverResult {
 	const { provider } = config;
 
-	console.log(`[failover] Capacity error on ${provider}`);
+	_logger.info(`Capacity error on ${provider}`);
 
 	return {
 		action: "failover",
@@ -168,7 +169,7 @@ function handleAuthError(
 	_classified: ClassifiedError,
 	provider: string,
 ): FailoverResult {
-	console.log(`[failover] Auth error on ${provider}`);
+	_logger.info(`Auth error on ${provider}`);
 
 	return {
 		action: "fail",
@@ -184,7 +185,7 @@ function handleNetworkError(
 	classified: ClassifiedError,
 	provider: string,
 ): FailoverResult {
-	console.log(`[failover] Network error on ${provider}`);
+	_logger.info(`Network error on ${provider}`);
 
 	return {
 		action: "retry",
@@ -201,7 +202,7 @@ function handleUnknownError(
 	classified: ClassifiedError,
 	provider: string,
 ): FailoverResult {
-	console.log(`[failover] Unknown error on ${provider}: ${classified.message}`);
+	_logger.info(`Unknown error on ${provider}`, { message: classified.message });
 
 	return {
 		action: classified.retryable ? "retry" : "fail",

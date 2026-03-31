@@ -11,6 +11,9 @@ import {
 	KILO_POLL_INTERVAL_MS,
 	KILO_TOKEN_EXPIRATION_MS,
 } from "../constants.ts";
+import { createLogger } from "../lib/logger.ts";
+
+const _logger = createLogger("kilo-auth");
 
 function openBrowser(url: string): void {
 	try {
@@ -25,7 +28,7 @@ function openBrowser(url: string): void {
 			spawn("xdg-open", [url], { detached: true }).unref();
 		}
 	} catch (err) {
-		console.debug("[kilo-auth] Failed to open browser:", err);
+		_logger.debug("Failed to open browser", { error: String(err) });
 	}
 }
 

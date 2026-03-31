@@ -21,8 +21,11 @@ import {
 import { BASE_URL_OPENROUTER, DEFAULT_FETCH_TIMEOUT_MS } from "../constants.ts";
 import { fetchOpenRouterMetrics } from "../metrics.ts";
 import { type StoredModels, setupProvider } from "../provider-helper.ts";
+import { createLogger } from "../lib/logger.ts";
 import { logWarning } from "../util.ts";
 import { fetchOpenRouterModelsWithFree } from "./model-fetcher.ts";
+
+const _logger = createLogger("openrouter");
 
 // =============================================================================
 // Fetch
@@ -95,7 +98,7 @@ export default async function (pi: ExtensionAPI) {
 				}));
 
 			if (freeModels.length === 0) {
-				console.warn(
+				_logger.warn(
 					"[openrouter] No free models available from existing auth",
 				);
 				return;
@@ -129,7 +132,7 @@ export default async function (pi: ExtensionAPI) {
 		if (apiKey) {
 			process.env.OPENROUTER_API_KEY = apiKey;
 		} else {
-			console.warn(
+			_logger.warn(
 				"[openrouter] No API key found — set OPENROUTER_API_KEY or add openrouter_api_key to ~/.pi/free.json. Free key at https://openrouter.ai",
 			);
 			return;
