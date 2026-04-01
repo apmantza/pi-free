@@ -10,6 +10,7 @@
  *   NVIDIA_SHOW_PAID=true or nvidia_show_paid: true
  *   FIREWORKS_SHOW_PAID=true or fireworks_show_paid: true
  *   CLINE_SHOW_PAID=true or cline_show_paid: true
+ *   OLLAMA_SHOW_PAID=true or ollama_show_paid: true
  *
  * PI_FREE_KILO_FREE_ONLY=true — restrict Kilo to free models even after login.
  */
@@ -26,6 +27,7 @@ interface PiFreeConfig {
 	opencode_api_key?: string;
 	fireworks_api_key?: string;
 	mistral_api_key?: string;
+	ollama_api_key?: string;
 	kilo_free_only?: boolean;
 	hidden_models?: string[];
 	// Per-provider paid model flags
@@ -35,6 +37,7 @@ interface PiFreeConfig {
 	cline_show_paid?: boolean;
 	zen_show_paid?: boolean;
 	mistral_show_paid?: boolean;
+	ollama_show_paid?: boolean;
 	// Model hopping preferences - ordered list of preferred model families
 	// e.g., ["llama-3.3-70b", "qwen-2.5-72b", "deepseek-v3"]
 	preferred_models?: string[];
@@ -52,6 +55,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	opencode_api_key: "",
 	fireworks_api_key: "",
 	mistral_api_key: "",
+	ollama_api_key: "",
 	kilo_free_only: false,
 	hidden_models: [],
 	openrouter_show_paid: false,
@@ -60,6 +64,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	cline_show_paid: false,
 	zen_show_paid: false,
 	mistral_show_paid: false,
+	ollama_show_paid: false,
 	preferred_models: [],
 	auto_model_hop: true,
 	max_model_hops: 3,
@@ -158,6 +163,11 @@ export const MISTRAL_SHOW_PAID = resolveBool(
 	file.mistral_show_paid,
 );
 
+export const OLLAMA_SHOW_PAID = resolveBool(
+	"OLLAMA_SHOW_PAID",
+	file.ollama_show_paid,
+);
+
 export const KILO_FREE_ONLY = resolveBool(
 	"PI_FREE_KILO_FREE_ONLY",
 	file.kilo_free_only,
@@ -191,6 +201,7 @@ export const FIREWORKS_API_KEY = resolve(
 	file.fireworks_api_key,
 );
 export const MISTRAL_API_KEY = resolve("MISTRAL_API_KEY", file.mistral_api_key);
+export const OLLAMA_API_KEY = resolve("OLLAMA_API_KEY", file.ollama_api_key);
 
 // Re-export provider names for consistency
 export {
@@ -199,6 +210,7 @@ export {
 	PROVIDER_KILO,
 	PROVIDER_MISTRAL,
 	PROVIDER_NVIDIA,
+	PROVIDER_OLLAMA,
 	PROVIDER_OPENROUTER,
 	PROVIDER_ZEN,
 } from "./constants.ts";

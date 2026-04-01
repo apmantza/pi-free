@@ -13,6 +13,7 @@ export const PROVIDER_OPENROUTER = "openrouter";
 export const PROVIDER_NVIDIA = "nvidia";
 export const PROVIDER_CLINE = "cline";
 export const PROVIDER_FIREWORKS = "fireworks";
+export const PROVIDER_OLLAMA = "ollama";
 
 export const ALL_PROVIDERS = [
 	PROVIDER_KILO,
@@ -21,6 +22,7 @@ export const ALL_PROVIDERS = [
 	PROVIDER_NVIDIA,
 	PROVIDER_CLINE,
 	PROVIDER_FIREWORKS,
+	PROVIDER_OLLAMA,
 ] as const;
 
 // =============================================================================
@@ -33,6 +35,7 @@ export const BASE_URL_OPENROUTER = "https://openrouter.ai/api/v1";
 export const BASE_URL_NVIDIA = "https://integrate.api.nvidia.com/v1";
 export const BASE_URL_CLINE = "https://api.cline.bot/api/v1";
 export const BASE_URL_FIREWORKS = "https://api.fireworks.ai/inference/v1";
+export const BASE_URL_OLLAMA = "https://ollama.com/api";
 
 // =============================================================================
 // External URLs
