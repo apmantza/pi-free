@@ -11,7 +11,7 @@ import {
 	DEFAULT_MIN_SIZE_B,
 } from "../constants.ts";
 import type { ProviderModelConfig } from "../types.ts";
-import { fetchWithRetry, isUsableModel } from "../util.ts";
+import { cleanModelName, fetchWithRetry, isUsableModel } from "../util.ts";
 
 interface OpenRouterRaw {
 	id: string;
@@ -59,9 +59,12 @@ export async function fetchClineModels(): Promise<ProviderModelConfig[]> {
 		const hasImage =
 			info.architecture?.input_modalities?.includes("image") ?? false;
 
+		const cleanName = info.name
+			? cleanModelName(info.name)
+			: extractNameFromId(info.id);
 		models.push({
 			id: info.id,
-			name: `${info.name ?? extractNameFromId(info.id)} (Cline)`,
+			name: `${cleanName} (Cline)`,
 			reasoning: isReasoning,
 			input: hasImage ? ["text", "image"] : ["text"],
 			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
