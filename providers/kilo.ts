@@ -23,7 +23,7 @@ import {
 	createReRegister,
 	createCtxReRegister,
 } from "../provider-helper.ts";
-import { registerUsageWidget } from "../usage-widget.ts";
+import { registerUsageWidget } from "../usage/widget.ts";
 import { cleanModelName, logWarning } from "../util.ts";
 import { loginKilo, refreshKiloToken } from "./kilo-auth.ts";
 import { fetchKiloModels, KILO_GATEWAY_BASE } from "./kilo-models.ts";
