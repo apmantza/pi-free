@@ -2,12 +2,12 @@
  * Usage report formatters - text formatting for display
  */
 
+import type { CumulativeUsageReport } from "./cumulative.ts";
 import {
 	type FreeTierLimit,
 	getFreeTierUsage,
 	getLimitWarning,
-} from "../free-tier-limits.ts";
-import type { CumulativeUsageReport } from "./cumulative.ts";
+} from "./limits.ts";
 import type { SessionUsageReport } from "./tracking.ts";
 
 export interface FreeTierUsage {

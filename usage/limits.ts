@@ -7,18 +7,18 @@
  * - usage/formatters.ts - display formatting
  */
 
-import { createLogger } from "./lib/logger.ts";
+import { createLogger } from "../lib/logger.ts";
 import { getDailyRequestCount } from "./metrics.ts";
 
 export {
 	type CumulativeUsageReport,
 	getCumulativeUsage,
-} from "./usage/cumulative.ts";
+} from "./cumulative.ts";
 export {
 	formatCumulativeUsage,
 	formatFreeTierStatus,
 	formatSessionUsage,
-} from "./usage/formatters.ts";
+} from "./formatters.ts";
 // Re-export from specialized modules
 export {
 	getModelUsage,
@@ -29,7 +29,7 @@ export {
 	logModelUsageReport,
 	resetUsageStats,
 	type SessionUsageReport,
-} from "./usage/tracking.ts";
+} from "./tracking.ts";
 
 const _logger = createLogger("free-tier");
 

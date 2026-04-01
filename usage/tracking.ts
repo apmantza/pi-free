@@ -3,8 +3,8 @@
  */
 
 import { createLogger } from "../lib/logger.ts";
-import { incrementRequestCount } from "../metrics.ts";
 import { persistUsage } from "./cumulative.ts";
+import { incrementRequestCount } from "./metrics.ts";
 
 const logger = createLogger("usage:tracking");
 

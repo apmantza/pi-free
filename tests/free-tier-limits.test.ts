@@ -11,7 +11,7 @@ import {
 	incrementModelRequestCount,
 	isApproachingLimit,
 	resetUsageStats,
-} from "../free-tier-limits.ts";
+} from "../usage/limits.ts";
 
 describe("Free Tier Limits", () => {
 	beforeEach(() => {
