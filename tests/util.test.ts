@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+	cleanModelName,
 	fetchWithRetry,
 	fetchWithTimeout,
 	isUsableModel,
@@ -70,6 +71,39 @@ describe("Utility Functions", () => {
 		});
 	});
 
+	describe("cleanModelName", () => {
+		it("should strip provider prefix with colon", () => {
+			expect(cleanModelName("QWEN : Qwen2.5 72B Instruct")).toBe(
+				"Qwen2.5 72B Instruct",
+			);
+			expect(cleanModelName("OpenAI : GPT-4")).toBe("GPT-4");
+			expect(cleanModelName("Anthropic : Claude 3 Opus")).toBe("Claude 3 Opus");
+		});
+
+		it("should strip provider prefix with slash", () => {
+			expect(cleanModelName("QWEN / Qwen2.5 Coder 32B Instruct")).toBe(
+				"Qwen2.5 Coder 32B Instruct",
+			);
+			expect(cleanModelName("Meta / Llama 3 70B")).toBe("Llama 3 70B");
+		});
+
+		it("should handle varying whitespace around separator", () => {
+			expect(cleanModelName("Provider:Model")).toBe("Model");
+			expect(cleanModelName("Provider: Model")).toBe("Model");
+			expect(cleanModelName("Provider :Model")).toBe("Model");
+			expect(cleanModelName("Provider  :  Model")).toBe("Model");
+		});
+
+		it("should return original name when no separator", () => {
+			expect(cleanModelName("GPT-4")).toBe("GPT-4");
+			expect(cleanModelName("Claude 3 Opus")).toBe("Claude 3 Opus");
+		});
+
+		it("should trim whitespace", () => {
+			expect(cleanModelName("  Model Name  ")).toBe("Model Name");
+		});
+	});
+
 	describe("mapOpenRouterModel", () => {
 		it("should map basic OpenRouter model", () => {
 			const input = {
@@ -99,6 +133,27 @@ describe("Utility Functions", () => {
 			expect(result.maxTokens).toBe(4096);
 			expect(result.reasoning).toBe(false);
 			expect(result.input).toEqual(["text"]);
+		});
+
+		it("should clean provider prefix from model name", () => {
+			const input = {
+				id: "qwen/qwen-2.5-72b-instruct",
+				name: "QWEN : Qwen2.5 72B Instruct",
+				context_length: 128000,
+				pricing: {
+					prompt: "0",
+					completion: "0",
+				},
+				architecture: {
+					input_modalities: ["text"],
+					output_modalities: ["text"],
+				},
+			};
+
+			const result = mapOpenRouterModel(input);
+
+			expect(result.id).toBe("qwen/qwen-2.5-72b-instruct");
+			expect(result.name).toBe("Qwen2.5 72B Instruct");
 		});
 
 		it("should detect image input capability", () => {

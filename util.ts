@@ -195,6 +195,25 @@ export function isUsableModel(modelId: string, minSizeB?: number): boolean {
 }
 
 // =============================================================================
+// Model Name Cleaning
+// =============================================================================
+
+/**
+ * Strip provider prefix from model names.
+ * OpenRouter/Kilo return names like "Provider : Model Name" or "Provider / Model Name".
+ * We only want the model name part.
+ */
+export function cleanModelName(name: string): string {
+	// Handle patterns like "Provider : Model Name" or "Provider / Model Name"
+	// Match colon or slash separator with optional surrounding whitespace
+	const separatorMatch = name.match(/^[^:]+\s*[:/]\s*(.+)$/);
+	if (separatorMatch) {
+		return separatorMatch[1].trim();
+	}
+	return name.trim();
+}
+
+// =============================================================================
 // Model Mapping
 // =============================================================================
 
@@ -219,7 +238,7 @@ export function mapOpenRouterModel(m: {
 
 	return {
 		id: m.id,
-		name: m.name,
+		name: cleanModelName(m.name),
 		reasoning: false, // OpenRouter doesn't expose reasoning flag directly
 		input: m.architecture?.input_modalities?.includes("image")
 			? (["text", "image"] as const)
