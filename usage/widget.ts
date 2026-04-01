@@ -8,9 +8,9 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { collectRows, recordSessionRequest } from "../widget/data.ts";
+import { renderWidgetHTML } from "../widget/render.ts";
 import { recordTurn } from "./store.ts";
-import { collectRows, recordSessionRequest } from "./widget/data.ts";
-import { renderWidgetHTML } from "./widget/render.ts";
 
 const GLIMPSE_PATH =
 	"file:///C:/Users/R3LiC/AppData/Roaming/npm/node_modules/glimpseui/src/glimpse.mjs";
