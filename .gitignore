@@ -2,4 +2,7 @@ node_modules/
 .claude/
 .pisessionsummaries/
 .pi-lens/
-newfeatures.md
+*.log
+.DS_Store
+dist/
+*.tsbuildinfo
