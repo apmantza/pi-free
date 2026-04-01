@@ -95,10 +95,21 @@ async function fetchOllamaModels(): Promise<ProviderModelConfig[]> {
 		const json = (await response.json()) as { models?: OllamaModelTag[] };
 		const models = json.models ?? [];
 
-		// Filter for cloud models only and map to ProviderModelConfig
+		// All models from ollama.com/api are cloud-hosted
+		// Filter out very small models (< 3B parameters) to keep list focused
 		return applyHidden(
 			models
-				.filter((m) => m.name.includes("-cloud"))
+				.filter((m) => {
+					// Try to extract parameter size from name (e.g., "qwen3:8b", "kimi-k2:1t")
+					const sizeMatch = m.name.match(/:(\d+)([bmt])/i);
+					if (sizeMatch) {
+						const size = parseInt(sizeMatch[1], 10);
+						const unit = sizeMatch[2].toLowerCase();
+						// Filter out < 3B models (30B for 'b' unit)
+						if (unit === 'b' && size < 30) return false;
+					}
+					return true;
+				})
 				.map(mapOllamaModel),
 		);
 	} catch (error) {
@@ -122,9 +133,8 @@ function mapOllamaModel(m: OllamaModelTag): ProviderModelConfig {
 		}
 	}
 
-	// Clean up the name (remove -cloud suffix and colons for display)
+	// Clean up the name (convert colons and dashes to spaces for display)
 	const displayName = m.name
-		.replace(/-cloud$/, "")
 		.replace(/:/g, " ")
 		.replace(/-/g, " ")
 		.split(" ")

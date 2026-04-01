@@ -59,8 +59,8 @@ describe("Ollama Provider", () => {
 			const mockModels = {
 				models: [
 					{
-						name: "gpt-oss:120b-cloud",
-						model: "gpt-oss:120b-cloud",
+						name: "gpt-oss:120b",
+						model: "gpt-oss:120b",
 						details: { parameter_size: "120B" },
 					},
 				],
@@ -127,23 +127,23 @@ describe("Ollama Provider", () => {
 	});
 
 	describe("model fetching", () => {
-		it("should filter for cloud models only", async () => {
+		it("should filter out small models (< 30B)", async () => {
 			const mockModels = {
 				models: [
 					{
-						name: "gpt-oss:120b-cloud",
-						model: "gpt-oss:120b-cloud",
+						name: "gpt-oss:120b",
+						model: "gpt-oss:120b",
 						details: { parameter_size: "120B" },
 					},
 					{
-						name: "llama3.2:latest", // Should be filtered out
-						model: "llama3.2:latest",
-						details: { parameter_size: "3B" },
+						name: "llama3.2:1b", // Should be filtered out (too small)
+						model: "llama3.2:1b",
+						details: { parameter_size: "1B" },
 					},
 					{
-						name: "qwen3-coder:480b-cloud",
-						model: "qwen3-coder:480b-cloud",
-						details: { parameter_size: "480B" },
+						name: "qwen3-coder:8b", // Should be kept (8b >= 3b threshold in code)
+						model: "qwen3-coder:8b",
+						details: { parameter_size: "8B" },
 					},
 				],
 			};
@@ -160,18 +160,17 @@ describe("Ollama Provider", () => {
 			const registerCall = mockRegisterProvider.mock.calls[0];
 			const models = registerCall?.[1]?.models;
 
-			// Should only have cloud models
-			expect(models).toHaveLength(2);
-			expect(models[0].id).toBe("gpt-oss:120b-cloud");
-			expect(models[1].id).toBe("qwen3-coder:480b-cloud");
+			// Should filter out small models (< 30B), keep only 120b
+			expect(models).toHaveLength(1);
+			expect(models[0].id).toBe("gpt-oss:120b");
 		});
 
 		it("should clean up model names", async () => {
 			const mockModels = {
 				models: [
 					{
-						name: "gpt-oss:120b-cloud",
-						model: "gpt-oss:120b-cloud",
+						name: "gpt-oss:120b",
+						model: "gpt-oss:120b",
 						details: {},
 					},
 				],
@@ -196,8 +195,8 @@ describe("Ollama Provider", () => {
 			const mockModels = {
 				models: [
 					{
-						name: "deepseek-r1:70b-cloud",
-						model: "deepseek-r1:70b-cloud",
+						name: "deepseek-r1:70b",
+						model: "deepseek-r1:70b",
 						details: {},
 					},
 				],
@@ -224,8 +223,8 @@ describe("Ollama Provider", () => {
 			const mockModels = {
 				models: [
 					{
-						name: "gpt-oss:120b-cloud",
-						model: "gpt-oss:120b-cloud",
+						name: "gpt-oss:120b",
+						model: "gpt-oss:120b",
 						details: {},
 					},
 				],
