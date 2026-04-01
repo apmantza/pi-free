@@ -25,7 +25,7 @@ import {
 	addToFreeModelsCache,
 } from "../provider-helper.ts";
 import { registerUsageWidget } from "../usage-widget.ts";
-import { logWarning } from "../util.ts";
+import { cleanModelName, logWarning } from "../util.ts";
 import { loginKilo, refreshKiloToken } from "./kilo-auth.ts";
 import { fetchKiloModels, KILO_GATEWAY_BASE } from "./kilo-models.ts";
 
@@ -74,7 +74,7 @@ export default async function (pi: ExtensionAPI) {
 			const fullModels = cachedAllModels.map((m) => ({
 				...template,
 				id: m.id,
-				name: m.name,
+				name: cleanModelName(m.name),
 				reasoning: m.reasoning,
 				input: m.input,
 				cost: m.cost,

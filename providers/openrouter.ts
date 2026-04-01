@@ -22,7 +22,7 @@ import { BASE_URL_OPENROUTER, DEFAULT_FETCH_TIMEOUT_MS, DEFAULT_MIN_SIZE_B } fro
 import { fetchOpenRouterMetrics } from "../metrics.ts";
 import { type StoredModels, setupProvider, createCtxReRegister, addToFreeModelsCache } from "../provider-helper.ts";
 import { createLogger } from "../lib/logger.ts";
-import { isUsableModel, logWarning } from "../util.ts";
+import { cleanModelName, isUsableModel, logWarning } from "../util.ts";
 import { fetchOpenRouterModelsWithFree } from "./model-fetcher.ts";
 
 const _logger = createLogger("openrouter");
@@ -100,7 +100,7 @@ export default async function (pi: ExtensionAPI) {
 				.filter((m) => isUsableModel(m.id, DEFAULT_MIN_SIZE_B))
 				.map((m) => ({
 					id: m.id,
-					name: m.name,
+					name: cleanModelName(m.name),
 					reasoning: m.reasoning,
 					input: m.input,
 					cost: m.cost,
