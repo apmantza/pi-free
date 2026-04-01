@@ -14,7 +14,7 @@ vi.mock("../config.ts", () => ({
 }));
 
 vi.mock("../constants.ts", () => ({
-	BASE_URL_OLLAMA: "https://ollama.com/api",
+	BASE_URL_OLLAMA: "https://ollama.com/v1",
 	DEFAULT_FETCH_TIMEOUT_MS: 10000,
 }));
 
@@ -57,11 +57,12 @@ describe("Ollama Provider", () => {
 	describe("initialization", () => {
 		it("should register provider with cloud models", async () => {
 			const mockModels = {
-				models: [
+				data: [
 					{
-						name: "gpt-oss:120b",
-						model: "gpt-oss:120b",
-						details: { parameter_size: "120B" },
+						id: "gpt-oss:120b",
+						object: "model",
+						created: 1754352000,
+						owned_by: "ollama",
 					},
 				],
 			};
@@ -78,9 +79,9 @@ describe("Ollama Provider", () => {
 			expect(mockRegisterProvider).toHaveBeenCalledWith(
 				"ollama",
 				expect.objectContaining({
-					baseUrl: "https://ollama.com/api",
+					baseUrl: "https://ollama.com/v1",
 					apiKey: "OLLAMA_API_KEY",
-					api: "ollama-chat",
+					api: "openai-completions",
 					models: expect.any(Array),
 				}),
 			);
@@ -129,21 +130,24 @@ describe("Ollama Provider", () => {
 	describe("model fetching", () => {
 		it("should filter out small models (< 30B)", async () => {
 			const mockModels = {
-				models: [
+				data: [
 					{
-						name: "gpt-oss:120b",
-						model: "gpt-oss:120b",
-						details: { parameter_size: "120B" },
+						id: "gpt-oss:120b",
+						object: "model",
+						created: 1754352000,
+						owned_by: "ollama",
 					},
 					{
-						name: "llama3.2:1b", // Should be filtered out (too small)
-						model: "llama3.2:1b",
-						details: { parameter_size: "1B" },
+						id: "llama3.2:1b", // Should be filtered out (too small)
+						object: "model",
+						created: 1754352000,
+						owned_by: "ollama",
 					},
 					{
-						name: "qwen3-coder:8b", // Should be kept (8b >= 3b threshold in code)
-						model: "qwen3-coder:8b",
-						details: { parameter_size: "8B" },
+						id: "qwen3-coder:8b", // Should be kept (8b >= 3b threshold in code)
+						object: "model",
+						created: 1754352000,
+						owned_by: "ollama",
 					},
 				],
 			};
@@ -167,11 +171,12 @@ describe("Ollama Provider", () => {
 
 		it("should clean up model names", async () => {
 			const mockModels = {
-				models: [
+				data: [
 					{
-						name: "gpt-oss:120b",
-						model: "gpt-oss:120b",
-						details: {},
+						id: "gpt-oss:120b",
+						object: "model",
+						created: 1754352000,
+						owned_by: "ollama",
 					},
 				],
 			};
@@ -193,11 +198,12 @@ describe("Ollama Provider", () => {
 
 		it("should detect reasoning models", async () => {
 			const mockModels = {
-				models: [
+				data: [
 					{
-						name: "deepseek-r1:70b",
-						model: "deepseek-r1:70b",
-						details: {},
+						id: "deepseek-r1:70b",
+						object: "model",
+						created: 1754352000,
+						owned_by: "ollama",
 					},
 				],
 			};
@@ -221,11 +227,12 @@ describe("Ollama Provider", () => {
 	describe("setupProvider integration", () => {
 		it("should call setupProvider with stored models", async () => {
 			const mockModels = {
-				models: [
+				data: [
 					{
-						name: "gpt-oss:120b",
-						model: "gpt-oss:120b",
-						details: {},
+						id: "gpt-oss:120b",
+						object: "model",
+						created: 1754352000,
+						owned_by: "ollama",
 					},
 				],
 			};

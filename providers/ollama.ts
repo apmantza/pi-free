@@ -74,7 +74,7 @@ async function fetchOllamaModels(): Promise<ProviderModelConfig[]> {
 
 	try {
 		const response = await fetchWithRetry(
-			`${BASE_URL_OLLAMA}/tags`,
+			`${BASE_URL_OLLAMA}/models`,
 			{
 				headers: {
 					"Authorization": `Bearer ${apiKey}`,
@@ -92,20 +92,27 @@ async function fetchOllamaModels(): Promise<ProviderModelConfig[]> {
 			);
 		}
 
-		const json = (await response.json()) as { models?: OllamaModelTag[] };
-		const models = json.models ?? [];
+		const json = (await response.json()) as {
+			data?: Array<{
+				id: string;
+				object?: string;
+				created?: number;
+				owned_by?: string;
+			}>;
+		};
+		const models = json.data ?? [];
 
-		// All models from ollama.com/api are cloud-hosted
-		// Filter out very small models (< 3B parameters) to keep list focused
+		// All models from ollama.com/v1 are cloud-hosted
+		// Filter out very small models (< 30B parameters) to keep list focused
 		return applyHidden(
 			models
 				.filter((m) => {
 					// Try to extract parameter size from name (e.g., "qwen3:8b", "kimi-k2:1t")
-					const sizeMatch = m.name.match(/:(\d+)([bmt])/i);
+					const sizeMatch = m.id.match(/:(\d+)([bmt])/i);
 					if (sizeMatch) {
 						const size = parseInt(sizeMatch[1], 10);
 						const unit = sizeMatch[2].toLowerCase();
-						// Filter out < 3B models (30B for 'b' unit)
+						// Filter out < 30B models (for 'b' unit)
 						if (unit === 'b' && size < 30) return false;
 					}
 					return true;
@@ -118,23 +125,27 @@ async function fetchOllamaModels(): Promise<ProviderModelConfig[]> {
 	}
 }
 
-function mapOllamaModel(m: OllamaModelTag): ProviderModelConfig {
+function mapOllamaModel(m: {
+	id: string;
+	object?: string;
+	created?: number;
+	owned_by?: string;
+}): ProviderModelConfig {
 	// Extract context window from parameter size or default to 128k
-	const paramSize = m.details?.parameter_size || "";
-	const sizeMatch = paramSize.match(/(\d+)([BM])/);
 	let contextWindow = 131072; // Default 128k
 
 	// Larger models often have bigger context windows
+	const sizeMatch = m.id.match(/:(\d+)([bmt])/i);
 	if (sizeMatch) {
 		const size = parseInt(sizeMatch[1], 10);
-		const unit = sizeMatch[2];
-		if (unit === "B" && size >= 100) {
+		const unit = sizeMatch[2].toLowerCase();
+		if (unit === "b" && size >= 100) {
 			contextWindow = 200000; // 200k for large models
 		}
 	}
 
 	// Clean up the name (convert colons and dashes to spaces for display)
-	const displayName = m.name
+	const displayName = m.id
 		.replace(/:/g, " ")
 		.replace(/-/g, " ")
 		.split(" ")
@@ -143,9 +154,9 @@ function mapOllamaModel(m: OllamaModelTag): ProviderModelConfig {
 		.join(" ");
 
 	return {
-		id: m.name,
+		id: m.id,
 		name: displayName,
-		reasoning: m.name.includes("deepseek") || m.name.includes("r1"),
+		reasoning: m.id.includes("deepseek") || m.id.includes("r1"),
 		input: ["text"], // Ollama cloud models are text-only for now
 		cost: {
 			// Ollama uses GPU-time based pricing, not per-token
@@ -205,7 +216,7 @@ export default async function (pi: ExtensionAPI) {
 	pi.registerProvider(PROVIDER_OLLAMA, {
 		baseUrl: BASE_URL_OLLAMA,
 		apiKey: "OLLAMA_API_KEY",
-		api: "ollama-chat" as const, // Ollama has its own API format
+		api: "openai-completions" as const,
 		headers: {
 			"User-Agent": "pi-free-providers",
 		},

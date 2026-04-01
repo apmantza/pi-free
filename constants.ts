@@ -35,7 +35,7 @@ export const BASE_URL_OPENROUTER = "https://openrouter.ai/api/v1";
 export const BASE_URL_NVIDIA = "https://integrate.api.nvidia.com/v1";
 export const BASE_URL_CLINE = "https://api.cline.bot/api/v1";
 export const BASE_URL_FIREWORKS = "https://api.fireworks.ai/inference/v1";
-export const BASE_URL_OLLAMA = "https://ollama.com/api";
+export const BASE_URL_OLLAMA = "https://ollama.com/v1";
 
 // =============================================================================
 // External URLs
