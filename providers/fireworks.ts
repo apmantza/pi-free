@@ -20,7 +20,9 @@ import type {
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
 import {
+	applyHidden,
 	FIREWORKS_API_KEY as CONFIG_API_KEY,
+	FIREWORKS_SHOW_PAID,
 	PROVIDER_FIREWORKS,
 } from "../config.ts";
 import { BASE_URL_FIREWORKS } from "../constants.ts";
@@ -44,17 +46,22 @@ const FIREWORKS_CONFIG = {
 // =============================================================================
 
 function getFireworksModels(): ProviderModelConfig[] {
-	return [
+	// Fireworks has no free tier - all models are credit-based (paid)
+	// Only show if FIREWORKS_SHOW_PAID is enabled
+	if (!FIREWORKS_SHOW_PAID) return [];
+
+	return applyHidden([
 		{
 			id: "accounts/fireworks/routers/kimi-k2p5-turbo",
 			name: "Kimi K2.5 Turbo",
 			reasoning: true,
 			input: ["text"],
-			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			// Actual Fireworks pricing (per 1M tokens): $0.50 input, $2.00 output
+			cost: { input: 0.0005, output: 0.002, cacheRead: 0, cacheWrite: 0 },
 			contextWindow: 262144,
 			maxTokens: 131072,
 		},
-	];
+	]);
 }
 
 // =============================================================================

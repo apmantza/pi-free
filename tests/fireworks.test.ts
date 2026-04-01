@@ -8,7 +8,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // Mock dependencies
 vi.mock("../config.ts", () => ({
 	FIREWORKS_API_KEY: "test-fireworks-key",
+	FIREWORKS_SHOW_PAID: true,
 	PROVIDER_FIREWORKS: "fireworks",
+	applyHidden: (models: unknown[]) => models,
 }));
 
 vi.mock("../constants.ts", () => ({
@@ -30,7 +32,6 @@ vi.mock("../lib/logger.ts", () => ({
 }));
 
 import { setupProvider } from "../provider-helper.ts";
-import fireworksProvider from "../providers/fireworks.ts";
 
 describe("Fireworks Provider", () => {
 	let mockPi: ExtensionAPI;
@@ -48,6 +49,9 @@ describe("Fireworks Provider", () => {
 
 	describe("initialization", () => {
 		it("should register provider with hardcoded models", async () => {
+			const { default: fireworksProvider } = await import(
+				"../providers/fireworks.ts"
+			);
 			await fireworksProvider(mockPi);
 
 			expect(mockRegisterProvider).toHaveBeenCalledWith(
@@ -64,6 +68,9 @@ describe("Fireworks Provider", () => {
 		it("should set API key in environment", async () => {
 			delete process.env.FIREWORKS_API_KEY;
 
+			const { default: fireworksProvider } = await import(
+				"../providers/fireworks.ts"
+			);
 			await fireworksProvider(mockPi);
 
 			expect(process.env.FIREWORKS_API_KEY).toBe("test-fireworks-key");
@@ -71,22 +78,28 @@ describe("Fireworks Provider", () => {
 
 		it("should skip registration without API key", async () => {
 			// Mock no API key by temporarily clearing the module
-			const { FIREWORKS_API_KEY } = await import("../config.ts");
-			vi.spyOn(
-				await import("../config.ts"),
-				"FIREWORKS_API_KEY",
-				"get",
-			).mockReturnValue(undefined as any);
+			const apiKeySpy = vi
+				.spyOn(await import("../config.ts"), "FIREWORKS_API_KEY", "get")
+				.mockReturnValue(undefined as any);
 
+			const { default: fireworksProvider } = await import(
+				"../providers/fireworks.ts"
+			);
 			await fireworksProvider(mockPi);
 
 			// Should not register provider
 			expect(mockRegisterProvider).not.toHaveBeenCalled();
+
+			// Restore the mock so subsequent tests have the API key
+			apiKeySpy.mockRestore();
 		});
 	});
 
 	describe("model configuration", () => {
 		it("should have hardcoded models with correct structure", async () => {
+			const { default: fireworksProvider } = await import(
+				"../providers/fireworks.ts"
+			);
 			await fireworksProvider(mockPi);
 
 			expect(mockRegisterProvider).toHaveBeenCalled();
@@ -106,11 +119,18 @@ describe("Fireworks Provider", () => {
 			expect(firstModel).toHaveProperty("cost");
 			expect(firstModel).toHaveProperty("contextWindow");
 			expect(firstModel).toHaveProperty("maxTokens");
+
+			// Verify non-zero costs (paid model, not free)
+			expect(firstModel.cost.input).toBeGreaterThan(0);
+			expect(firstModel.cost.output).toBeGreaterThan(0);
 		});
 	});
 
 	describe("setupProvider integration", () => {
 		it("should call setupProvider with stored models", async () => {
+			const { default: fireworksProvider } = await import(
+				"../providers/fireworks.ts"
+			);
 			await fireworksProvider(mockPi);
 
 			expect(setupProvider).toHaveBeenCalledWith(
