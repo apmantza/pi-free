@@ -15,7 +15,7 @@
 import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { BASE_URL_CLINE, PROVIDER_CLINE } from "../constants.ts";
-import { incrementRequestCount } from "../metrics.ts";
+import { incrementRequestCount } from "../usage/metrics.ts";
 import { logWarning } from "../util.ts";
 import { loginCline, refreshClineToken } from "./cline-auth.ts";
 import { fetchClineModels } from "./cline-models.ts";

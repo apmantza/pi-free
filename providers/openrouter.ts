@@ -23,7 +23,7 @@ import {
 	DEFAULT_FETCH_TIMEOUT_MS,
 	DEFAULT_MIN_SIZE_B,
 } from "../constants.ts";
-import { fetchOpenRouterMetrics } from "../metrics.ts";
+import { fetchOpenRouterMetrics } from "../usage/metrics.ts";
 import {
 	type StoredModels,
 	setupProvider,

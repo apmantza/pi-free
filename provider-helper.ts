@@ -13,13 +13,13 @@ import type {
 } from "@mariozechner/pi-coding-agent";
 import { saveConfig } from "./config.ts";
 import { createLogger } from "./lib/logger.ts";
-import { incrementRequestCount } from "./metrics.js";
 import { enhanceModelNameWithCodingIndex } from "./provider-failover/hardcoded-benchmarks.js";
 import {
 	handleProviderError,
 	isProviderExhausted,
 	resetFailureCount,
 } from "./provider-failover/index.js";
+import { incrementRequestCount } from "./usage/metrics.ts";
 import { incrementModelRequestCount } from "./usage/tracking.ts";
 
 const _logger = createLogger("provider-helper");
