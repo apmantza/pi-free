@@ -3,8 +3,8 @@
  * Detects 429 rate limits, capacity errors, and other provider-specific errors
  */
 
-import { getFreeTierUsage, getLimitWarning } from "../free-tier-limits.ts";
 import { createLogger } from "../lib/logger.ts";
+import { getFreeTierUsage, getLimitWarning } from "../usage/limits.ts";
 
 const _logger = createLogger("failover");
 

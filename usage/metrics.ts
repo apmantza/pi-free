@@ -2,13 +2,13 @@
  * Provider usage metrics - tracks rate limits and usage for each provider.
  */
 
-import { OPENCODE_API_KEY, OPENROUTER_API_KEY } from "./config.ts";
+import { OPENCODE_API_KEY, OPENROUTER_API_KEY } from "../config.ts";
 import {
 	BASE_URL_OPENROUTER,
 	BASE_URL_ZEN,
 	DEFAULT_FETCH_TIMEOUT_MS,
-} from "./constants.ts";
-import { fetchWithRetry, fetchWithTimeout, logWarning } from "./util.ts";
+} from "../constants.ts";
+import { fetchWithTimeout, logWarning } from "../util.ts";
 
 // =============================================================================
 // Types
