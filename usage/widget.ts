@@ -8,7 +8,7 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { recordTurn } from "./usage-store.ts";
+import { recordTurn } from "./store.ts";
 import { collectRows, recordSessionRequest } from "./widget/data.ts";
 import { renderWidgetHTML } from "./widget/render.ts";
 
