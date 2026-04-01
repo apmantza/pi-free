@@ -11,34 +11,17 @@
  * Set NVIDIA_SHOW_PAID=true to show paid-tier models (same key, uses credits).
  */
 
-import type {
-	ExtensionAPI,
-	ProviderModelConfig,
-} from "@mariozechner/pi-coding-agent";
-import {
-	applyHidden,
-	NVIDIA_API_KEY as CONFIG_API_KEY,
-	NVIDIA_SHOW_PAID,
-	PROVIDER_NVIDIA,
-} from "../config.ts";
+import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
+import { applyHidden, NVIDIA_SHOW_PAID, PROVIDER_NVIDIA } from "../config.ts";
 import {
 	BASE_URL_NVIDIA,
 	DEFAULT_FETCH_TIMEOUT_MS,
 	NVIDIA_MIN_SIZE_B,
 	URL_MODELS_DEV,
 } from "../constants.ts";
-import { createLogger } from "../lib/logger.ts";
-import { type StoredModels, setupProvider, createReRegister } from "../provider-helper.ts";
+import { createProvider } from "../provider-factory.ts";
 import type { ModelsDevProvider } from "../types.ts";
-import { fetchWithRetry, isUsableModel, logWarning } from "../util.ts";
-
-const _logger = createLogger("nvidia");
-
-const NVIDIA_CONFIG = {
-	providerId: PROVIDER_NVIDIA,
-	baseUrl: BASE_URL_NVIDIA,
-	apiKey: "NVIDIA_API_KEY",
-};
+import { fetchWithRetry, isUsableModel } from "../util.ts";
 
 // =============================================================================
 // Fetch + map
@@ -71,7 +54,7 @@ async function fetchNvidiaModels(): Promise<ProviderModelConfig[]> {
 			.filter((m) => isUsableModel(m.id, NVIDIA_MIN_SIZE_B))
 			.filter((m) => {
 				// All NVIDIA models are credit-based (no hard cost.input = 0 distinction).
-				// Respect NVIDIA_SHOW_PAID: without the flag, only expose models marked free (cost 0).
+				// Respect NVIDIA_SHOW_PAID: without the flag, only expose models marked free.
 				if (!NVIDIA_SHOW_PAID && (m.cost?.input ?? 0) > 0) return false;
 				return true;
 			})
@@ -102,51 +85,13 @@ async function fetchNvidiaModels(): Promise<ProviderModelConfig[]> {
 // Extension Entry Point
 // =============================================================================
 
-export default async function (pi: ExtensionAPI) {
-	const apiKey = CONFIG_API_KEY;
-
-	// Inject into process.env so Pi's apiKey lookup finds it even when loaded from ~/.pi/free.json.
-	if (apiKey) process.env.NVIDIA_API_KEY = apiKey;
-
-	if (!apiKey) {
-		_logger.warn(
-			"No API key found — set NVIDIA_API_KEY or add nvidia_api_key to ~/.pi/free.json. Free key at https://build.nvidia.com",
-		);
-		return;
-	}
-
-	let models: ProviderModelConfig[] = [];
-	try {
-		models = await fetchNvidiaModels();
-	} catch (error) {
-		logWarning("nvidia", "Failed to fetch models", error);
-	}
-
-	if (models.length === 0) return;
-
-	// Shared model storage (single set — NVIDIA has no free/all split)
-	const stored: StoredModels = { free: models, all: models };
-
-	pi.registerProvider(PROVIDER_NVIDIA, {
+export default function (pi: Parameters<typeof createProvider>[0]) {
+	return createProvider(pi, {
+		providerId: PROVIDER_NVIDIA,
 		baseUrl: BASE_URL_NVIDIA,
-		apiKey: "NVIDIA_API_KEY",
-		api: "openai-completions" as const,
-		headers: { "User-Agent": "pi-free-providers" },
-		models,
+		apiKeyEnvVar: "NVIDIA_API_KEY",
+		apiKeyConfigKey: "nvidia_api_key",
+		// Note: NVIDIA_SHOW_PAID filtering is handled inside fetchNvidiaModels
+		fetchModels: fetchNvidiaModels,
 	});
-
-	// Wire up shared boilerplate (commands, model_select, turn_end)
-	const reRegister = createReRegister(pi, NVIDIA_CONFIG);
-	setupProvider(
-		pi,
-		{
-			providerId: PROVIDER_NVIDIA,
-			reRegister: (m) => {
-				stored.free = m;
-				stored.all = m;
-				reRegister(m);
-			},
-		},
-		stored,
-	);
 }
