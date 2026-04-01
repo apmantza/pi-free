@@ -242,27 +242,6 @@ export function isCapacityError(error: unknown): boolean {
 }
 
 /**
- * Check if error should trigger autocompact
- * Only rate limits on free providers should trigger autocompact
- */
-export function shouldTriggerAutocompact(
-	error: unknown,
-	_provider: string,
-	isPaidMode: boolean,
-): boolean {
-	const classified = classifyError(error);
-
-	// Only rate limits trigger autocompact
-	if (classified.type !== "rate_limit") return false;
-
-	// In paid mode, don't autocompact - just switch provider or retry
-	if (isPaidMode) return false;
-
-	// In free mode, autocompact is a good first response
-	return true;
-}
-
-/**
  * Log error classification for debugging
  */
 export function logErrorClassification(

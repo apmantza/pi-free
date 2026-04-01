@@ -18,9 +18,17 @@ import {
 	OPENROUTER_SHOW_PAID,
 	PROVIDER_OPENROUTER,
 } from "../config.ts";
-import { BASE_URL_OPENROUTER, DEFAULT_FETCH_TIMEOUT_MS, DEFAULT_MIN_SIZE_B } from "../constants.ts";
+import {
+	BASE_URL_OPENROUTER,
+	DEFAULT_FETCH_TIMEOUT_MS,
+	DEFAULT_MIN_SIZE_B,
+} from "../constants.ts";
 import { fetchOpenRouterMetrics } from "../metrics.ts";
-import { type StoredModels, setupProvider, createCtxReRegister, addToFreeModelsCache } from "../provider-helper.ts";
+import {
+	type StoredModels,
+	setupProvider,
+	createCtxReRegister,
+} from "../provider-helper.ts";
 import { createLogger } from "../lib/logger.ts";
 import { cleanModelName, isUsableModel, logWarning } from "../util.ts";
 import { fetchOpenRouterModelsWithFree } from "./model-fetcher.ts";
@@ -75,6 +83,7 @@ export default async function (pi: ExtensionAPI) {
 		pi,
 		{
 			providerId: PROVIDER_OPENROUTER,
+			initialShowPaid: OPENROUTER_SHOW_PAID,
 			reRegister: (models) => reRegisterFn(models),
 		},
 		stored,
@@ -118,8 +127,6 @@ export default async function (pi: ExtensionAPI) {
 			// Store for command toggle
 			stored.free = freeModels;
 			stored.all = existingModels;
-			// Update free models cache for model hopping
-			addToFreeModelsCache(PROVIDER_OPENROUTER, freeModels);
 
 			// Create re-register function using ctx
 			reRegisterFn = createCtxReRegister(ctx as any, OPENROUTER_CONFIG);
@@ -156,8 +163,6 @@ export default async function (pi: ExtensionAPI) {
 		if (fetchResult) {
 			stored.free = fetchResult.free;
 			stored.all = fetchResult.all;
-			// Update free models cache for model hopping
-			addToFreeModelsCache(PROVIDER_OPENROUTER, fetchResult.free);
 		}
 
 		// Create re-register function using ctx and register

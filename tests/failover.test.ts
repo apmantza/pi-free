@@ -14,35 +14,34 @@ describe("Failover Handler", () => {
 	});
 
 	describe("handleProviderError", () => {
-		it("should classify rate limit and suggest autocompact in free mode", async () => {
+		it("should classify rate limit and suggest waiting in free mode", async () => {
 			const result = await handleProviderError(
 				"429 Rate limit exceeded",
 				{
 					provider: "test-provider",
 					isPaidMode: false,
-					enableAutocompact: true,
 				},
 				{} as unknown as ExtensionAPI,
 				{ ui: { notify: () => {} }, session: { id: "test" } },
 			);
 
-			expect(result.action).toBe("autocompact");
-			expect(result.shouldRetry).toBe(true);
+			expect(result.action).toBe("fail");
+			expect(result.shouldRetry).toBe(false);
 		});
 
-		it("should suggest failover in paid mode on rate limit", async () => {
+		it("should suggest waiting on rate limit in paid mode", async () => {
 			const result = await handleProviderError(
 				"429 Rate limit exceeded",
 				{
 					provider: "test-provider",
 					isPaidMode: true,
-					enableAutocompact: true,
 				},
 				{} as unknown as ExtensionAPI,
 				{ ui: { notify: () => {} }, session: { id: "test" } },
 			);
 
-			expect(result.action).toBe("failover");
+			expect(result.action).toBe("fail");
+			expect(result.shouldRetry).toBe(false);
 		});
 
 		it("should handle auth errors as non-retryable", async () => {
@@ -51,7 +50,6 @@ describe("Failover Handler", () => {
 				{
 					provider: "test-provider",
 					isPaidMode: false,
-					enableAutocompact: true,
 				},
 				{} as unknown as ExtensionAPI,
 				{ ui: { notify: () => {} } },
@@ -67,13 +65,12 @@ describe("Failover Handler", () => {
 				{
 					provider: "test-provider",
 					isPaidMode: false,
-					enableAutocompact: true,
 				},
 				{} as unknown as ExtensionAPI,
 				{ ui: { notify: () => {} } },
 			);
 
-			expect(result.action).toBe("failover");
+			expect(result.action).toBe("retry");
 			expect(result.shouldRetry).toBe(true);
 		});
 	});

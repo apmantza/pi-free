@@ -22,7 +22,6 @@ import {
 	setupProvider,
 	createReRegister,
 	createCtxReRegister,
-	addToFreeModelsCache,
 } from "../provider-helper.ts";
 import { registerUsageWidget } from "../usage-widget.ts";
 import { cleanModelName, logWarning } from "../util.ts";
@@ -108,6 +107,7 @@ export default async function (pi: ExtensionAPI) {
 		{
 			providerId: PROVIDER_KILO,
 			tosUrl: URL_KILO_TOS,
+			initialShowPaid: true, // Kilo shows all available models (auth determines access)
 			reRegister: (models) => {
 				stored.free = models;
 				stored.all = models;

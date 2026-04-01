@@ -112,6 +112,7 @@ export function createOpenAIProvider(config: OpenAIProviderConfig) {
 				providerId,
 				tosUrl: showTosNotice ? tosUrl : undefined,
 				hasKey: !!apiKey,
+				initialShowPaid: !!apiKey, // If they have a key, show all by default
 				reRegister: (m) => {
 					stored.free = m;
 					stored.all = m;

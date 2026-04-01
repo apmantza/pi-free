@@ -196,7 +196,7 @@ export async function createProvider(
 		{
 			providerId: def.providerId,
 			tosUrl: def.tosUrl,
-			isPaidMode: def.isPaidMode ?? !!def.showPaidFlag,
+			initialShowPaid: def.isPaidMode ?? !!def.showPaidFlag,
 			reRegister: (m: ProviderModelConfig[]) => {
 				stored.free = m;
 				stored.all = m;

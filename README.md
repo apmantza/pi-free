@@ -1,354 +1,291 @@
 # pi-free-providers
 
-All-in-one free model providers for [Pi](https://pi.dev) — with **intelligent failover, automatic rate limit recovery, and capability-based ranking**.
+Free AI model providers for [Pi](https://pi.dev). Access **60+ free models** from multiple providers in one install.
 
-Add five AI providers with **60+ free models** in a single install:
+## What This Extension Does
 
-| Provider | Free models | Auth needed | Smart failover |
-|---|---|---|---|
-| **Kilo** | 14 | Free OAuth | ✅ Auto-hop on 429 |
-| **OpenCode Zen** | 11 | None | ✅ Auto-compact + retry |
-| **OpenRouter** | 29 | Free account | ✅ Capability-ranked |
-| **NVIDIA NIM** | 70B+ curated | Free credits | ✅ 1000 req/month limit |
-| **Cline** | Free tier | Free account | ✅ Auto-retry |
+This extension registers multiple AI providers with Pi, **filtering to show only free models by default**. If you have API keys, you can toggle to see paid models too.
 
----
-
-## ✨ What's New
-
-### 🤖 Intelligent Failover
-When you hit a 429 (rate limit):
-1. **Auto-compacts** conversation to reduce tokens
-2. **Retries same provider** with smaller payload
-3. **Auto-hops to backup** provider if still failing
-4. **Re-sends your message** automatically — no manual retry needed!
-
-### 📊 Capability-Based Ranking
-Models ranked by real benchmark data (Artificial Analysis API):
-- **445 models** with Intelligence Index scores
-- **"MiMo V2 Pro Free (CI 70)"** format shows Coding Index
-- Prevents major capability downgrades (Claude Opus → tiny Llama)
-- Same-tier hops allowed (GPT-4 ↔ Claude-3)
-
-### 📈 Usage Tracking Commands
-```
-/free-sessionusage  - Current session stats with rate limit warnings
-/free-totalusage    - All-time cumulative usage
-```
-
-Shows:
-- Request counts per model
-- Token usage (in/out)
-- Rate limit status: 🟢 healthy / 🟡 warning / 🔴 critical
+| Provider | Free Models | Auth Required | Rate Limit |
+|----------|-------------|---------------|------------|
+| **OpenCode Zen** | 11 | None | 1000/day |
+| **Kilo** | 14 | OAuth (free) | 200/hour |
+| **OpenRouter** | 29 | Free account | 1000/day |
+| **NVIDIA NIM** | Curated 70B+ | Free credits | 1000 credits/mo (some models cost more) |
+| **Cline** | Free tier | Free account | Varies |
+| **Fireworks** | Free tier | API key | Varies |
+| **Mistral** | Free tier | API key | Varies |
+| **Ollama** | Cloud models | Free API key | Resets every 5hrs + 7 days |
 
 ---
 
-## Install
+## Quick Start
 
-### Prerequisites
-
-Install Pi (if you haven't already):
+### 1. Install Pi
 
 ```bash
 npm install -g @mariozechner/pi-coding-agent
 ```
 
-### Add the extension
+### 2. Install This Extension
 
 ```bash
 pi install git:github.com/apmantza/pi-free
 ```
 
-### Start Pi
+### 3. Start Pi
 
 ```bash
 pi
 ```
 
-Press `Ctrl+L` to see all available models.
+### 4. Select a Free Model
+
+Press `Ctrl+L` to open the model picker. Free models are shown by default.
 
 ---
 
-## Quick Start (No Keys Needed)
+## Using Free Models (No Setup Required)
 
-**OpenCode Zen works immediately** — no account, no API key:
+### OpenCode Zen — Easiest Start
 
+Works immediately with zero setup:
+
+1. Press `Ctrl+L`
+2. Search for `zen/`
+3. Pick any model (e.g., `zen/mimo-v2-omni-free`)
+4. Start chatting
+
+No account, no API key, no OAuth.
+
+### Ollama Cloud
+
+Get an API key from [ollama.com/settings/keys](https://ollama.com/settings/keys), then:
+
+**Option A: Environment variable**
 ```bash
-pi
+export OLLAMA_API_KEY="..."
+export OLLAMA_SHOW_PAID=true
 ```
 
-Press `Ctrl+L` and pick any model prefixed with `zen/`.
-
-**Kilo** offers 14 free models after quick OAuth (`/login kilo`).
-
----
-
-## 🚀 Auto-Failover in Action
-
-When a provider hits a rate limit, here's what happens automatically:
-
-```
-You: Write a function to parse JSON...
-Zen (Mimo): 429 Too Many Requests
-     ↓
-🗜️  Auto-compacting conversation...
-     ↓ (2 seconds)
-🔄  Retrying on Zen...
-Still 429? → Hop to OpenRouter (same Mimo model)
-     ↓ (3 seconds)
-🔄  Auto-retrying on backup provider...
-     ↓
-OpenRouter (Mimo): "Here's the JSON parser function..."
-```
-
-**You don't lift a finger.** The conversation just continues.
-
----
-
-## 📊 Usage Commands
-
-Track your free tier usage:
-
-### `/free-sessionusage` — Current Session
-```
-📊 Session Usage Report
-━━━━━━━━━━━━━━━━━━━━━━━━
-Total: 47 requests | 12,450 tokens in | 34,280 tokens out
-
-🔥 Top Models:
-  1. zen/mimo-v2-omni-free (12 req, 3,240 tokens)
-  2. kilo/gpt-4o-mini (8 req, 2,100 tokens)
-
-⚠️  Rate Limit Status:
-  🟡 kilo: 170/200 req/hr (85%)
-  🟢 openrouter: 45/1000 req/day (4%)
-  🟢 nvidia: 12/1000 req/mo (1%)
-```
-
-### `/free-totalusage` — All-Time Stats
-```
-📈 Cumulative Usage (All Sessions)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Total: 1,247 requests | 384K tokens
-
-💰 Estimated cost saved: $142.80
-
-Top providers:
-  1. zen: 523 requests
-  2. kilo: 412 requests
-  3. openrouter: 312 requests
-```
-
----
-
-## Configuration
-
-### Config file: `~/.pi/free.json`
-
+**Option B: Config file** (`~/.pi/free.json`)
 ```json
 {
-  "openrouter_api_key": "YOUR_OPENROUTER_KEY",
-  "nvidia_api_key":     "YOUR_NVIDIA_KEY",
-  "opencode_api_key":   "YOUR_ZEN_KEY",
-  "cline_api_key":      "YOUR_CLINE_KEY",
-  
-  "show_paid":          false,
-  "kilo_free_only":     false,
-  "hidden_models":      [],
-  
-  "preferred_models":   ["mimo-v2-omni-free", "gpt-4o-mini"],
-  "allow_downgrades":   "minor",
-  "max_model_hops":     3
+  "ollama_api_key": "YOUR_KEY",
+  "ollama_show_paid": true
 }
 ```
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `show_paid` | Include paid models where you have a key | `false` |
-| `kilo_free_only` | Restrict Kilo to free models even after login | `false` |
-| `preferred_models` | Priority order for model failover | `[]` |
-| `allow_downgrades` | `"never"`, `"minor"`, or `"always"` | `"minor"` |
-| `max_model_hops` | Max providers to try before giving up | `3` |
+**Note:** Ollama requires `OLLAMA_SHOW_PAID=true` because they have usage limits on their cloud API.
 
-### Environment variables
+Free tier resets every 5 hours + 7 days.
+
+---
+
+## Providers That Need Authentication
+
+Some providers require free accounts or OAuth to access their free tiers:
+
+### Kilo (14 free models)
+
+```
+/login kilo
+```
+
+- Opens browser for one-time OAuth
+- No credit card required
+- 14 free models unlocked (200 req/hour limit)
+- After login, use `/kilo-all` to see 300+ models
+
+### OpenRouter (29 free models)
+
+Get a free API key at [openrouter.ai/keys](https://openrouter.ai/keys), then either:
+
+**Option A: Environment variable**
+```bash
+export OPENROUTER_API_KEY="sk-or-v1-..."
+```
+
+**Option B: Config file** (`~/.pi/free.json`)
+```json
+{
+  "openrouter_api_key": "sk-or-v1-..."
+}
+```
+
+Then in Pi:
+```
+/openrouter-all   # Show all models (free + paid)
+```
+
+### NVIDIA NIM (Free Credits System)
+
+NVIDIA provides **free monthly credits** (1000 requests/month) at [build.nvidia.com](https://build.nvidia.com).
+
+**Important:** Models have different "costs" per token:
+- **Zero-cost models**: Don't consume your credit balance (shown by default)
+- **Credit-costing models**: Consume credits faster (hidden by default)
+
+Get your API key and optionally enable all models:
+
+**Option A: Show only free models (default)**
+```bash
+export NVIDIA_API_KEY="nvapi-..."
+```
+Uses only zero-cost models → your 1000 credits last the full month
+
+**Option B: Show all models (uses credits faster)**
+```bash
+export NVIDIA_API_KEY="nvapi-..."
+export NVIDIA_SHOW_PAID=true
+```
+
+Or in `~/.pi/free.json`:
+```json
+{
+  "nvidia_api_key": "nvapi-...",
+  "nvidia_show_paid": true
+}
+```
+
+Toggle anytime with `/nvidia-toggle`
+
+### Cline
+
+```
+/login cline
+```
+
+Browser sign-in required. Uses local ports 48801-48811.
+
+### Fireworks / Mistral
+
+Add API keys to `~/.pi/free.json` or environment variables:
 
 ```bash
-export OPENROUTER_API_KEY="YOUR_OPENROUTER_KEY"
-export NVIDIA_API_KEY="YOUR_NVIDIA_KEY"
-export PI_FREE_SHOW_PAID=true
-export PI_FREE_ALLOW_DOWNGRADES=minor
+export FIREWORKS_API_KEY="..."
+export MISTRAL_API_KEY="..."
 ```
 
 ---
 
 ## Slash Commands
 
-| Command | Description |
-|---------|-------------|
-| `/kilo-free` | Show only free Kilo models (14) |
-| `/kilo-all` | Show all Kilo models (300+ after login) |
-| `/openrouter-free` | Show only free OpenRouter models (29) |
-| `/openrouter-all` | Show all OpenRouter models (300+) |
-| `/zen-free` | Show only free Zen models (11) |
-| `/zen-all` | Show all Zen models |
-| `/nvidia-free` | Show only free NVIDIA models |
-| `/nvidia-all` | Show all NVIDIA models |
-| `/cline-free` | Show only free Cline models |
-| `/cline-all` | Show all Cline models |
-| `/free-sessionusage` | Show current session usage |
-| `/free-totalusage` | Show all-time cumulative usage |
+Each provider has toggle commands to switch between free and all models:
+
+| Command | Action |
+|---------|--------|
+| `/zen-toggle` | Toggle between free/all Zen models |
+| `/kilo-toggle` | Toggle between free/all Kilo models |
+| `/openrouter-toggle` | Toggle between free/all OpenRouter models |
+| `/nvidia-toggle` | Toggle between free/all NVIDIA models |
+| `/cline-toggle` | Toggle between free/all Cline models |
+| `/fireworks-toggle` | Toggle between free/all Fireworks models |
+| `/mistral-toggle` | Toggle between free/all Mistral models |
+| `/ollama-toggle` | Toggle between free/all Ollama models |
+
+**The toggle command:**
+- Switches between showing only free models vs. all available models
+- **Persists your preference** to `~/.pi/free.json` for next startup
+- Shows a notification: "zen: showing 11 free models" or "zen: showing all 47 models (including paid)"
 
 ---
 
-## Get Free API Keys
+## Configuration
 
-| Provider | Where to get | Cost |
-|---|---|---|
-| **OpenRouter** | [openrouter.ai/keys](https://openrouter.ai/keys) | Free account |
-| **NVIDIA NIM** | [build.nvidia.com](https://build.nvidia.com) | Free credits on signup |
-| **OpenCode Zen** | [opencode.ai/auth](https://opencode.ai/auth) | Optional — free models work without |
-| **Cline** | [cline.bot](https://cline.bot) | Free account |
+Create `~/.pi/free.json` in your home directory:
 
----
-
-## Authentication
-
-### Kilo OAuth (Free)
-
-```
-/login kilo
+```json
+{
+  "openrouter_api_key": "YOUR_OPENROUTER_KEY",
+  "nvidia_api_key": "YOUR_NVIDIA_KEY",
+  "fireworks_api_key": "YOUR_FIREWORKS_KEY",
+  "mistral_api_key": "YOUR_MISTRAL_KEY",
+  "opencode_api_key": "YOUR_ZEN_KEY",
+  "ollama_api_key": "YOUR_OLLAMA_KEY",
+  "ollama_show_paid": true,
+  "hidden_models": ["model-id-to-hide"]
+}
 ```
 
-- Opens browser for one-time signup
-- 14 free models unlocked
-- Session saved locally
-
-### Cline OAuth
-
-```
-/login cline
-```
-
-- Browser sign-in (uses ports 48801-48811)
-- Free tier models unlocked
-
----
-
-## Provider Details
-
-### Kilo
-- **Free models:** 14 (after OAuth)
-- **Rate limit:** 200 requests/hour
-- **With login:** 300+ models
-
-### OpenCode Zen
-- **Free models:** 11 (no auth needed!)
-- **Rate limit:** 1000 requests/day
-- **Models:** Big Pickle, MiMo V2, Trinity, MiniMax
-
-### OpenRouter
-- **Free models:** 29
-- **Rate limit:** 1000 requests/day
-- **With key:** 300+ models
-
-### NVIDIA NIM
-- **Free models:** 70B+ parameter curated list
-- **Rate limit:** 1000 requests/month
-- **Filter:** Excludes small models (<70B), embeddings, audio
-
-### Cline
-- **Free models:** Curated free tier
-- **Requires:** Free account
-
----
-
-## Architecture
-
-### Provider Failover System
-
-```
-provider-failover/
-├── autocompact.ts      # Auto-compact on 429
-├── capability-ranking.ts # Benchmark-based scoring
-├── errors.ts            # Error classification
-├── hardcoded-benchmarks.ts # 445 models with AA scores
-├── model-hop.ts         # Intelligent provider hopping
-└── index.ts             # Main failover coordinator
-```
-
-### Usage Tracking
-
-```
-free-tier-limits.ts    # Per-model rate limits & tracking
-usage-commands.ts        # /free-sessionusage, /free-totalusage
-usage-store.ts           # Persistent cumulative data (~/.pi/free-cumulative-usage.json)
-```
-
-### Key Features
-
-| Feature | Implementation |
-|---------|----------------|
-| Auto-compact | `triggerAutocompact()` → `sendUserMessage()` retry |
-| Model hopping | `rankByCapability()` → `findBestAlternative()` |
-| Benchmark data | Hardcoded 445 models, refreshed monthly via GitHub Actions |
-| Token tracking | Extracted from `turn_end` events in `provider-helper.ts` |
-| Rate limit warnings | 🟢🟡🔴 based on percent used |
-
----
-
-## Testing
-
-Run the test suite:
+Or use environment variables (same names, uppercase):
 
 ```bash
-npm test              # Run all tests
-npm test -- --run     # CI mode (once through)
-npm run test:ui       # Interactive UI
+export OPENROUTER_API_KEY="..."
+export NVIDIA_API_KEY="..."
 ```
 
-**80 tests** covering:
-- ✅ Error classification (429, 503, 401 patterns)
-- ✅ Autocompact cooldown logic
-- ✅ Failover handler actions
-- ✅ Usage tracking & rate limits
-- ✅ Capability ranking & scoring
-- ✅ Fetch retry logic with timeout
+---
+
+## Understanding Rate Limits
+
+Free tiers have limits. When you hit them:
+
+- **Kilo**: 200 requests/hour
+- **Zen**: 1000 requests/day  
+- **OpenRouter**: 1000 requests/day (free tier)
+- **NVIDIA**: 1000 credits/month. Some models consume credits faster — toggle with `/nvidia-toggle`
+- **Ollama**: Resets every 5 hours + 7 days
+- **Fireworks/Mistral/Cline**: Varies by account
+
+The extension will notify you when you hit limits. Switch providers with `/model` or wait for the limit to reset.
 
 ---
 
 ## Troubleshooting
 
-### Models not appearing
-- Check API keys in `~/.pi/free.json`
-- Verify key formats: `sk-or-v1-...` (OpenRouter), `nvapi-...` (NVIDIA)
-- Press `Ctrl+L` to refresh model list
+### Models not appearing in Ctrl+L
 
-### 429 errors not auto-recovering
-- Check `/free-sessionusage` for rate limit status
-- Verify `allow_downgrades` isn't set to `"never"`
-- Ensure extension is up to date: `pi update git:github.com/apmantza/pi-free`
+1. Check if the provider needs authentication (see table above)
+2. For OAuth providers (Kilo, Cline), run `/login {provider}`
+3. For API key providers, check your key is set correctly
+4. Press `Ctrl+L` again to refresh
+
+### "Rate limit exceeded" errors
+
+- Use `/model` to switch to a different provider
+- Wait for the rate limit to reset (times vary by provider)
+- Some providers allow more requests if you add a payment method
 
 ### Authentication issues
-- Cline: Check firewall for ports 48801-48811
-- Kilo: Try `/logout kilo` then `/login kilo`
 
-### Dashboard not opening
-- Usage commands work without dashboard: `/free-sessionusage`
-- Dashboard requires [glimpseui](https://github.com/nicehash/glimpseui)
+**Kilo OAuth not working:**
+- Try `/logout kilo` then `/login kilo` again
+- Check browser allows popups
+
+**Cline login fails:**
+- Ensure ports 48801-48811 are not blocked by firewall
+- Try `/logout cline` then `/login cline`
+
+### Provider-specific issues
+
+**OpenRouter showing no models:**
+- Verify your key starts with `sk-or-v1-`
+- Run `/openrouter-free` to see free models without key
+
+**NVIDIA showing no models:**
+- Verify your key starts with `nvapi-`
+- Check key is still valid at build.nvidia.com
+- By default, only zero-cost models are shown. Run `/nvidia-toggle` to see all models (uses credits faster)
+
+**Ollama showing no models:**
+- Get API key from [ollama.com/settings/keys](https://ollama.com/settings/keys)
+- **Required:** Set `OLLAMA_SHOW_PAID=true` (env var) or `"ollama_show_paid": true` (config)
+- Ollama requires this flag because they have usage limits
 
 ---
 
-## Data Sources
+## How It Works
 
-**Benchmark Data:** [Artificial Analysis API](https://artificialanalysis.ai)
-- 445 models with Intelligence Index scores
-- Normalized to 0-100 scale
-- Monthly updates via GitHub Actions
+This extension registers providers with Pi using the standard OpenAI-compatible API format. Each provider:
 
-**Rate Limits:** Hardcoded from provider docs
-- Kilo: 200/hr
-- OpenRouter: 1000/day
-- NVIDIA/Fireworks: 1000/month
+1. Fetches available models from the provider's API
+2. Filters to free-only by default (checking `cost.input === 0`)
+3. Registers with Pi's model registry
+4. Provides toggle commands to switch between free/all models
+5. Handles errors (rate limits, auth failures, network issues)
+
+The extension doesn't proxy or modify requests — it just makes the providers available in Pi's model picker.
 
 ---
 
@@ -361,22 +298,32 @@ npm install
 npm test
 ```
 
-### File Layout
+### Project Structure
 
 ```
-providers/
-  kilo.ts, kilo-auth.ts, kilo-models.ts
-  zen.ts
-  openrouter.ts
-  nvidia.ts
-  cline.ts, cline-auth.ts, cline-models.ts
+providers/          # Provider implementations
+  kilo.ts          # Kilo gateway (300+ models)
+  zen.ts           # OpenCode Zen (11 free)
+  openrouter.ts    # OpenRouter (29 free, 300+ paid)
+  nvidia.ts        # NVIDIA NIM (70B+ models)
+  cline.ts         # Cline.bot
+  fireworks.ts     # Fireworks AI
+  mistral.ts       # Mistral AI
+  ollama.ts        # Local Ollama
 
-provider-failover/
-  autocompact.ts, capability-ranking.ts, errors.ts
-  hardcoded-benchmarks.ts, model-hop.ts, index.ts
+provider-failover/  # Error handling
+  errors.ts        # Error classification
+  index.ts         # Failover coordinator
+  hardcoded-benchmarks.ts  # Model scoring data
 
-tests/
-  *.test.ts (80 tests)
+usage/             # Usage tracking
+  tracking.ts      # Per-model request counts
+  cumulative.ts    # Persistent storage
+  formatters.ts    # Display formatting
+
+config.ts          # Configuration loading
+constants.ts       # Provider URLs, etc.
+provider-helper.ts # Shared provider setup
 ```
 
 ---
@@ -384,7 +331,5 @@ tests/
 ## License
 
 MIT — See [LICENSE](LICENSE)
-
----
 
 **Questions?** [Open an issue](https://github.com/apmantza/pi-free/issues)

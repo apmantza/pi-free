@@ -3,7 +3,6 @@ import {
 	classifyError,
 	isCapacityError,
 	isRateLimit,
-	shouldTriggerAutocompact,
 } from "../provider-failover/errors.ts";
 
 describe("Error Classification", () => {
@@ -135,28 +134,6 @@ describe("Error Classification", () => {
 		it("should return false for other errors", () => {
 			expect(isCapacityError("Rate limit")).toBe(false);
 			expect(isCapacityError("Invalid key")).toBe(false);
-		});
-	});
-
-	describe("shouldTriggerAutocompact", () => {
-		it("should trigger autocompact on rate limit in free mode", () => {
-			const error = "429 Too many requests";
-			expect(shouldTriggerAutocompact(error, "kilo", false)).toBe(true);
-			expect(shouldTriggerAutocompact(error, "openrouter", false)).toBe(true);
-		});
-
-		it("should NOT trigger autocompact in paid mode", () => {
-			const error = "429 Too many requests";
-			expect(shouldTriggerAutocompact(error, "fireworks", true)).toBe(false);
-		});
-
-		it("should NOT trigger autocompact for non-rate-limit errors", () => {
-			expect(shouldTriggerAutocompact("Auth failed", "kilo", false)).toBe(
-				false,
-			);
-			expect(shouldTriggerAutocompact("Network error", "kilo", false)).toBe(
-				false,
-			);
 		});
 	});
 });

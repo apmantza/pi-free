@@ -1,11 +1,10 @@
 /**
  * Main provider failover handler
- * Coordinates error detection, autocompact, and provider switching
+ * Coordinates error detection and provider switching
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { createLogger } from "../lib/logger.ts";
-import { triggerAutocompact } from "./autocompact.js";
 import {
 	type ClassifiedError,
 	classifyError,
@@ -20,13 +19,10 @@ export interface FailoverConfig {
 
 	// Whether this provider is in paid mode
 	isPaidMode: boolean;
-
-	// Whether to attempt autocompact on 429 (free mode only)
-	enableAutocompact: boolean;
 }
 
 export interface FailoverResult {
-	action: "retry" | "autocompact" | "failover" | "fail";
+	action: "retry" | "fail";
 	message: string;
 	shouldRetry: boolean;
 	retryDelayMs?: number;
@@ -42,7 +38,7 @@ const MAX_CONSECUTIVE_FAILURES = 3;
 export async function handleProviderError(
 	error: unknown,
 	config: FailoverConfig,
-	pi: ExtensionAPI,
+	_pi: ExtensionAPI,
 	ctx: {
 		ui: {
 			notify: (message: string, type: "info" | "warning" | "error") => void;
@@ -50,7 +46,7 @@ export async function handleProviderError(
 		session?: { id?: string };
 	},
 ): Promise<FailoverResult> {
-	const { provider, isPaidMode, enableAutocompact } = config;
+	const { provider, isPaidMode } = config;
 
 	// Classify the error
 	const classified = classifyError(error);
@@ -63,17 +59,15 @@ export async function handleProviderError(
 
 	// Check for too many consecutive failures
 	if (currentFailures >= MAX_CONSECUTIVE_FAILURES) {
-		_logger.info(
-			`${provider} has ${currentFailures} consecutive failures, suggesting failover`,
-		);
+		_logger.info(`${provider} has ${currentFailures} consecutive failures`);
 	}
 
 	switch (classified.type) {
 		case "rate_limit":
-			return handleRateLimit(classified, config, pi, ctx);
+			return handleRateLimit(classified, provider, isPaidMode, ctx);
 
 		case "capacity":
-			return handleCapacityError(classified, config);
+			return handleCapacityError(classified, provider);
 
 		case "auth":
 			return handleAuthError(classified, provider);
@@ -88,69 +82,24 @@ export async function handleProviderError(
 
 /**
  * Handle rate limit (429) error
- * Strategy: Failover (model hop) → Autocompact as fallback
  */
-async function handleRateLimit(
+function handleRateLimit(
 	classified: ClassifiedError,
-	config: FailoverConfig,
-	pi: ExtensionAPI,
-	ctx: {
+	provider: string,
+	isPaidMode: boolean,
+	_ctx: {
 		ui: {
 			notify: (message: string, type: "info" | "warning" | "error") => void;
 		};
-		session?: { id?: string };
 	},
-): Promise<FailoverResult> {
-	const { provider, isPaidMode, enableAutocompact } = config;
+): FailoverResult {
+	_logger.info(`Rate limit on ${provider}`, { isPaidMode });
 
-	_logger.info(`Rate limit on ${provider}`, { isPaidMode, enableAutocompact });
-
-	// First: Try model hop to a different provider
-	// Check if we've already attempted failover for this error
-	const failureKey = `${provider}_failover_attempted`;
-	const failoverAlreadyAttempted = failureCounts.get(failureKey) ?? 0;
-
-	if (failoverAlreadyAttempted === 0) {
-		// Mark that we attempted failover
-		failureCounts.set(failureKey, 1);
-
-		const _waitTime = Math.round((classified.retryAfterMs ?? 60000) / 1000);
-		return {
-			action: "failover",
-			message: `Rate limit on ${provider}. Hopping to backup provider...`,
-			shouldRetry: false,
-			retryDelayMs: classified.retryAfterMs,
-		};
-	}
-
-	// Fallback: If failover was already attempted or failed, try autocompact
-	// Disabled - autocompact crashes with "message.content is not iterable" bug
-	// TODO: Re-enable when Pi core bug is fixed
-	if (false) {
-		const compactResult = await triggerAutocompact(
-			pi,
-			ctx as unknown as {
-				ui: { notify: (m: string, t: "info" | "warning" | "error") => void };
-				session?: { id?: string };
-			},
-			`${provider} rate limit - hop failed, compacting as fallback`,
-		);
-
-		if (compactResult.success) {
-			return {
-				action: "autocompact",
-				message: `Rate limit on ${provider}. Model hop failed. ${compactResult.message} Please send your message again to retry.`,
-				shouldRetry: true,
-				retryDelayMs: 2000,
-			};
-		}
-	}
-
-	// Both failed - give up
 	const waitTime = Math.round((classified.retryAfterMs ?? 60000) / 1000);
+
 	return {
 		action: "fail",
-		message: `Rate limit on ${provider}. Model hop and autocompact both failed. Wait ${waitTime}s or switch providers manually with /model.`,
+		message: `Rate limit on ${provider}. Wait ${waitTime}s or switch providers manually with /model.`,
 		shouldRetry: false,
 		retryDelayMs: classified.retryAfterMs,
 	};
@@ -161,14 +110,12 @@ async function handleRateLimit(
  */
 function handleCapacityError(
 	classified: ClassifiedError,
-	config: FailoverConfig,
+	provider: string,
 ): FailoverResult {
-	const { provider } = config;
-
 	_logger.info(`Capacity error on ${provider}`);
 
 	return {
-		action: "failover",
+		action: "retry",
 		message: `${provider} is at capacity. Try again in ${Math.round((classified.retryAfterMs ?? 30000) / 1000)}s or switch providers.`,
 		shouldRetry: true,
 		retryDelayMs: classified.retryAfterMs ?? 30000,
