@@ -13,8 +13,8 @@ import {
 	getCachedMetrics,
 	getDailyRequestCount,
 	getRequestCount,
-} from "../metrics.ts";
-import { getAllCumulativeUsage } from "../usage-store.ts";
+} from "../usage/metrics.ts";
+import { getAllCumulativeUsage } from "../usage/store.ts";
 
 export interface ProviderRow {
 	provider: string;
