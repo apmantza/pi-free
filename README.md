@@ -38,10 +38,10 @@ Start Pi and press `Ctrl+L` to open the model picker.
 
 Free models are shown by default — look for the provider prefixes:
 - `zen/` — OpenCode Zen models (no setup required)
-- `kilo/` — Kilo models (OAuth required)
+- `kilo/` — Kilo models (14 free available, run `/login kilo` for 300+)
 - `openrouter/` — OpenRouter models (free account required)
 - `nvidia/` — NVIDIA NIM models (free API key required)
-- `cline/` — Cline models (OAuth required)
+- `cline/` — Cline models (run `/login cline` to use)
 - `fireworks/` — Fireworks AI models (API key required)
 - `mistral/` — Mistral models (API key required)
 - `ollama/` — Ollama Cloud models (API key required)
@@ -106,10 +106,10 @@ This extension registers multiple AI providers with Pi, **filtering to show only
 | Provider | Free Models | Auth Required | Rate Limit |
 |----------|-------------|---------------|------------|
 | **OpenCode Zen** | 11 | None | 1000/day |
-| **Kilo** | 14 | OAuth (free) | 200/hour |
+| **Kilo** | 14 free, 300+ after `/login kilo` | Free OAuth via `/login kilo` | 200/hour |
 | **OpenRouter** | 29 | Free account | 1000/day |
 | **NVIDIA NIM** | Curated 70B+ | Free credits | 1000 credits/mo (some models cost more) |
-| **Cline** | Free tier | Free account | Varies |
+| **Cline** | Free tier | Free account via `/login cline` | Varies |
 | **Fireworks** | Free tier | API key | Varies |
 | **Mistral** | Free tier | API key | Varies |
 | **Ollama** | Cloud models | Free API key | Resets every 5hrs + 7 days |
@@ -183,16 +183,23 @@ Free tier resets every 5 hours + 7 days.
 
 Some providers require free accounts or OAuth to access their free tiers:
 
-### Kilo (14 free models)
+### Kilo (14 free, 300+ after login)
+
+Kilo shows 14 free models immediately. To unlock all 300+ models, authenticate with Kilo's free OAuth:
 
 ```
 /login kilo
 ```
 
-- Opens browser for one-time OAuth
+This command will:
+1. Open your browser to Kilo's authorization page
+2. Show a device code in Pi's UI
+3. Wait for you to authorize in the browser
+4. Automatically complete login once approved
+
 - No credit card required
-- 14 free models unlocked (200 req/hour limit)
-- After login, use `/kilo-all` to see 300+ models
+- Free tier: 200 requests/hour
+- After login, run `/kilo-toggle` to switch between free-only and all 300+ models
 
 ### OpenRouter (29 free models)
 
@@ -249,11 +256,19 @@ Toggle anytime with `/nvidia-toggle`
 
 ### Cline
 
+Cline models appear immediately in the model picker. To use them, authenticate with Cline's free account:
+
 ```
 /login cline
 ```
 
-Browser sign-in required. Uses local ports 48801-48811.
+This command will:
+1. Open your browser to Cline's sign-in page
+2. Wait for you to complete sign-in
+3. Automatically complete login once approved
+
+- Free account required (no credit card)
+- Uses local ports 48801-48811 for OAuth callback
 
 ### Fireworks / Mistral
 
