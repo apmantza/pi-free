@@ -1,6 +1,6 @@
 # pi-free-providers
 
-Free AI model providers for [Pi](https://pi.dev). Access **60+ free models** from multiple providers in one install.
+Free AI model providers for [Pi](https://pi.dev). Access **free models** from multiple providers in one install.
 
 ---
 
@@ -38,7 +38,7 @@ Start Pi and press `Ctrl+L` to open the model picker.
 
 Free models are shown by default — look for the provider prefixes:
 - `zen/` — OpenCode Zen models (no setup required)
-- `kilo/` — Kilo models (14 free available, run `/login kilo` for 300+)
+- `kilo/` — Kilo models (free models available immediately, more after `/login kilo`)
 - `openrouter/` — OpenRouter models (free account required)
 - `nvidia/` — NVIDIA NIM models (free API key required)
 - `cline/` — Cline models (run `/login cline` to use)
@@ -61,7 +61,7 @@ Want to see paid models too? Run the toggle command for your provider:
 /ollama-toggle   # Toggle Ollama models (requires SHOW_PAID=true)
 ```
 
-You'll see a notification like: `zen: showing 11 free models` or `zen: showing all 47 models (including paid)`
+You'll see a notification like: `zen: showing free models` or `zen: showing all models (including paid)`
 
 ### 4. Add API keys for more providers (optional)
 
@@ -162,9 +162,9 @@ Free tier resets every 5 hours + 7 days.
 
 Some providers require free accounts or OAuth to access their free tiers:
 
-### Kilo (14 free, 300+ after login)
+### Kilo (free models, more after login)
 
-Kilo shows 14 free models immediately. To unlock all 300+ models, authenticate with Kilo's free OAuth:
+Kilo shows free models immediately. To unlock all models, authenticate with Kilo's free OAuth:
 
 ```
 /login kilo
@@ -178,9 +178,9 @@ This command will:
 
 - No credit card required
 - Free tier: 200 requests/hour
-- After login, run `/kilo-toggle` to switch between free-only and all 300+ models
+- After login, run `/kilo-toggle` to switch between free-only and all models
 
-### OpenRouter (29 free models)
+### OpenRouter (free models available)
 
 Get a free API key at [openrouter.ai/keys](https://openrouter.ai/keys), then either:
 
@@ -278,7 +278,7 @@ Each provider has toggle commands to switch between free and all models:
 **The toggle command:**
 - Switches between showing only free models vs. all available models
 - **Persists your preference** to `~/.pi/free.json` for next startup
-- Shows a notification: "zen: showing 11 free models" or "zen: showing all 47 models (including paid)"
+- Shows a notification: "zen: showing free models" or "zen: showing all models (including paid)"
 
 ---
 
@@ -393,9 +393,9 @@ npm test
 
 ```
 providers/          # Provider implementations
-  kilo.ts          # Kilo gateway (300+ models)
-  zen.ts           # OpenCode Zen (11 free)
-  openrouter.ts    # OpenRouter (29 free, 300+ paid)
+  kilo.ts          # Kilo gateway
+  zen.ts           # OpenCode Zen
+  openrouter.ts    # OpenRouter
   nvidia.ts        # NVIDIA NIM (70B+ models)
   cline.ts         # Cline.bot
   fireworks.ts     # Fireworks AI
