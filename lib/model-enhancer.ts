@@ -4,7 +4,7 @@
  */
 
 import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
-import { enhanceModelNameWithCodingIndex } from "./provider-failover/hardcoded-benchmarks.ts";
+import { enhanceModelNameWithCodingIndex } from "../provider-failover/hardcoded-benchmarks.ts";
 
 /**
  * Enhance model names with Coding Index scores
