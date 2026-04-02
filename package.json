@@ -1,12 +1,28 @@
 {
-	"name": "pi-free-providers",
+	"name": "pi-free",
 	"version": "1.0.0",
 	"type": "module",
-	"description": "All-in-one model providers for Pi: Kilo (300+ models), OpenCode Zen, OpenRouter, NVIDIA, Cline, Fireworks AI, Mistral, and Ollama",
+	"description": "AIO Free AI models for Pi",
 	"keywords": [
-		"pi-package"
+		"pi-package",
+		"pi-extension",
+		"free-models",
+		"ai-providers",
+		"openrouter",
+		"nvidia-nim",
+		"opencode",
+		"kilo",
+		"cline",
+		"ollama",
+		"mistral",
+		"fireworks"
 	],
 	"license": "MIT",
+	"author": "",
+	"homepage": "https://github.com/apmantza/pi-free#readme",
+	"bugs": {
+		"url": "https://github.com/apmantza/pi-free/issues"
+	},
 	"scripts": {
 		"test": "vitest",
 		"test:ui": "vitest --ui",
@@ -31,6 +47,6 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/your-username/pi-free-providers.git"
+		"url": "git+https://github.com/apmantza/pi-free.git"
 	}
 }
