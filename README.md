@@ -46,11 +46,7 @@ Free models are shown by default — look for the provider prefixes:
 - `mistral/` — Mistral models (API key required)
 - `ollama/` — Ollama Cloud models (API key required)
 
-### 3. Pick a model and chat
-
-Select any model and start chatting immediately. Free models work without any API key.
-
-### 4. Toggle between free and paid models
+### 3. Toggle between free and paid models
 
 Want to see paid models too? Run the toggle command for your provider:
 
@@ -67,7 +63,7 @@ Want to see paid models too? Run the toggle command for your provider:
 
 You'll see a notification like: `zen: showing 11 free models` or `zen: showing all 47 models (including paid)`
 
-### 5. Add API keys for more providers (optional)
+### 4. Add API keys for more providers (optional)
 
 Some providers require a free account or API key.
 
@@ -91,7 +87,7 @@ Or set environment variables instead (same names, uppercase: `OPENROUTER_API_KEY
 
 See the [Providers That Need Authentication](#providers-that-need-authentication) section below for detailed setup instructions per provider.
 
-### 6. Quick commands reference
+### 5. Quick commands reference
 
 | Command | What it does |
 |---------|-------------|
