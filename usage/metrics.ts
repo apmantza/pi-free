@@ -8,7 +8,7 @@ import {
 	BASE_URL_ZEN,
 	DEFAULT_FETCH_TIMEOUT_MS,
 } from "../constants.ts";
-import { fetchWithTimeout, logWarning } from "../util.ts";
+import { fetchWithTimeout, logWarning } from "../lib/util.ts";
 
 // =============================================================================
 // Types

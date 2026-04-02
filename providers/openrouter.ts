@@ -30,7 +30,7 @@ import {
 	createCtxReRegister,
 } from "../provider-helper.ts";
 import { createLogger } from "../lib/logger.ts";
-import { cleanModelName, isUsableModel, logWarning } from "../util.ts";
+import { cleanModelName, isUsableModel, logWarning } from "../lib/util.ts";
 import { fetchOpenRouterModelsWithFree } from "./model-fetcher.ts";
 
 const _logger = createLogger("openrouter");
