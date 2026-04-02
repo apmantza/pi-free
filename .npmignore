@@ -1,0 +1,24 @@
+# Tests - not needed for users
+ tests/
+
+ # Documentation (except README which npm shows)
+ docs/
+
+ # GitHub workflows
+ .github/
+
+ # Development scripts
+ scripts/
+
+ # Development files
+ todo.md
+ .pi/
+
+ # Cache
+ .ruff_cache/
+ .pi-lens/
+
+ # Config that shouldn't be published
+ .gitignore
+ tsconfig.json
+ vitest.config.ts
