@@ -19,9 +19,9 @@ import {
 	NVIDIA_MIN_SIZE_B,
 	URL_MODELS_DEV,
 } from "../constants.ts";
+import type { ModelsDevProvider } from "../lib/types.ts";
+import { fetchWithRetry, isUsableModel } from "../lib/util.ts";
 import { createProvider } from "../provider-factory.ts";
-import type { ModelsDevProvider } from "../types.ts";
-import { fetchWithRetry, isUsableModel } from "../util.ts";
 
 // =============================================================================
 // Fetch + map

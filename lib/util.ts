@@ -1,4 +1,4 @@
-import { createLogger } from "./lib/logger.ts";
+import { createLogger } from "./logger.ts";
 import type { ProviderModelConfig } from "./types.ts";
 
 const _logger = createLogger("util");

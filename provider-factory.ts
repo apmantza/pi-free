@@ -35,12 +35,12 @@ import {
 	ZEN_SHOW_PAID,
 } from "./config.ts";
 import { createLogger } from "./lib/logger.ts";
+import { logWarning } from "./lib/util.ts";
 import {
 	createReRegister,
 	type StoredModels,
 	setupProvider,
 } from "./provider-helper.ts";
-import { logWarning } from "./util.ts";
 
 const _logger = createLogger("provider-factory");
 

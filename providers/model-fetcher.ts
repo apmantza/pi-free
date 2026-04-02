@@ -4,8 +4,12 @@
  */
 
 import { DEFAULT_FETCH_TIMEOUT_MS, DEFAULT_MIN_SIZE_B } from "../constants.ts";
-import type { ProviderModelConfig } from "../types.ts";
-import { fetchWithRetry, isUsableModel, mapOpenRouterModel } from "../util.ts";
+import type { ProviderModelConfig } from "../lib/types.ts";
+import {
+	fetchWithRetry,
+	isUsableModel,
+	mapOpenRouterModel,
+} from "../lib/util.ts";
 
 interface OpenRouterCompatibleModel {
 	id: string;

@@ -37,8 +37,8 @@ vi.mock("../util.ts", () => ({
 	logWarning: vi.fn(),
 }));
 
+import { fetchWithRetry } from "../lib/util.ts";
 import { setupProvider } from "../provider-helper.ts";
-import { fetchWithRetry } from "../util.ts";
 
 describe("Ollama Provider", () => {
 	let mockPi: ExtensionAPI;

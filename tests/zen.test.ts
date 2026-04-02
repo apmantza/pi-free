@@ -34,9 +34,9 @@ vi.mock("../util.ts", () => ({
 	logWarning: vi.fn(),
 }));
 
+import { fetchWithRetry } from "../lib/util.ts";
 import { setupProvider } from "../provider-helper.ts";
 import zenProvider from "../providers/zen.ts";
-import { fetchWithRetry } from "../util.ts";
 
 describe("Zen Provider", () => {
 	let mockPi: ExtensionAPI;

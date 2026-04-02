@@ -30,8 +30,8 @@ import {
 	setupProvider,
 	createCtxReRegister,
 } from "../provider-helper.ts";
-import type { ModelsDevModel, ZenGatewayModel } from "../types.ts";
-import { fetchWithRetry, logWarning } from "../util.ts";
+import type { ModelsDevModel, ZenGatewayModel } from "../lib/types.ts";
+import { fetchWithRetry, logWarning } from "../lib/util.ts";
 
 const ZEN_CONFIG = {
 	providerId: PROVIDER_ZEN,

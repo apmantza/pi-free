@@ -7,7 +7,7 @@ import {
 	logWarning,
 	mapOpenRouterModel,
 	parseModelResponse,
-} from "../util.ts";
+} from "../lib/util.ts";
 
 describe("Utility Functions", () => {
 	describe("logWarning", () => {
