@@ -13,7 +13,7 @@ import type {
 } from "@mariozechner/pi-coding-agent";
 import { saveConfig } from "./config.ts";
 import { createLogger } from "./lib/logger.ts";
-import { enhanceModelNameWithCodingIndex } from "./provider-failover/hardcoded-benchmarks.js";
+import { enhanceModelNameWithCodingIndex } from "./provider-failover/hardcoded-benchmarks.ts";
 import {
 	handleProviderError,
 	isProviderExhausted,
