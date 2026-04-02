@@ -2,6 +2,107 @@
 
 Free AI model providers for [Pi](https://pi.dev). Access **60+ free models** from multiple providers in one install.
 
+---
+
+## What does pi-free do
+
+**pi-free is a Pi extension that unlocks free AI models from 8 different providers.**
+
+When you install pi-free, it:
+
+1. **Registers 8 AI providers** with Pi's model picker — OpenCode Zen, Kilo, OpenRouter, NVIDIA NIM, Cline, Fireworks, Mistral, and Ollama Cloud
+
+2. **Filters to show only free models by default** — You see only the models that cost $0 to use, no API key required for some providers
+
+3. **Provides a toggle command** — Run `/{provider}-toggle` (e.g., `/zen-toggle`, `/kilo-toggle`) to switch between free-only mode and showing all models including paid ones
+
+4. **Handles authentication for you** — OAuth flows (Kilo, Cline) open your browser automatically; API keys are read from `~/.pi/free.json` or environment variables
+
+5. **Adds Coding Index scores** — Model names include a coding benchmark score (CI: 45.2) to help you pick capable coding models at a glance
+
+6. **Persists your preferences** — Your toggle choices (free vs all models) are saved to `~/.pi/free.json` and remembered across Pi restarts
+
+---
+
+## How to use
+
+### 1. Install the extension
+
+```bash
+pi install git:github.com/apmantza/pi-free
+```
+
+### 2. Open the model picker
+
+Start Pi and press `Ctrl+L` to open the model picker.
+
+Free models are shown by default — look for the provider prefixes:
+- `zen/` — OpenCode Zen models (no setup required)
+- `kilo/` — Kilo models (OAuth required)
+- `openrouter/` — OpenRouter models (free account required)
+- `nvidia/` — NVIDIA NIM models (free API key required)
+- `cline/` — Cline models (OAuth required)
+- `fireworks/` — Fireworks AI models (API key required)
+- `mistral/` — Mistral models (API key required)
+- `ollama/` — Ollama Cloud models (API key required)
+
+### 3. Pick a model and chat
+
+Select any model and start chatting immediately. Free models work without any API key.
+
+### 4. Toggle between free and paid models
+
+Want to see paid models too? Run the toggle command for your provider:
+
+```
+/zen-toggle      # Toggle Zen free/paid models
+/kilo-toggle     # Toggle Kilo free/paid models
+/openrouter-toggle  # Toggle OpenRouter free/paid models
+/nvidia-toggle   # Toggle NVIDIA zero-cost/credit-costing models
+/cline-toggle    # Toggle Cline free/paid models
+/fireworks-toggle  # Toggle Fireworks models (requires SHOW_PAID=true)
+/mistral-toggle  # Toggle Mistral free/paid models
+/ollama-toggle   # Toggle Ollama models (requires SHOW_PAID=true)
+```
+
+You'll see a notification like: `zen: showing 11 free models` or `zen: showing all 47 models (including paid)`
+
+### 5. Add API keys for more providers (optional)
+
+Some providers require a free account or API key.
+
+**The first time you run Pi after installing this extension, a config file is automatically created:**
+- **Linux/Mac:** `~/.pi/free.json`
+- **Windows:** `%USERPROFILE%\.pi\free.json`
+
+Add your API keys to this file:
+
+```json
+{
+  "openrouter_api_key": "sk-or-v1-...",
+  "nvidia_api_key": "nvapi-...",
+  "ollama_api_key": "...",
+  "fireworks_api_key": "...",
+  "mistral_api_key": "..."
+}
+```
+
+Or set environment variables instead (same names, uppercase: `OPENROUTER_API_KEY`, `NVIDIA_API_KEY`, etc.)
+
+See the [Providers That Need Authentication](#providers-that-need-authentication) section below for detailed setup instructions per provider.
+
+### 6. Quick commands reference
+
+| Command | What it does |
+|---------|-------------|
+| `/{provider}-toggle` | Switch between free-only and all models for that provider |
+| `/login kilo` | Start OAuth flow for Kilo |
+| `/login cline` | Start OAuth flow for Cline |
+| `/logout kilo` | Clear Kilo OAuth credentials |
+| `/logout cline` | Clear Cline OAuth credentials |
+
+---
+
 ## What This Extension Does
 
 This extension registers multiple AI providers with Pi, **filtering to show only free models by default**. If you have API keys, you can toggle to see paid models too.
