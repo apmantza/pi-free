@@ -10,7 +10,7 @@ Free AI model providers for [Pi](https://pi.dev). Access **free models** from mu
 
 When you install pi-free, it:
 
-1. **Registers 8 AI providers** with Pi's model picker — OpenCode Zen, Kilo, OpenRouter, NVIDIA NIM, Cline, Fireworks, Mistral, and Ollama Cloud
+1. **Registers 7 AI providers** with Pi's model picker — OpenCode Zen, Kilo, OpenRouter, NVIDIA NIM, Cline, Mistral, and Ollama Cloud
 
 2. **Filters to show only free models by default** — You see only the models that cost $0 to use, no API key required for some providers
 
@@ -42,7 +42,6 @@ Free models are shown by default — look for the provider prefixes:
 - `openrouter/` — OpenRouter models (free account required)
 - `nvidia/` — NVIDIA NIM models (free API key required)
 - `cline/` — Cline models (run `/login cline` to use)
-- `fireworks/` — Fireworks AI models (API key required)
 - `mistral/` — Mistral models (API key required)
 - `ollama/` — Ollama Cloud models (API key required)
 
@@ -56,7 +55,6 @@ Want to see paid models too? Run the toggle command for your provider:
 /openrouter-toggle  # Toggle OpenRouter free/paid models
 /nvidia-toggle   # Toggle NVIDIA zero-cost/credit-costing models
 /cline-toggle    # Toggle Cline free/paid models
-/fireworks-toggle  # Toggle Fireworks models (requires SHOW_PAID=true)
 /mistral-toggle  # Toggle Mistral free/paid models
 /ollama-toggle   # Toggle Ollama models (requires SHOW_PAID=true)
 ```
@@ -96,28 +94,6 @@ See the [Providers That Need Authentication](#providers-that-need-authentication
 | `/login cline` | Start OAuth flow for Cline |
 | `/logout kilo` | Clear Kilo OAuth credentials |
 | `/logout cline` | Clear Cline OAuth credentials |
-
----
-
-## Quick Start
-
-### 1. Install Pi
-
-```bash
-npm install -g @mariozechner/pi-coding-agent
-```
-
-### 2. Install This Extension
-
-```bash
-pi install git:github.com/apmantza/pi-free
-```
-
-### 3. Start Pi
-
-```bash
-pi
-```
 
 ---
 
@@ -249,12 +225,11 @@ This command will:
 - Free account required (no credit card)
 - Uses local ports 48801-48811 for OAuth callback
 
-### Fireworks / Mistral
+### Mistral
 
-Add API keys to `~/.pi/free.json` or environment variables:
+Add API key to `~/.pi/free.json` or environment variables:
 
 ```bash
-export FIREWORKS_API_KEY="..."
 export MISTRAL_API_KEY="..."
 ```
 
@@ -271,7 +246,6 @@ Each provider has toggle commands to switch between free and all models:
 | `/openrouter-toggle` | Toggle between free/all OpenRouter models |
 | `/nvidia-toggle` | Toggle between free/all NVIDIA models |
 | `/cline-toggle` | Toggle between free/all Cline models |
-| `/fireworks-toggle` | Toggle between free/all Fireworks models |
 | `/mistral-toggle` | Toggle between free/all Mistral models |
 | `/ollama-toggle` | Toggle between free/all Ollama models |
 
@@ -304,117 +278,6 @@ Or use environment variables (same names, uppercase):
 ```bash
 export OPENROUTER_API_KEY="..."
 export NVIDIA_API_KEY="..."
-```
-
----
-
-## Understanding Rate Limits
-
-Free tiers have limits. When you hit them:
-
-- **Kilo**: 200 requests/hour
-- **Zen**: 1000 requests/day  
-- **OpenRouter**: 1000 requests/day (free tier)
-- **NVIDIA**: 1000 credits/month. Some models consume credits faster — toggle with `/nvidia-toggle`
-- **Ollama**: Resets every 5 hours + 7 days
-- **Fireworks/Mistral/Cline**: Varies by account
-
-The extension will notify you when you hit limits. Switch providers with `/model` or wait for the limit to reset.
-
----
-
-## Troubleshooting
-
-### Models not appearing in Ctrl+L
-
-1. Check if the provider needs authentication (see table above)
-2. For OAuth providers (Kilo, Cline), run `/login {provider}`
-3. For API key providers, check your key is set correctly
-4. Press `Ctrl+L` again to refresh
-
-### "Rate limit exceeded" errors
-
-- Use `/model` to switch to a different provider
-- Wait for the rate limit to reset (times vary by provider)
-- Some providers allow more requests if you add a payment method
-
-### Authentication issues
-
-**Kilo OAuth not working:**
-- Try `/logout kilo` then `/login kilo` again
-- Check browser allows popups
-
-**Cline login fails:**
-- Ensure ports 48801-48811 are not blocked by firewall
-- Try `/logout cline` then `/login cline`
-
-### Provider-specific issues
-
-**OpenRouter showing no models:**
-- Verify your key starts with `sk-or-v1-`
-- Run `/openrouter-free` to see free models without key
-
-**NVIDIA showing no models:**
-- Verify your key starts with `nvapi-`
-- Check key is still valid at build.nvidia.com
-- By default, only zero-cost models are shown. Run `/nvidia-toggle` to see all models (uses credits faster)
-
-**Ollama showing no models:**
-- Get API key from [ollama.com/settings/keys](https://ollama.com/settings/keys)
-- **Required:** Set `OLLAMA_SHOW_PAID=true` (env var) or `"ollama_show_paid": true` (config)
-- Ollama requires this flag because they have usage limits
-
----
-
-## How It Works
-
-This extension registers providers with Pi using the standard OpenAI-compatible API format. Each provider:
-
-1. Fetches available models from the provider's API
-2. Filters to free-only by default (checking `cost.input === 0`)
-3. Registers with Pi's model registry
-4. Provides toggle commands to switch between free/all models
-5. Handles errors (rate limits, auth failures, network issues)
-
-The extension doesn't proxy or modify requests — it just makes the providers available in Pi's model picker.
-
----
-
-## Development
-
-```bash
-git clone https://github.com/apmantza/pi-free
-cd pi-free
-npm install
-npm test
-```
-
-### Project Structure
-
-```
-providers/          # Provider implementations
-  kilo.ts          # Kilo gateway
-  zen.ts           # OpenCode Zen
-  openrouter.ts    # OpenRouter
-  nvidia.ts        # NVIDIA NIM (70B+ models)
-  cline.ts         # Cline.bot
-  fireworks.ts     # Fireworks AI
-  mistral.ts       # Mistral AI
-  ollama.ts        # Local Ollama
-
-provider-failover/  # Error handling
-  errors.ts        # Error classification
-  index.ts         # Failover coordinator
-  hardcoded-benchmarks.ts  # Model scoring data
-
-usage/             # Usage tracking
-  tracking.ts      # Per-model request counts
-  cumulative.ts    # Persistent storage
-  formatters.ts    # Display formatting
-
-config.ts          # Configuration loading
-constants.ts       # Provider URLs, etc.
-provider-helper.ts # Shared provider setup
 ```
 
 ---
