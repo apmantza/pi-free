@@ -99,23 +99,6 @@ See the [Providers That Need Authentication](#providers-that-need-authentication
 
 ---
 
-## What This Extension Does
-
-This extension registers multiple AI providers with Pi, **filtering to show only free models by default**. If you have API keys, you can toggle to see paid models too.
-
-| Provider | Free Models | Auth Required | Rate Limit |
-|----------|-------------|---------------|------------|
-| **OpenCode Zen** | 11 | None | 1000/day |
-| **Kilo** | 14 free, 300+ after `/login kilo` | Free OAuth via `/login kilo` | 200/hour |
-| **OpenRouter** | 29 | Free account | 1000/day |
-| **NVIDIA NIM** | Curated 70B+ | Free credits | 1000 credits/mo (some models cost more) |
-| **Cline** | Free tier | Free account via `/login cline` | Varies |
-| **Fireworks** | Free tier | API key | Varies |
-| **Mistral** | Free tier | API key | Varies |
-| **Ollama** | Cloud models | Free API key | Resets every 5hrs + 7 days |
-
----
-
 ## Quick Start
 
 ### 1. Install Pi
@@ -135,10 +118,6 @@ pi install git:github.com/apmantza/pi-free
 ```bash
 pi
 ```
-
-### 4. Select a Free Model
-
-Press `Ctrl+L` to open the model picker. Free models are shown by default.
 
 ---
 
