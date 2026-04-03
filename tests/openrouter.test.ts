@@ -19,6 +19,7 @@ vi.mock("../config.ts", () => ({
 vi.mock("../constants.ts", () => ({
 	BASE_URL_OPENROUTER: "https://openrouter.ai/api/v1",
 	DEFAULT_FETCH_TIMEOUT_MS: 10000,
+	DEFAULT_MIN_SIZE_B: 30,
 }));
 
 vi.mock("../metrics.ts", () => ({
@@ -27,7 +28,14 @@ vi.mock("../metrics.ts", () => ({
 
 vi.mock("../provider-helper.ts", () => ({
 	createReRegister: vi.fn(() => vi.fn()),
-	createCtxReRegister: vi.fn(() => vi.fn()),
+	createCtxReRegister: vi.fn(
+		(ctx, config) => (models: ProviderModelConfig[]) => {
+			ctx.modelRegistry.registerProvider(config.providerId || "openrouter", {
+				...config,
+				models,
+			});
+		},
+	),
 	setupProvider: vi.fn(),
 }));
 

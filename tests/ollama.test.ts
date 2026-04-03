@@ -32,7 +32,7 @@ vi.mock("../lib/logger.ts", () => ({
 	}),
 }));
 
-vi.mock("../util.ts", () => ({
+vi.mock("../lib/util.ts", () => ({
 	fetchWithRetry: vi.fn(),
 	logWarning: vi.fn(),
 }));

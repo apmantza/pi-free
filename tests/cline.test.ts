@@ -126,10 +126,13 @@ describe("Cline Provider", () => {
 	});
 
 	describe("request handling", () => {
-		it("should add Cline headers to requests", async () => {
+		it("should re-register provider with fresh headers on before_agent_start", async () => {
 			vi.mocked(fetchClineModels).mockResolvedValue([]);
 
 			await clineProvider(mockPi);
+
+			// Clear calls from initial registration
+			mockRegisterProvider.mockClear();
 
 			const beforeRequestHandler = mockOn.mock.calls.find(
 				(call) => call[0] === "before_agent_start",
@@ -137,13 +140,41 @@ describe("Cline Provider", () => {
 
 			expect(beforeRequestHandler).toBeDefined();
 
-			const mockCtx = { request: { headers: {} } };
+			// Mock context with Cline provider selected
+			const mockCtx = { model: { provider: "cline" } };
 			await beforeRequestHandler({}, mockCtx);
 
-			expect(mockCtx.request.headers).toMatchObject({
-				"HTTP-Referer": "https://cline.bot",
-				"X-Title": "Cline",
-			});
+			// Should re-register provider with fresh headers (new X-Task-ID)
+			expect(mockRegisterProvider).toHaveBeenCalledWith(
+				"cline",
+				expect.objectContaining({
+					headers: expect.objectContaining({
+						"HTTP-Referer": "https://cline.bot",
+						"X-Title": "Cline",
+						"X-Task-ID": expect.any(String),
+					}),
+				}),
+			);
+		});
+
+		it("should skip re-registration when different provider is active", async () => {
+			vi.mocked(fetchClineModels).mockResolvedValue([]);
+
+			await clineProvider(mockPi);
+
+			// Clear calls from initial registration
+			mockRegisterProvider.mockClear();
+
+			const beforeRequestHandler = mockOn.mock.calls.find(
+				(call) => call[0] === "before_agent_start",
+			)?.[1];
+
+			// Mock context with different provider
+			const mockCtx = { model: { provider: "openrouter" } };
+			await beforeRequestHandler({}, mockCtx);
+
+			// Should not re-register when different provider is active
+			expect(mockRegisterProvider).not.toHaveBeenCalled();
 		});
 	});
 });
