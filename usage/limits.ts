@@ -9,6 +9,7 @@
 
 import { createLogger } from "../lib/logger.ts";
 import { getDailyRequestCount } from "./metrics.ts";
+import type { FreeTierLimit, FreeTierUsage } from "./types.ts";
 
 export {
 	type CumulativeUsageReport,
@@ -30,20 +31,14 @@ export {
 	resetUsageStats,
 	type SessionUsageReport,
 } from "./tracking.ts";
+// Re-export types for consumers
+export type { FreeTierLimit, FreeTierUsage } from "./types.ts";
 
 const _logger = createLogger("free-tier");
 
 // =============================================================================
 // Free Tier Limits Configuration
 // =============================================================================
-
-export interface FreeTierLimit {
-	provider: string;
-	requestsPerDay?: number;
-	requestsPerHour?: number;
-	requestsPerMonth?: number;
-	description: string;
-}
 
 export const FREE_TIER_LIMITS: Record<string, FreeTierLimit> = {
 	kilo: {
@@ -79,19 +74,6 @@ export const FREE_TIER_LIMITS: Record<string, FreeTierLimit> = {
 // =============================================================================
 // Usage Status and Warnings
 // =============================================================================
-
-export interface FreeTierUsage {
-	provider: string;
-	requestsToday: number;
-	requestsThisHour: number;
-	requestsThisMonth?: number;
-	limit: FreeTierLimit;
-	remainingToday?: number;
-	remainingThisHour?: number;
-	remainingThisMonth?: number;
-	percentUsed: number;
-	status: "ok" | "warning" | "critical" | "unknown";
-}
 
 export function getFreeTierUsage(provider: string): FreeTierUsage {
 	const limit = FREE_TIER_LIMITS[provider];

@@ -3,25 +3,9 @@
  */
 
 import type { CumulativeUsageReport } from "./cumulative.ts";
-import {
-	type FreeTierLimit,
-	getFreeTierUsage,
-	getLimitWarning,
-} from "./limits.ts";
+import { getFreeTierUsage, getLimitWarning } from "./limits.ts";
 import type { SessionUsageReport } from "./tracking.ts";
-
-export interface FreeTierUsage {
-	provider: string;
-	requestsToday: number;
-	requestsThisHour: number;
-	requestsThisMonth?: number;
-	limit: FreeTierLimit;
-	remainingToday?: number;
-	remainingThisHour?: number;
-	remainingThisMonth?: number;
-	percentUsed: number;
-	status: "ok" | "warning" | "critical" | "unknown";
-}
+// Types imported via limits.ts (which re-exports from types.ts)
 
 export function formatSessionUsage(report: SessionUsageReport): string {
 	if (report.providers.length === 0) {
