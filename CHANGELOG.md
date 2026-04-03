@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.5] - 2025-04-03
+
 ### Fixed
 - **NVIDIA provider non-chat model filtering** (comment/implementation mismatch)
   - Added modalities-based filtering to exclude embedding, speech-to-text, OCR, and image-gen models
