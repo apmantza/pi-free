@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **NVIDIA provider non-chat model filtering** (comment/implementation mismatch)
+  - Added modalities-based filtering to exclude embedding, speech-to-text, OCR, and image-gen models
+  - Filters models where `output` is not `["text"]` (e.g., image generation like `black-forest-labs/flux.1-dev`)
+  - Filters models where `input` lacks `"text"` (e.g., OCR like `nvidia/nemoretriever-ocr-v1`, speech-to-text like `openai/whisper-large-v3`)
+  - Updated file comment to accurately describe the filtering behavior
+  - Added 8 comprehensive unit tests for model filtering logic
+
 ## [1.0.4] - 2025-04-03
 
 ### Fixed
