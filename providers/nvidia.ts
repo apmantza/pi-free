@@ -5,8 +5,10 @@
  * All models use NVIDIA's free credit system — requires NVIDIA_API_KEY.
  * Get a free key at: https://build.nvidia.com
  *
- * Small models (< 70B), embedding, speech, OCR, and image-gen models are
- * filtered out to keep the list focused on useful chat/coding models.
+ * Small models (< 70B) are filtered out to keep the list focused on useful
+ * chat/coding models. Non-chat models (embedding, speech-to-text, OCR,
+ * image-gen) are filtered by their modalities (output must be ["text"],
+ * input must include "text").
  *
  * Set NVIDIA_SHOW_PAID=true to show paid-tier models (same key, uses credits).
  */
@@ -52,6 +54,20 @@ async function fetchNvidiaModels(): Promise<ProviderModelConfig[]> {
 	const result = applyHidden(
 		Object.values(provider.models)
 			.filter((m) => isUsableModel(m.id, NVIDIA_MIN_SIZE_B))
+			.filter((m) => {
+				// Filter non-chat models by modalities
+				// Embedding, speech-to-text, OCR, and image-gen models are excluded
+				const modalities = m.modalities;
+				if (modalities) {
+					const output = modalities.output ?? [];
+					const input = modalities.input ?? [];
+					// Exclude models that don't output text (e.g., image generation)
+					if (!output.includes("text")) return false;
+					// Exclude models that don't accept text input (e.g., pure OCR, speech-to-text)
+					if (!input.includes("text")) return false;
+				}
+				return true;
+			})
 			.filter((m) => {
 				// All NVIDIA models are credit-based (no hard cost.input = 0 distinction).
 				// Respect NVIDIA_SHOW_PAID: without the flag, only expose models marked free.
