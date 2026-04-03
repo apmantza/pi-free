@@ -25,11 +25,18 @@ vi.mock("../constants.ts", () => ({
 
 vi.mock("../provider-helper.ts", () => ({
 	createReRegister: vi.fn(() => vi.fn()),
-	createCtxReRegister: vi.fn(() => vi.fn()),
+	createCtxReRegister: vi.fn(
+		(ctx, config) => (models: ProviderModelConfig[]) => {
+			ctx.modelRegistry.registerProvider(config.providerId || "zen", {
+				...config,
+				models,
+			});
+		},
+	),
 	setupProvider: vi.fn(),
 }));
 
-vi.mock("../util.ts", () => ({
+vi.mock("../lib/util.ts", () => ({
 	fetchWithRetry: vi.fn(),
 	logWarning: vi.fn(),
 }));

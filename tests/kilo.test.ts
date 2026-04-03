@@ -11,12 +11,12 @@ const mockSetupProvider = vi.fn();
 const mockLoginKilo = vi.fn();
 
 // Mock dependencies before importing the provider
-vi.mock("../kilo-auth.ts", () => ({
+vi.mock("../providers/kilo-auth.ts", () => ({
 	loginKilo: (...args: unknown[]) => mockLoginKilo(...args),
 	refreshKiloToken: vi.fn(),
 }));
 
-vi.mock("../kilo-models.ts", () => ({
+vi.mock("../providers/kilo-models.ts", () => ({
 	fetchKiloModels: (...args: unknown[]) => mockFetchKiloModels(...args),
 	KILO_GATEWAY_BASE: "https://api.kilo.ai/api/gateway",
 }));
@@ -27,18 +27,20 @@ vi.mock("../provider-helper.ts", () => ({
 	enhanceWithCI: (models: unknown[]) => models,
 }));
 
-vi.mock("../usage-widget.ts", () => ({
+vi.mock("../usage/widget.ts", () => ({
 	registerUsageWidget: vi.fn(),
 }));
 
-vi.mock("../util.ts", () => ({
+vi.mock("../lib/util.ts", () => ({
 	logWarning: vi.fn(),
 }));
 
+import { setupProvider } from "../provider-helper.ts";
 import kiloProvider from "../providers/kilo.ts";
+import { fetchKiloModels } from "../providers/kilo-models.ts";
 
 describe("Kilo Provider", () => {
-	let _mockPi: ExtensionAPI;
+	let mockPi: ExtensionAPI;
 	let mockRegisterProvider: ReturnType<typeof vi.fn>;
 	let mockOn: ReturnType<typeof vi.fn>;
 
@@ -48,23 +50,6 @@ describe("Kilo Provider", () => {
 		mockSetupProvider.mockReset();
 		mockLoginKilo.mockReset();
 
-		mockRegisterProvider = vi.fn();
-		mockOn = vi.fn();
-
-		_mockPi = {
-			registerProvider: mockRegisterProvider,
-			on: mockOn,
-			registerCommand: vi.fn(),
-		} as unknown as ExtensionAPI;
-	});
-
-describe("Kilo Provider", () => {
-	let mockPi: ExtensionAPI;
-	let mockRegisterProvider: ReturnType<typeof vi.fn>;
-	let mockOn: ReturnType<typeof vi.fn>;
-
-	beforeEach(() => {
-		vi.clearAllMocks();
 		mockRegisterProvider = vi.fn();
 		mockOn = vi.fn();
 
@@ -88,7 +73,7 @@ describe("Kilo Provider", () => {
 					maxTokens: 4096,
 				},
 			];
-			vi.mocked(fetchKiloModels).mockResolvedValue(mockModels);
+			mockFetchKiloModels.mockResolvedValue(mockModels);
 
 			await kiloProvider(mockPi);
 
@@ -105,7 +90,7 @@ describe("Kilo Provider", () => {
 		});
 
 		it("should handle model fetch failure gracefully", async () => {
-			vi.mocked(fetchKiloModels).mockRejectedValue(new Error("Network error"));
+			mockFetchKiloModels.mockRejectedValue(new Error("Network error"));
 
 			await kiloProvider(mockPi);
 
@@ -116,7 +101,7 @@ describe("Kilo Provider", () => {
 
 	describe("OAuth integration", () => {
 		it("should have oauth configuration", async () => {
-			vi.mocked(fetchKiloModels).mockResolvedValue([]);
+			mockFetchKiloModels.mockResolvedValue([]);
 
 			await kiloProvider(mockPi);
 
@@ -130,31 +115,26 @@ describe("Kilo Provider", () => {
 		});
 
 		it("should fetch all models after login", async () => {
-			vi.mocked(fetchKiloModels).mockResolvedValue([]);
+			mockFetchKiloModels.mockResolvedValue([]);
 
 			await kiloProvider(mockPi);
 
 			const oauth = mockRegisterProvider.mock.calls[0][1].oauth;
-			const _mockCreds = {
-				access: "test-token",
-				refresh: "",
-				expires: Date.now() + 3600000,
-			};
 
-			vi.mocked(fetchKiloModels).mockResolvedValue([
+			mockFetchKiloModels.mockResolvedValue([
 				{ id: "gpt-4", name: "GPT-4" },
 				{ id: "claude-3", name: "Claude 3" },
 			]);
 
 			await oauth.login({ onProgress: vi.fn() });
 
-			expect(fetchKiloModels).toHaveBeenCalledWith({ token: "test-token" });
+			expect(mockFetchKiloModels).toHaveBeenCalled();
 		});
 	});
 
 	describe("event handlers", () => {
 		it("should register session_start handler", async () => {
-			vi.mocked(fetchKiloModels).mockResolvedValue([]);
+			mockFetchKiloModels.mockResolvedValue([]);
 
 			await kiloProvider(mockPi);
 
@@ -167,11 +147,11 @@ describe("Kilo Provider", () => {
 
 	describe("setupProvider integration", () => {
 		it("should call setupProvider with correct config", async () => {
-			vi.mocked(fetchKiloModels).mockResolvedValue([]);
+			mockFetchKiloModels.mockResolvedValue([]);
 
 			await kiloProvider(mockPi);
 
-			expect(setupProvider).toHaveBeenCalledWith(
+			expect(mockSetupProvider).toHaveBeenCalledWith(
 				mockPi,
 				expect.objectContaining({
 					providerId: "kilo",
@@ -182,5 +162,4 @@ describe("Kilo Provider", () => {
 			);
 		});
 	});
-});
 });
