@@ -1,8 +1,8 @@
 {
 	"name": "pi-free",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"type": "module",
-	"description": "AIO Free AI models for Pi",
+	"description": "AIO Free AI models for Pi - Access free models from Kilo, Zen, OpenRouter, NVIDIA, Cline, Mistral, and Ollama",
 	"keywords": [
 		"pi-package",
 		"pi-extension",
@@ -10,7 +10,6 @@
 		"ai-providers",
 		"openrouter",
 		"nvidia-nim",
-		"opencode",
 		"kilo",
 		"cline",
 		"ollama",
@@ -23,10 +22,35 @@
 	"bugs": {
 		"url": "https://github.com/apmantza/pi-free/issues"
 	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/apmantza/pi-free.git"
+	},
+	"engines": {
+		"node": ">=20.0.0"
+	},
+	"files": [
+		"providers/**/*.ts",
+		"lib/**/*.ts",
+		"usage/**/*.ts",
+		"config.ts",
+		"constants.ts",
+		"provider-factory.ts",
+		"provider-helper.ts",
+		"README.md",
+		"LICENSE",
+		"CHANGELOG.md"
+	],
 	"scripts": {
 		"test": "vitest",
 		"test:ui": "vitest --ui",
 		"test:run": "vitest run"
+	},
+	"peerDependencies": {
+		"@mariozechner/pi-ai": "*",
+		"@mariozechner/pi-coding-agent": "*",
+		"@mariozechner/pi-tui": "*",
+		"@sinclair/typebox": "*"
 	},
 	"devDependencies": {
 		"vitest": "^1.0.0",
@@ -44,9 +68,5 @@
 			"./providers/mistral.ts",
 			"./providers/ollama.ts"
 		]
-	},
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/apmantza/pi-free.git"
 	}
 }

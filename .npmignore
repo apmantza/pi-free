@@ -1,24 +1,43 @@
 # Tests - not needed for users
- tests/
+tests/
+*.test.ts
+*.spec.ts
 
- # Documentation (except README which npm shows)
- docs/
+# Documentation (except README which npm shows)
+docs/
 
- # GitHub workflows
- .github/
+# GitHub workflows
+.github/
 
- # Development scripts
- scripts/
+# Development scripts
+scripts/
 
- # Development files
- todo.md
- .pi/
+# Development files
+todo.md
+*.todo
+.priv/
 
- # Cache
- .ruff_cache/
- .pi-lens/
+# Cache directories
+.ruff_cache/
+.pi-lens/
+*.tsbuildinfo
 
- # Config that shouldn't be published
- .gitignore
- tsconfig.json
- vitest.config.ts
+# Config files - not needed for consumers
+.gitignore
+tsconfig.json
+vitest.config.ts
+
+# Dependencies (npm handles this)
+node_modules/
+
+# Build artifacts (if any)
+dist/
+*.log
+.DS_Store
+
+# Editor directories
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
