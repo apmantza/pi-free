@@ -9999,8 +9999,11 @@ export function findHardcodedBenchmark(
     "qwen2.5-72b": ["qwen2.5-72b", "qwen-2.5-72b"],
     "deepseek-v3": ["deepseek-v3", "deepseekv3", "deepseek-chat"],
     "mimo-v2-pro": ["mimo-v2-pro", "mimo-v2-pro-free", "mimo-pro"],
+    "mimo-v2-omni": ["mimo-v2-omni", "mimo-v2-omni-free", "mimo-omni"],
+    "mimo-v2-flash": ["mimo-v2-flash", "mimo-v2-flash-free", "mimo-flash"],
     "big-pickle": ["big-pickle", "bigpickle"],
     "minimax-m2.5": ["minimax-m2.5", "minimax-m2.5-free", "minimax-m25"],
+    "nvidia-nemotron-3-super-120b-a12b-reasoning": ["nemotron-3-super", "nemotron-3-super-free", "nemotron-super", "nemotron-3"],
   };
   
   for (const [canonical, names] of Object.entries(variants)) {
