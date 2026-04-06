@@ -74,7 +74,7 @@ export async function findFallbackModel(
 	const failedModelInfo = toModelInfo(failedModel);
 	const failedFamily = detectModelFamily(failedModelInfo);
 	const failedNormalizedName = normalizeModelName(failedModelInfo.name || failedModelInfo.id);
-	const failedCIScore = getHardcodedScore(failedModel.name || "", failedModel.id) ?? 30;
+	const failedCIScore = getHardcodedScore(failedModel.name || "", failedModel.id) ?? 20;
 
 	_logger.info("Finding fallback model", {
 		failedModel: failedModel.id,
@@ -98,7 +98,7 @@ export async function findFallbackModel(
 		const modelInfo = toModelInfo(candidate);
 		const family = detectModelFamily(modelInfo);
 		const normalizedName = normalizeModelName(modelInfo.name || modelInfo.id);
-		const ciScore = getHardcodedScore(candidate.name || "", candidate.id) ?? 30;
+		const ciScore = getHardcodedScore(candidate.name || "", candidate.id) ?? 20;
 
 		candidates.push({
 			model: candidate,
