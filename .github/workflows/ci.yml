@@ -35,4 +35,4 @@ jobs:
         shell: bash
         run: |
           INSTALL_DIR=$(npm root -g)/pi-free
-          node --experimental-strip-types scripts/check-extensions.mjs "$INSTALL_DIR"
+          node scripts/check-extensions.mjs "$INSTALL_DIR"

@@ -45,7 +45,7 @@
 		"scripts/check-extensions.mjs"
 	],
 	"scripts": {
-		"check": "node --experimental-strip-types scripts/check-extensions.mjs .",
+		"check": "node scripts/check-extensions.mjs",
 		"test": "vitest",
 		"test:ui": "vitest --ui",
 		"test:run": "vitest run"
