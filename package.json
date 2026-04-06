@@ -65,6 +65,7 @@
 		"extensions": [
 			"./providers/kilo.ts",
 			"./providers/zen.ts",
+			"./providers/go.ts",
 			"./providers/openrouter.ts",
 			"./providers/nvidia.ts",
 			"./providers/cline.ts",

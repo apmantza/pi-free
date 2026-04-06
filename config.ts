@@ -25,6 +25,7 @@ interface PiFreeConfig {
 	openrouter_api_key?: string;
 	nvidia_api_key?: string;
 	opencode_api_key?: string;
+	opencode_go_api_key?: string;
 	fireworks_api_key?: string;
 	mistral_api_key?: string;
 	ollama_api_key?: string;
@@ -36,6 +37,7 @@ interface PiFreeConfig {
 	fireworks_show_paid?: boolean;
 	cline_show_paid?: boolean;
 	zen_show_paid?: boolean;
+	go_show_paid?: boolean;
 	mistral_show_paid?: boolean;
 	ollama_show_paid?: boolean;
 }
@@ -44,6 +46,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	openrouter_api_key: "",
 	nvidia_api_key: "",
 	opencode_api_key: "",
+	opencode_go_api_key: "",
 	fireworks_api_key: "",
 	mistral_api_key: "",
 	ollama_api_key: "",
@@ -54,6 +57,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	fireworks_show_paid: false,
 	cline_show_paid: false,
 	zen_show_paid: false,
+	go_show_paid: false,
 	mistral_show_paid: false,
 	ollama_show_paid: false,
 };
@@ -145,6 +149,8 @@ export const CLINE_SHOW_PAID = resolveBool(
 
 export const ZEN_SHOW_PAID = resolveBool("ZEN_SHOW_PAID", file.zen_show_paid);
 
+export const GO_SHOW_PAID = resolveBool("GO_SHOW_PAID", file.go_show_paid);
+
 export const MISTRAL_SHOW_PAID = resolveBool(
 	"MISTRAL_SHOW_PAID",
 	file.mistral_show_paid,
@@ -177,6 +183,10 @@ export const OPENCODE_API_KEY = resolve(
 	"OPENCODE_API_KEY",
 	file.opencode_api_key,
 );
+export const OPENCODE_GO_API_KEY = resolve(
+	"OPENCODE_GO_API_KEY",
+	file.opencode_go_api_key,
+);
 export const FIREWORKS_API_KEY = resolve(
 	"FIREWORKS_API_KEY",
 	file.fireworks_api_key,
@@ -188,6 +198,7 @@ export const OLLAMA_API_KEY = resolve("OLLAMA_API_KEY", file.ollama_api_key);
 export {
 	PROVIDER_CLINE,
 	PROVIDER_FIREWORKS,
+	PROVIDER_GO,
 	PROVIDER_KILO,
 	PROVIDER_MISTRAL,
 	PROVIDER_NVIDIA,

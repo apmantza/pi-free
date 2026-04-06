@@ -9,6 +9,7 @@
 
 export const PROVIDER_KILO = "kilo";
 export const PROVIDER_ZEN = "zen";
+export const PROVIDER_GO = "go";
 export const PROVIDER_OPENROUTER = "openrouter";
 export const PROVIDER_NVIDIA = "nvidia";
 export const PROVIDER_CLINE = "cline";
@@ -31,6 +32,7 @@ export const ALL_PROVIDERS = [
 
 export const BASE_URL_KILO = "https://api.kilo.ai/api/gateway";
 export const BASE_URL_ZEN = "https://opencode.ai/zen/v1";
+export const BASE_URL_GO = "https://opencode.ai/zen/go/v1";
 export const BASE_URL_OPENROUTER = "https://openrouter.ai/api/v1";
 export const BASE_URL_NVIDIA = "https://integrate.api.nvidia.com/v1";
 export const BASE_URL_CLINE = "https://api.cline.bot/api/v1";
@@ -44,6 +46,7 @@ export const BASE_URL_OLLAMA = "https://ollama.com/v1";
 export const URL_MODELS_DEV = "https://models.dev/api.json";
 export const URL_KILO_TOS = "https://kilo.ai/terms";
 export const URL_ZEN_TOS = "https://opencode.ai/terms";
+export const URL_GO_TOS = "https://opencode.ai/terms";
 export const URL_CLINE_TOS = "https://cline.bot/tos";
 
 // =============================================================================

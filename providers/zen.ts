@@ -22,7 +22,6 @@ import {
 import {
 	BASE_URL_ZEN,
 	DEFAULT_FETCH_TIMEOUT_MS,
-	URL_MODELS_DEV,
 	URL_ZEN_TOS,
 } from "../constants.ts";
 import {
@@ -30,7 +29,8 @@ import {
 	setupProvider,
 	createCtxReRegister,
 } from "../provider-helper.ts";
-import type { ModelsDevModel, ZenGatewayModel } from "../lib/types.ts";
+import type { ZenGatewayModel } from "../lib/types.ts";
+import { fetchModelsDevMeta } from "./model-fetcher.ts";
 import { fetchWithRetry, logWarning } from "../lib/util.ts";
 
 const ZEN_CONFIG = {
@@ -242,28 +242,6 @@ async function fetchGatewayModels(token: string): Promise<string[]> {
 		.filter((id) => !ZEN_BROKEN_MODELS.has(id));
 }
 
-/** Fetch metadata for the opencode provider from models.dev. */
-async function fetchModelsMeta(): Promise<Record<string, ModelsDevModel>> {
-	const response = await fetchWithRetry(
-		URL_MODELS_DEV,
-		{
-			headers: { "User-Agent": "pi-free-providers" },
-		},
-		3,
-		1000,
-		DEFAULT_FETCH_TIMEOUT_MS,
-	);
-
-	if (!response.ok) return {};
-
-	const json = (await response.json()) as Record<
-		string,
-		{ id?: string; models?: Record<string, ModelsDevModel> }
-	>;
-	const provider = Object.values(json).find((p) => p?.id === "opencode");
-	return provider?.models ?? {};
-}
-
 // =============================================================================
 // Main fetch
 // =============================================================================
@@ -276,7 +254,7 @@ async function fetchZenModels(token: string): Promise<{
 	try {
 		const [gatewayIds, meta] = await Promise.all([
 			fetchGatewayModels(token),
-			fetchModelsMeta(),
+			fetchModelsDevMeta("opencode"), // Fetch only opencode provider's models
 		]);
 
 		const all: ProviderModelConfig[] = [];

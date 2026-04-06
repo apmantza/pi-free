@@ -3,8 +3,12 @@
  * Consolidates duplicate logic from openrouter.ts and kilo-models.ts
  */
 
-import { DEFAULT_FETCH_TIMEOUT_MS, DEFAULT_MIN_SIZE_B } from "../constants.ts";
-import type { ProviderModelConfig } from "../lib/types.ts";
+import {
+	DEFAULT_FETCH_TIMEOUT_MS,
+	DEFAULT_MIN_SIZE_B,
+	URL_MODELS_DEV,
+} from "../constants.ts";
+import type { ModelsDevModel, ProviderModelConfig } from "../lib/types.ts";
 import {
 	fetchWithRetry,
 	isUsableModel,
@@ -135,4 +139,53 @@ export async function fetchOpenRouterModelsWithFree(
 	});
 
 	return { free, all };
+}
+
+// =============================================================================
+// Models.dev metadata fetching
+// =============================================================================
+
+interface ModelsDevResponse {
+	[id: string]: {
+		id?: string;
+		models?: Record<string, ModelsDevModel>;
+	};
+}
+
+/**
+ * Fetch model metadata from models.dev.
+ * @param providerId - If specified, only return models for that provider
+ * @returns Map of model ID to model metadata
+ */
+export async function fetchModelsDevMeta(
+	providerId?: string,
+): Promise<Record<string, ModelsDevModel>> {
+	const response = await fetchWithRetry(
+		URL_MODELS_DEV,
+		{
+			headers: { "User-Agent": "pi-free-providers" },
+		},
+		3,
+		1000,
+		DEFAULT_FETCH_TIMEOUT_MS,
+	);
+
+	if (!response.ok) return {};
+
+	const json = (await response.json()) as ModelsDevResponse;
+
+	// If providerId specified, return only that provider's models
+	if (providerId) {
+		const provider = Object.values(json).find((p) => p?.id === providerId);
+		return provider?.models ?? {};
+	}
+
+	// Otherwise, return all models from all providers
+	const allModels: Record<string, ModelsDevModel> = {};
+	for (const provider of Object.values(json)) {
+		if (provider?.models) {
+			Object.assign(allModels, provider.models);
+		}
+	}
+	return allModels;
 }
