@@ -33,6 +33,7 @@
 		"providers/**/*.ts",
 		"lib/**/*.ts",
 		"usage/**/*.ts",
+		"provider-failover/**/*.ts",
 		"config.ts",
 		"constants.ts",
 		"provider-factory.ts",
