@@ -41,9 +41,11 @@
 		"provider-helper.ts",
 		"README.md",
 		"LICENSE",
-		"CHANGELOG.md"
+		"CHANGELOG.md",
+		"scripts/check-extensions.mjs"
 	],
 	"scripts": {
+		"check": "node --experimental-strip-types scripts/check-extensions.mjs .",
 		"test": "vitest",
 		"test:ui": "vitest --ui",
 		"test:run": "vitest run"
