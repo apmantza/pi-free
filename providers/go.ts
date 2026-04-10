@@ -29,7 +29,6 @@ import {
 } from "../config.ts";
 import {
 	BASE_URL_GO,
-	DEFAULT_FETCH_TIMEOUT_MS,
 	URL_GO_TOS,
 } from "../constants.ts";
 import {
@@ -37,8 +36,6 @@ import {
 	setupProvider,
 	createCtxReRegister,
 } from "../provider-helper.ts";
-import { fetchModelsDevMeta } from "./model-fetcher.ts";
-import { fetchWithRetry, logWarning } from "../lib/util.ts";
 
 const GO_CONFIG = {
 	providerId: PROVIDER_GO,
@@ -116,92 +113,25 @@ const STATIC_GO_MODELS: ProviderModelConfig[] = [
 // Fetch helpers
 // =============================================================================
 
-/** Fetch the model list from the Go gateway */
-async function fetchGatewayModels(token: string): Promise<string[]> {
-	const response = await fetchWithRetry(
-		`${BASE_URL_GO}/models`,
-		{
-			headers: {
-				Authorization: `Bearer ${token}`,
-				"User-Agent": "pi-free-providers",
-			},
-		},
-		3,
-		1000,
-		DEFAULT_FETCH_TIMEOUT_MS,
-	);
-
-	if (!response.ok) {
-		throw new Error(
-			`Go /models returned ${response.status} ${response.statusText}`,
-		);
-	}
-
-	const json = (await response.json()) as { data?: { id: string }[] };
-	return (json.data ?? []).map((m) => m.id);
-}
+// OpenCode Go does not have a /models endpoint.
+// Models are only accessible via the chat completions API.
+// Static models are used directly (see below).
 
 // =============================================================================
 // Main fetch
 // =============================================================================
 
-async function fetchGoModels(token: string): Promise<{
+/**
+ * OpenCode Go does not have a /models endpoint.
+ * Models are only accessible via chat completions.
+ * So we use the static fallback models directly.
+ */
+async function fetchGoModels(_token: string): Promise<{
 	all: ProviderModelConfig[];
 	useStaticFallback: boolean;
 }> {
-	try {
-		const [gatewayIds, meta] = await Promise.all([
-			fetchGatewayModels(token),
-			fetchModelsDevMeta(), // Fetch all providers' models
-		]);
-
-		const all: ProviderModelConfig[] = [];
-
-		for (const id of gatewayIds) {
-			// Try to find model metadata by ID or partial match
-			const m = meta[id] ?? 
-				Object.values(meta).find(m => m.id?.includes(id) || id.includes(m.id ?? ""));
-
-			// Skip image-output models
-			if (m?.modalities?.output?.includes("image")) continue;
-
-			const config: ProviderModelConfig = {
-				id,
-				name: m?.name ?? STATIC_GO_MODELS.find(s => s.id === id)?.name ?? id,
-				reasoning: m?.reasoning ?? STATIC_GO_MODELS.find(s => s.id === id)?.reasoning ?? false,
-				input: m?.modalities?.input?.includes("image")
-					? ["text", "image"]
-					: ["text"],
-				cost: {
-					input: m?.cost?.input ?? STATIC_GO_MODELS.find(s => s.id === id)?.cost?.input ?? 0,
-					output: m?.cost?.output ?? STATIC_GO_MODELS.find(s => s.id === id)?.cost?.output ?? 0,
-					cacheRead: m?.cost?.cache_read ?? 0,
-					cacheWrite: m?.cost?.cache_write ?? 0,
-				},
-				contextWindow: m?.limit?.context ?? STATIC_GO_MODELS.find(s => s.id === id)?.contextWindow ?? 128_000,
-				maxTokens: m?.limit?.output ?? STATIC_GO_MODELS.find(s => s.id === id)?.maxTokens ?? 16_384,
-			};
-
-			all.push(config);
-		}
-
-		// If no models from API, use static fallback
-		if (all.length === 0) {
-			return { all: applyHidden(STATIC_GO_MODELS), useStaticFallback: true };
-		}
-
-		return {
-			all: applyHidden(all),
-			useStaticFallback: false,
-		};
-	} catch (error) {
-		logWarning(
-			"go",
-			"API unavailable, using static model list",
-			error,
-		);
-		return { all: applyHidden(STATIC_GO_MODELS), useStaticFallback: true };
-	}
+	// Go has no /models API - use static models
+	return { all: applyHidden(STATIC_GO_MODELS), useStaticFallback: true };
 }
 
 // =============================================================================
@@ -247,19 +177,11 @@ export default async function (pi: ExtensionAPI) {
 		// Set up the env var
 		process.env[GO_KEY_VAR] = token;
 
-		let models: ProviderModelConfig[] = [];
+		// OpenCode Go has no /models endpoint - use static fallback
+		const models = applyHidden(STATIC_GO_MODELS);
 
-		try {
-			const result = await fetchGoModels(token);
-			models = result.all;
-			stored.all = models;
-			stored.free = models; // Go has no free tier
-		} catch (error) {
-			logWarning("go", "Failed to fetch models, using static list", error);
-			models = STATIC_GO_MODELS;
-			stored.all = models;
-			stored.free = models;
-		}
+		stored.all = models;
+		stored.free = models; // Go has no free tier
 
 		if (models.length === 0) {
 			return;
