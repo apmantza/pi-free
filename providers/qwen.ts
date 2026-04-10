@@ -56,6 +56,15 @@ export default async function (pi: ExtensionAPI) {
 		login: loginQwen,
 		refreshToken: refreshQwenToken,
 		getApiKey: (cred: OAuthCredentials) => cred.access,
+		modifyModels: (models: any[], cred: OAuthCredentials) => {
+			// Use the resource_url from OAuth credentials as the base URL
+			const baseUrl = getQwenBaseUrl(cred);
+			_logger.info("Qwen base URL from OAuth", { baseUrl });
+			return models.map((m) => ({
+				...m,
+				baseUrl,
+			}));
+		},
 	};
 
 	// Register provider with OpenAI-compatible API
@@ -97,21 +106,27 @@ export default async function (pi: ExtensionAPI) {
 
 	// Qwen-specific: update base URL dynamically from OAuth credentials
 	pi.on("before_provider_request", (event: unknown) => {
-		const evt = event as { type?: string; payload?: Record<string, unknown> };
+		const evt = event as {
+			type?: string;
+			payload?: Record<string, unknown> & { baseUrl?: string };
+		};
 		if (evt.type !== "qwen") return;
 
 		// Try to get credentials and update base URL if resource_url was provided
 		try {
 			const cred = (pi as any).modelRegistry?.authStorage?.get?.(PROVIDER_QWEN);
-			if (cred?.type === "oauth") {
+			if (cred?.type === "oauth" && evt.payload) {
 				const baseUrl = getQwenBaseUrl(cred as OAuthCredentials);
-				if (baseUrl !== DEFAULT_BASE_URL && evt.payload) {
+				if (baseUrl !== DEFAULT_BASE_URL) {
 					_logger.debug("Using dynamic base URL from OAuth", { baseUrl });
+					evt.payload.baseUrl = baseUrl;
 				}
 			}
 		} catch {
 			// Ignore - use default base URL
 		}
+
+		return evt;
 	});
 
 	// Track requests
