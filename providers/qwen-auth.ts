@@ -264,21 +264,20 @@ export async function loginQwen(
 		verificationUri: deviceAuth.verification_uri,
 	});
 
-	// 3. Build complete auth URL with client_id (Qwen website requires it)
-	const authUrl = new URL(deviceAuth.verification_uri_complete);
-	authUrl.searchParams.set("client_id", QWEN_OAUTH_CLIENT_ID);
-	const fullAuthUrl = authUrl.toString();
+	// 3. Use verification_uri_complete directly (server already embedded the code)
+	// If not available, fall back to verification_uri + user_code
+	const authUrl = deviceAuth.verification_uri_complete || deviceAuth.verification_uri;
+	const instructions = deviceAuth.verification_uri_complete
+		? undefined // Code is already embedded in the URL
+		: `Enter code: ${deviceAuth.user_code}`;
 
-	_logger.info("Opening auth URL", { url: fullAuthUrl });
+	_logger.info("Opening auth URL", { url: authUrl });
 
 	// 4. Show auth URL to user
-	callbacks.onAuth({
-		url: fullAuthUrl,
-		instructions: `Open this URL and enter code: ${deviceAuth.user_code}`,
-	});
+	callbacks.onAuth({ url: authUrl, instructions });
 
 	// 5. Open browser
-	openBrowser(fullAuthUrl);
+	openBrowser(authUrl);
 
 	callbacks.onProgress?.("Waiting for browser authorization...");
 
