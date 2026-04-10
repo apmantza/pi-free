@@ -2,7 +2,7 @@
 	"name": "pi-free",
 	"version": "1.0.7",
 	"type": "module",
-	"description": "AIO Free AI models for Pi - Access free models from Kilo, Zen, OpenRouter, NVIDIA, Cline, Mistral, and Ollama",
+	"description": "AIO Free AI models for Pi - Access free models from Kilo, Zen, OpenRouter, NVIDIA, Cline, Mistral, Ollama, and Qwen",
 	"keywords": [
 		"pi-package",
 		"pi-extension",
@@ -14,7 +14,9 @@
 		"cline",
 		"ollama",
 		"mistral",
-		"fireworks"
+		"fireworks",
+		"qwen",
+		"qwen-oauth"
 	],
 	"license": "MIT",
 	"author": "Apostolos Mantzaris",
@@ -57,9 +59,10 @@
 		"@sinclair/typebox": "*"
 	},
 	"devDependencies": {
-		"vitest": "^1.0.0",
 		"@vitest/ui": "^1.0.0",
-		"tsx": "^4.0.0"
+		"tsx": "^4.0.0",
+		"typescript": "^6.0.2",
+		"vitest": "^1.0.0"
 	},
 	"pi": {
 		"extensions": [
@@ -71,7 +74,11 @@
 			"./providers/cline.ts",
 			"./providers/fireworks.ts",
 			"./providers/mistral.ts",
-			"./providers/ollama.ts"
+			"./providers/ollama.ts",
+			"./providers/qwen.ts"
 		]
+	},
+	"dependencies": {
+		"pi-free": "github:apmantza/pi-free"
 	}
 }

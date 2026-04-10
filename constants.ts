@@ -16,6 +16,7 @@ export const PROVIDER_CLINE = "cline";
 export const PROVIDER_FIREWORKS = "fireworks";
 export const PROVIDER_OLLAMA = "ollama";
 export const PROVIDER_MISTRAL = "mistral";
+export const PROVIDER_QWEN = "qwen";
 
 export const ALL_PROVIDERS = [
 	PROVIDER_KILO,
@@ -27,6 +28,7 @@ export const ALL_PROVIDERS = [
 	PROVIDER_FIREWORKS,
 	PROVIDER_MISTRAL,
 	PROVIDER_OLLAMA,
+	PROVIDER_QWEN,
 ] as const;
 
 // =============================================================================
@@ -51,6 +53,8 @@ export const URL_KILO_TOS = "https://kilo.ai/terms";
 export const URL_ZEN_TOS = "https://opencode.ai/terms";
 export const URL_GO_TOS = "https://opencode.ai/terms";
 export const URL_CLINE_TOS = "https://cline.bot/tos";
+export const URL_QWEN_TOS = "https://terms.alicloud.com/";
+export const BASE_URL_QWEN = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 
 // =============================================================================
 // Cline auth
