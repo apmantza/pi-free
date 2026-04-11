@@ -33,6 +33,7 @@ import {
 	OLLAMA_SHOW_PAID,
 	OPENCODE_API_KEY,
 	ZEN_SHOW_PAID,
+	MODAL_API_KEY,
 } from "./config.ts";
 import { createLogger } from "./lib/logger.ts";
 import { logWarning } from "./lib/util.ts";
@@ -86,6 +87,7 @@ const API_KEY_GETTERS: Record<string, () => string | undefined> = {
 	ollama_api_key: () => OLLAMA_API_KEY,
 	mistral_api_key: () => MISTRAL_API_KEY,
 	opencode_api_key: () => OPENCODE_API_KEY,
+	modal_api_key: () => MODAL_API_KEY,
 };
 
 const SHOW_PAID_GETTERS: Record<string, () => boolean> = {

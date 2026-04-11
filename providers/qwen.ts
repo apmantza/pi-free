@@ -57,8 +57,8 @@ export default async function (pi: ExtensionAPI) {
 		refreshToken: refreshQwenToken,
 		getApiKey: (cred: OAuthCredentials) => cred.access,
 		modifyModels: (models: any[], cred: OAuthCredentials) => {
-			// Use the resource_url from OAuth credentials as the base URL
-			const baseUrl = getQwenBaseUrl(cred);
+			// Use the resource_url (enterpriseUrl) from OAuth credentials as the base URL
+			const baseUrl = getQwenBaseUrl(cred.enterpriseUrl as string | undefined);
 			_logger.info("Qwen base URL from OAuth", { baseUrl });
 			return models.map((m) => ({
 				...m,
@@ -116,7 +116,7 @@ export default async function (pi: ExtensionAPI) {
 		try {
 			const cred = (pi as any).modelRegistry?.authStorage?.get?.(PROVIDER_QWEN);
 			if (cred?.type === "oauth" && evt.payload) {
-				const baseUrl = getQwenBaseUrl(cred as OAuthCredentials);
+				const baseUrl = getQwenBaseUrl(cred.enterpriseUrl as string | undefined);
 				if (baseUrl !== DEFAULT_BASE_URL) {
 					_logger.debug("Using dynamic base URL from OAuth", { baseUrl });
 					evt.payload.baseUrl = baseUrl;
@@ -129,7 +129,7 @@ export default async function (pi: ExtensionAPI) {
 		return evt;
 	});
 
-	// Track requests
+	// Keep lightweight request counting for now (internal only).
 	pi.on("turn_end", async (_event, ctx) => {
 		if (ctx.model?.provider !== PROVIDER_QWEN) return;
 		incrementRequestCount(PROVIDER_QWEN);

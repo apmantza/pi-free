@@ -36,6 +36,7 @@ import {
 	setupProvider,
 	createCtxReRegister,
 } from "../provider-helper.ts";
+import { createOpenCodeSessionTracker } from "./opencode-session.ts";
 
 const GO_CONFIG = {
 	providerId: PROVIDER_GO,
@@ -46,6 +47,8 @@ const GO_CONFIG = {
 		"HTTP-Referer": "https://opencode.ai/",
 	},
 };
+
+const session = createOpenCodeSessionTracker();
 
 // =============================================================================
 // Static fallback models (from OpenCode Go docs)
@@ -187,10 +190,27 @@ export default async function (pi: ExtensionAPI) {
 			return;
 		}
 
-		// Create re-register function
-		reRegisterFn = createCtxReRegister(ctx as any, GO_CONFIG);
+		// Generate session ID for this session (used in headers)
+		const sessionId = session.getSessionId();
+
+		// Create re-register function with session headers (same as zen)
+		const sessionConfig = {
+			...GO_CONFIG,
+			headers: {
+				...GO_CONFIG.headers,
+				"x-opencode-session": sessionId,
+				"x-session-affinity": sessionId,
+			},
+		};
+		reRegisterFn = createCtxReRegister(ctx as any, sessionConfig);
 
 		// Register our provider
 		reRegisterFn(models);
+	});
+
+	// Update request count before each agent turn (for request ID generation)
+	pi.on("before_agent_start", async (_event, ctx) => {
+		if (ctx.model?.provider !== PROVIDER_GO) return;
+		session.nextRequestId();
 	});
 }

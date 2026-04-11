@@ -77,7 +77,8 @@ Add your API keys to this file:
   "nvidia_api_key": "nvapi-...",
   "ollama_api_key": "...",
   "fireworks_api_key": "...",
-  "mistral_api_key": "..."
+  "mistral_api_key": "...",
+  "modal_api_key": "..."
 }
 ```
 

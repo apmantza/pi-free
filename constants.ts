@@ -17,6 +17,7 @@ export const PROVIDER_FIREWORKS = "fireworks";
 export const PROVIDER_OLLAMA = "ollama";
 export const PROVIDER_MISTRAL = "mistral";
 export const PROVIDER_QWEN = "qwen";
+export const PROVIDER_MODAL = "modal";
 
 export const ALL_PROVIDERS = [
 	PROVIDER_KILO,
@@ -29,6 +30,7 @@ export const ALL_PROVIDERS = [
 	PROVIDER_MISTRAL,
 	PROVIDER_OLLAMA,
 	PROVIDER_QWEN,
+	PROVIDER_MODAL,
 ] as const;
 
 // =============================================================================
@@ -43,6 +45,7 @@ export const BASE_URL_NVIDIA = "https://integrate.api.nvidia.com/v1";
 export const BASE_URL_CLINE = "https://api.cline.bot/api/v1";
 export const BASE_URL_FIREWORKS = "https://api.fireworks.ai/inference/v1";
 export const BASE_URL_OLLAMA = "https://ollama.com/v1";
+export const BASE_URL_MODAL = "https://api.us-west-2.modal.direct/v1";
 
 // =============================================================================
 // External URLs
@@ -54,6 +57,7 @@ export const URL_ZEN_TOS = "https://opencode.ai/terms";
 export const URL_GO_TOS = "https://opencode.ai/terms";
 export const URL_CLINE_TOS = "https://cline.bot/tos";
 export const URL_QWEN_TOS = "https://terms.alicloud.com/";
+export const URL_MODAL_TOS = "https://modal.com/terms";
 export const BASE_URL_QWEN = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 
 // =============================================================================

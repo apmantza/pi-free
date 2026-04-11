@@ -75,7 +75,8 @@
 			"./providers/fireworks.ts",
 			"./providers/mistral.ts",
 			"./providers/ollama.ts",
-			"./providers/qwen.ts"
+			"./providers/qwen.ts",
+			"./providers/modal.ts"
 		]
 	},
 	"dependencies": {

@@ -31,6 +31,7 @@ import {
 } from "../provider-helper.ts";
 import type { ZenGatewayModel } from "../lib/types.ts";
 import { fetchModelsDevMeta } from "./model-fetcher.ts";
+import { createOpenCodeSessionTracker } from "./opencode-session.ts";
 import { fetchWithRetry, logWarning } from "../lib/util.ts";
 
 const ZEN_CONFIG = {
@@ -43,31 +44,7 @@ const ZEN_CONFIG = {
 	},
 };
 
-// =============================================================================
-// Session/Request ID generation (matches OpenCode behavior)
-// =============================================================================
-
-let _sessionId: string = "";
-let _requestCount = 0;
-
-function generateId(): string {
-	return (
-		Math.random().toString(36).substring(2, 15) +
-		Math.random().toString(36).substring(2, 15)
-	);
-}
-
-function getSessionId(): string {
-	if (!_sessionId) {
-		_sessionId = generateId();
-	}
-	return _sessionId;
-}
-
-function getRequestId(): string {
-	_requestCount++;
-	return `${getSessionId()}-${_requestCount}`;
-}
+const session = createOpenCodeSessionTracker();
 
 // =============================================================================
 // Static fallback models (from Pi's built-in + OpenCode docs)
@@ -369,7 +346,7 @@ export default async function (pi: ExtensionAPI) {
 		}
 
 		// Generate session ID for this session (used in headers)
-		const sessionId = getSessionId();
+		const sessionId = session.getSessionId();
 
 		// Create re-register function with session headers
 		const sessionConfig = {
@@ -389,6 +366,6 @@ export default async function (pi: ExtensionAPI) {
 	// Update request count before each agent turn (for request ID generation)
 	pi.on("before_agent_start", async (_event, ctx) => {
 		if (ctx.model?.provider !== PROVIDER_ZEN) return;
-		getRequestId();
+		session.nextRequestId();
 	});
 }

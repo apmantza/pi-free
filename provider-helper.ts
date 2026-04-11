@@ -3,7 +3,7 @@
  * Extracts the common boilerplate pattern repeated across providers:
  *   - /{provider}-toggle command to switch between free/paid models
  *   - model_select handler (clear status for other providers)
- *   - turn_end handler (increment request count, handle errors)
+ *   - turn_end handler (provider-specific error hook)
  *   - before_agent_start handler (one-time ToS notice)
  */
 
@@ -11,18 +11,10 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
-import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { saveConfig } from "./config.ts";
 import { createLogger } from "./lib/logger.ts";
 import { enhanceModelNameWithCodingIndex } from "./provider-failover/hardcoded-benchmarks.ts";
-import {
-	handleProviderError,
-	isProviderExhausted,
-	resetFailureCount,
-} from "./provider-failover/index.ts";
-import { autoFailover, type AutoSwitchConfig } from "./provider-failover/auto-switch.ts";
-import { incrementRequestCount } from "./usage/metrics.ts";
-import { incrementModelRequestCount } from "./usage/tracking.ts";
+import type { AutoSwitchConfig } from "./provider-failover/auto-switch.ts";
 
 const _logger = createLogger("provider-helper");
 
@@ -227,7 +219,7 @@ export function setupProvider(
 		}
 	});
 
-	// ── Track request count, reset failure count, handle errors ──────────
+	// ── Error handling / usage tracking are temporarily deprecated ─────────
 
 	pi.on("turn_end", async (event, ctx) => {
 		if (ctx.model?.provider !== providerId) return;
@@ -236,113 +228,17 @@ export function setupProvider(
 			event as { message?: { role?: string; errorMessage?: string } }
 		).message;
 
-		// Check for errors in the assistant message
 		if (msg?.role === "assistant" && msg.errorMessage) {
-			const errorMsg = msg.errorMessage;
-			_logger.info("Error detected", {
+			_logger.info("Provider error (auto model hopping disabled)", {
 				provider: providerId,
-				error: errorMsg.slice(0, 100),
+				error: msg.errorMessage.slice(0, 100),
 			});
 
-			// Use custom error handler if provided
+			// Keep custom handlers working for provider-specific logic.
 			if (config.onError) {
-				const handled = await config.onError(errorMsg, ctx);
-				if (handled) return;
+				await config.onError(msg.errorMessage, ctx);
 			}
-
-			// Use default failover handler
-			const result = await handleProviderError(
-				errorMsg,
-				{
-					provider: providerId,
-					isPaidMode: currentShowPaid,
-					autoSwitch: config.autoSwitch,
-				},
-				pi,
-				ctx as {
-					ui: {
-						notify: (m: string, t: "info" | "warning" | "error") => void;
-					};
-					model?: { provider?: string; id?: string };
-					session?: { id?: string };
-				},
-			);
-
-			// Show notification based on result
-			if (result.action === "retry") {
-				ctx.ui.notify(result.message, "warning");
-				if (isProviderExhausted(providerId)) {
-					ctx.ui.setStatus(
-						`${providerId}-status`,
-						ctx.ui.theme.fg("dim", "⚠️ Rate limited - consider switching"),
-					);
-				}
-			} else if (result.action === "fail") {
-				ctx.ui.notify(result.message, "error");
-			} else if (result.action === "switch") {
-				// Auto-switch to another provider on rate limit
-				if (ctx.model) {
-					const switchResult = await autoFailover(
-						errorMsg,
-						ctx.model as any,
-						pi,
-						ctx as ExtensionContext,
-						config.autoSwitch ?? {},
-					);
-					if (switchResult.switched) {
-						ctx.ui.notify(switchResult.message, "info");
-					} else {
-						ctx.ui.notify(
-							`${result.message} (${switchResult.message})`,
-							"warning",
-						);
-					}
-				} else {
-					ctx.ui.notify(result.message, "warning");
-				}
-			}
-
-			// Don't reset failure count on error
-			return;
 		}
-
-		// Success - reset failure count and increment metrics
-		incrementRequestCount(providerId);
-
-		// Track per-model usage if we have a model selected
-		const modelId = ctx.model?.id;
-		if (modelId) {
-			// Extract token usage from the event if available
-			const msg = (
-				event as {
-					message?: {
-						usage?: {
-							input?: number;
-							output?: number;
-							cacheRead?: number;
-							cacheWrite?: number;
-							cost?: { total?: number };
-						};
-					};
-				}
-			).message;
-			const tokensIn = msg?.usage?.input ?? 0;
-			const tokensOut = msg?.usage?.output ?? 0;
-			const cacheRead = msg?.usage?.cacheRead ?? 0;
-			const cacheWrite = msg?.usage?.cacheWrite ?? 0;
-			const cost = msg?.usage?.cost?.total ?? 0;
-			incrementModelRequestCount(
-				providerId,
-				modelId,
-				tokensIn,
-				tokensOut,
-				cacheRead,
-				cacheWrite,
-				cost,
-			);
-		}
-
-		resetFailureCount(providerId);
 	});
 
 	// ── ToS notice on first use ────────────────────────────────

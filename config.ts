@@ -31,6 +31,7 @@ interface PiFreeConfig {
 	fireworks_api_key?: string;
 	mistral_api_key?: string;
 	ollama_api_key?: string;
+	modal_api_key?: string;
 	kilo_free_only?: boolean;
 	hidden_models?: string[];
 	// Per-provider paid model flags
@@ -53,6 +54,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	fireworks_api_key: "",
 	mistral_api_key: "",
 	ollama_api_key: "",
+	modal_api_key: "",
 	kilo_free_only: false,
 	hidden_models: [],
 	kilo_show_paid: false,
@@ -202,6 +204,7 @@ export const FIREWORKS_API_KEY = resolve(
 );
 export const MISTRAL_API_KEY = resolve("MISTRAL_API_KEY", file.mistral_api_key);
 export const OLLAMA_API_KEY = resolve("OLLAMA_API_KEY", file.ollama_api_key);
+export const MODAL_API_KEY = resolve("MODAL_API_KEY", file.modal_api_key);
 
 // Re-export provider names for consistency
 export {
@@ -215,6 +218,7 @@ export {
 	PROVIDER_OPENROUTER,
 	PROVIDER_QWEN,
 	PROVIDER_ZEN,
+	PROVIDER_MODAL,
 } from "./constants.ts";
 
 // =============================================================================

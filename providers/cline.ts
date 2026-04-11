@@ -15,8 +15,8 @@
 import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { BASE_URL_CLINE, PROVIDER_CLINE } from "../constants.ts";
-import { logWarning } from "../lib/util.ts";
 import { incrementRequestCount } from "../usage/metrics.ts";
+import { logWarning } from "../lib/util.ts";
 import { loginCline, refreshClineToken } from "./cline-auth.ts";
 import { fetchClineModels } from "./cline-models.ts";
 
@@ -249,7 +249,7 @@ export default async function (pi: ExtensionAPI) {
 		}
 	});
 
-	// Track requests
+	// Keep lightweight request counting for now (internal only).
 	pi.on("turn_end", async (_event, ctx) => {
 		if (ctx.model?.provider !== PROVIDER_CLINE) return;
 		incrementRequestCount(PROVIDER_CLINE);
