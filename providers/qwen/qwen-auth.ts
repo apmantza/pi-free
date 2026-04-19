@@ -37,6 +37,12 @@ const QWEN_OAUTH_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code";
 const INITIAL_POLL_INTERVAL_MS = 2000;
 const MAX_POLL_INTERVAL_MS = 10000;
 
+// Token refresh buffer: proactively refresh this many ms before actual expiry.
+// Matches qwen-code's SharedTokenManager which uses a 30s buffer.
+// We use 5 minutes (same as pi-core's reference qwen-cli example) to be safe
+// against clock skew, network latency, and server-side early revocation.
+const EXPIRY_BUFFER_MS = 5 * 60 * 1000;
+
 // =============================================================================
 // PKCE Utilities
 // =============================================================================
@@ -46,10 +52,7 @@ function generateCodeVerifier(): string {
 }
 
 function generateCodeChallenge(codeVerifier: string): string {
-	return crypto
-		.createHash("sha256")
-		.update(codeVerifier)
-		.digest("base64url");
+	return crypto.createHash("sha256").update(codeVerifier).digest("base64url");
 }
 
 function generatePKCEPair(): {
@@ -67,10 +70,7 @@ function generatePKCEPair(): {
 
 function objectToUrlEncoded(data: Record<string, string>): string {
 	return Object.keys(data)
-		.map(
-			(key) =>
-				`${encodeURIComponent(key)}=${encodeURIComponent(data[key])}`,
-		)
+		.map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(data[key])}`)
 		.join("&");
 }
 
@@ -149,9 +149,7 @@ async function requestDeviceAuthorization(
 		);
 	}
 
-	const result = (await response.json()) as
-		| DeviceAuthorizationData
-		| ErrorData;
+	const result = (await response.json()) as DeviceAuthorizationData | ErrorData;
 
 	if ("error" in result) {
 		throw new Error(
@@ -305,8 +303,8 @@ export async function loginQwen(
 				access: data.access_token!,
 				refresh: data.refresh_token ?? "",
 				expires: data.expires_in
-					? Date.now() + data.expires_in * 1000
-					: Date.now() + 3600 * 1000, // 1 hour default
+					? Date.now() + data.expires_in * 1000 - EXPIRY_BUFFER_MS
+					: Date.now() + 3600 * 1000 - EXPIRY_BUFFER_MS, // 1 hour default minus buffer
 				resource_url: resourceUrl,
 			};
 		}
@@ -334,7 +332,11 @@ export async function loginQwen(
 export async function refreshQwenToken(
 	credentials: OAuthCredentials,
 ): Promise<OAuthCredentials> {
-	if (credentials.expires > Date.now()) return credentials;
+	// Note: we intentionally DO NOT early-return when the token appears valid.
+	// pi-core calls refreshToken() only when it has already determined the token
+	// needs refreshing (Date.now() >= cred.expires). The early return was
+	// redundant and blocked forced-refreshes after server-side token revocation
+	// (where the stored expiry hasn't been reached yet but the token is invalid).
 
 	if (!credentials.refresh) {
 		throw new Error(
@@ -378,21 +380,23 @@ export async function refreshQwenToken(
 	}
 
 	// Preserve resource_url as a proper field (not encoded in refresh token)
-	const resourceUrl = data.resource_url || (credentials.resource_url as string) || "";
+	const resourceUrl =
+		data.resource_url || (credentials.resource_url as string) || "";
 
 	return {
 		access: data.access_token,
 		refresh: data.refresh_token ?? credentials.refresh,
 		expires: data.expires_in
-			? Date.now() + data.expires_in * 1000
-			: Date.now() + 3600 * 1000,
+			? Date.now() + data.expires_in * 1000 - EXPIRY_BUFFER_MS
+			: Date.now() + 3600 * 1000 - EXPIRY_BUFFER_MS,
 		resource_url: resourceUrl,
 	};
 }
 
 // Fallback endpoint used when resource_url is absent from the OAuth token.
 // Mirrors qwen-code's DEFAULT_QWEN_BASE_URL.
-const QWEN_DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+const QWEN_DEFAULT_BASE_URL =
+	"https://dashscope.aliyuncs.com/compatible-mode/v1";
 
 /**
  * Resolve the API base URL from OAuth credentials.
