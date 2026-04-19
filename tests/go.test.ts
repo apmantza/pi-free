@@ -64,7 +64,7 @@ describe("Go Provider", () => {
 			logWarning: vi.fn(),
 		}));
 
-		const { default: goProvider } = await import("../providers/go.ts");
+		const { default: goProvider } = await import("../providers/go/go.ts");
 
 		const mockOn = vi.fn();
 		const mockPi = {
@@ -128,7 +128,7 @@ describe("Go Provider", () => {
 			logWarning: vi.fn(),
 		}));
 
-		const { default: goProvider } = await import("../providers/go.ts");
+		const { default: goProvider } = await import("../providers/go/go.ts");
 
 		const mockOn = vi.fn();
 		const mockPi = {

@@ -31,7 +31,7 @@ vi.mock("../constants.ts", () => ({
 	URL_MODELS_DEV: "https://models.dev/api.json",
 }));
 
-import nvidiaProvider from "../providers/nvidia.ts";
+import nvidiaProvider from "../providers/nvidia/nvidia.ts";
 
 describe("NVIDIA Provider", () => {
 	beforeEach(() => {

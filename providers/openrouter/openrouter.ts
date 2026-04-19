@@ -17,21 +17,21 @@ import {
 	OPENROUTER_API_KEY as CONFIG_API_KEY,
 	OPENROUTER_SHOW_PAID,
 	PROVIDER_OPENROUTER,
-} from "../config.ts";
+} from "../../config.ts";
 import {
 	BASE_URL_OPENROUTER,
 	DEFAULT_FETCH_TIMEOUT_MS,
 	DEFAULT_MIN_SIZE_B,
-} from "../constants.ts";
-import { fetchOpenRouterMetrics } from "../usage/metrics.ts";
+} from "../../constants.ts";
+import { fetchOpenRouterMetrics } from "../../usage/metrics.ts";
 import {
 	type StoredModels,
 	setupProvider,
 	createCtxReRegister,
-} from "../provider-helper.ts";
-import { createLogger } from "../lib/logger.ts";
-import { cleanModelName, isUsableModel, logWarning } from "../lib/util.ts";
-import { fetchOpenRouterModelsWithFree } from "./model-fetcher.ts";
+} from "../../provider-helper.ts";
+import { createLogger } from "../../lib/logger.ts";
+import { cleanModelName, isUsableModel, logWarning } from "../../lib/util.ts";
+import { fetchOpenRouterModelsWithFree } from "../model-fetcher.ts";
 
 const _logger = createLogger("openrouter");
 

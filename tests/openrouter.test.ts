@@ -49,7 +49,7 @@ vi.mock("../providers/model-fetcher.ts", () => ({
 
 import { setupProvider } from "../provider-helper.ts";
 import { fetchOpenRouterModelsWithFree } from "../providers/model-fetcher.ts";
-import openrouterProvider from "../providers/openrouter.ts";
+import openrouterProvider from "../providers/openrouter/openrouter.ts";
 
 describe("OpenRouter Provider", () => {
 	let mockPi: ExtensionAPI;

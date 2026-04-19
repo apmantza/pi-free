@@ -10,9 +10,9 @@
  */
 
 import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
-import { PROVIDER_FIREWORKS } from "../config.ts";
-import { BASE_URL_FIREWORKS } from "../constants.ts";
-import { createProvider } from "../provider-factory.ts";
+import { PROVIDER_FIREWORKS } from "../../config.ts";
+import { BASE_URL_FIREWORKS } from "../../constants.ts";
+import { createProvider } from "../../provider-factory.ts";
 
 // =============================================================================
 // Static model list (Fireworks doesn't have a models API)

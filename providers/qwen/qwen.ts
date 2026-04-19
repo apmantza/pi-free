@@ -11,16 +11,16 @@
 
 import type { OAuthCredentials, Model, Api } from "@mariozechner/pi-ai";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { PROVIDER_QWEN, URL_QWEN_TOS } from "../constants.ts";
+import { PROVIDER_QWEN, URL_QWEN_TOS } from "../../constants.ts";
 import {
 	enhanceWithCI,
 	type StoredModels,
 	setupProvider,
 	createReRegister,
-} from "../provider-helper.ts";
-import { incrementRequestCount } from "../usage/metrics.ts";
-import { logWarning } from "../lib/util.ts";
-import { createLogger } from "../lib/logger.ts";
+} from "../../provider-helper.ts";
+import { incrementRequestCount } from "../../usage/metrics.ts";
+import { logWarning } from "../../lib/util.ts";
+import { createLogger } from "../../lib/logger.ts";
 import { loginQwen, refreshQwenToken, getQwenBaseUrl } from "./qwen-auth.ts";
 import { fetchQwenModels } from "./qwen-models.ts";
 

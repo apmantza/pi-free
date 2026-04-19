@@ -18,21 +18,21 @@ import {
 	OPENCODE_API_KEY as CONFIG_API_KEY,
 	PROVIDER_ZEN,
 	ZEN_SHOW_PAID,
-} from "../config.ts";
+} from "../../config.ts";
 import {
 	BASE_URL_ZEN,
 	DEFAULT_FETCH_TIMEOUT_MS,
 	URL_ZEN_TOS,
-} from "../constants.ts";
+} from "../../constants.ts";
 import {
 	type StoredModels,
 	setupProvider,
 	createCtxReRegister,
-} from "../provider-helper.ts";
-import type { ZenGatewayModel } from "../lib/types.ts";
-import { fetchModelsDevMeta } from "./model-fetcher.ts";
-import { createOpenCodeSessionTracker } from "./opencode-session.ts";
-import { fetchWithRetry, logWarning } from "../lib/util.ts";
+} from "../../provider-helper.ts";
+import type { ZenGatewayModel } from "../../lib/types.ts";
+import { fetchModelsDevMeta } from "../model-fetcher.ts";
+import { createOpenCodeSessionTracker } from "../opencode-session.ts";
+import { fetchWithRetry, logWarning } from "../../lib/util.ts";
 
 const ZEN_CONFIG = {
 	providerId: PROVIDER_ZEN,

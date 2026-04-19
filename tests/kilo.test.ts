@@ -16,7 +16,7 @@ vi.mock("../providers/kilo-auth.ts", () => ({
 	refreshKiloToken: vi.fn(),
 }));
 
-vi.mock("../providers/kilo-models.ts", () => ({
+vi.mock("../providers/kilo/kilo-models.ts", () => ({
 	fetchKiloModels: (...args: unknown[]) => mockFetchKiloModels(...args),
 	KILO_GATEWAY_BASE: "https://api.kilo.ai/api/gateway",
 }));
@@ -36,8 +36,8 @@ vi.mock("../lib/util.ts", () => ({
 }));
 
 import { setupProvider } from "../provider-helper.ts";
-import kiloProvider from "../providers/kilo.ts";
-import { fetchKiloModels } from "../providers/kilo-models.ts";
+import kiloProvider from "../providers/kilo/kilo.ts";
+import { fetchKiloModels } from "../providers/kilo/kilo-models.ts";
 
 describe("Kilo Provider", () => {
 	let mockPi: ExtensionAPI;

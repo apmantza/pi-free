@@ -8,9 +8,9 @@
  */
 
 import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
-import { applyHidden, PROVIDER_MODAL } from "../config.ts";
-import { BASE_URL_MODAL, URL_MODAL_TOS } from "../constants.ts";
-import { createProvider } from "../provider-factory.ts";
+import { applyHidden, PROVIDER_MODAL } from "../../config.ts";
+import { BASE_URL_MODAL, URL_MODAL_TOS } from "../../constants.ts";
+import { createProvider } from "../../provider-factory.ts";
 
 function getModalModels(): ProviderModelConfig[] {
 	return applyHidden([

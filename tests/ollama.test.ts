@@ -72,7 +72,7 @@ describe("Ollama Provider", () => {
 			} as Response);
 
 			const { default: ollamaProvider } = await import(
-				"../providers/ollama.ts"
+				"../providers/ollama/ollama.ts"
 			);
 			await ollamaProvider(mockPi);
 
@@ -91,7 +91,7 @@ describe("Ollama Provider", () => {
 			delete process.env.OLLAMA_API_KEY;
 
 			const { default: ollamaProvider } = await import(
-				"../providers/ollama.ts"
+				"../providers/ollama/ollama.ts"
 			);
 			await ollamaProvider(mockPi);
 
@@ -104,7 +104,7 @@ describe("Ollama Provider", () => {
 				.mockReturnValue(undefined as any);
 
 			const { default: ollamaProvider } = await import(
-				"../providers/ollama.ts"
+				"../providers/ollama/ollama.ts"
 			);
 			await ollamaProvider(mockPi);
 
@@ -118,7 +118,7 @@ describe("Ollama Provider", () => {
 				.mockReturnValue(false);
 
 			const { default: ollamaProvider } = await import(
-				"../providers/ollama.ts"
+				"../providers/ollama/ollama.ts"
 			);
 			await ollamaProvider(mockPi);
 
@@ -157,7 +157,7 @@ describe("Ollama Provider", () => {
 			} as Response);
 
 			const { default: ollamaProvider } = await import(
-				"../providers/ollama.ts"
+				"../providers/ollama/ollama.ts"
 			);
 			await ollamaProvider(mockPi);
 
@@ -186,7 +186,7 @@ describe("Ollama Provider", () => {
 			} as Response);
 
 			const { default: ollamaProvider } = await import(
-				"../providers/ollama.ts"
+				"../providers/ollama/ollama.ts"
 			);
 			await ollamaProvider(mockPi);
 
@@ -213,7 +213,7 @@ describe("Ollama Provider", () => {
 			} as Response);
 
 			const { default: ollamaProvider } = await import(
-				"../providers/ollama.ts"
+				"../providers/ollama/ollama.ts"
 			);
 			await ollamaProvider(mockPi);
 
@@ -242,7 +242,7 @@ describe("Ollama Provider", () => {
 			} as Response);
 
 			const { default: ollamaProvider } = await import(
-				"../providers/ollama.ts"
+				"../providers/ollama/ollama.ts"
 			);
 			await ollamaProvider(mockPi);
 

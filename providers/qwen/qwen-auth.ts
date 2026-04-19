@@ -17,8 +17,8 @@ import type {
 	OAuthCredentials,
 	OAuthLoginCallbacks,
 } from "@mariozechner/pi-ai";
-import { createLogger } from "../lib/logger.ts";
-import { openBrowser } from "../lib/open-browser.ts";
+import { createLogger } from "../../lib/logger.ts";
+import { openBrowser } from "../../lib/open-browser.ts";
 
 const _logger = createLogger("qwen-auth");
 

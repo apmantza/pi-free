@@ -4,14 +4,14 @@
  * Fetches zero-cost models from OpenRouter (Cline's gateway).
  */
 
-import { applyHidden } from "../config.ts";
+import { applyHidden } from "../../config.ts";
 import {
 	BASE_URL_OPENROUTER,
 	DEFAULT_FETCH_TIMEOUT_MS,
 	DEFAULT_MIN_SIZE_B,
-} from "../constants.ts";
-import type { ProviderModelConfig } from "../lib/types.ts";
-import { cleanModelName, fetchWithRetry, isUsableModel } from "../lib/util.ts";
+} from "../../constants.ts";
+import type { ProviderModelConfig } from "../../lib/types.ts";
+import { cleanModelName, fetchWithRetry, isUsableModel } from "../../lib/util.ts";
 
 interface OpenRouterRaw {
 	id: string;

@@ -14,16 +14,16 @@
  */
 
 import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
-import { applyHidden, NVIDIA_SHOW_PAID, PROVIDER_NVIDIA } from "../config.ts";
+import { applyHidden, NVIDIA_SHOW_PAID, PROVIDER_NVIDIA } from "../../config.ts";
 import {
 	BASE_URL_NVIDIA,
 	DEFAULT_FETCH_TIMEOUT_MS,
 	NVIDIA_MIN_SIZE_B,
 	URL_MODELS_DEV,
-} from "../constants.ts";
-import type { ModelsDevProvider } from "../lib/types.ts";
-import { fetchWithRetry, isUsableModel } from "../lib/util.ts";
-import { createProvider } from "../provider-factory.ts";
+} from "../../constants.ts";
+import type { ModelsDevProvider } from "../../lib/types.ts";
+import { fetchWithRetry, isUsableModel } from "../../lib/util.ts";
+import { createProvider } from "../../provider-factory.ts";
 
 // =============================================================================
 // Fetch + map

@@ -50,7 +50,7 @@ describe("Fireworks Provider", () => {
 	describe("initialization", () => {
 		it("should register provider with hardcoded models", async () => {
 			const { default: fireworksProvider } = await import(
-				"../providers/fireworks.ts"
+				"../providers/fireworks/fireworks.ts"
 			);
 			await fireworksProvider(mockPi);
 
@@ -69,7 +69,7 @@ describe("Fireworks Provider", () => {
 			delete process.env.FIREWORKS_API_KEY;
 
 			const { default: fireworksProvider } = await import(
-				"../providers/fireworks.ts"
+				"../providers/fireworks/fireworks.ts"
 			);
 			await fireworksProvider(mockPi);
 
@@ -83,7 +83,7 @@ describe("Fireworks Provider", () => {
 				.mockReturnValue(undefined as any);
 
 			const { default: fireworksProvider } = await import(
-				"../providers/fireworks.ts"
+				"../providers/fireworks/fireworks.ts"
 			);
 			await fireworksProvider(mockPi);
 
@@ -98,7 +98,7 @@ describe("Fireworks Provider", () => {
 	describe("model configuration", () => {
 		it("should have hardcoded models with correct structure", async () => {
 			const { default: fireworksProvider } = await import(
-				"../providers/fireworks.ts"
+				"../providers/fireworks/fireworks.ts"
 			);
 			await fireworksProvider(mockPi);
 
@@ -129,7 +129,7 @@ describe("Fireworks Provider", () => {
 	describe("setupProvider integration", () => {
 		it("should call setupProvider with stored models", async () => {
 			const { default: fireworksProvider } = await import(
-				"../providers/fireworks.ts"
+				"../providers/fireworks/fireworks.ts"
 			);
 			await fireworksProvider(mockPi);
 

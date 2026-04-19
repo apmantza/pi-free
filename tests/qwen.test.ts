@@ -36,7 +36,7 @@ vi.mock("../lib/util.ts", () => ({
 	logWarning: vi.fn(),
 }));
 
-vi.mock("../providers/qwen-auth.ts", () => ({
+vi.mock("../providers/qwen/qwen-auth.ts", () => ({
 	loginQwen: vi.fn(),
 	refreshQwenToken: vi.fn(),
 	// Default: no resource_url → fallback DashScope (mirrors qwen-code behaviour)
@@ -52,7 +52,7 @@ const PORTAL_COMPAT = {
 	maxTokensField: "max_tokens" as const,
 };
 
-vi.mock("../providers/qwen-models.ts", () => ({
+vi.mock("../providers/qwen/qwen-models.ts", () => ({
 	fetchQwenModels: vi.fn(),
 	PORTAL_COMPAT: {
 		supportsStore: false,
@@ -84,8 +84,8 @@ vi.mock("../providers/qwen-models.ts", () => ({
 }));
 
 import { setupProvider } from "../provider-helper.ts";
-import { loginQwen } from "../providers/qwen-auth.ts";
-import { fetchQwenModels } from "../providers/qwen-models.ts";
+import { loginQwen } from "../providers/qwen/qwen-auth.ts";
+import { fetchQwenModels } from "../providers/qwen/qwen-models.ts";
 import { incrementRequestCount } from "../usage/metrics.ts";
 
 const MOCK_MODEL = {
@@ -121,7 +121,7 @@ describe("Qwen OAuth Provider", () => {
 			vi.mocked(fetchQwenModels).mockResolvedValue([MOCK_MODEL]);
 
 			const { default: qwenProvider } = await import(
-				"../providers/qwen.ts"
+				"../providers/qwen/qwen.ts"
 			);
 			await qwenProvider(mockPi);
 
@@ -146,7 +146,7 @@ describe("Qwen OAuth Provider", () => {
 			vi.mocked(fetchQwenModels).mockResolvedValue([MOCK_MODEL]);
 
 			const { default: qwenProvider } = await import(
-				"../providers/qwen.ts"
+				"../providers/qwen/qwen.ts"
 			);
 			await qwenProvider(mockPi);
 
@@ -159,7 +159,7 @@ describe("Qwen OAuth Provider", () => {
 			vi.mocked(fetchQwenModels).mockResolvedValue([MOCK_MODEL]);
 
 			const { default: qwenProvider } = await import(
-				"../providers/qwen.ts"
+				"../providers/qwen/qwen.ts"
 			);
 			await qwenProvider(mockPi);
 
@@ -186,7 +186,7 @@ describe("Qwen OAuth Provider", () => {
 			vi.mocked(fetchQwenModels).mockResolvedValue([MOCK_MODEL]);
 
 			const { default: qwenProvider } = await import(
-				"../providers/qwen.ts"
+				"../providers/qwen/qwen.ts"
 			);
 			await qwenProvider(mockPi);
 
@@ -213,7 +213,7 @@ describe("Qwen OAuth Provider", () => {
 			vi.mocked(loginQwen).mockResolvedValue(mockCreds);
 
 			const { default: qwenProvider } = await import(
-				"../providers/qwen.ts"
+				"../providers/qwen/qwen.ts"
 			);
 			await qwenProvider(mockPi);
 
@@ -228,7 +228,7 @@ describe("Qwen OAuth Provider", () => {
 			vi.mocked(fetchQwenModels).mockResolvedValue([MOCK_MODEL]);
 
 			const { default: qwenProvider } = await import(
-				"../providers/qwen.ts"
+				"../providers/qwen/qwen.ts"
 			);
 			await qwenProvider(mockPi);
 
@@ -249,7 +249,7 @@ describe("Qwen OAuth Provider", () => {
 			vi.mocked(fetchQwenModels).mockResolvedValue([MOCK_MODEL]);
 
 			const { default: qwenProvider } = await import(
-				"../providers/qwen.ts"
+				"../providers/qwen/qwen.ts"
 			);
 			await qwenProvider(mockPi);
 
@@ -269,7 +269,7 @@ describe("Qwen OAuth Provider", () => {
 			vi.mocked(fetchQwenModels).mockResolvedValue([MOCK_MODEL]);
 
 			const { default: qwenProvider } = await import(
-				"../providers/qwen.ts"
+				"../providers/qwen/qwen.ts"
 			);
 			await qwenProvider(mockPi);
 
@@ -290,7 +290,7 @@ describe("Qwen OAuth Provider", () => {
 			vi.mocked(fetchQwenModels).mockResolvedValue([MOCK_MODEL]);
 
 			const { default: qwenProvider } = await import(
-				"../providers/qwen.ts"
+				"../providers/qwen/qwen.ts"
 			);
 			await qwenProvider(mockPi);
 
@@ -314,7 +314,7 @@ describe("Qwen OAuth Provider", () => {
 			vi.mocked(fetchQwenModels).mockResolvedValue([MOCK_MODEL]);
 
 			const { default: qwenProvider } = await import(
-				"../providers/qwen.ts"
+				"../providers/qwen/qwen.ts"
 			);
 			await qwenProvider(mockPi);
 
@@ -335,7 +335,7 @@ describe("Qwen OAuth Provider", () => {
 			vi.mocked(fetchQwenModels).mockResolvedValue([MOCK_MODEL]);
 
 			const { default: qwenProvider } = await import(
-				"../providers/qwen.ts"
+				"../providers/qwen/qwen.ts"
 			);
 			await qwenProvider(mockPi);
 
@@ -360,7 +360,7 @@ describe("Qwen OAuth Provider", () => {
 			vi.mocked(fetchQwenModels).mockResolvedValue([MOCK_MODEL]);
 
 			const { default: qwenProvider } = await import(
-				"../providers/qwen.ts"
+				"../providers/qwen/qwen.ts"
 			);
 			await qwenProvider(mockPi);
 

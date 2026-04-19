@@ -5,7 +5,7 @@
  */
 
 import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
-import { createLogger } from "../lib/logger.ts";
+import { createLogger } from "../../lib/logger.ts";
 
 const _logger = createLogger("qwen-models");
 

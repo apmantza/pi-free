@@ -15,8 +15,8 @@ import type {
 	OAuthCredentials,
 	OAuthLoginCallbacks,
 } from "@mariozechner/pi-ai";
-import { BASE_URL_CLINE, CLINE_AUTH_TIMEOUT_MS } from "../constants.ts";
-import { createLogger } from "../lib/logger.ts";
+import { BASE_URL_CLINE, CLINE_AUTH_TIMEOUT_MS } from "../../constants.ts";
+import { createLogger } from "../../lib/logger.ts";
 
 const logger = createLogger("cline-auth");
 

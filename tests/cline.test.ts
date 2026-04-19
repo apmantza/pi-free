@@ -19,18 +19,18 @@ vi.mock("../util.ts", () => ({
 	logWarning: vi.fn(),
 }));
 
-vi.mock("../providers/cline-auth.ts", () => ({
+vi.mock("../providers/cline/cline-auth.ts", () => ({
 	loginCline: vi.fn(),
 	refreshClineToken: vi.fn(),
 }));
 
-vi.mock("../providers/cline-models.ts", () => ({
+vi.mock("../providers/cline/cline-models.ts", () => ({
 	fetchClineModels: vi.fn(),
 }));
 
-import clineProvider from "../providers/cline.ts";
-import { loginCline } from "../providers/cline-auth.ts";
-import { fetchClineModels } from "../providers/cline-models.ts";
+import clineProvider from "../providers/cline/cline.ts";
+import { loginCline } from "../providers/cline/cline-auth.ts";
+import { fetchClineModels } from "../providers/cline/cline-models.ts";
 
 describe("Cline Provider", () => {
 	let mockPi: ExtensionAPI;

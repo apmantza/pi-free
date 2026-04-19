@@ -40,7 +40,7 @@ vi.mock("../lib/util.ts", () => ({
 	logWarning: vi.fn(),
 }));
 
-import kiloProvider from "../providers/kilo.ts";
+import kiloProvider from "../providers/kilo/kilo.ts";
 
 describe("Kilo toggle behavior", () => {
 	let mockPi: ExtensionAPI;

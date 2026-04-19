@@ -14,16 +14,16 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
-import { KILO_FREE_ONLY, KILO_SHOW_PAID, PROVIDER_KILO } from "../config.ts";
-import { URL_KILO_TOS } from "../constants.ts";
+import { KILO_FREE_ONLY, KILO_SHOW_PAID, PROVIDER_KILO } from "../../config.ts";
+import { URL_KILO_TOS } from "../../constants.ts";
 import {
 	enhanceWithCI,
 	type StoredModels,
 	setupProvider,
 	createReRegister,
 	createCtxReRegister,
-} from "../provider-helper.ts";
-import { cleanModelName, logWarning } from "../lib/util.ts";
+} from "../../provider-helper.ts";
+import { cleanModelName, logWarning } from "../../lib/util.ts";
 import { loginKilo, refreshKiloToken } from "./kilo-auth.ts";
 import { fetchKiloModels, KILO_GATEWAY_BASE } from "./kilo-models.ts";
 

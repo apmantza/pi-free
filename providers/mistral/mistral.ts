@@ -13,9 +13,9 @@
  */
 
 import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
-import { applyHidden, MISTRAL_SHOW_PAID, PROVIDER_MISTRAL } from "../config.ts";
-import { BASE_URL_MISTRAL } from "../constants.ts";
-import { createProvider } from "../provider-factory.ts";
+import { applyHidden, MISTRAL_SHOW_PAID, PROVIDER_MISTRAL } from "../../config.ts";
+import { BASE_URL_MISTRAL } from "../../constants.ts";
+import { createProvider } from "../../provider-factory.ts";
 
 // =============================================================================
 // Static model list

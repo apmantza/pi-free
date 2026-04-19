@@ -9,10 +9,10 @@
  */
 
 import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
-import { OLLAMA_API_KEY, PROVIDER_OLLAMA } from "../config.ts";
-import { BASE_URL_OLLAMA, DEFAULT_FETCH_TIMEOUT_MS } from "../constants.ts";
-import { fetchWithRetry } from "../lib/util.ts";
-import { createProvider } from "../provider-factory.ts";
+import { OLLAMA_API_KEY, PROVIDER_OLLAMA } from "../../config.ts";
+import { BASE_URL_OLLAMA, DEFAULT_FETCH_TIMEOUT_MS } from "../../constants.ts";
+import { fetchWithRetry } from "../../lib/util.ts";
+import { createProvider } from "../../provider-factory.ts";
 
 // =============================================================================
 // Fetch + map

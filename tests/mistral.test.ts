@@ -47,7 +47,7 @@ vi.mock("../lib/logger.ts", () => ({
 	}),
 }));
 
-import mistralProvider from "../providers/mistral.ts";
+import mistralProvider from "../providers/mistral/mistral.ts";
 
 describe("Mistral Provider", () => {
 	beforeEach(() => {

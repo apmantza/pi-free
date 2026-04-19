@@ -26,17 +26,17 @@ import {
 	OPENCODE_API_KEY,
 	OPENCODE_GO_API_KEY as CONFIG_API_KEY,
 	PROVIDER_GO,
-} from "../config.ts";
+} from "../../config.ts";
 import {
 	BASE_URL_GO,
 	URL_GO_TOS,
-} from "../constants.ts";
+} from "../../constants.ts";
 import {
 	type StoredModels,
 	setupProvider,
 	createCtxReRegister,
-} from "../provider-helper.ts";
-import { createOpenCodeSessionTracker } from "./opencode-session.ts";
+} from "../../provider-helper.ts";
+import { createOpenCodeSessionTracker } from "../opencode-session.ts";
 
 const GO_CONFIG = {
 	providerId: PROVIDER_GO,
