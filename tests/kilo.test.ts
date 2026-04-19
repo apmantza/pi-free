@@ -11,7 +11,7 @@ const mockSetupProvider = vi.fn();
 const mockLoginKilo = vi.fn();
 
 // Mock dependencies before importing the provider
-vi.mock("../providers/kilo-auth.ts", () => ({
+vi.mock("../providers/kilo/kilo-auth.ts", () => ({
 	loginKilo: (...args: unknown[]) => mockLoginKilo(...args),
 	refreshKiloToken: vi.fn(),
 }));

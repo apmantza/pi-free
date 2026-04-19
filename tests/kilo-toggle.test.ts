@@ -14,12 +14,12 @@ vi.mock("../config.ts", () => ({
 	PROVIDER_KILO: "kilo",
 }));
 
-vi.mock("../providers/kilo-models.ts", () => ({
+vi.mock("../providers/kilo/kilo-models.ts", () => ({
 	fetchKiloModels: (...args: unknown[]) => mockFetchKiloModels(...args),
 	KILO_GATEWAY_BASE: "https://api.kilo.ai/api/gateway",
 }));
 
-vi.mock("../providers/kilo-auth.ts", () => ({
+vi.mock("../providers/kilo/kilo-auth.ts", () => ({
 	loginKilo: vi.fn().mockResolvedValue({ access: "oauth-token" }),
 	refreshKiloToken: vi.fn(),
 }));

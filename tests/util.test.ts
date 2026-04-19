@@ -245,7 +245,10 @@ describe("Utility Functions", () => {
 				json: async () => ({ data: [{ id: "model-1" }, { id: "model-2" }] }),
 			} as Response;
 
-			const result = await parseModelResponse(mockResponse, "test-provider");
+			const result = await parseModelResponse<{ id: string }>(
+				mockResponse,
+				"test-provider",
+			);
 
 			expect(result.data).toHaveLength(2);
 			expect(result.data[0].id).toBe("model-1");
