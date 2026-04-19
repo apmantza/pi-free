@@ -22,26 +22,34 @@ vi.mock("../constants.ts", () => ({
 	DEFAULT_MIN_SIZE_B: 30,
 }));
 
-vi.mock("../metrics.ts", () => ({
+vi.mock("../usage/metrics.ts", () => ({
 	fetchOpenRouterMetrics: vi.fn(),
 }));
 
-vi.mock("../provider-helper.ts", () => ({
-	createReRegister: vi.fn(() => vi.fn()),
-	createCtxReRegister: vi.fn(
-		(ctx, config) => (models: ProviderModelConfig[]) => {
-			ctx.modelRegistry.registerProvider(config.providerId || "openrouter", {
-				...config,
-				models,
-			});
-		},
-	),
-	setupProvider: vi.fn(),
-}));
+vi.mock("../provider-helper.ts", async () => {
+	const actual = await vi.importActual("../provider-helper.ts");
+	return {
+		...actual,
+		setupProvider: vi.fn(),
+		createReRegister: vi.fn(() => vi.fn()),
+		createCtxReRegister: vi.fn(
+			(ctx, config) => (models: ProviderModelConfig[]) => {
+				ctx.modelRegistry.registerProvider(config.providerId || "openrouter", {
+					...config,
+					models,
+				});
+			},
+		),
+	};
+});
 
-vi.mock("../util.ts", () => ({
-	logWarning: vi.fn(),
-}));
+vi.mock("../lib/util.ts", async () => {
+	const actual = await vi.importActual("../lib/util.ts");
+	return {
+		...actual,
+		logWarning: vi.fn(),
+	};
+});
 
 vi.mock("../providers/model-fetcher.ts", () => ({
 	fetchOpenRouterModelsWithFree: vi.fn(),
@@ -56,6 +64,18 @@ describe("OpenRouter Provider", () => {
 	let mockRegisterProvider: ReturnType<typeof vi.fn>;
 	let mockOn: ReturnType<typeof vi.fn>;
 
+	const mockFreeModels: ProviderModelConfig[] = [
+		{
+			id: "google/gemini-2.0-flash-exp:free",
+			name: "Gemini 2.0 Flash",
+			reasoning: false,
+			input: ["text"],
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			contextWindow: 128000,
+			maxTokens: 8192,
+		},
+	];
+
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mockRegisterProvider = vi.fn();
@@ -68,51 +88,47 @@ describe("OpenRouter Provider", () => {
 	});
 
 	describe("initialization", () => {
-		it("should register event handlers", async () => {
+		it("should register models immediately for --list-models visibility", async () => {
 			vi.mocked(fetchOpenRouterModelsWithFree).mockResolvedValue({
-				free: [],
-				all: [],
+				free: mockFreeModels,
+				all: mockFreeModels,
 			});
 
 			await openrouterProvider(mockPi);
 
+			// Should register immediately
+			expect(mockPi.registerProvider).toHaveBeenCalledWith(
+				"openrouter",
+				expect.objectContaining({
+					baseUrl: "https://openrouter.ai/api/v1",
+					models: expect.any(Array),
+				}),
+			);
+
+			// Should register event handlers
 			expect(mockOn).toHaveBeenCalledWith(
 				"session_start",
 				expect.any(Function),
 			);
 		});
+
+		it("should not register if API call fails at startup", async () => {
+			vi.mocked(fetchOpenRouterModelsWithFree).mockRejectedValue(
+				new Error("Network error"),
+			);
+
+			await openrouterProvider(mockPi);
+
+			// Should not register immediately
+			expect(mockPi.registerProvider).not.toHaveBeenCalled();
+		});
 	});
 
 	describe("session_start handling", () => {
-		it("should handle existing auth with free models", async () => {
-			const mockFreeModels: ProviderModelConfig[] = [
-				{
-					id: "gpt-3.5",
-					name: "GPT-3.5",
-					reasoning: false,
-					input: ["text"],
-					cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-					contextWindow: 16000,
-					maxTokens: 4096,
-				},
-			];
-
-			const mockAllModels: ProviderModelConfig[] = [
-				...mockFreeModels,
-				{
-					id: "gpt-4",
-					name: "GPT-4",
-					reasoning: true,
-					input: ["text"],
-					cost: { input: 30, output: 60, cacheRead: 0, cacheWrite: 0 },
-					contextWindow: 128000,
-					maxTokens: 4096,
-				},
-			];
-
+		it("should refresh models when no existing auth", async () => {
 			vi.mocked(fetchOpenRouterModelsWithFree).mockResolvedValue({
 				free: mockFreeModels,
-				all: mockAllModels,
+				all: mockFreeModels,
 			});
 
 			await openrouterProvider(mockPi);
@@ -124,46 +140,7 @@ describe("OpenRouter Provider", () => {
 
 			expect(sessionStartHandler).toBeDefined();
 
-			// Mock context with existing auth
-			const mockCtx = {
-				modelRegistry: {
-					getAll: vi
-						.fn()
-						.mockReturnValue(
-							mockAllModels.map((m) => ({ ...m, provider: "openrouter" })),
-						),
-					getAvailable: vi.fn().mockReturnValue([{ provider: "openrouter" }]),
-					registerProvider: vi.fn(),
-				},
-			};
-
-			await sessionStartHandler({}, mockCtx);
-
-			expect(mockCtx.modelRegistry.registerProvider).toHaveBeenCalled();
-		});
-
-		it("should set API key in env when no existing auth", async () => {
-			vi.mocked(fetchOpenRouterModelsWithFree).mockResolvedValue({
-				free: [
-					{
-						id: "test-model",
-						name: "Test",
-						reasoning: false,
-						input: ["text"],
-						cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-						contextWindow: 128000,
-						maxTokens: 4096,
-					},
-				],
-				all: [],
-			});
-
-			await openrouterProvider(mockPi);
-
-			const sessionStartHandler = mockOn.mock.calls.find(
-				(call) => call[0] === "session_start",
-			)?.[1];
-
+			// Mock context without existing auth
 			const mockCtx = {
 				modelRegistry: {
 					getAll: vi.fn().mockReturnValue([]),
@@ -174,15 +151,65 @@ describe("OpenRouter Provider", () => {
 
 			await sessionStartHandler({}, mockCtx);
 
-			expect(process.env.OPENROUTER_API_KEY).toBe("test-api-key");
+			// Should call fetch again and register
+			expect(fetchOpenRouterModelsWithFree).toHaveBeenCalled();
+			expect(mockCtx.modelRegistry.registerProvider).toHaveBeenCalled();
+		});
+
+		it("should use existing auth when available", async () => {
+			vi.mocked(fetchOpenRouterModelsWithFree).mockResolvedValue({
+				free: mockFreeModels,
+				all: mockFreeModels,
+			});
+
+			await openrouterProvider(mockPi);
+
+			// Get session_start handler
+			const sessionStartHandler = mockOn.mock.calls.find(
+				(call) => call[0] === "session_start",
+			)?.[1];
+
+			// Mock context with existing auth
+			const existingModels = [
+				{
+					id: "anthropic/claude-3.5-haiku:free",
+					name: "Claude Haiku",
+					reasoning: false,
+					input: ["text"],
+					cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+					contextWindow: 200000,
+					maxTokens: 8192,
+				},
+			];
+
+			const mockCtx = {
+				modelRegistry: {
+					getAll: vi
+						.fn()
+						.mockReturnValue(
+							existingModels.map((m) => ({ ...m, provider: "openrouter" })),
+						),
+					getAvailable: vi
+						.fn()
+						.mockReturnValue(
+							existingModels.map((m) => ({ ...m, provider: "openrouter" })),
+						),
+					registerProvider: vi.fn(),
+				},
+			};
+
+			await sessionStartHandler({}, mockCtx);
+
+			// Should filter to free models from existing auth
+			expect(mockCtx.modelRegistry.registerProvider).toHaveBeenCalled();
 		});
 	});
 
 	describe("setupProvider integration", () => {
 		it("should call setupProvider with correct config", async () => {
 			vi.mocked(fetchOpenRouterModelsWithFree).mockResolvedValue({
-				free: [],
-				all: [],
+				free: mockFreeModels,
+				all: mockFreeModels,
 			});
 
 			await openrouterProvider(mockPi);
@@ -193,7 +220,10 @@ describe("OpenRouter Provider", () => {
 					providerId: "openrouter",
 					reRegister: expect.any(Function),
 				}),
-				expect.objectContaining({ free: [], all: [] }),
+				expect.objectContaining({
+					free: expect.any(Array),
+					all: expect.any(Array),
+				}),
 			);
 		});
 	});

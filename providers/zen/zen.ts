@@ -7,6 +7,10 @@
  *
  * Model list fetched directly from the Zen gateway — only returns models that
  * are actually deployed. Metadata (pricing, context) enriched from models.dev.
+ *
+ * Caching: Models are cached to ~/.pi/provider-cache.json for faster startup
+ * and to show models immediately in --list-models. Cache is refreshed on
+ * each session_start.
  */
 
 import type {
@@ -33,6 +37,10 @@ import type { ZenGatewayModel } from "../../lib/types.ts";
 import { fetchModelsDevMeta } from "../model-fetcher.ts";
 import { createOpenCodeSessionTracker } from "../opencode-session.ts";
 import { fetchWithRetry, logWarning } from "../../lib/util.ts";
+import {
+	loadProviderCache,
+	saveProviderCache,
+} from "../../lib/provider-cache.ts";
 
 const ZEN_CONFIG = {
 	providerId: PROVIDER_ZEN,
@@ -47,11 +55,10 @@ const ZEN_CONFIG = {
 const session = createOpenCodeSessionTracker();
 
 // =============================================================================
-// Static fallback models (from Pi's built-in + OpenCode docs)
-// Used when /models API is unavailable
+// Static fallback models (last resort if no cache and API fails)
 // =============================================================================
 
-const _STATIC_ZEN_MODELS: ProviderModelConfig[] = [
+const STATIC_FALLBACK_MODELS: ProviderModelConfig[] = [
 	// Free models (from OpenCode Zen docs)
 	{
 		id: "big-pickle",
@@ -226,59 +233,46 @@ async function fetchGatewayModels(token: string): Promise<string[]> {
 async function fetchZenModels(token: string): Promise<{
 	all: ProviderModelConfig[];
 	free: ProviderModelConfig[];
-	useStaticFallback: boolean;
 }> {
-	try {
-		const [gatewayIds, meta] = await Promise.all([
-			fetchGatewayModels(token),
-			fetchModelsDevMeta("opencode"), // Fetch only opencode provider's models
-		]);
+	const [gatewayIds, meta] = await Promise.all([
+		fetchGatewayModels(token),
+		fetchModelsDevMeta("opencode"), // Fetch only opencode provider's models
+	]);
 
-		const all: ProviderModelConfig[] = [];
-		const free: ProviderModelConfig[] = [];
+	const all: ProviderModelConfig[] = [];
+	const free: ProviderModelConfig[] = [];
 
-		for (const id of gatewayIds) {
-			const m = meta[id];
+	for (const id of gatewayIds) {
+		const m = meta[id];
 
-			// Skip image-output models
-			if (m?.modalities?.output?.includes("image")) continue;
+		// Skip image-output models
+		if (m?.modalities?.output?.includes("image")) continue;
 
-			const config: ProviderModelConfig = {
-				id,
-				name: m?.name ?? id,
-				reasoning: m?.reasoning ?? false,
-				input: m?.modalities?.input?.includes("image")
-					? ["text", "image"]
-					: ["text"],
-				cost: {
-					input: m?.cost?.input ?? 0,
-					output: m?.cost?.output ?? 0,
-					cacheRead: m?.cost?.cache_read ?? 0,
-					cacheWrite: m?.cost?.cache_write ?? 0,
-				},
-				contextWindow: m?.limit?.context ?? 128_000,
-				maxTokens: m?.limit?.output ?? 16_384,
-			};
-
-			all.push(config);
-			if ((m?.cost?.input ?? 0) === 0) free.push(config);
-		}
-
-		return {
-			all: applyHidden(all),
-			free: applyHidden(free),
-			useStaticFallback: false,
+		const config: ProviderModelConfig = {
+			id,
+			name: m?.name ?? id,
+			reasoning: m?.reasoning ?? false,
+			input: m?.modalities?.input?.includes("image")
+				? ["text", "image"]
+				: ["text"],
+			cost: {
+				input: m?.cost?.input ?? 0,
+				output: m?.cost?.output ?? 0,
+				cacheRead: m?.cost?.cache_read ?? 0,
+				cacheWrite: m?.cost?.cache_write ?? 0,
+			},
+			contextWindow: m?.limit?.context ?? 128_000,
+			maxTokens: m?.limit?.output ?? 16_384,
 		};
-	} catch (error) {
-		// API failed - return special flag to skip registration
-		// Pi's built-in OpenCode provider will be used instead
-		logWarning(
-			"zen",
-			"API unavailable, letting Pi use built-in provider",
-			error,
-		);
-		return { all: [], free: [], useStaticFallback: true };
+
+		all.push(config);
+		if ((m?.cost?.input ?? 0) === 0) free.push(config);
 	}
+
+	return {
+		all: applyHidden(all),
+		free: applyHidden(free),
+	};
 }
 
 // =============================================================================
@@ -299,6 +293,23 @@ export default async function (pi: ExtensionAPI) {
 	// Re-registration function - will be set in session_start with ctx
 	let reRegisterFn: (models: ProviderModelConfig[]) => void = () => {};
 
+	// Load cached models and register immediately (shows in --list-models)
+	const cachedModels = loadProviderCache(PROVIDER_ZEN) ?? [];
+	if (cachedModels.length > 0) {
+		const free = cachedModels.filter((m) => (m.cost?.input ?? 0) === 0);
+		stored.free = free;
+		stored.all = cachedModels;
+
+		// Register cached models immediately
+		pi.registerProvider(PROVIDER_ZEN, {
+			baseUrl: BASE_URL_ZEN,
+			apiKey: ZEN_KEY_VAR,
+			api: "openai-completions" as const,
+			headers: ZEN_CONFIG.headers,
+			models: cachedModels,
+		});
+	}
+
 	// Wire up shared boilerplate (commands, model_select, turn_end, ToS)
 	setupProvider(
 		pi,
@@ -312,55 +323,59 @@ export default async function (pi: ExtensionAPI) {
 		stored,
 	);
 
-	// Check in session_start if user already has auth for this provider
-	// If they do, we still register with session headers for better reliability
+	// On session_start: fetch fresh models, save to cache, update registry
 	pi.on("session_start", async (_event, ctx) => {
-		const availableModels = ctx.modelRegistry.getAvailable();
-		const _hasExistingAuth = availableModels.some(
-			(m) => m.provider === PROVIDER_ZEN,
-		);
-
-		// Set up the env var regardless - either for our use or to supplement existing auth
+		// Set up the env var
 		process.env[ZEN_KEY_VAR] = token;
 
-		let models: ProviderModelConfig[] = [];
-		let _freeCount = 0;
-		let useStaticFallback = false;
+		let freshModels: ProviderModelConfig[] = [];
+		let fetched = false;
 
 		try {
 			const result = await fetchZenModels(token);
-			models = hasKey && ZEN_SHOW_PAID ? result.all : result.free;
-			_freeCount = result.free.length;
-			useStaticFallback = result.useStaticFallback;
+			freshModels = hasKey && ZEN_SHOW_PAID ? result.all : result.free;
+			fetched = true;
 
-			// Store for command toggle
+			// Save to cache
+			saveProviderCache(PROVIDER_ZEN, result.all);
+
+			// Update stored models
 			stored.free = result.free;
 			stored.all = result.all;
 		} catch (error) {
-			logWarning("zen", "Failed to fetch models", error);
+			logWarning("zen", "Failed to fetch fresh models, using cache/fallback", error);
 		}
 
-		// If API failed, don't register our provider - let Pi use its built-in
-		if (useStaticFallback || models.length === 0) {
-			return;
+		// If we got fresh models, register them
+		if (freshModels.length > 0) {
+			// Generate session ID for this session (used in headers)
+			const sessionId = session.getSessionId();
+
+			// Create re-register function with session headers
+			const sessionConfig = {
+				...ZEN_CONFIG,
+				headers: {
+					...ZEN_CONFIG.headers,
+					"x-opencode-session": sessionId,
+					"x-session-affinity": sessionId,
+				},
+			};
+			reRegisterFn = createCtxReRegister(ctx as any, sessionConfig);
+
+			// Register fresh models
+			reRegisterFn(freshModels);
 		}
-
-		// Generate session ID for this session (used in headers)
-		const sessionId = session.getSessionId();
-
-		// Create re-register function with session headers
-		const sessionConfig = {
-			...ZEN_CONFIG,
-			headers: {
-				...ZEN_CONFIG.headers,
-				"x-opencode-session": sessionId,
-				"x-session-affinity": sessionId,
-			},
-		};
-		reRegisterFn = createCtxReRegister(ctx as any, sessionConfig);
-
-		// Register our filtered provider (CI enhancement handled by provider-helper)
-		reRegisterFn(models);
+		// If no fresh models and no cached models registered, use static fallback
+		else if (cachedModels.length === 0 && !fetched) {
+			// Use static fallback as last resort
+			pi.registerProvider(PROVIDER_ZEN, {
+				baseUrl: BASE_URL_ZEN,
+				apiKey: ZEN_KEY_VAR,
+				api: "openai-completions" as const,
+				headers: ZEN_CONFIG.headers,
+				models: STATIC_FALLBACK_MODELS,
+			});
+		}
 	});
 
 	// Update request count before each agent turn (for request ID generation)

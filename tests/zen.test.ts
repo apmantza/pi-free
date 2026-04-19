@@ -41,6 +41,11 @@ vi.mock("../lib/util.ts", () => ({
 	logWarning: vi.fn(),
 }));
 
+vi.mock("../lib/provider-cache.ts", () => ({
+	loadProviderCache: vi.fn().mockReturnValue(undefined),
+	saveProviderCache: vi.fn(),
+}));
+
 import { fetchWithRetry } from "../lib/util.ts";
 import { setupProvider } from "../provider-helper.ts";
 import zenProvider from "../providers/zen/zen.ts";
@@ -55,6 +60,7 @@ describe("Zen Provider", () => {
 
 		mockPi = {
 			on: mockOn,
+			registerProvider: vi.fn(),
 		} as unknown as ExtensionAPI;
 	});
 

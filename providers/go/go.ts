@@ -34,9 +34,13 @@ import {
 import {
 	type StoredModels,
 	setupProvider,
+	createReRegister,
 	createCtxReRegister,
 } from "../../provider-helper.ts";
 import { createOpenCodeSessionTracker } from "../opencode-session.ts";
+import { createLogger } from "../../lib/logger.ts";
+
+const _logger = createLogger("go");
 
 const GO_CONFIG = {
 	providerId: PROVIDER_GO,
@@ -51,8 +55,7 @@ const GO_CONFIG = {
 const session = createOpenCodeSessionTracker();
 
 // =============================================================================
-// Static fallback models (from OpenCode Go docs)
-// Used when /models API is unavailable
+// Static models (from OpenCode Go docs)
 // =============================================================================
 
 const STATIC_GO_MODELS: ProviderModelConfig[] = [
@@ -113,31 +116,6 @@ const STATIC_GO_MODELS: ProviderModelConfig[] = [
 ];
 
 // =============================================================================
-// Fetch helpers
-// =============================================================================
-
-// OpenCode Go does not have a /models endpoint.
-// Models are only accessible via the chat completions API.
-// Static models are used directly (see below).
-
-// =============================================================================
-// Main fetch
-// =============================================================================
-
-/**
- * OpenCode Go does not have a /models endpoint.
- * Models are only accessible via chat completions.
- * So we use the static fallback models directly.
- */
-async function fetchGoModels(_token: string): Promise<{
-	all: ProviderModelConfig[];
-	useStaticFallback: boolean;
-}> {
-	// Go has no /models API - use static models
-	return { all: applyHidden(STATIC_GO_MODELS), useStaticFallback: true };
-}
-
-// =============================================================================
 // Extension Entry Point
 // =============================================================================
 
@@ -147,9 +125,9 @@ export default async function (pi: ExtensionAPI) {
 
 	// Go requires an API key (no free tier)
 	if (!hasKey) {
-		pi.on("session_start", async () => {
-			// No key - don't register provider
-		});
+		_logger.warn(
+			"[go] No API key found — set OPENCODE_GO_API_KEY or add opencode_go_api_key to ~/.pi/free.json",
+		);
 		return;
 	}
 
@@ -157,12 +135,22 @@ export default async function (pi: ExtensionAPI) {
 	const GO_KEY_VAR = "PI_FREE_GO_API_KEY";
 
 	// Shared model storage
-	const stored: StoredModels = { free: [], all: [] };
+	const stored: StoredModels = {
+		free: applyHidden(STATIC_GO_MODELS),
+		all: applyHidden(STATIC_GO_MODELS),
+	};
 
-	// Re-registration function
-	let reRegisterFn: (models: ProviderModelConfig[]) => void = () => {};
+	// Register provider immediately (shows in --list-models)
+	pi.registerProvider(PROVIDER_GO, {
+		baseUrl: BASE_URL_GO,
+		apiKey: GO_KEY_VAR,
+		api: "openai-completions" as const,
+		headers: GO_CONFIG.headers,
+		models: applyHidden(STATIC_GO_MODELS),
+	});
 
 	// Wire up shared boilerplate
+	const reRegister = createReRegister(pi, GO_CONFIG);
 	setupProvider(
 		pi,
 		{
@@ -170,30 +158,20 @@ export default async function (pi: ExtensionAPI) {
 			tosUrl: URL_GO_TOS,
 			hasKey,
 			initialShowPaid: GO_SHOW_PAID,
-			reRegister: (models) => reRegisterFn(models),
+			reRegister: (models) => reRegister(models),
 		},
 		stored,
 	);
 
-	// Register provider on session start
+	// Update with session headers on session_start
 	pi.on("session_start", async (_event, ctx) => {
 		// Set up the env var
 		process.env[GO_KEY_VAR] = token;
 
-		// OpenCode Go has no /models endpoint - use static fallback
-		const models = applyHidden(STATIC_GO_MODELS);
-
-		stored.all = models;
-		stored.free = models; // Go has no free tier
-
-		if (models.length === 0) {
-			return;
-		}
-
 		// Generate session ID for this session (used in headers)
 		const sessionId = session.getSessionId();
 
-		// Create re-register function with session headers (same as zen)
+		// Create re-register function with session headers
 		const sessionConfig = {
 			...GO_CONFIG,
 			headers: {
@@ -202,10 +180,10 @@ export default async function (pi: ExtensionAPI) {
 				"x-session-affinity": sessionId,
 			},
 		};
-		reRegisterFn = createCtxReRegister(ctx as any, sessionConfig);
+		const ctxReRegister = createCtxReRegister(ctx as any, sessionConfig);
 
-		// Register our provider
-		reRegisterFn(models);
+		// Register with session headers
+		ctxReRegister(applyHidden(STATIC_GO_MODELS));
 	});
 
 	// Update request count before each agent turn (for request ID generation)

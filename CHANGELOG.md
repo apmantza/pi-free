@@ -12,11 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Set `OPENCODE_GO_API_KEY` or `opencode_go_api_key` in `~/.pi/free.json`
   - Toggle with `/go-toggle`
 
+### Fixed
+- **All providers now show in `--list-models`** — Providers (zen, openrouter, go) that registered models only in `session_start` were missing from `pi --list-models` which runs before session starts. Added immediate registration for these providers:
+  - **zen**: Added model caching to `~/.pi/provider-cache.json` for immediate registration + dynamic refresh
+  - **openrouter**: Immediate model registration at extension load (like kilo/cline)
+  - **go**: Immediate registration with static model list (no API to fetch from)
+  - All 11 providers now visible in `--list-models`
+
 ### Changed
 - Updated README with clear free vs paid provider distinction (9 free + 2 paid-only: Go, Fireworks)
 - Added Go and Fireworks provider documentation under new "💳 Paid-Only Providers" section
 - Added `opencode_go_api_key` to config file template
 - Updated package.json description and keywords to include all 11 providers
+
+### Added
+- **Provider model cache** (`lib/provider-cache.ts`) — New utility for caching provider model lists to `~/.pi/provider-cache.json`. Used by zen provider for faster startup and offline access after first successful fetch.
 
 ## [1.0.9] - 2026-04-14
 
