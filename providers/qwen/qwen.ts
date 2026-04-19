@@ -24,6 +24,19 @@ import { createLogger } from "../../lib/logger.ts";
 import { loginQwen, refreshQwenToken, getQwenBaseUrl } from "./qwen-auth.ts";
 import { fetchQwenModels } from "./qwen-models.ts";
 
+// =============================================================================
+// 401 detection patterns
+// =============================================================================
+
+/** Patterns that indicate an auth failure requiring token refresh. */
+const AUTH_ERROR_PATTERNS = [
+	"invalid access token",
+	"token expired",
+	"401",
+	"unauthorized",
+	"authentication",
+] as const;
+
 const _logger = createLogger("qwen");
 
 // =============================================================================
@@ -124,9 +137,63 @@ export default async function (pi: ExtensionAPI) {
 		stored,
 	);
 
-	// Keep lightweight request counting for now (internal only).
-	pi.on("turn_end", async (_event, ctx) => {
+	// Request counting + 401 auth-error detection with forced token refresh.
+	//
+	// When Qwen returns a 401 / "invalid access token" error, the stored token
+	// may have been revoked server-side even though its expiry hasn't been reached.
+	// We force-expire the credential in auth storage so that pi-core's next
+	// getApiKey() call will trigger a token refresh via refreshToken().
+	// This mirrors qwen-code's executeWithCredentialManagement() retry logic.
+	//
+	pi.on("turn_end", async (event, ctx) => {
 		if (ctx.model?.provider !== PROVIDER_QWEN) return;
 		incrementRequestCount(PROVIDER_QWEN);
+
+		const msg = (
+			event as { message?: { role?: string; errorMessage?: string } }
+		).message;
+
+		if (msg?.role === "assistant" && msg.errorMessage) {
+			const errLower = msg.errorMessage.toLowerCase();
+			const isAuthError = AUTH_ERROR_PATTERNS.some((p) =>
+				errLower.includes(p),
+			);
+
+			if (isAuthError) {
+				_logger.warn(
+					"Qwen auth error detected, force-expiring token for refresh",
+					{ error: msg.errorMessage.slice(0, 100) },
+				);
+
+				// Force-expire the stored credential so the next getApiKey() call
+				// triggers refreshQwenToken(). The credential object in auth.json
+				// is updated with expires = 0 (already past).
+				try {
+					const authStorage =
+						(ctx as any).modelRegistry?.authStorage;
+					if (authStorage) {
+						const cred = authStorage.get(PROVIDER_QWEN);
+						if (cred?.type === "oauth" && cred.expires > Date.now()) {
+							// Set expiry to 0 to force refresh on next request
+							authStorage.set(PROVIDER_QWEN, {
+								...cred,
+								expires: 0,
+							});
+							_logger.info(
+								"Qwen token force-expired; will refresh on next request",
+							);
+						}
+					}
+					ctx.ui.notify(
+						"Qwen: auth error detected, refreshing token…",
+						"warning",
+					);
+				} catch (e) {
+					_logger.warn("Failed to force-expire Qwen token", {
+						error: e instanceof Error ? e.message : String(e),
+					});
+				}
+			}
+		}
 	});
 }
