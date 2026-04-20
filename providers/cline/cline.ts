@@ -230,6 +230,38 @@ export default async function (pi: ExtensionAPI) {
 	// Initial registration with all models
 	reRegister(allModels);
 
+	// Per-provider toggle command (works independently of global /free)
+	let showPaidModels = false;
+	let currentModels = allModels;
+	pi.registerCommand("cline-toggle", {
+		description: "Toggle between free and all Cline models",
+		handler: async (_args, ctx) => {
+			showPaidModels = !showPaidModels;
+
+			// Determine which models to show
+			const modelsToShow =
+				showPaidModels && allModels.length > 0 ? allModels : freeModels;
+
+			currentModels = modelsToShow;
+			reRegister(modelsToShow);
+
+			const freeCount = freeModels.length;
+			const paidCount = allModels.length - freeCount;
+
+			if (showPaidModels && allModels.length > 0) {
+				ctx.ui.notify(
+					`cline: showing all ${allModels.length} models (${freeCount} free, ${paidCount} paid)`,
+					"info",
+				);
+			} else {
+				ctx.ui.notify(
+					`cline: showing ${freeCount} free models (${paidCount} paid hidden)`,
+					"info",
+				);
+			}
+		},
+	});
+
 	// Cline-specific: refresh task ID and re-register headers before each agent run
 	pi.on("before_agent_start", async (_event, ctx) => {
 		if (ctx.model?.provider !== PROVIDER_CLINE) return;

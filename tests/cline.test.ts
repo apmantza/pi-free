@@ -51,6 +51,7 @@ describe("Cline Provider", () => {
 		mockPi = {
 			registerProvider: mockRegisterProvider,
 			on: mockOn,
+			registerCommand: vi.fn(),
 		} as unknown as ExtensionAPI;
 	});
 
