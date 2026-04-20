@@ -24,7 +24,16 @@ vi.mock("../config.ts", () => ({
 	NVIDIA_API_KEY: "test-key",
 	NVIDIA_SHOW_PAID: true,
 	PROVIDER_NVIDIA: "nvidia",
+	PROVIDER_KILO: "kilo", // added for index.ts import
 	applyHidden: (m: any[]) => m,
+	FREE_ONLY: false,
+}));
+
+vi.mock("../index.ts", () => ({
+	registerWithGlobalToggle: vi.fn(),
+	isFreeModel: (m: any) => (m.cost?.input ?? 0) === 0,
+	getGlobalFreeOnly: () => false,
+	providerRegistry: new Map(),
 }));
 
 vi.mock("../constants.ts", () => ({

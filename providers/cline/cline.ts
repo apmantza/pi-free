@@ -7,6 +7,8 @@
  *
  * Auth flow based on pi-cline's proven implementation.
  *
+ * Responds to global /free toggle (though Cline only provides free models without auth).
+ *
  * Usage:
  *   pi install git:github.com/apmantza/pi-free
  *   # Models appear immediately; run /login cline to start chatting
@@ -15,6 +17,7 @@
 import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { BASE_URL_CLINE, PROVIDER_CLINE } from "../../constants.ts";
+import { registerWithGlobalToggle } from "../../index.ts";
 import { logWarning } from "../../lib/util.ts";
 import { enhanceWithCI } from "../../provider-helper.ts";
 import { loginCline, refreshClineToken } from "./cline-auth.ts";
@@ -24,8 +27,8 @@ import { fetchClineModels } from "./cline-models.ts";
 // Cline API headers (must match real Cline VS Code extension exactly)
 // =============================================================================
 
-const VS_CODE_VERSION = "1.109.3"; // vscode.version
-const CLINE_EXTENSION_VERSION = "3.76.0"; // ExtensionRegistryInfo.version
+const VS_CODE_VERSION = "1.109.3";
+const CLINE_EXTENSION_VERSION = "3.76.0";
 let _currentTaskId = generateUlid();
 
 function generateUlid(): string {
@@ -50,17 +53,13 @@ function buildClineHeaders(): Record<string, string> {
 		"X-Title": "Cline",
 		"X-Task-ID": _currentTaskId,
 		"X-PLATFORM": "Visual Studio Code",
-		"X-PLATFORM-VERSION": VS_CODE_VERSION, // VS Code version, NOT Cline version
+		"X-PLATFORM-VERSION": VS_CODE_VERSION,
 		"X-CLIENT-TYPE": "VSCode Extension",
-		"X-CLIENT-VERSION": CLINE_EXTENSION_VERSION, // Cline extension version
-		"X-CORE-VERSION": CLINE_EXTENSION_VERSION, // Cline extension version
+		"X-CLIENT-VERSION": CLINE_EXTENSION_VERSION,
+		"X-CORE-VERSION": CLINE_EXTENSION_VERSION,
 		"X-Is-Multiroot": "false",
 	};
 }
-
-// =============================================================================
-// Token handling (pi-cline stores without workos: prefix, adds it in getApiKey)
-// =============================================================================
 
 function toApiKey(credentials: OAuthCredentials): string {
 	const token = credentials.access;
@@ -193,12 +192,14 @@ function shapeMessagesForCline(messages: any[]): any[] {
 // =============================================================================
 
 export default async function (pi: ExtensionAPI) {
-	let models = await fetchClineModels().catch((err) => {
+	// Fetch free models from OpenRouter (Cline only exposes free models without auth)
+	let freeModels = await fetchClineModels().catch((err) => {
 		logWarning("cline", "Failed to fetch free models at startup", err);
 		return [];
 	});
 
-	function registerProvider(m = models) {
+	// Create re-register function for global toggle
+	const reRegister = (m: typeof freeModels) => {
 		pi.registerProvider(PROVIDER_CLINE, {
 			baseUrl: BASE_URL_CLINE,
 			api: "openai-completions" as const,
@@ -212,15 +213,25 @@ export default async function (pi: ExtensionAPI) {
 				getApiKey: toApiKey,
 			},
 		});
-	}
+	};
 
-	registerProvider();
+	// Register with global toggle
+	// Note: Cline only provides free models without OAuth, so free=all for now
+	registerWithGlobalToggle(
+		PROVIDER_CLINE,
+		{ free: freeModels, all: freeModels },
+		(m) => reRegister(m),
+		false, // no key until OAuth
+	);
+
+	// Initial registration
+	reRegister(freeModels);
 
 	// Cline-specific: refresh task ID and re-register headers before each agent run
 	pi.on("before_agent_start", async (_event, ctx) => {
 		if (ctx.model?.provider !== PROVIDER_CLINE) return;
 		_currentTaskId = generateUlid();
-		registerProvider();
+		reRegister(freeModels);
 	});
 
 	// Cline-specific: shape messages to Cline's expected envelope format
@@ -235,11 +246,11 @@ export default async function (pi: ExtensionAPI) {
 		try {
 			const fresh = await fetchClineModels();
 			if (fresh.length > 0) {
-				models = fresh;
-				registerProvider(models);
+				freeModels = fresh;
+				reRegister(freeModels);
 				if (ctx.model?.provider === PROVIDER_CLINE) {
 					ctx.ui.notify(
-						`Cline: ${models.length} free models available`,
+						`Cline: ${freeModels.length} free models available`,
 						"info",
 					);
 				}
