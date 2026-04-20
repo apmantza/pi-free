@@ -25,6 +25,7 @@ import cline from "./providers/cline/cline.ts";
 import fireworks from "./providers/fireworks/fireworks.ts";
 import kilo from "./providers/kilo/kilo.ts";
 import modal from "./providers/modal/modal.ts";
+import { fetchOpenRouterCompatibleModels } from "./providers/model-fetcher.ts";
 import nvidia from "./providers/nvidia/nvidia.ts";
 import qwen from "./providers/qwen/qwen.ts";
 
@@ -199,61 +200,98 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 }
 
 // =============================================================================
-// Built-in Provider Support (OpenRouter, etc.)
+// Built-in Provider Support (OpenRouter, Mistral, etc.)
 // =============================================================================
 
 function setupBuiltInProviderSupport(pi: ExtensionAPI) {
 	let openrouterShowPaid = OPENROUTER_SHOW_PAID;
+	let openrouterAllModels: ProviderModelConfig[] = [];
+	let openrouterFreeModels: ProviderModelConfig[] = [];
 
-	// Apply initial filtering on session start
+	// Fetch OpenRouter models dynamically on session start
 	pi.on("session_start", async (_event, ctx) => {
-		const available = await ctx.modelRegistry.getAvailable();
+		try {
+			// Fetch fresh models from OpenRouter API
+			openrouterAllModels = await fetchOpenRouterCompatibleModels({
+				baseUrl: "https://openrouter.ai/api/v1",
+				apiKey: process.env.OPENROUTER_API_KEY,
+				freeOnly: false,
+			});
+			openrouterFreeModels = openrouterAllModels.filter(isFreeModel);
 
-		// Handle OpenRouter
-		const openrouterModels = available.filter(
-			(m: Model<Api>) => m.provider === "openrouter",
-		);
-		const freeCount = openrouterModels.filter(isFreeModel).length;
-		const paidCount = openrouterModels.length - freeCount;
-
-		if (!openrouterShowPaid && paidCount > 0) {
-			const freeModels = openrouterModels.filter(isFreeModel);
-			pi.registerProvider("openrouter", { models: freeModels });
 			_logger.info(
-				`[pi-free] OpenRouter: filtered to ${freeCount} free models`,
+				`[pi-free] OpenRouter: fetched ${openrouterAllModels.length} models (${openrouterFreeModels.length} free)`,
 			);
-		}
 
-		// Log summary
-		const totalFree = available.filter(isFreeModel).length;
-		_logger.info(
-			`[pi-free] ${totalFree}/${available.length} free models available globally`,
-		);
+			// Register with global toggle
+			const reRegister = (models: ProviderModelConfig[]) => {
+				pi.registerProvider("openrouter", {
+					models,
+				});
+			};
+
+			registerWithGlobalToggle(
+				"openrouter",
+				{ free: openrouterFreeModels, all: openrouterAllModels },
+				reRegister,
+				!!process.env.OPENROUTER_API_KEY,
+			);
+
+			// Apply initial filter
+			if (!openrouterShowPaid) {
+				reRegister(openrouterFreeModels);
+				_logger.info(
+					`[pi-free] OpenRouter: showing ${openrouterFreeModels.length} free models`,
+				);
+			} else {
+				reRegister(openrouterAllModels);
+				_logger.info(
+					`[pi-free] OpenRouter: showing all ${openrouterAllModels.length} models`,
+				);
+			}
+		} catch (err) {
+			_logger.error("[pi-free] Failed to fetch OpenRouter models", err);
+			// Fallback: use Pi's built-in list and filter it
+			const available = await ctx.modelRegistry.getAvailable();
+			const fallbackModels = available.filter(
+				(m: Model<Api>) => m.provider === "openrouter",
+			);
+			const freeModels = fallbackModels.filter(isFreeModel);
+			if (!openrouterShowPaid && freeModels.length > 0) {
+				pi.registerProvider("openrouter", { models: freeModels });
+			}
+		}
 	});
 
-	// Per-provider toggle for OpenRouter (backward compatibility)
+	// Per-provider toggle for OpenRouter
 	pi.registerCommand("openrouter-toggle", {
 		description: "Toggle between free and all OpenRouter models",
 		handler: async (_args, ctx) => {
 			openrouterShowPaid = !openrouterShowPaid;
 			saveConfig({ openrouter_show_paid: openrouterShowPaid });
 
-			const available = await ctx.modelRegistry.getAvailable();
-			const openrouterModels = available.filter(
-				(m: Model<Api>) => m.provider === "openrouter",
-			);
-			const freeCount = openrouterModels.filter(isFreeModel).length;
-
 			if (openrouterShowPaid) {
-				pi.unregisterProvider("openrouter");
-				ctx.ui.notify(
-					`openrouter: showing all ${openrouterModels.length} models`,
-					"info",
-				);
+				// Show all models
+				if (openrouterAllModels.length > 0) {
+					pi.registerProvider("openrouter", { models: openrouterAllModels });
+					ctx.ui.notify(
+						`openrouter: showing all ${openrouterAllModels.length} models`,
+						"info",
+					);
+				} else {
+					ctx.ui.notify("openrouter: no models available", "warning");
+				}
 			} else {
-				const freeModels = openrouterModels.filter(isFreeModel);
-				pi.registerProvider("openrouter", { models: freeModels });
-				ctx.ui.notify(`openrouter: showing ${freeCount} free models`, "info");
+				// Show only free
+				if (openrouterFreeModels.length > 0) {
+					pi.registerProvider("openrouter", { models: openrouterFreeModels });
+					ctx.ui.notify(
+						`openrouter: showing ${openrouterFreeModels.length} free models`,
+						"info",
+					);
+				} else {
+					ctx.ui.notify("openrouter: no free models available", "warning");
+				}
 			}
 		},
 	});
