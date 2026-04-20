@@ -16,7 +16,7 @@ When you install pi-free, it:
 
 3. **Provides a toggle command** — Run `/{provider}-toggle` (e.g., `/zen-toggle`, `/kilo-toggle`) to switch between free-only mode and showing all models including paid ones
 
-4. **Handles authentication for you** — OAuth flows (Kilo, Cline, Qwen) open your browser automatically; API keys are read from `~/.pi/free.json` or environment variables
+4. **Handles authentication for you** — OAuth flows (Kilo, Cline) open your browser automatically; API keys are read from `~/.pi/free.json` or environment variables
 
 5. **Adds Coding Index scores** — Model names include a coding benchmark score (CI: 45.2) to help you pick capable coding models at a glance
 
@@ -38,19 +38,24 @@ Start Pi and press `Ctrl+L` to open the model picker.
 
 Free models are shown by default — look for the provider prefixes:
 
-**🆓 Free tiers (no cost):**
+**✅ Actually Free (no usage limits, no payment required):**
 - `zen/` — OpenCode Zen models (no setup required)
 - `kilo/` — Kilo models (free models available immediately, more after `/login kilo`)
 - `openrouter/` — OpenRouter models (free account required)
-- `nvidia/` — NVIDIA NIM models (free API key required)
-- `cloudflare/` — Cloudflare Workers AI (free API key, 10K Neurons/day free tier)
 - `cline/` — Cline models (run `/login cline` to use)
-- `qwen/` — Qwen Coder (run `/login qwen` to use, 1,000 free requests/day)
-- `modal/` — GLM-5.1 FP8 via Modal (free promotional period until April 30, 2026)
-- `ollama/` — Ollama Cloud models (free API key required)
-- `mistral/` — Mistral models (free API key required)
 
-**💳 Paid only (no free tier):**
+**🔄 Freemium (free tier with limits, then paid):**
+- `nvidia/` — NVIDIA NIM models (1,000 free requests/month, then credits)
+- `cloudflare/` — Cloudflare Workers AI (10K Neurons/day free tier, then $0.011/1K Neurons)
+- `modal/` — GLM-5.1 FP8 via Modal (free promotional period until April 30, 2026)
+- `ollama/` — Ollama Cloud models (usage-based free tier, resets every 5 hours + 7 days)
+
+**🔧 Dynamic API Providers (free models when API key configured):**
+- `mistral/` — Mistral models (free models via API when `MISTRAL_API_KEY` set)
+- `groq/` — Groq models (free models via API when `GROQ_API_KEY` set)
+- `cerebras/` — Cerebras models (free models via API when `CEREBRAS_API_KEY` set)
+
+**💳 Paid Only (no free tier):**
 - `go/` — OpenCode Go models (requires subscription — $5 first month, then $10/month)
 - `fireworks/` — Fireworks models (credit-based pricing, no free tier)
 
@@ -59,18 +64,24 @@ Free models are shown by default — look for the provider prefixes:
 Want to see paid models too? Run the toggle command for your provider:
 
 ```
-/zen-toggle         # Toggle Zen free/paid models
-/kilo-toggle        # Toggle Kilo free/paid models
-/openrouter-toggle  # Toggle OpenRouter free/paid models
-/nvidia-toggle      # Toggle NVIDIA zero-cost/credit-costing models
-/cloudflare-toggle  # Toggle Cloudflare Workers AI models (10K Neurons/day free tier)
-/cline-toggle      # Toggle Cline free/paid models
-/mistral-toggle     # Toggle Mistral free/paid models
-/ollama-toggle     # Toggle Ollama models (requires SHOW_PAID=true)
-/go-toggle         # Toggle Go models (⚠️ paid only — requires subscription)
+/zen-toggle         # Toggle Zen (✅ actually free)
+/kilo-toggle        # Toggle Kilo (✅ actually free)
+/openrouter-toggle  # Toggle OpenRouter (✅ actually free)
+/cline-toggle      # Toggle Cline (✅ actually free)
+/nvidia-toggle      # Toggle NVIDIA (🔄 freemium - 1K req/month free)
+/cloudflare-toggle  # Toggle Cloudflare (🔄 freemium - 10K Neurons/day)
+/modal-toggle      # Toggle Modal (🔄 freemium - until Apr 30, 2026)
+/ollama-toggle     # Toggle Ollama (🔄 freemium - usage-based)
+/mistral-toggle     # Toggle Mistral (🔧 dynamic - needs API key)
+/groq-toggle        # Toggle Groq (🔧 dynamic - needs API key)
+/cerebras-toggle   # Toggle Cerebras (🔧 dynamic - needs API key)
+/go-toggle         # Toggle Go (💳 paid only - subscription)
 ```
 
-**Note:** Fireworks has no toggle command since all models are paid-only with no free tier.
+**Notes:**
+- Fireworks has no toggle command since all models are paid-only
+- Freemium providers show all models by default (you manage limits via their dashboards)
+- Toggle commands for freemium providers mainly filter the UI view
 
 You'll see a notification like: `zen: showing free models` or `zen: showing all models (including paid)`
 
@@ -107,10 +118,8 @@ See the [Providers That Need Authentication](#providers-that-need-authentication
 | `/{provider}-toggle` | Switch between free-only and all models for that provider |
 | `/login kilo` | Start OAuth flow for Kilo |
 | `/login cline` | Start OAuth flow for Cline |
-| `/login qwen` | Start OAuth flow for Qwen |
 | `/logout kilo` | Clear Kilo OAuth credentials |
 | `/logout cline` | Clear Cline OAuth credentials |
-| `/logout qwen` | Clear Qwen OAuth credentials |
 
 ---
 
@@ -250,7 +259,7 @@ The account ID is automatically derived from your token. Optionally, you can als
 export CLOUDFLARE_ACCOUNT_ID="your_account_id"  # Optional
 ```
 
-**Models available:** Llama 4, Mistral Small 3.1, Qwen 2.5/3, DeepSeek R1, Gemma 4, Kimi K2.5/2.6, and more.
+**Models available:** Llama 4, Mistral Small 3.1, DeepSeek R1, Gemma 4, Kimi K2.5/2.6, and more.
 
 Toggle with `/cloudflare-toggle`
 
@@ -300,28 +309,6 @@ Add API key to `~/.pi/free.json` or environment variables:
 ```bash
 export MISTRAL_API_KEY="..."
 ```
-
-### Qwen (1,000 free requests/day)
-
-Qwen provides free access to **Qwen Coder** (Qwen3.6-Plus) via OAuth device flow — no API key or credit card needed.
-
-```
-/login qwen
-```
-
-This command will:
-1. Open your browser to Qwen Studio's authorization page
-2. Display a device code (enter it if the browser doesn't pre-fill it)
-3. Wait for you to authorize in the browser
-4. Automatically complete login once approved
-
-Then select a `qwen/` model in the model picker.
-
-**Details:**
-- Free tier: 1,000 requests/day
-- Model: Qwen Coder (131k context, 16k max output)
-- No credit card required — just a free [Qwen Studio](https://chat.qwen.ai) account
-- To re-authenticate: `/logout qwen` then `/login qwen`
 
 ---
 
@@ -380,14 +367,16 @@ Each provider has toggle commands to switch between free and all models:
 | `/zen-toggle` | Toggle between free/all Zen models |
 | `/kilo-toggle` | Toggle between free/all Kilo models |
 | `/openrouter-toggle` | Toggle between free/all OpenRouter models |
-| `/nvidia-toggle` | Toggle between free/all NVIDIA models |
+| `/nvidia-toggle` | Toggle between free/all NVIDIA models (🔄 freemium) |
+| `/cloudflare-toggle` | Toggle between free/all Cloudflare models (🔄 freemium) |
+| `/modal-toggle` | Toggle between free/all Modal models (🔄 freemium) |
+| `/ollama-toggle` | Toggle between free/all Ollama models (🔄 freemium) |
 | `/cline-toggle` | Toggle between free/all Cline models |
-| `/mistral-toggle` | Toggle between free/all Mistral models |
-| `/ollama-toggle` | Toggle between free/all Ollama models |
-| `/go-toggle` | ⚠️ Toggle Go models (paid only) |
-| `/fireworks-toggle` | ⚠️ Toggle Fireworks models (paid only) |
-| `/login qwen` | Authenticate with Qwen Studio (OAuth) |
-| `/logout qwen` | Clear Qwen credentials |
+| `/mistral-toggle` | Toggle between free/all Mistral models (🔧 dynamic) |
+| `/groq-toggle` | Toggle between free/all Groq models (🔧 dynamic) |
+| `/cerebras-toggle` | Toggle between free/all Cerebras models (🔧 dynamic) |
+| `/go-toggle` | ⚠️ Toggle Go models (💳 paid only) |
+| `/fireworks-toggle` | ⚠️ Toggle Fireworks models (💳 paid only) |
 
 **The toggle command:**
 - Switches between showing only free models vs. all available models
