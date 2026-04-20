@@ -18,8 +18,6 @@ vi.mock("../constants.ts", () => ({
 }));
 
 vi.mock("../provider-helper.ts", () => ({
-	createReRegister: vi.fn(() => vi.fn()),
-	setupProvider: vi.fn(),
 	enhanceWithCI: (models: unknown[]) => models,
 }));
 
@@ -32,7 +30,7 @@ vi.mock("../lib/logger.ts", () => ({
 	}),
 }));
 
-import { setupProvider } from "../provider-helper.ts";
+import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
 
 describe("Fireworks Provider", () => {
 	let mockPi: ExtensionAPI;
@@ -106,7 +104,7 @@ describe("Fireworks Provider", () => {
 			expect(mockRegisterProvider).toHaveBeenCalled();
 			const registerCall = mockRegisterProvider.mock.calls[0];
 			expect(registerCall).toBeDefined();
-			const models = registerCall?.[1]?.models;
+			const models: ProviderModelConfig[] = registerCall?.[1]?.models;
 
 			expect(models).toBeInstanceOf(Array);
 			expect(models.length).toBeGreaterThan(0);
@@ -124,26 +122,6 @@ describe("Fireworks Provider", () => {
 			// Verify non-zero costs (paid model, not free)
 			expect(firstModel.cost.input).toBeGreaterThan(0);
 			expect(firstModel.cost.output).toBeGreaterThan(0);
-		});
-	});
-
-	describe("setupProvider integration", () => {
-		it("should call setupProvider with stored models", async () => {
-			const { default: fireworksProvider } = await import(
-				"../providers/fireworks/fireworks.ts"
-			);
-			await fireworksProvider(mockPi);
-
-			expect(setupProvider).toHaveBeenCalledWith(
-				mockPi,
-				expect.objectContaining({
-					providerId: "fireworks",
-				}),
-				expect.objectContaining({
-					free: expect.any(Array),
-					all: expect.any(Array),
-				}),
-			);
 		});
 	});
 });

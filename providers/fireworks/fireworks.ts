@@ -6,13 +6,15 @@
  * Get a key at: https://app.fireworks.ai/settings/users/api-keys
  *
  * All models are credit-based (no free tier).
- * Set FIREWORKS_SHOW_PAID=true to enable.
  */
 
-import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
-import { PROVIDER_FIREWORKS } from "../../config.ts";
+import type {
+	ExtensionAPI,
+	ProviderModelConfig,
+} from "@mariozechner/pi-coding-agent";
+import { FIREWORKS_API_KEY, PROVIDER_FIREWORKS } from "../../config.ts";
 import { BASE_URL_FIREWORKS } from "../../constants.ts";
-import { createProvider } from "../../provider-factory.ts";
+import { enhanceWithCI } from "../../provider-helper.ts";
 
 // =============================================================================
 // Static model list (Fireworks doesn't have a models API)
@@ -37,13 +39,29 @@ function getFireworksModels(): ProviderModelConfig[] {
 // Extension Entry Point
 // =============================================================================
 
-export default function (pi: Parameters<typeof createProvider>[0]) {
-	return createProvider(pi, {
-		providerId: PROVIDER_FIREWORKS,
+export default function (pi: ExtensionAPI): void {
+	// Skip if no API key configured
+	if (!FIREWORKS_API_KEY) {
+		console.log(
+			"[fireworks] No API key found — set FIREWORKS_API_KEY to enable",
+		);
+		return;
+	}
+
+	// Inject key into env for Pi's lookup
+	process.env.FIREWORKS_API_KEY = FIREWORKS_API_KEY;
+
+	// Register provider directly (no toggle since all models are paid)
+	const models = getFireworksModels();
+	pi.registerProvider(PROVIDER_FIREWORKS, {
 		baseUrl: BASE_URL_FIREWORKS,
-		apiKeyEnvVar: "FIREWORKS_API_KEY",
-		apiKeyConfigKey: "fireworks_api_key",
-		showPaidFlag: "FIREWORKS_SHOW_PAID",
-		fetchModels: async () => getFireworksModels(),
+		apiKey: "FIREWORKS_API_KEY",
+		api: "openai-completions" as const,
+		headers: {
+			"User-Agent": "pi-free-providers",
+		},
+		models: enhanceWithCI(models),
 	});
+
+	console.log(`[fireworks] Registered ${models.length} paid models`);
 }

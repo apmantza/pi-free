@@ -14,7 +14,11 @@
  */
 
 import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
-import { applyHidden, NVIDIA_SHOW_PAID, PROVIDER_NVIDIA } from "../../config.ts";
+import {
+	applyHidden,
+	NVIDIA_SHOW_PAID,
+	PROVIDER_NVIDIA,
+} from "../../config.ts";
 import {
 	BASE_URL_NVIDIA,
 	DEFAULT_FETCH_TIMEOUT_MS,
@@ -29,7 +33,9 @@ import { createProvider } from "../../provider-factory.ts";
 // Fetch + map
 // =============================================================================
 
-async function fetchNvidiaModels(): Promise<ProviderModelConfig[]> {
+async function fetchNvidiaModels(
+	showPaid = false,
+): Promise<ProviderModelConfig[]> {
 	const response = await fetchWithRetry(
 		URL_MODELS_DEV,
 		{
@@ -70,8 +76,8 @@ async function fetchNvidiaModels(): Promise<ProviderModelConfig[]> {
 			})
 			.filter((m) => {
 				// All NVIDIA models are credit-based (no hard cost.input = 0 distinction).
-				// Respect NVIDIA_SHOW_PAID: without the flag, only expose models marked free.
-				if (!NVIDIA_SHOW_PAID && (m.cost?.input ?? 0) > 0) return false;
+				// Respect showPaid flag: without it, only expose models marked free.
+				if (!showPaid && (m.cost?.input ?? 0) > 0) return false;
 				return true;
 			})
 			.map(
@@ -97,17 +103,65 @@ async function fetchNvidiaModels(): Promise<ProviderModelConfig[]> {
 	return result;
 }
 
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import {
+	createReRegister,
+	type StoredModels,
+	setupProvider,
+} from "../../provider-helper.ts";
+
 // =============================================================================
 // Extension Entry Point
 // =============================================================================
 
-export default function (pi: Parameters<typeof createProvider>[0]) {
-	return createProvider(pi, {
+export default async function (pi: ExtensionAPI) {
+	// Track current mode (synced with config)
+	let currentShowPaid = NVIDIA_SHOW_PAID;
+
+	// Fetch initial models based on config
+	let freeModels: ProviderModelConfig[] = [];
+	let allModels: ProviderModelConfig[] = [];
+
+	try {
+		// Fetch free models initially
+		freeModels = await fetchNvidiaModels(false);
+		// Fetch all models for toggle (if paid mode enabled later)
+		allModels = await fetchNvidiaModels(true);
+	} catch (error) {
+		console.error("[nvidia] Failed to fetch models at startup", error);
+		return;
+	}
+
+	// Store both sets for toggle
+	const stored: StoredModels = { free: freeModels, all: allModels };
+	const initialModels = currentShowPaid ? allModels : freeModels;
+
+	// Register provider with initial models
+	pi.registerProvider(PROVIDER_NVIDIA, {
+		baseUrl: BASE_URL_NVIDIA,
+		apiKey: "NVIDIA_API_KEY",
+		api: "openai-completions" as const,
+		headers: {
+			"User-Agent": "pi-free-providers",
+		},
+		models: initialModels,
+	});
+
+	// Create re-register function for toggle
+	const reRegister = createReRegister(pi, {
 		providerId: PROVIDER_NVIDIA,
 		baseUrl: BASE_URL_NVIDIA,
-		apiKeyEnvVar: "NVIDIA_API_KEY",
-		apiKeyConfigKey: "nvidia_api_key",
-		// Note: NVIDIA_SHOW_PAID filtering is handled inside fetchNvidiaModels
-		fetchModels: fetchNvidiaModels,
+		apiKey: "NVIDIA_API_KEY",
 	});
+
+	// Wire up toggle command and events
+	setupProvider(pi, {
+		providerId: PROVIDER_NVIDIA,
+		initialShowPaid: NVIDIA_SHOW_PAID,
+		reRegister: (models) => {
+			// Update showPaid state based on which model set is being registered
+			currentShowPaid = models === stored.all;
+			reRegister(models);
+		},
+	}, stored);
 }

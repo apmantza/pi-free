@@ -4,15 +4,18 @@
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ModelsDevModel, ModelsDevProvider } from "../lib/types.ts";
+import type { ModelsDevModel } from "../lib/types.ts";
 
-let capturedConfig: any = null;
+let capturedSetupConfig: any = null;
+let capturedStored: any = null;
 
-vi.mock("../provider-factory.ts", () => ({
-	createProvider: vi.fn(async (_pi: any, def: any) => {
-		capturedConfig = def;
-		// Don't call fetchModels - just capture config
-		return;
+// Mock provider-helper for toggle behavior testing
+vi.mock("../provider-helper.ts", () => ({
+	enhanceWithCI: (m: any[]) => m,
+	createReRegister: vi.fn(() => vi.fn()),
+	setupProvider: vi.fn((_pi: any, config: any, stored: any) => {
+		capturedSetupConfig = config;
+		capturedStored = stored;
 	}),
 }));
 
@@ -36,7 +39,8 @@ import nvidiaProvider from "../providers/nvidia/nvidia.ts";
 describe("NVIDIA Provider", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		capturedConfig = null;
+		capturedSetupConfig = null;
+		capturedStored = null;
 	});
 
 	describe("model filtering logic", () => {
@@ -226,18 +230,35 @@ describe("NVIDIA Provider", () => {
 		});
 	});
 
-	it("should configure factory correctly", async () => {
-		const mockPi = {} as ExtensionAPI;
+	it("should configure provider correctly with toggle support", async () => {
+		const mockPi = {
+			registerProvider: vi.fn(),
+			on: vi.fn(),
+			registerCommand: vi.fn(),
+		} as unknown as ExtensionAPI;
+
 		await nvidiaProvider(mockPi);
 
-		expect(capturedConfig).toMatchObject({
+		// Should call registerProvider with nvidia provider
+		expect(mockPi.registerProvider).toHaveBeenCalledWith(
+			"nvidia",
+			expect.objectContaining({
+				baseUrl: "https://integrate.api.nvidia.com/v1",
+				apiKey: "NVIDIA_API_KEY",
+				api: "openai-completions",
+			}),
+		);
+
+		// Should setup toggle with both free and all model sets
+		expect(capturedSetupConfig).toMatchObject({
 			providerId: "nvidia",
-			baseUrl: "https://integrate.api.nvidia.com/v1",
-			apiKeyEnvVar: "NVIDIA_API_KEY",
-			apiKeyConfigKey: "nvidia_api_key",
+			initialShowPaid: true, // From mock config
 		});
-		// Should NOT have showPaidFlag (NVIDIA filters internally)
-		expect(capturedConfig.showPaidFlag).toBeUndefined();
-		expect(typeof capturedConfig.fetchModels).toBe("function");
+		expect(capturedStored.free).toBeDefined();
+		expect(capturedStored.all).toBeDefined();
+		expect(capturedStored.free.length).toBeGreaterThanOrEqual(0);
+		expect(capturedStored.all.length).toBeGreaterThanOrEqual(
+			capturedStored.free.length,
+		);
 	});
 });

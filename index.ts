@@ -13,6 +13,7 @@
  * - Fireworks: Fireworks AI (paid, but useful for failover)
  */
 
+import type { Api, Model } from "@mariozechner/pi-ai";
 import type {
 	ExtensionAPI,
 	ProviderModelConfig,
@@ -147,38 +148,63 @@ function setupBuiltInProviderToggles(pi: ExtensionAPI, _state: FilterState) {
 	// OpenRouter toggle - controls free vs all models for built-in OpenRouter provider
 	let openrouterShowPaid = OPENROUTER_SHOW_PAID;
 
+	// Apply initial OpenRouter filtering on session start (when registry is ready)
+	pi.on("session_start", async (_event, ctx) => {
+		const available = await ctx.modelRegistry.getAvailable();
+		const openrouterModels = available.filter(
+			(m: Model<Api>) => m.provider === "openrouter",
+		);
+		const freeCount = openrouterModels.filter(isFreeModel).length;
+		const paidCount = openrouterModels.length - freeCount;
+
+		if (!openrouterShowPaid && paidCount > 0) {
+			// Filter to only free models by re-registering with filtered list
+			const freeModels = openrouterModels.filter(isFreeModel);
+			pi.registerProvider("openrouter", {
+				models: freeModels,
+			});
+			_logger.info(
+				`[pi-free] OpenRouter: filtered to ${freeCount} free models (${paidCount} paid hidden)`,
+			);
+		} else if (openrouterShowPaid) {
+			// Unregister to restore all built-in models
+			pi.unregisterProvider("openrouter");
+			_logger.info(
+				`[pi-free] OpenRouter: showing all ${openrouterModels.length} models`,
+			);
+		}
+	});
+
 	pi.registerCommand("openrouter-toggle", {
 		description: "Toggle between free and all OpenRouter models",
 		handler: async (_args, ctx) => {
 			openrouterShowPaid = !openrouterShowPaid;
 			saveConfig({ openrouter_show_paid: openrouterShowPaid });
 
-			// Get current models and filter if needed
+			// Get current models and apply filtering
 			const available = await ctx.modelRegistry.getAvailable();
 			const openrouterModels = available.filter(
-				(m) => m.provider === "openrouter",
+				(m: Model<Api>) => m.provider === "openrouter",
 			);
 			const freeCount = openrouterModels.filter(isFreeModel).length;
 			const paidCount = openrouterModels.length - freeCount;
 
 			if (openrouterShowPaid) {
+				// Unregister to restore all built-in models
+				pi.unregisterProvider("openrouter");
 				ctx.ui.notify(
 					`openrouter: showing all ${openrouterModels.length} models (including paid)`,
 					"info",
 				);
 			} else {
+				// Filter to only free models
+				const freeModels = openrouterModels.filter(isFreeModel);
+				pi.registerProvider("openrouter", {
+					models: freeModels,
+				});
 				ctx.ui.notify(
 					`openrouter: showing only ${freeCount} free models (${paidCount} paid hidden)`,
 					"info",
-				);
-			}
-
-			// Note: We can't directly re-register built-in providers.
-			// The filtering happens at model selection time via the model_select event.
-			// For immediate effect, we log a note to the user.
-			if (!openrouterShowPaid && paidCount > 0) {
-				_logger.info(
-					`[pi-free] OpenRouter: ${paidCount} paid models will be filtered from selection`,
 				);
 			}
 		},
