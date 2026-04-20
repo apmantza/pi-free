@@ -57,8 +57,15 @@ vi.mock("../constants.ts", () => ({
 	DEFAULT_FETCH_TIMEOUT_MS: 10000,
 }));
 
+vi.mock("../index.ts", () => ({
+	registerWithGlobalToggle: vi.fn(),
+	isFreeModel: (m: any) => (m.cost?.input ?? 0) === 0,
+	getGlobalFreeOnly: () => false,
+}));
+
 vi.mock("../provider-helper.ts", () => ({
 	enhanceWithCI: (models: unknown[]) => models,
+	createReRegister: () => vi.fn(),
 }));
 
 vi.mock("../lib/logger.ts", () => ({
@@ -70,12 +77,10 @@ vi.mock("../lib/logger.ts", () => ({
 	}),
 }));
 
-// Mock fetchWithRetry to return our test data
+// Mock fetchWithRetry
+const mockFetchWithRetry = vi.fn();
 vi.mock("../lib/util.ts", () => ({
-	fetchWithRetry: vi.fn().mockResolvedValue({
-		ok: true,
-		json: () => Promise.resolve(mockFireworksModelsResponse),
-	}),
+	fetchWithRetry: (...args: any[]) => mockFetchWithRetry(...args),
 }));
 
 import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
@@ -87,6 +92,7 @@ describe("Fireworks Provider", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mockRegisterProvider = vi.fn();
+		mockFetchWithRetry.mockReset();
 
 		mockPi = {
 			registerProvider: mockRegisterProvider,
@@ -96,6 +102,11 @@ describe("Fireworks Provider", () => {
 
 	describe("initialization", () => {
 		it("should register provider with fetched models", async () => {
+			mockFetchWithRetry.mockResolvedValue({
+				ok: true,
+				json: () => Promise.resolve(mockFireworksModelsResponse),
+			});
+
 			const { default: fireworksProvider } = await import(
 				"../providers/fireworks/fireworks.ts"
 			);
@@ -114,6 +125,10 @@ describe("Fireworks Provider", () => {
 
 		it("should set API key in environment", async () => {
 			delete process.env.FIREWORKS_API_KEY;
+			mockFetchWithRetry.mockResolvedValue({
+				ok: true,
+				json: () => Promise.resolve(mockFireworksModelsResponse),
+			});
 
 			const { default: fireworksProvider } = await import(
 				"../providers/fireworks/fireworks.ts"
@@ -124,7 +139,7 @@ describe("Fireworks Provider", () => {
 		});
 
 		it("should skip registration without API key", async () => {
-			// Mock no API key by temporarily clearing the module
+			// Mock no API key
 			const apiKeySpy = vi
 				.spyOn(await import("../config.ts"), "FIREWORKS_API_KEY", "get")
 				.mockReturnValue(undefined as any);
@@ -134,16 +149,18 @@ describe("Fireworks Provider", () => {
 			);
 			await fireworksProvider(mockPi);
 
-			// Should not register provider
 			expect(mockRegisterProvider).not.toHaveBeenCalled();
-
-			// Restore the mock so subsequent tests have the API key
 			apiKeySpy.mockRestore();
 		});
 	});
 
 	describe("model configuration", () => {
 		it("should have dynamically fetched models with correct structure", async () => {
+			mockFetchWithRetry.mockResolvedValue({
+				ok: true,
+				json: () => Promise.resolve(mockFireworksModelsResponse),
+			});
+
 			const { default: fireworksProvider } = await import(
 				"../providers/fireworks/fireworks.ts"
 			);
@@ -170,6 +187,11 @@ describe("Fireworks Provider", () => {
 		});
 
 		it("should filter non-chat models", async () => {
+			mockFetchWithRetry.mockResolvedValue({
+				ok: true,
+				json: () => Promise.resolve(mockFireworksModelsResponse),
+			});
+
 			const { default: fireworksProvider } = await import(
 				"../providers/fireworks/fireworks.ts"
 			);
@@ -184,6 +206,11 @@ describe("Fireworks Provider", () => {
 		});
 
 		it("should identify vision models correctly", async () => {
+			mockFetchWithRetry.mockResolvedValue({
+				ok: true,
+				json: () => Promise.resolve(mockFireworksModelsResponse),
+			});
+
 			const { default: fireworksProvider } = await import(
 				"../providers/fireworks/fireworks.ts"
 			);
@@ -199,6 +226,11 @@ describe("Fireworks Provider", () => {
 		});
 
 		it("should format model names correctly", async () => {
+			mockFetchWithRetry.mockResolvedValue({
+				ok: true,
+				json: () => Promise.resolve(mockFireworksModelsResponse),
+			});
+
 			const { default: fireworksProvider } = await import(
 				"../providers/fireworks/fireworks.ts"
 			);
@@ -207,7 +239,7 @@ describe("Fireworks Provider", () => {
 			const registerCall = mockRegisterProvider.mock.calls[0];
 			const models: ProviderModelConfig[] = registerCall?.[1]?.models;
 
-			// Check name formatting - each word is capitalized
+			// Check name formatting
 			const deepseekModel = models.find((m) => m.id.includes("deepseek"));
 			expect(deepseekModel?.name).toBe("Deepseek V3.2");
 		});
@@ -215,16 +247,17 @@ describe("Fireworks Provider", () => {
 
 	describe("error handling", () => {
 		it("should handle API fetch errors gracefully", async () => {
-			// Mock fetch to fail
-			const { fetchWithRetry } = await import("../lib/util.ts");
-			vi.mocked(fetchWithRetry).mockRejectedValueOnce(new Error("API Error"));
+			// Reset module cache to get fresh import
+			mockFetchWithRetry.mockRejectedValue(new Error("API Error"));
 
 			const { default: fireworksProvider } = await import(
-				"../providers/fireworks/fireworks.ts"
+				"../providers/fireworks/fireworks.ts?t=" + Date.now()
 			);
-			await fireworksProvider(mockPi);
 
-			// Should not throw, but also not register provider
+			// Should not throw
+			await expect(fireworksProvider(mockPi)).resolves.not.toThrow();
+
+			// Should not register provider due to error
 			expect(mockRegisterProvider).not.toHaveBeenCalled();
 		});
 	});

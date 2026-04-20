@@ -10,7 +10,7 @@
  * image-gen) are filtered by their modalities (output must be ["text"],
  * input must include "text").
  *
- * Set NVIDIA_SHOW_PAID=true to show paid-tier models (same key, uses credits).
+ * Responds to global /free toggle for free/paid model filtering.
  */
 
 import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
@@ -25,9 +25,14 @@ import {
 	NVIDIA_MIN_SIZE_B,
 	URL_MODELS_DEV,
 } from "../../constants.ts";
+import { registerWithGlobalToggle } from "../../index.ts";
 import type { ModelsDevProvider } from "../../lib/types.ts";
 import { fetchWithRetry, isUsableModel } from "../../lib/util.ts";
-import { createProvider } from "../../provider-factory.ts";
+import {
+	createReRegister,
+	enhanceWithCI,
+} from "../../provider-helper.ts";
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 // =============================================================================
 // Fetch + map
@@ -62,21 +67,17 @@ async function fetchNvidiaModels(
 			.filter((m) => isUsableModel(m.id, NVIDIA_MIN_SIZE_B))
 			.filter((m) => {
 				// Filter non-chat models by modalities
-				// Embedding, speech-to-text, OCR, and image-gen models are excluded
 				const modalities = m.modalities;
 				if (modalities) {
 					const output = modalities.output ?? [];
 					const input = modalities.input ?? [];
-					// Exclude models that don't output text (e.g., image generation)
 					if (!output.includes("text")) return false;
-					// Exclude models that don't accept text input (e.g., pure OCR, speech-to-text)
 					if (!input.includes("text")) return false;
 				}
 				return true;
 			})
 			.filter((m) => {
-				// All NVIDIA models are credit-based (no hard cost.input = 0 distinction).
-				// Respect showPaid flag: without it, only expose models marked free.
+				// Filter by cost - free models have input cost of 0
 				if (!showPaid && (m.cost?.input ?? 0) > 0) return false;
 				return true;
 			})
@@ -103,40 +104,39 @@ async function fetchNvidiaModels(
 	return result;
 }
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import {
-	createReRegister,
-	type StoredModels,
-	setupProvider,
-} from "../../provider-helper.ts";
-
 // =============================================================================
 // Extension Entry Point
 // =============================================================================
 
 export default async function (pi: ExtensionAPI) {
-	// Track current mode (synced with config)
-	let currentShowPaid = NVIDIA_SHOW_PAID;
-
-	// Fetch initial models based on config
+	// Fetch both free and all models
 	let freeModels: ProviderModelConfig[] = [];
 	let allModels: ProviderModelConfig[] = [];
 
 	try {
-		// Fetch free models initially
 		freeModels = await fetchNvidiaModels(false);
-		// Fetch all models for toggle (if paid mode enabled later)
 		allModels = await fetchNvidiaModels(true);
 	} catch (error) {
 		console.error("[nvidia] Failed to fetch models at startup", error);
 		return;
 	}
 
-	// Store both sets for toggle
-	const stored: StoredModels = { free: freeModels, all: allModels };
-	const initialModels = currentShowPaid ? allModels : freeModels;
+	// Store both sets for global toggle
+	const stored = { free: freeModels, all: allModels };
+	const hasKey = !!process.env.NVIDIA_API_KEY;
 
-	// Register provider with initial models
+	// Create re-register function
+	const reRegister = createReRegister(pi, {
+		providerId: PROVIDER_NVIDIA,
+		baseUrl: BASE_URL_NVIDIA,
+		apiKey: "NVIDIA_API_KEY",
+	});
+
+	// Register with global toggle system
+	registerWithGlobalToggle(PROVIDER_NVIDIA, stored, reRegister, hasKey);
+
+	// Register initial models (global toggle will apply filter if needed)
+	const initialModels = NVIDIA_SHOW_PAID ? allModels : freeModels;
 	pi.registerProvider(PROVIDER_NVIDIA, {
 		baseUrl: BASE_URL_NVIDIA,
 		apiKey: "NVIDIA_API_KEY",
@@ -144,24 +144,8 @@ export default async function (pi: ExtensionAPI) {
 		headers: {
 			"User-Agent": "pi-free-providers",
 		},
-		models: initialModels,
+		models: enhanceWithCI(initialModels),
 	});
 
-	// Create re-register function for toggle
-	const reRegister = createReRegister(pi, {
-		providerId: PROVIDER_NVIDIA,
-		baseUrl: BASE_URL_NVIDIA,
-		apiKey: "NVIDIA_API_KEY",
-	});
-
-	// Wire up toggle command and events
-	setupProvider(pi, {
-		providerId: PROVIDER_NVIDIA,
-		initialShowPaid: NVIDIA_SHOW_PAID,
-		reRegister: (models) => {
-			// Update showPaid state based on which model set is being registered
-			currentShowPaid = models === stored.all;
-			reRegister(models);
-		},
-	}, stored);
+	console.log(`[nvidia] Registered ${initialModels.length} models`);
 }

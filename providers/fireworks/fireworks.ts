@@ -6,6 +6,7 @@
  * Get a key at: https://app.fireworks.ai/settings/users/api-keys
  *
  * Fetches all available models dynamically from /v1/models endpoint.
+ * Responds to global /free toggle for free/paid model filtering.
  */
 
 import type {
@@ -14,9 +15,13 @@ import type {
 } from "@mariozechner/pi-coding-agent";
 import { FIREWORKS_API_KEY, PROVIDER_FIREWORKS } from "../../config.ts";
 import { BASE_URL_FIREWORKS, DEFAULT_FETCH_TIMEOUT_MS } from "../../constants.ts";
-import { enhanceWithCI } from "../../provider-helper.ts";
-import { fetchWithRetry } from "../../lib/util.ts";
+import { registerWithGlobalToggle } from "../../index.ts";
 import { createLogger } from "../../lib/logger.ts";
+import { fetchWithRetry } from "../../lib/util.ts";
+import {
+	createReRegister,
+	enhanceWithCI,
+} from "../../provider-helper.ts";
 
 const _logger = createLogger("fireworks");
 
@@ -42,39 +47,27 @@ interface FireworksModelsResponse {
 }
 
 // =============================================================================
-// Model ID to display name mapping
+// Helpers
 // =============================================================================
 
-/**
- * Extracts a readable name from the Fireworks model ID.
- * e.g., "accounts/fireworks/models/deepseek-v3p2" -> "DeepSeek V3.2"
- * e.g., "accounts/cogito/models/cogito-671b-v2-p1" -> "Cogito 671B v2.1"
- */
 function formatModelName(id: string): string {
-	// Extract the model name from the path
 	const match = id.match(/\/models\/(.+)$/);
 	if (!match) return id;
 
 	let name = match[1];
-
-	// Replace hyphens with spaces and clean up version notation
 	name = name
 		.replace(/-/g, " ")
-		.replace(/v(\d+)p(\d+)/gi, "v$1.$2") // v3p2 -> v3.2
-		.replace(/(\d+)b/gi, " $1B") // 671b -> 671B
-		.replace(/fp\d+/gi, (m) => m.toUpperCase()) // fp8 -> FP8
+		.replace(/v(\d+)p(\d+)/gi, "v$1.$2")
+		.replace(/(\d+)b/gi, " $1B")
+		.replace(/fp\d+/gi, (m) => m.toUpperCase())
 		.replace(/oss/gi, "OSS");
 
-	// Capitalize first letter of each word
 	return name
 		.split(" ")
 		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
 		.join(" ");
 }
 
-/**
- * Determines if a model supports reasoning based on its ID/name.
- */
 function supportsReasoning(id: string): boolean {
 	const reasoningModels = [
 		"deepseek-r1",
@@ -92,7 +85,10 @@ function supportsReasoning(id: string): boolean {
 // Fetch models from Fireworks API
 // =============================================================================
 
-async function fetchFireworksModels(apiKey: string): Promise<ProviderModelConfig[]> {
+async function fetchFireworksModels(
+	apiKey: string,
+	freeOnly = false,
+): Promise<ProviderModelConfig[]> {
 	_logger.info("Fetching Fireworks models from API...");
 
 	const response = await fetchWithRetry(
@@ -103,8 +99,8 @@ async function fetchFireworksModels(apiKey: string): Promise<ProviderModelConfig
 				"User-Agent": "pi-free-providers",
 			},
 		},
-		3, // retries
-		1000, // initial delay
+		3,
+		1000,
 		DEFAULT_FETCH_TIMEOUT_MS,
 	);
 
@@ -118,8 +114,17 @@ async function fetchFireworksModels(apiKey: string): Promise<ProviderModelConfig
 	_logger.info(`Fetched ${json.data?.length || 0} total models from Fireworks`);
 
 	// Filter to chat-capable models only
-	const chatModels = json.data?.filter((m) => m.supports_chat) ?? [];
-	_logger.info(`Found ${chatModels.length} chat-capable models`);
+	let chatModels = json.data?.filter((m) => m.supports_chat) ?? [];
+
+	// Fireworks uses a credit system - we can't determine free vs paid from API
+	// For now, consider all models as "all" (paid/credit-based)
+	// In freeOnly mode, we return empty (no truly free models)
+	if (freeOnly) {
+		// Fireworks has $1 starter credits but no permanently free models
+		// Return empty for free-only mode
+		_logger.info("Fireworks: no permanently free models (uses credit system)");
+		return [];
+	}
 
 	return chatModels.map((model): ProviderModelConfig => {
 		const hasVision = model.supports_image_input;
@@ -129,16 +134,13 @@ async function fetchFireworksModels(apiKey: string): Promise<ProviderModelConfig
 			name: formatModelName(model.id),
 			reasoning: supportsReasoning(model.id),
 			input: hasVision ? ["text", "image"] : ["text"],
-			// Fireworks uses their own credit system - costs are handled via their dashboard
-			// We use placeholder values here; actual billing is credit-based
 			cost: {
-				input: 0,
+				input: 0, // Credit-based system
 				output: 0,
 				cacheRead: 0,
 				cacheWrite: 0,
 			},
 			contextWindow: model.context_length ?? 32768,
-			// Estimate max tokens as half of context window or 8192, whichever is smaller
 			maxTokens: Math.min(Math.floor((model.context_length ?? 32768) / 2), 8192),
 		};
 	});
@@ -149,25 +151,38 @@ async function fetchFireworksModels(apiKey: string): Promise<ProviderModelConfig
 // =============================================================================
 
 export default async function (pi: ExtensionAPI): Promise<void> {
-	// Skip if no API key configured
 	if (!FIREWORKS_API_KEY) {
 		_logger.info("No API key found — set FIREWORKS_API_KEY to enable");
 		return;
 	}
 
-	// Inject key into env for Pi's lookup
 	process.env.FIREWORKS_API_KEY = FIREWORKS_API_KEY;
 
 	try {
-		// Fetch models dynamically from Fireworks API
-		const models = await fetchFireworksModels(FIREWORKS_API_KEY);
+		// Fireworks uses credit system - fetch once (no free/paid split)
+		const allModels = await fetchFireworksModels(FIREWORKS_API_KEY, false);
 
-		if (models.length === 0) {
+		if (allModels.length === 0) {
 			_logger.warn("No chat-capable models found from Fireworks API");
 			return;
 		}
 
-		// Register provider with fetched models
+		// Create re-register function for global toggle
+		const reRegister = createReRegister(pi, {
+			providerId: PROVIDER_FIREWORKS,
+			baseUrl: BASE_URL_FIREWORKS,
+			apiKey: "FIREWORKS_API_KEY",
+		});
+
+		// Register with global toggle (empty free list since Fireworks is credit-based)
+		registerWithGlobalToggle(
+			PROVIDER_FIREWORKS,
+			{ free: [], all: allModels },
+			reRegister,
+			true, // hasKey
+		);
+
+		// Register initial models
 		pi.registerProvider(PROVIDER_FIREWORKS, {
 			baseUrl: BASE_URL_FIREWORKS,
 			apiKey: "FIREWORKS_API_KEY",
@@ -175,19 +190,13 @@ export default async function (pi: ExtensionAPI): Promise<void> {
 			headers: {
 				"User-Agent": "pi-free-providers",
 			},
-			models: enhanceWithCI(models),
+			models: enhanceWithCI(allModels),
 		});
 
-		_logger.info(`Registered ${models.length} models from Fireworks AI`);
-
-		// Log available model categories for debugging
-		const visionModels = models.filter((m) => m.input?.includes("image"));
-		const reasoningModels = models.filter((m) => m.reasoning);
-		_logger.info(`Models breakdown: ${visionModels.length} vision, ${reasoningModels.length} reasoning`);
+		_logger.info(`Registered ${allModels.length} models from Fireworks AI`);
 	} catch (error) {
 		_logger.error("Failed to initialize Fireworks provider", {
 			error: error instanceof Error ? error.message : String(error),
 		});
-		// Don't throw - allow other providers to load
 	}
 }

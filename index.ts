@@ -18,8 +18,7 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
-import { OPENROUTER_SHOW_PAID, saveConfig } from "./config.ts";
-import { loadFreeConfig, saveFreeConfig } from "./lib/free-config.ts";
+import { FREE_ONLY, OPENROUTER_SHOW_PAID, saveConfig } from "./config.ts";
 import { createLogger } from "./lib/logger.ts";
 // Import unique provider extensions (only providers NOT built into pi)
 import cline from "./providers/cline/cline.ts";
@@ -29,80 +28,131 @@ import modal from "./providers/modal/modal.ts";
 import nvidia from "./providers/nvidia/nvidia.ts";
 import qwen from "./providers/qwen/qwen.ts";
 
-// Qwen provider is deprecated - remove import when fully removing support
-
 const _logger = createLogger("pi-free");
 
 // =============================================================================
-// Model Filter State
+// Global Provider Registry (for global /free toggle)
 // =============================================================================
 
-interface FilterState {
-	freeOnly: boolean;
-	providerOverrides: Record<string, boolean | undefined>;
+interface ProviderEntry {
+	id: string;
+	stored: { free: ProviderModelConfig[]; all: ProviderModelConfig[] };
+	reRegister: (models: ProviderModelConfig[]) => void;
+	hasKey: boolean;
 }
 
-const DEFAULT_FILTER_STATE: FilterState = {
-	freeOnly: true,
-	providerOverrides: {},
-};
+const providerRegistry = new Map<string, ProviderEntry>();
+let globalFreeOnly = FREE_ONLY;
+
+/** Register a provider with the global free/paid toggle system */
+export function registerWithGlobalToggle(
+	providerId: string,
+	stored: { free: ProviderModelConfig[]; all: ProviderModelConfig[] },
+	reRegister: (models: ProviderModelConfig[]) => void,
+	hasKey: boolean = false,
+): void {
+	providerRegistry.set(providerId, {
+		id: providerId,
+		stored,
+		reRegister,
+		hasKey,
+	});
+	_logger.info(
+		`[pi-free] Registered ${providerId} with global toggle (${stored.free.length} free, ${stored.all.length} total)`,
+	);
+}
 
 /** Check if a model is free (input cost is 0 or undefined) */
-function isFreeModel(model: ProviderModelConfig): boolean {
+export function isFreeModel(model: ProviderModelConfig): boolean {
 	return (model.cost?.input ?? 0) === 0;
 }
 
+/** Get current global free-only state */
+export function getGlobalFreeOnly(): boolean {
+	return globalFreeOnly;
+}
+
 // =============================================================================
-// Global Free Model Filtering System
+// Apply Global Free/Paid Filter to All Providers
 // =============================================================================
 
-function setupGlobalFiltering(pi: ExtensionAPI, state: FilterState) {
-	// Notify when paid models are selected in free-only mode
-	pi.on("model_select", async (event, ctx) => {
-		const model = event.model;
-		if (!model || !state.freeOnly) return;
-		if (isFreeModel(model)) return;
+function applyGlobalFilter(_pi: ExtensionAPI, freeOnly: boolean): void {
+	globalFreeOnly = freeOnly;
+	saveConfig({ free_only: freeOnly });
 
-		const providerOverride = state.providerOverrides[model.provider];
-		if (providerOverride !== false) {
-			ctx.ui.notify(
-				`Paid model selected (${model.id}). Use /free off to enable paid models.`,
-				"warning",
+	for (const [providerId, entry] of providerRegistry) {
+		try {
+			if (freeOnly) {
+				// Show only free models
+				if (entry.stored.free.length > 0) {
+					entry.reRegister(entry.stored.free);
+					_logger.info(
+						`[pi-free] ${providerId}: filtered to ${entry.stored.free.length} free models`,
+					);
+				} else {
+					_logger.warn(`[pi-free] ${providerId}: no free models available`);
+				}
+			} else {
+				// Show all models (paid + free)
+				const allModels =
+					entry.stored.all.length > 0 ? entry.stored.all : entry.stored.free;
+				if (allModels.length > 0) {
+					entry.reRegister(allModels);
+					_logger.info(
+						`[pi-free] ${providerId}: showing all ${allModels.length} models`,
+					);
+				}
+			}
+		} catch (err) {
+			_logger.error(
+				`[pi-free] Failed to apply filter to ${providerId}`,
+				err instanceof Error ? { error: err.message } : { error: String(err) },
 			);
 		}
-	});
+	}
+}
 
-	// Log model counts on session start
-	pi.on("session_start", async (_event, ctx) => {
-		const available = await ctx.modelRegistry.getAvailable();
-		const freeCount = available.filter(isFreeModel).length;
-		_logger.info(
-			`[pi-free] ${freeCount}/${available.length} free models available`,
-		);
-	});
+// =============================================================================
+// Global Commands
+// =============================================================================
 
-	// /free - Toggle free-only mode
+function setupGlobalCommands(pi: ExtensionAPI) {
+	// /free - Global toggle for ALL providers
 	pi.registerCommand("free", {
-		description: "Toggle free-only model filtering (on/off/status)",
+		description: "Toggle free-only mode for ALL providers (on/off/status)",
 		handler: async (args, ctx) => {
 			const arg = args.trim().toLowerCase();
 
 			if (arg === "on" || arg === "true" || arg === "yes") {
-				state.freeOnly = true;
-				saveFreeConfig({ free_only: true });
-				ctx.ui.notify("✓ Free-only mode enabled - paid models hidden", "info");
+				applyGlobalFilter(pi, true);
+				ctx.ui.notify(
+					"✓ Free-only mode enabled - paid models hidden for all providers",
+					"info",
+				);
 			} else if (arg === "off" || arg === "false" || arg === "no") {
-				state.freeOnly = false;
-				saveFreeConfig({ free_only: false });
-				ctx.ui.notify("✓ Paid models enabled - all models visible", "info");
+				applyGlobalFilter(pi, false);
+				ctx.ui.notify(
+					"✓ Paid models enabled - all models visible for all providers",
+					"info",
+				);
 			} else if (arg === "status" || arg === "" || !arg) {
 				const available = await ctx.modelRegistry.getAvailable();
 				const freeCount = available.filter(isFreeModel).length;
-				const status = state.freeOnly ? "enabled" : "disabled";
-				ctx.ui.notify(
-					`Free-only mode: ${status} (${freeCount}/${available.length} models free)`,
-					"info",
-				);
+				const status = globalFreeOnly ? "enabled" : "disabled";
+
+				// Count by provider
+				const lines = [
+					`Free-only mode: ${status}`,
+					`${freeCount}/${available.length} models free`,
+					"",
+				];
+				for (const [id, entry] of providerRegistry) {
+					const free = entry.stored.free.length;
+					const all = entry.stored.all.length || free;
+					lines.push(`${id}: ${free}/${all} free`);
+				}
+
+				ctx.ui.notify(lines.join("\n"), "info");
 			} else {
 				ctx.ui.notify("Usage: /free [on|off|status]", "warning");
 			}
@@ -111,46 +161,55 @@ function setupGlobalFiltering(pi: ExtensionAPI, state: FilterState) {
 
 	// /free-providers - Show free model counts by provider
 	pi.registerCommand("free-providers", {
-		description: "Show free model counts by provider",
+		description: "Show free/paid model counts for all pi-free providers",
 		handler: async (_args, ctx) => {
-			const available = await ctx.modelRegistry.getAvailable();
-			const byProvider = new Map<string, { free: number; paid: number }>();
+			const lines = ["📊 Pi-Free Providers:", ""];
 
-			for (const model of available) {
-				const provider = model.provider || "unknown";
-				const counts = byProvider.get(provider) || { free: 0, paid: 0 };
-				if (isFreeModel(model)) counts.free++;
-				else counts.paid++;
-				byProvider.set(provider, counts);
+			for (const [id, entry] of providerRegistry) {
+				const free = entry.stored.free.length;
+				const all = entry.stored.all.length || free;
+				const indicator = entry.hasKey ? "🔑" : "🆓";
+				lines.push(
+					`${indicator} ${id}: ${free} free / ${all - free} paid (${all} total)`,
+				);
 			}
 
-			const lines = ["📊 Free Models by Provider:", ""];
-			for (const [provider, counts] of byProvider) {
-				const indicator = counts.free > 0 ? "🟢" : "🔴";
-				lines.push(
-					`${indicator} ${provider}: ${counts.free} free, ${counts.paid} paid`,
-				);
+			if (providerRegistry.size === 0) {
+				lines.push("(No providers registered yet)");
 			}
 
 			ctx.ui.notify(lines.join("\n"), "info");
 		},
 	});
 
-	// Setup per-provider toggles for built-in pi providers
-	setupBuiltInProviderToggles(pi, state);
+	// Notify when paid models are selected in free-only mode
+	pi.on("model_select", async (event, ctx) => {
+		const model = event.model;
+		if (!model || !globalFreeOnly) return;
+		if (isFreeModel(model)) return;
+
+		// Only warn for providers managed by pi-free
+		if (providerRegistry.has(model.provider)) {
+			ctx.ui.notify(
+				`⚠️ Paid model selected (${model.id}). Use "/free off" to enable paid models.`,
+				"warning",
+			);
+		}
+	});
 }
 
 // =============================================================================
-// Built-in Provider Toggles (for pi's native providers like OpenRouter)
+// Built-in Provider Support (OpenRouter, etc.)
 // =============================================================================
 
-function setupBuiltInProviderToggles(pi: ExtensionAPI, _state: FilterState) {
-	// OpenRouter toggle - controls free vs all models for built-in OpenRouter provider
+function setupBuiltInProviderSupport(pi: ExtensionAPI) {
 	let openrouterShowPaid = OPENROUTER_SHOW_PAID;
 
-	// Apply initial OpenRouter filtering on session start (when registry is ready)
+	// Apply initial filtering on session start
 	pi.on("session_start", async (_event, ctx) => {
 		const available = await ctx.modelRegistry.getAvailable();
+
+		// Handle OpenRouter
 		const openrouterModels = available.filter(
 			(m: Model<Api>) => m.provider === "openrouter",
 		);
@@ -158,54 +217,43 @@ function setupBuiltInProviderToggles(pi: ExtensionAPI, _state: FilterState) {
 		const paidCount = openrouterModels.length - freeCount;
 
 		if (!openrouterShowPaid && paidCount > 0) {
-			// Filter to only free models by re-registering with filtered list
 			const freeModels = openrouterModels.filter(isFreeModel);
-			pi.registerProvider("openrouter", {
-				models: freeModels,
-			});
+			pi.registerProvider("openrouter", { models: freeModels });
 			_logger.info(
-				`[pi-free] OpenRouter: filtered to ${freeCount} free models (${paidCount} paid hidden)`,
-			);
-		} else if (openrouterShowPaid) {
-			// Unregister to restore all built-in models
-			pi.unregisterProvider("openrouter");
-			_logger.info(
-				`[pi-free] OpenRouter: showing all ${openrouterModels.length} models`,
+				`[pi-free] OpenRouter: filtered to ${freeCount} free models`,
 			);
 		}
+
+		// Log summary
+		const totalFree = available.filter(isFreeModel).length;
+		_logger.info(
+			`[pi-free] ${totalFree}/${available.length} free models available globally`,
+		);
 	});
 
+	// Per-provider toggle for OpenRouter (backward compatibility)
 	pi.registerCommand("openrouter-toggle", {
 		description: "Toggle between free and all OpenRouter models",
 		handler: async (_args, ctx) => {
 			openrouterShowPaid = !openrouterShowPaid;
 			saveConfig({ openrouter_show_paid: openrouterShowPaid });
 
-			// Get current models and apply filtering
 			const available = await ctx.modelRegistry.getAvailable();
 			const openrouterModels = available.filter(
 				(m: Model<Api>) => m.provider === "openrouter",
 			);
 			const freeCount = openrouterModels.filter(isFreeModel).length;
-			const paidCount = openrouterModels.length - freeCount;
 
 			if (openrouterShowPaid) {
-				// Unregister to restore all built-in models
 				pi.unregisterProvider("openrouter");
 				ctx.ui.notify(
-					`openrouter: showing all ${openrouterModels.length} models (including paid)`,
+					`openrouter: showing all ${openrouterModels.length} models`,
 					"info",
 				);
 			} else {
-				// Filter to only free models
 				const freeModels = openrouterModels.filter(isFreeModel);
-				pi.registerProvider("openrouter", {
-					models: freeModels,
-				});
-				ctx.ui.notify(
-					`openrouter: showing only ${freeCount} free models (${paidCount} paid hidden)`,
-					"info",
-				);
+				pi.registerProvider("openrouter", { models: freeModels });
+				ctx.ui.notify(`openrouter: showing ${freeCount} free models`, "info");
 			}
 		},
 	});
@@ -216,28 +264,34 @@ function setupBuiltInProviderToggles(pi: ExtensionAPI, _state: FilterState) {
 // =============================================================================
 
 export default async function (pi: ExtensionAPI) {
-	const config = loadFreeConfig();
-	const state: FilterState = {
-		freeOnly: config.free_only ?? DEFAULT_FILTER_STATE.freeOnly,
-		providerOverrides: config.provider_overrides ?? {},
-	};
+	_logger.info(`[pi-free] Initializing (global free-only: ${globalFreeOnly})`);
 
-	_logger.info(`[pi-free] Initializing (free-only: ${state.freeOnly})`);
+	// Setup global commands first
+	setupGlobalCommands(pi);
+	setupBuiltInProviderSupport(pi);
 
-	// Setup filtering first, then load unique providers
-	setupGlobalFiltering(pi, state);
-
+	// Load all unique providers
+	// Each provider will register itself with the global toggle system
 	await Promise.allSettled([
 		fireworks(pi),
 		modal(pi),
 		nvidia(pi),
 		kilo(pi),
-		// Qwen is deprecated - 1,000 req/day free tier no longer available
+		// Qwen is deprecated
 		qwen(pi).catch((err) => {
 			_logger.warn("[pi-free] Qwen provider failed to load (deprecated)", err);
 		}),
 		cline(pi),
 	]);
 
-	_logger.info("[pi-free] Loaded");
+	// Apply initial global filter if free-only mode is enabled
+	if (globalFreeOnly) {
+		_logger.info("[pi-free] Applying initial free-only filter");
+		await applyGlobalFilter(pi, true);
+	}
+
+	_logger.info(`[pi-free] Loaded with ${providerRegistry.size} providers`);
 }
+
+// Re-export for providers
+export { providerRegistry };
