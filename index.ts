@@ -21,6 +21,7 @@ import { FREE_ONLY, saveConfig } from "./config.ts";
 import { createLogger } from "./lib/logger.ts";
 // Import unique provider extensions (only providers NOT built into pi)
 import cline from "./providers/cline/cline.ts";
+import cloudflare from "./providers/cloudflare/cloudflare.ts";
 import fireworks from "./providers/fireworks/fireworks.ts";
 import kilo from "./providers/kilo/kilo.ts";
 import modal from "./providers/modal/modal.ts";
@@ -210,6 +211,7 @@ export default async function (pi: ExtensionAPI) {
 	// Load all unique providers
 	// Each provider will register itself with the global toggle system
 	await Promise.allSettled([
+		cloudflare(pi),
 		fireworks(pi),
 		modal(pi),
 		nvidia(pi),
