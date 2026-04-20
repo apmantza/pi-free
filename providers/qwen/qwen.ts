@@ -1,12 +1,13 @@
 /**
  * Qwen OAuth Provider Extension
  *
- * Provides free access to Qwen 3.6 Plus via OAuth device flow.
- * 1,000 free API calls/day — run /login qwen to authenticate.
+ * @deprecated This provider is deprecated. Qwen no longer offers the 1,000 free API calls/day tier.
+ * The provider remains functional for existing authenticated users but new free tier registrations
+ * are not supported. Consider using other free providers like Kilo, Cline, or NVIDIA instead.
  *
- * Usage:
- *   pi install git:github.com/apmantza/pi-free
- *   # Then /login qwen, select qwen model
+ * Original description (now outdated):
+ * ~~Provides free access to Qwen 3.6 Plus via OAuth device flow.
+ * 1,000 free API calls/day — run /login qwen to authenticate.~~
  */
 
 import type { OAuthCredentials, Model, Api } from "@mariozechner/pi-ai";
@@ -59,6 +60,9 @@ const DASHSCOPE_HEADERS = {
 // =============================================================================
 
 export default async function (pi: ExtensionAPI) {
+	// DEPRECATION WARNING
+	_logger.warn("Qwen provider is deprecated. The 1,000 req/day free tier is no longer available.");
+
 	// Fetch static free-tier models
 	let models = await fetchQwenModels().catch((err) => {
 		logWarning("qwen", "Failed to load models at startup", err);

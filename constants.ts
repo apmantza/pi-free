@@ -11,6 +11,7 @@ export const PROVIDER_KILO = "kilo";
 export const PROVIDER_CLINE = "cline";
 export const PROVIDER_FIREWORKS = "fireworks";
 export const PROVIDER_NVIDIA = "nvidia";
+/** @deprecated Qwen provider is deprecated. The 1,000 req/day free tier is no longer available. */
 export const PROVIDER_QWEN = "qwen";
 export const PROVIDER_MODAL = "modal";
 
@@ -19,6 +20,7 @@ export const ALL_UNIQUE_PROVIDERS = [
 	PROVIDER_CLINE,
 	PROVIDER_FIREWORKS,
 	PROVIDER_NVIDIA,
+	/** @deprecated Qwen free tier no longer available */
 	PROVIDER_QWEN,
 	PROVIDER_MODAL,
 ] as const;

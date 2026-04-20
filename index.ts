@@ -17,6 +17,7 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
+import { OPENROUTER_SHOW_PAID, saveConfig } from "./config.ts";
 import { loadFreeConfig, saveFreeConfig } from "./lib/free-config.ts";
 import { createLogger } from "./lib/logger.ts";
 // Import unique provider extensions (only providers NOT built into pi)
@@ -26,6 +27,8 @@ import kilo from "./providers/kilo/kilo.ts";
 import modal from "./providers/modal/modal.ts";
 import nvidia from "./providers/nvidia/nvidia.ts";
 import qwen from "./providers/qwen/qwen.ts";
+
+// Qwen provider is deprecated - remove import when fully removing support
 
 const _logger = createLogger("pi-free");
 
@@ -131,6 +134,55 @@ function setupGlobalFiltering(pi: ExtensionAPI, state: FilterState) {
 			ctx.ui.notify(lines.join("\n"), "info");
 		},
 	});
+
+	// Setup per-provider toggles for built-in pi providers
+	setupBuiltInProviderToggles(pi, state);
+}
+
+// =============================================================================
+// Built-in Provider Toggles (for pi's native providers like OpenRouter)
+// =============================================================================
+
+function setupBuiltInProviderToggles(pi: ExtensionAPI, _state: FilterState) {
+	// OpenRouter toggle - controls free vs all models for built-in OpenRouter provider
+	let openrouterShowPaid = OPENROUTER_SHOW_PAID;
+
+	pi.registerCommand("openrouter-toggle", {
+		description: "Toggle between free and all OpenRouter models",
+		handler: async (_args, ctx) => {
+			openrouterShowPaid = !openrouterShowPaid;
+			saveConfig({ openrouter_show_paid: openrouterShowPaid });
+
+			// Get current models and filter if needed
+			const available = await ctx.modelRegistry.getAvailable();
+			const openrouterModels = available.filter(
+				(m) => m.provider === "openrouter",
+			);
+			const freeCount = openrouterModels.filter(isFreeModel).length;
+			const paidCount = openrouterModels.length - freeCount;
+
+			if (openrouterShowPaid) {
+				ctx.ui.notify(
+					`openrouter: showing all ${openrouterModels.length} models (including paid)`,
+					"info",
+				);
+			} else {
+				ctx.ui.notify(
+					`openrouter: showing only ${freeCount} free models (${paidCount} paid hidden)`,
+					"info",
+				);
+			}
+
+			// Note: We can't directly re-register built-in providers.
+			// The filtering happens at model selection time via the model_select event.
+			// For immediate effect, we log a note to the user.
+			if (!openrouterShowPaid && paidCount > 0) {
+				_logger.info(
+					`[pi-free] OpenRouter: ${paidCount} paid models will be filtered from selection`,
+				);
+			}
+		},
+	});
 }
 
 // =============================================================================
@@ -154,7 +206,10 @@ export default async function (pi: ExtensionAPI) {
 		modal(pi),
 		nvidia(pi),
 		kilo(pi),
-		qwen(pi),
+		// Qwen is deprecated - 1,000 req/day free tier no longer available
+		qwen(pi).catch((err) => {
+			_logger.warn("[pi-free] Qwen provider failed to load (deprecated)", err);
+		}),
 		cline(pi),
 	]);
 

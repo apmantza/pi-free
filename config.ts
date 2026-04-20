@@ -51,8 +51,11 @@ interface PiFreeConfig {
 	nvidia_show_paid?: boolean;
 	fireworks_show_paid?: boolean;
 	cline_show_paid?: boolean;
+	/** @deprecated Qwen provider is deprecated */
 	qwen_show_paid?: boolean;
 	modal_show_paid?: boolean;
+	// Built-in pi providers
+	openrouter_show_paid?: boolean;
 }
 
 const CONFIG_TEMPLATE: PiFreeConfig = {
@@ -67,8 +70,11 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	nvidia_show_paid: false,
 	fireworks_show_paid: false,
 	cline_show_paid: false,
+	/** @deprecated Qwen provider is deprecated */
 	qwen_show_paid: false,
 	modal_show_paid: false,
+	// Built-in pi providers - default to showing only free
+	openrouter_show_paid: false,
 };
 
 const PI_DIR = join(process.env.HOME || process.env.USERPROFILE || "", ".pi");
@@ -148,13 +154,25 @@ export const CLINE_SHOW_PAID = resolveBool(
 	"CLINE_SHOW_PAID",
 	file.cline_show_paid,
 );
+/** @deprecated Qwen provider is deprecated. The 1,000 req/day free tier is no longer available. */
 export const QWEN_SHOW_PAID = resolveBool(
 	"QWEN_SHOW_PAID",
 	file.qwen_show_paid,
 );
+if (QWEN_SHOW_PAID) {
+	_logger.warn(
+		"QWEN_SHOW_PAID is set but Qwen provider is deprecated. The 1,000 req/day free tier is no longer available.",
+	);
+}
 export const MODAL_SHOW_PAID = resolveBool(
 	"MODAL_SHOW_PAID",
 	file.modal_show_paid,
+);
+
+// Built-in pi providers - per-provider free model filtering
+export const OPENROUTER_SHOW_PAID = resolveBool(
+	"OPENROUTER_SHOW_PAID",
+	file.openrouter_show_paid,
 );
 
 // Global free-only mode (new in v2.0) - applies to ALL providers

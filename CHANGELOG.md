@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **OpenRouter per-provider free model toggle** — Added `/openrouter-toggle` command for the built-in OpenRouter provider:
+  - `/openrouter-toggle` — Switch between showing only free models vs all models (including paid)
+  - New config flag `openrouter_show_paid` in `~/.pi/free.json` (default: `false`)
+  - Environment variable: `OPENROUTER_SHOW_PAID=true` to show paid models by default
+  - This brings OpenRouter (a built-in pi provider) in line with extension providers that have per-provider toggles
+
+### Deprecated
+- **Qwen provider** — The 1,000 requests/day free tier is no longer available from Qwen/DashScope. The provider code remains for backward compatibility but is now deprecated:
+  - Added `@deprecated` JSDoc tags to all Qwen-related exports
+  - Added deprecation warning when Qwen provider loads
+  - Added warning when `QWEN_SHOW_PAID` config is used
+  - Consider migrating to other free providers: Kilo, Cline, NVIDIA, or Modal
+
+### Added
 - **Go provider** — OpenCode Go subscription gateway (⚠️ paid only — $5 first month, then $10/month, no free tier) with models: GLM-5, Kimi K2.5, MiMo-V2-Pro, MiMo-V2-Omni, MiniMax M2.7, MiniMax M2.5
   - Set `OPENCODE_GO_API_KEY` or `opencode_go_api_key` in `~/.pi/free.json`
   - Toggle with `/go-toggle`
