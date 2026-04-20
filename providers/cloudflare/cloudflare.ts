@@ -32,24 +32,24 @@
  *   # Use /cloudflare-toggle to show all vs limited set
  */
 
-import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ProviderModelConfig,
+} from "@mariozechner/pi-coding-agent";
 import {
 	applyHidden,
+	CLOUDFLARE_API_TOKEN,
 	CLOUDFLARE_SHOW_PAID,
-	PROVIDER_CLOUDFLARE,
 } from "../../config.ts";
 import {
 	BASE_URL_CLOUDFLARE,
 	DEFAULT_FETCH_TIMEOUT_MS,
+	PROVIDER_CLOUDFLARE,
 } from "../../constants.ts";
 import { registerWithGlobalToggle } from "../../index.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
-import {
-	createReRegister,
-	enhanceWithCI,
-} from "../../provider-helper.ts";
+import { createReRegister, enhanceWithCI } from "../../provider-helper.ts";
 
 const _logger = createLogger("cloudflare");
 
@@ -105,7 +105,7 @@ async function verifyCloudflareToken(
 		`${BASE_URL_CLOUDFLARE}/user/tokens/verify`,
 		{
 			headers: {
-				"Authorization": `Bearer ${apiToken}`,
+				Authorization: `Bearer ${apiToken}`,
 				"Content-Type": "application/json",
 			},
 		},
@@ -123,7 +123,8 @@ async function verifyCloudflareToken(
 	const json = (await response.json()) as CloudflareVerifyResponse;
 
 	if (!json.success) {
-		const errorMsg = json.errors?.map(e => e.message).join(", ") || "Invalid token";
+		const errorMsg =
+			json.errors?.map((e) => e.message).join(", ") || "Invalid token";
 		throw new Error(`Cloudflare token verification failed: ${errorMsg}`);
 	}
 
@@ -155,7 +156,7 @@ async function fetchCloudflareModels(
 		url,
 		{
 			headers: {
-				"Authorization": `Bearer ${apiToken}`,
+				Authorization: `Bearer ${apiToken}`,
 				"Content-Type": "application/json",
 			},
 		},
@@ -173,7 +174,8 @@ async function fetchCloudflareModels(
 	const json = (await response.json()) as CloudflareModelsResponse;
 
 	if (!json.success || !json.result) {
-		const errorMsg = json.errors?.map(e => e.message).join(", ") || "Unknown error";
+		const errorMsg =
+			json.errors?.map((e) => e.message).join(", ") || "Unknown error";
 		throw new Error(`Cloudflare API error: ${errorMsg}`);
 	}
 
@@ -182,7 +184,9 @@ async function fetchCloudflareModels(
 		(m) => m.capabilities?.text_generation === true,
 	);
 
-	_logger.info(`[cloudflare] Fetched ${chatModels.length} text generation models`);
+	_logger.info(
+		`[cloudflare] Fetched ${chatModels.length} text generation models`,
+	);
 
 	const result = applyHidden(
 		chatModels.map(
@@ -217,12 +221,17 @@ async function fetchCloudflareModels(
 // =============================================================================
 
 export default async function (pi: ExtensionAPI) {
-	const apiToken = process.env.CLOUDFLARE_API_TOKEN;
+	const apiToken = CLOUDFLARE_API_TOKEN;
 
 	if (!apiToken) {
-		_logger.info("[cloudflare] Skipping - CLOUDFLARE_API_TOKEN not set");
+		_logger.info(
+			"[cloudflare] Skipping - CLOUDFLARE_API_TOKEN not set (env var or ~/.pi/free.json)",
+		);
 		return;
 	}
+
+	// Inject into process.env so Pi's apiKey lookup finds it
+	process.env.CLOUDFLARE_API_TOKEN = apiToken;
 
 	// Verify token and get account info
 	let accountId: string;
@@ -230,10 +239,9 @@ export default async function (pi: ExtensionAPI) {
 		const tokenInfo = await verifyCloudflareToken(apiToken);
 		accountId = tokenInfo.accountId;
 	} catch (error) {
-		_logger.error(
-			"[cloudflare] Token verification failed",
-			error instanceof Error ? error.message : String(error),
-		);
+		_logger.error("[cloudflare] Token verification failed", {
+			error: error instanceof Error ? error.message : String(error),
+		});
 		return;
 	}
 
@@ -243,10 +251,9 @@ export default async function (pi: ExtensionAPI) {
 	try {
 		allModels = await fetchCloudflareModels(accountId, apiToken);
 	} catch (error) {
-		_logger.error(
-			"[cloudflare] Failed to fetch models at startup",
-			error instanceof Error ? error.message : String(error),
-		);
+		_logger.error("[cloudflare] Failed to fetch models at startup", {
+			error: error instanceof Error ? error.message : String(error),
+		});
 		return;
 	}
 

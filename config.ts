@@ -176,6 +176,14 @@ export const MODAL_SHOW_PAID = resolveBool(
 	"MODAL_SHOW_PAID",
 	file.modal_show_paid,
 );
+export const OLLAMA_SHOW_PAID = resolveBool(
+	"OLLAMA_SHOW_PAID",
+	file.ollama_show_paid,
+);
+export const CLOUDFLARE_SHOW_PAID = resolveBool(
+	"CLOUDFLARE_SHOW_PAID",
+	file.cloudflare_show_paid,
+);
 
 // Built-in pi providers - per-provider free model filtering
 export const OPENROUTER_SHOW_PAID = resolveBool(
@@ -206,6 +214,11 @@ export const FIREWORKS_API_KEY = resolve(
 	file.fireworks_api_key,
 );
 export const MODAL_API_KEY = resolve("MODAL_API_KEY", file.modal_api_key);
+export const OLLAMA_API_KEY = resolve("OLLAMA_API_KEY", file.ollama_api_key);
+export const CLOUDFLARE_API_TOKEN = resolve(
+	"CLOUDFLARE_API_TOKEN",
+	file.cloudflare_api_token,
+);
 export const OPENCODE_API_KEY = resolve(
 	"OPENCODE_API_KEY",
 	file.opencode_api_key,

@@ -20,24 +20,20 @@
  *   # Use /ollama-toggle to show all vs limited set
  */
 
-import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import {
-	applyHidden,
-	OLLAMA_SHOW_PAID,
-	PROVIDER_OLLAMA,
-} from "../../config.ts";
+import type {
+	ExtensionAPI,
+	ProviderModelConfig,
+} from "@mariozechner/pi-coding-agent";
+import { applyHidden, OLLAMA_API_KEY, OLLAMA_SHOW_PAID } from "../../config.ts";
 import {
 	BASE_URL_OLLAMA,
 	DEFAULT_FETCH_TIMEOUT_MS,
+	PROVIDER_OLLAMA,
 } from "../../constants.ts";
 import { registerWithGlobalToggle } from "../../index.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
-import {
-	createReRegister,
-	enhanceWithCI,
-} from "../../provider-helper.ts";
+import { createReRegister, enhanceWithCI } from "../../provider-helper.ts";
 
 const _logger = createLogger("ollama");
 
@@ -76,7 +72,7 @@ async function fetchOllamaModels(
 		`${BASE_URL_OLLAMA}/api/tags`,
 		{
 			headers: {
-				"Authorization": `Bearer ${apiKey}`,
+				Authorization: `Bearer ${apiKey}`,
 				"Content-Type": "application/json",
 			},
 		},
@@ -112,9 +108,12 @@ async function fetchOllamaModels(
 				id: m.name,
 				name: m.name,
 				// Try to infer reasoning from model name/family
-				reasoning: m.name.toLowerCase().includes("reasoning") ||
+				reasoning:
+					m.name.toLowerCase().includes("reasoning") ||
 					m.name.toLowerCase().includes("r1") ||
-					m.details?.families?.some(f => f.toLowerCase().includes("reasoning")),
+					!!m.details?.families?.some((f) =>
+						f.toLowerCase().includes("reasoning"),
+					),
 				input: ["text"],
 				// Ollama Cloud uses usage-based pricing (GPU time), not per-token
 				// Free tier has limits but no direct cost per token
@@ -139,19 +138,19 @@ async function fetchOllamaModels(
  */
 function parseContextWindow(paramSize?: string): number {
 	if (!paramSize) return 8192;
-	
+
 	const match = paramSize.match(/(\d+(?:\.\d+)?)\s*([KMGT]?)/i);
 	if (!match) return 8192;
-	
+
 	const size = parseFloat(match[1]);
 	const unit = match[2].toUpperCase();
-	
+
 	// Rough heuristic: larger models tend to have larger context windows
 	// This is a simplification - actual context varies by model architecture
 	if (unit === "T" || size >= 100) return 128000; // 100B+ models
 	if (size >= 70) return 128000; // 70B models
-	if (size >= 30) return 32768;  // 30B+ models
-	if (size >= 7) return 32768;   // 7B+ models
+	if (size >= 30) return 32768; // 30B+ models
+	if (size >= 7) return 32768; // 7B+ models
 	return 8192; // Smaller models
 }
 
@@ -160,12 +159,17 @@ function parseContextWindow(paramSize?: string): number {
 // =============================================================================
 
 export default async function (pi: ExtensionAPI) {
-	const apiKey = process.env.OLLAMA_API_KEY;
+	const apiKey = OLLAMA_API_KEY;
 
 	if (!apiKey) {
-		_logger.info("[ollama] Skipping - OLLAMA_API_KEY not set");
+		_logger.info(
+			"[ollama] Skipping - OLLAMA_API_KEY not set (env var or ~/.pi/free.json)",
+		);
 		return;
 	}
+
+	// Inject into process.env so Pi's apiKey lookup finds it
+	process.env.OLLAMA_API_KEY = apiKey;
 
 	// Fetch models
 	let allModels: ProviderModelConfig[] = [];
@@ -173,10 +177,9 @@ export default async function (pi: ExtensionAPI) {
 	try {
 		allModels = await fetchOllamaModels(apiKey);
 	} catch (error) {
-		_logger.error(
-			"[ollama] Failed to fetch models at startup",
-			error instanceof Error ? error.message : String(error),
-		);
+		_logger.error("[ollama] Failed to fetch models at startup", {
+			error: error instanceof Error ? error.message : String(error),
+		});
 		return;
 	}
 
