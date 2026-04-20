@@ -50,6 +50,7 @@ interface PiFreeConfig {
 	kilo_show_paid?: boolean;
 	nvidia_show_paid?: boolean;
 	cloudflare_show_paid?: boolean;
+	ollama_show_paid?: boolean;
 	fireworks_show_paid?: boolean;
 	cline_show_paid?: boolean;
 	/** @deprecated Qwen provider is deprecated */
@@ -70,6 +71,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	kilo_show_paid: false,
 	nvidia_show_paid: false,
 	cloudflare_show_paid: false,
+	ollama_show_paid: false,
 	fireworks_show_paid: false,
 	cline_show_paid: false,
 	/** @deprecated Qwen provider is deprecated */

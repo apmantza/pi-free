@@ -12,6 +12,7 @@ export const PROVIDER_CLINE = "cline";
 export const PROVIDER_FIREWORKS = "fireworks";
 export const PROVIDER_NVIDIA = "nvidia";
 export const PROVIDER_CLOUDFLARE = "cloudflare";
+export const PROVIDER_OLLAMA = "ollama";
 /** @deprecated Qwen provider is deprecated. The 1,000 req/day free tier is no longer available. */
 export const PROVIDER_QWEN = "qwen";
 export const PROVIDER_MODAL = "modal";
@@ -33,6 +34,7 @@ export const ALL_UNIQUE_PROVIDERS = [
 export const BASE_URL_KILO = "https://api.kilo.ai/api/gateway";
 export const BASE_URL_NVIDIA = "https://integrate.api.nvidia.com/v1";
 export const BASE_URL_CLOUDFLARE = "https://api.cloudflare.com/client/v4";
+export const BASE_URL_OLLAMA = "https://ollama.com";
 export const BASE_URL_CLINE = "https://api.cline.bot/api/v1";
 export const BASE_URL_FIREWORKS = "https://api.fireworks.ai/inference/v1";
 export const BASE_URL_MODAL = "https://api.us-west-2.modal.direct/v1";

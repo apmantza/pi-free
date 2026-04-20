@@ -26,6 +26,7 @@ import fireworks from "./providers/fireworks/fireworks.ts";
 import kilo from "./providers/kilo/kilo.ts";
 import modal from "./providers/modal/modal.ts";
 import nvidia from "./providers/nvidia/nvidia.ts";
+import ollama from "./providers/ollama/ollama.ts";
 import qwen from "./providers/qwen/qwen.ts";
 
 const _logger = createLogger("pi-free");
@@ -216,6 +217,7 @@ export default async function (pi: ExtensionAPI) {
 		modal(pi),
 		nvidia(pi),
 		kilo(pi),
+		ollama(pi),
 		// Qwen is deprecated
 		qwen(pi).catch((err) => {
 			_logger.warn("[pi-free] Qwen provider failed to load (deprecated)", err);
