@@ -13,19 +13,17 @@
  * - Fireworks: Fireworks AI (paid, but useful for failover)
  */
 
-import type { Api, Model } from "@mariozechner/pi-ai";
 import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
-import { FREE_ONLY, OPENROUTER_SHOW_PAID, saveConfig } from "./config.ts";
+import { FREE_ONLY, saveConfig } from "./config.ts";
 import { createLogger } from "./lib/logger.ts";
 // Import unique provider extensions (only providers NOT built into pi)
 import cline from "./providers/cline/cline.ts";
 import fireworks from "./providers/fireworks/fireworks.ts";
 import kilo from "./providers/kilo/kilo.ts";
 import modal from "./providers/modal/modal.ts";
-import { fetchOpenRouterCompatibleModels } from "./providers/model-fetcher.ts";
 import nvidia from "./providers/nvidia/nvidia.ts";
 import qwen from "./providers/qwen/qwen.ts";
 
@@ -200,104 +198,6 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 }
 
 // =============================================================================
-// Built-in Provider Support (OpenRouter, Mistral, etc.)
-// =============================================================================
-
-function setupBuiltInProviderSupport(pi: ExtensionAPI) {
-	let openrouterShowPaid = OPENROUTER_SHOW_PAID;
-	let openrouterAllModels: ProviderModelConfig[] = [];
-	let openrouterFreeModels: ProviderModelConfig[] = [];
-
-	// Fetch OpenRouter models dynamically on session start
-	pi.on("session_start", async (_event, ctx) => {
-		try {
-			// Fetch fresh models from OpenRouter API
-			openrouterAllModels = await fetchOpenRouterCompatibleModels({
-				baseUrl: "https://openrouter.ai/api/v1",
-				apiKey: process.env.OPENROUTER_API_KEY,
-				freeOnly: false,
-			});
-			openrouterFreeModels = openrouterAllModels.filter(isFreeModel);
-
-			_logger.info(
-				`[pi-free] OpenRouter: fetched ${openrouterAllModels.length} models (${openrouterFreeModels.length} free)`,
-			);
-
-			// Register with global toggle
-			const reRegister = (models: ProviderModelConfig[]) => {
-				pi.registerProvider("openrouter", {
-					models,
-				});
-			};
-
-			registerWithGlobalToggle(
-				"openrouter",
-				{ free: openrouterFreeModels, all: openrouterAllModels },
-				reRegister,
-				!!process.env.OPENROUTER_API_KEY,
-			);
-
-			// Apply initial filter
-			if (!openrouterShowPaid) {
-				reRegister(openrouterFreeModels);
-				_logger.info(
-					`[pi-free] OpenRouter: showing ${openrouterFreeModels.length} free models`,
-				);
-			} else {
-				reRegister(openrouterAllModels);
-				_logger.info(
-					`[pi-free] OpenRouter: showing all ${openrouterAllModels.length} models`,
-				);
-			}
-		} catch (err) {
-			_logger.error("[pi-free] Failed to fetch OpenRouter models", err);
-			// Fallback: use Pi's built-in list and filter it
-			const available = await ctx.modelRegistry.getAvailable();
-			const fallbackModels = available.filter(
-				(m: Model<Api>) => m.provider === "openrouter",
-			);
-			const freeModels = fallbackModels.filter(isFreeModel);
-			if (!openrouterShowPaid && freeModels.length > 0) {
-				pi.registerProvider("openrouter", { models: freeModels });
-			}
-		}
-	});
-
-	// Per-provider toggle for OpenRouter
-	pi.registerCommand("openrouter-toggle", {
-		description: "Toggle between free and all OpenRouter models",
-		handler: async (_args, ctx) => {
-			openrouterShowPaid = !openrouterShowPaid;
-			saveConfig({ openrouter_show_paid: openrouterShowPaid });
-
-			if (openrouterShowPaid) {
-				// Show all models
-				if (openrouterAllModels.length > 0) {
-					pi.registerProvider("openrouter", { models: openrouterAllModels });
-					ctx.ui.notify(
-						`openrouter: showing all ${openrouterAllModels.length} models`,
-						"info",
-					);
-				} else {
-					ctx.ui.notify("openrouter: no models available", "warning");
-				}
-			} else {
-				// Show only free
-				if (openrouterFreeModels.length > 0) {
-					pi.registerProvider("openrouter", { models: openrouterFreeModels });
-					ctx.ui.notify(
-						`openrouter: showing ${openrouterFreeModels.length} free models`,
-						"info",
-					);
-				} else {
-					ctx.ui.notify("openrouter: no free models available", "warning");
-				}
-			}
-		},
-	});
-}
-
-// =============================================================================
 // Main Entry Point
 // =============================================================================
 
@@ -306,7 +206,6 @@ export default async function (pi: ExtensionAPI) {
 
 	// Setup global commands first
 	setupGlobalCommands(pi);
-	setupBuiltInProviderSupport(pi);
 
 	// Load all unique providers
 	// Each provider will register itself with the global toggle system
@@ -322,8 +221,8 @@ export default async function (pi: ExtensionAPI) {
 		cline(pi),
 	]);
 
-	// Setup dynamic built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face)
-	// These only activate if the user has configured API keys
+	// Setup dynamic built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face, OpenRouter)
+	// These only activate if the user has configured API keys (OpenRouter works without key too)
 	const { setupDynamicBuiltInProviders } = await import(
 		"./providers/dynamic-built-in/index.ts"
 	);

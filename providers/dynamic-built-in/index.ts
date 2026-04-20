@@ -24,10 +24,26 @@ import {
 } from "../../constants.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../index.ts";
 import { createLogger } from "../../lib/logger.ts";
-import type { ModelsDevModel } from "../../lib/types.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
+import { fetchOpenRouterCompatibleModels } from "../model-fetcher.ts";
 
 const _logger = createLogger("dynamic-built-in");
+
+// =============================================================================
+// OpenRouter Fetcher
+// =============================================================================
+
+async function fetchOpenRouterModels(
+	apiKey: string,
+): Promise<ProviderModelConfig[]> {
+	const models = await fetchOpenRouterCompatibleModels({
+		baseUrl: BASE_URL_OPENROUTER,
+		apiKey: apiKey || undefined,
+		freeOnly: false,
+	});
+	_logger.info(`[dynamic] Fetched ${models.length} models from OpenRouter`);
+	return models;
+}
 
 // =============================================================================
 // Provider Configurations
@@ -287,26 +303,27 @@ async function fetchHuggingFaceModels(
 	const json = (await response.json()) as Array<{
 		id: string;
 		modelId?: string;
-	};
+	}>;
 
 	const models = Array.isArray(json) ? json.slice(0, 50) : []; // Limit to 50
 	_logger.info(`[dynamic] Fetched ${models.length} models from Hugging Face`);
 
-	return models.map((m): ProviderModelConfig => ({
-		id: m.id || m.modelId || "unknown",
-		name: (m.id || m.modelId || "unknown").split("/").pop() || "Unknown",
-		reasoning: false,
-		input: ["text"],
-		cost: {
-			input: 0,
-			output: 0,
-			cacheRead: 0,
-			cacheWrite: 0,
-}
-,
-		contextWindow: 4096,
-		maxTokens: 2048,
-	}))
+	return models.map(
+		(m): ProviderModelConfig => ({
+			id: m.id || m.modelId || "unknown",
+			name: (m.id || m.modelId || "unknown").split("/").pop() || "Unknown",
+			reasoning: false,
+			input: ["text"],
+			cost: {
+				input: 0,
+				output: 0,
+				cacheRead: 0,
+				cacheWrite: 0,
+			},
+			contextWindow: 4096,
+			maxTokens: 2048,
+		}),
+	);
 }
 
 // =============================================================================
@@ -349,6 +366,13 @@ const DYNAMIC_PROVIDERS: Omit<DynamicProviderConfig, "fetchModels">[] = [
 		api: "openai-completions",
 		defaultShowPaid: false,
 	},
+	{
+		providerId: "openrouter",
+		apiKeyEnvVar: "OPENROUTER_API_KEY",
+		baseUrl: BASE_URL_OPENROUTER,
+		api: "openai-completions",
+		defaultShowPaid: false,
+	},
 ];
 
 // Map provider IDs to their fetch functions
@@ -361,6 +385,7 @@ const FETCH_FUNCTIONS: Record<
 	cerebras: fetchCerebrasModels,
 	xai: fetchXAIModels,
 	huggingface: fetchHuggingFaceModels,
+	openrouter: fetchOpenRouterModels,
 };
 
 // =============================================================================
