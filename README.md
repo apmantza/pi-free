@@ -43,6 +43,7 @@ Free models are shown by default — look for the provider prefixes:
 - `kilo/` — Kilo models (free models available immediately, more after `/login kilo`)
 - `openrouter/` — OpenRouter models (free account required)
 - `nvidia/` — NVIDIA NIM models (free API key required)
+- `cloudflare/` — Cloudflare Workers AI (free API key, 10K Neurons/day free tier)
 - `cline/` — Cline models (run `/login cline` to use)
 - `qwen/` — Qwen Coder (run `/login qwen` to use, 1,000 free requests/day)
 - `modal/` — GLM-5.1 FP8 via Modal (free promotional period until April 30, 2026)
@@ -62,6 +63,7 @@ Want to see paid models too? Run the toggle command for your provider:
 /kilo-toggle        # Toggle Kilo free/paid models
 /openrouter-toggle  # Toggle OpenRouter free/paid models
 /nvidia-toggle      # Toggle NVIDIA zero-cost/credit-costing models
+/cloudflare-toggle  # Toggle Cloudflare Workers AI models (10K Neurons/day free tier)
 /cline-toggle      # Toggle Cline free/paid models
 /mistral-toggle     # Toggle Mistral free/paid models
 /ollama-toggle     # Toggle Ollama models (requires SHOW_PAID=true)
@@ -86,6 +88,7 @@ Add your API keys to this file:
 {
   "openrouter_api_key": "sk-or-v1-...",
   "nvidia_api_key": "nvapi-...",
+  "cloudflare_api_token": "...",
   "ollama_api_key": "...",
   "fireworks_api_key": "...",
   "mistral_api_key": "...",
@@ -226,6 +229,30 @@ Or in `~/.pi/free.json`:
 ```
 
 Toggle anytime with `/nvidia-toggle`
+
+### Cloudflare Workers AI (10K Neurons/day Free Tier)
+
+Cloudflare provides **50+ open-source AI models** with a generous free tier:
+- **10,000 Neurons per day FREE** (resets daily at 00:00 UTC)
+- **$0.011 per 1,000 Neurons** beyond the free allocation
+
+Get your API token at [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens):
+1. Create a token with "Cloudflare AI" → "Read" permission
+2. Or use "My Account" → "Read" for broader access
+
+**Setup:**
+```bash
+export CLOUDFLARE_API_TOKEN="your_token_here"
+```
+
+The account ID is automatically derived from your token. Optionally, you can also set:
+```bash
+export CLOUDFLARE_ACCOUNT_ID="your_account_id"  # Optional
+```
+
+**Models available:** Llama 4, Mistral Small 3.1, Qwen 2.5/3, DeepSeek R1, Gemma 4, Kimi K2.5/2.6, and more.
+
+Toggle with `/cloudflare-toggle`
 
 ### Cline (free account)
 
