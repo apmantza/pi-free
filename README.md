@@ -68,20 +68,15 @@ Want to see paid models too? Run the toggle command for your provider:
 /kilo-toggle        # Toggle Kilo (✅ actually free)
 /openrouter-toggle  # Toggle OpenRouter (✅ actually free)
 /cline-toggle      # Toggle Cline (✅ actually free)
-/nvidia-toggle      # Toggle NVIDIA (🔄 freemium - 1K req/month free)
-/cloudflare-toggle  # Toggle Cloudflare (🔄 freemium - 10K Neurons/day)
-/modal-toggle      # Toggle Modal (🔄 freemium - until Apr 30, 2026)
-/ollama-toggle     # Toggle Ollama (🔄 freemium - usage-based)
 /mistral-toggle     # Toggle Mistral (🔧 dynamic - needs API key)
 /groq-toggle        # Toggle Groq (🔧 dynamic - needs API key)
 /cerebras-toggle   # Toggle Cerebras (🔧 dynamic - needs API key)
-/go-toggle         # Toggle Go (💳 paid only - subscription)
 ```
 
 **Notes:**
-- Fireworks has no toggle command since all models are paid-only
-- Freemium providers show all models by default (you manage limits via their dashboards)
-- Toggle commands for freemium providers mainly filter the UI view
+- **Toggle commands are mainly for ✅ Actually Free providers** — to switch between "free models only" vs "show paid models too"
+- **🔄 Freemium providers** (NVIDIA, Cloudflare, Ollama, Modal) show all models by default — you manage your usage limits via their dashboards
+- **💳 Paid-only providers** (Go, Fireworks) have no toggle since all models require payment
 
 You'll see a notification like: `zen: showing free models` or `zen: showing all models (including paid)`
 
@@ -367,21 +362,18 @@ Each provider has toggle commands to switch between free and all models:
 | `/zen-toggle` | Toggle between free/all Zen models |
 | `/kilo-toggle` | Toggle between free/all Kilo models |
 | `/openrouter-toggle` | Toggle between free/all OpenRouter models |
-| `/nvidia-toggle` | Toggle between free/all NVIDIA models (🔄 freemium) |
-| `/cloudflare-toggle` | Toggle between free/all Cloudflare models (🔄 freemium) |
-| `/modal-toggle` | Toggle between free/all Modal models (🔄 freemium) |
-| `/ollama-toggle` | Toggle between free/all Ollama models (🔄 freemium) |
-| `/cline-toggle` | Toggle between free/all Cline models |
+| `/cline-toggle` | Toggle between free/all Cline models (✅ actually free) |
 | `/mistral-toggle` | Toggle between free/all Mistral models (🔧 dynamic) |
 | `/groq-toggle` | Toggle between free/all Groq models (🔧 dynamic) |
 | `/cerebras-toggle` | Toggle between free/all Cerebras models (🔧 dynamic) |
-| `/go-toggle` | ⚠️ Toggle Go models (💳 paid only) |
-| `/fireworks-toggle` | ⚠️ Toggle Fireworks models (💳 paid only) |
 
 **The toggle command:**
-- Switches between showing only free models vs. all available models
+- **For ✅ Actually Free providers**: Switches between showing only free models vs. all available models (including paid)
+- **For 🔧 Dynamic API providers**: Filters the model list when you have an API key configured
 - **Persists your preference** to `~/.pi/free.json` for next startup
 - Shows a notification: "zen: showing free models" or "zen: showing all models (including paid)"
+
+**Note:** 🔄 Freemium providers (NVIDIA, Cloudflare, Ollama, Modal) don't have toggle commands — they show all models and you manage usage via their dashboards. 💳 Paid-only providers (Go, Fireworks) also have no toggle since all models require payment.
 
 ---
 
