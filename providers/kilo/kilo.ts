@@ -2,13 +2,14 @@
  * Kilo Provider Extension
  *
  * Provides access to 300+ AI models via the Kilo Gateway (OpenRouter-compatible).
- * Free models available immediately; /login kilo for full access.
+ * Fetches ALL models at startup (like Cline/OpenRouter), defaults to free-only view.
+ * Run /login kilo or use /kilo-toggle to access paid models.
  *
  * Responds to global /free toggle for free/paid model filtering.
  *
  * Usage:
  *   pi install git:github.com/apmantza/pi-free
- *   # Then /login kilo, or set KILO_API_KEY=...
+ *   # Free models visible immediately; /login kilo for paid access
  */
 
 import type { Api, Model, OAuthCredentials } from "@mariozechner/pi-ai";
@@ -18,7 +19,7 @@ import type {
 } from "@mariozechner/pi-coding-agent";
 import { KILO_FREE_ONLY, KILO_SHOW_PAID, PROVIDER_KILO } from "../../config.ts";
 import { URL_KILO_TOS } from "../../constants.ts";
-import { registerWithGlobalToggle } from "../../index.ts";
+import { registerWithGlobalToggle, isFreeModel } from "../../index.ts";
 import {
 	enhanceWithCI,
 	type StoredModels,
@@ -39,26 +40,45 @@ const KILO_PROVIDER_CONFIG = {
 };
 
 export default async function (pi: ExtensionAPI) {
+	// Try to fetch ALL models at startup (like Cline/OpenRouter)
+	// If no API key, this will return free models only
+	let allModels: ProviderModelConfig[] = [];
 	let freeModels: ProviderModelConfig[] = [];
+	
 	try {
-		freeModels = await fetchKiloModels({ freeOnly: true });
+		// Fetch all models (returns free-only if no auth, all if auth available)
+		allModels = await fetchKiloModels({ freeOnly: false });
+		// Derive free list from cost
+		freeModels = allModels.filter(isFreeModel);
 	} catch (error) {
-		logWarning("kilo", "Failed to fetch free models at startup", error);
+		logWarning("kilo", "Failed to fetch models at startup", error);
+		// Fallback: try to fetch just free models
+		try {
+			freeModels = await fetchKiloModels({ freeOnly: true });
+		} catch (e) {
+			logWarning("kilo", "Failed to fetch free models", e);
+		}
 	}
 
-	let cachedAllModels: ProviderModelConfig[] = [];
+	// State tracking
 	let showPaidModels = KILO_SHOW_PAID;
+	let currentModels = KILO_SHOW_PAID && !KILO_FREE_ONLY ? allModels : freeModels;
 
-	// Shared model storage for global toggle and OAuth
-	const stored: StoredModels = { free: freeModels, all: [] };
+	// Shared model storage for global toggle
+	const stored: StoredModels = { free: freeModels, all: allModels };
 
-	// Create re-register function for global toggle
+	// Create re-register function
 	const reRegister = createReRegister(pi, {
 		...KILO_PROVIDER_CONFIG,
 	});
 
-	// Register with global toggle (will be updated after OAuth)
-	registerWithGlobalToggle(PROVIDER_KILO, stored, reRegister, false);
+	// Register with global toggle system
+	registerWithGlobalToggle(
+		PROVIDER_KILO,
+		stored,
+		reRegister,
+		!!process.env.KILO_API_KEY,
+	);
 
 	// OAuth config for Kilo
 	const oauthConfig = {
@@ -66,10 +86,14 @@ export default async function (pi: ExtensionAPI) {
 		login: async (callbacks: any) => {
 			const cred = await loginKilo(callbacks);
 			try {
-				cachedAllModels = await fetchKiloModels({ token: cred.access });
-				stored.all = cachedAllModels;
+				// Fetch all models with the new token
+				const newModels = await fetchKiloModels({ token: cred.access, freeOnly: false });
+				allModels = newModels;
+				stored.all = allModels;
+				freeModels = allModels.filter(isFreeModel);
+				stored.free = freeModels;
 				
-				// Re-register with global toggle now that we have paid models
+				// Update global toggle registration with new lists
 				const globalReRegister = createReRegister(pi, {
 					...KILO_PROVIDER_CONFIG,
 				});
@@ -77,7 +101,8 @@ export default async function (pi: ExtensionAPI) {
 				
 				// If paid mode is enabled, show all models
 				if (showPaidModels && !KILO_FREE_ONLY) {
-					globalReRegister(cachedAllModels);
+					currentModels = allModels;
+					globalReRegister(allModels);
 				}
 			} catch (error) {
 				logWarning("kilo", "Failed to fetch models after login", error);
@@ -87,13 +112,13 @@ export default async function (pi: ExtensionAPI) {
 		refreshToken: refreshKiloToken,
 		getApiKey: (cred: OAuthCredentials) => cred.access,
 		modifyModels: (models: Model<Api>[], _cred: OAuthCredentials) => {
-			if (!showPaidModels || KILO_FREE_ONLY || cachedAllModels.length === 0) {
+			if (!showPaidModels || KILO_FREE_ONLY || allModels.length === 0) {
 				return models;
 			}
 			const template = models.find((m) => m.provider === PROVIDER_KILO);
 			if (!template) return models;
 			const nonKilo = models.filter((m) => m.provider !== PROVIDER_KILO);
-			const fullModels = cachedAllModels.map((m) => ({
+			const fullModels = allModels.map((m) => ({
 				...template,
 				id: m.id,
 				name: cleanModelName(m.name),
@@ -107,7 +132,7 @@ export default async function (pi: ExtensionAPI) {
 		},
 	};
 
-	// Register initial provider with free models
+	// Register initial provider (default to free models)
 	pi.registerProvider(PROVIDER_KILO, {
 		baseUrl: KILO_GATEWAY_BASE,
 		apiKey: "KILO_API_KEY",
@@ -116,40 +141,51 @@ export default async function (pi: ExtensionAPI) {
 			"X-KILOCODE-EDITORNAME": "Pi",
 			"User-Agent": "pi-free-providers",
 		},
-		models: enhanceWithCI(freeModels),
+		models: enhanceWithCI(currentModels),
 		oauth: oauthConfig,
 	});
 
-	// Keep per-provider toggle for backward compatibility
+	console.log(`[kilo] Registered ${currentModels.length} models (${freeModels.length} free, ${allModels.length - freeModels.length} paid)`);
+
+	// Per-provider toggle command (works independently of global /free)
 	pi.registerCommand("kilo-toggle", {
 		description: "Toggle between free and all Kilo models",
 		handler: async (_args, ctx) => {
 			showPaidModels = !showPaidModels;
 			
-			// Update stored state
-			const modelsToShow = showPaidModels && cachedAllModels.length > 0
-				? cachedAllModels
+			// Determine which models to show
+			const modelsToShow = showPaidModels && allModels.length > 0
+				? allModels
 				: freeModels;
 			
+			currentModels = modelsToShow;
 			reRegister(modelsToShow);
 			
-			const count = modelsToShow.length;
-			const type = showPaidModels ? "all" : "free";
-			ctx.ui.notify(`kilo: showing ${count} ${type} models`, "info");
+			const freeCount = freeModels.length;
+			const paidCount = allModels.length - freeCount;
+			
+			if (showPaidModels && allModels.length > 0) {
+				ctx.ui.notify(`kilo: showing all ${allModels.length} models (${freeCount} free, ${paidCount} paid)`, "info");
+			} else {
+				ctx.ui.notify(`kilo: showing ${freeCount} free models (${paidCount} paid hidden)`, "info");
+			}
 		},
 	});
 
-	// ToS notice
+	// ToS notice on first use
 	let tosShown = false;
 	pi.on("model_select", async (_event, ctx) => {
 		if (tosShown || ctx.model?.provider !== PROVIDER_KILO) return;
 		tosShown = true;
 		const cred = ctx.modelRegistry.authStorage.get(PROVIDER_KILO);
 		if (cred?.type === "oauth") return;
-		ctx.ui.notify(
-			`Using kilo free models. Run /login kilo for paid access. Terms: ${URL_KILO_TOS}`,
-			"info",
-		);
+		const paidCount = allModels.length - freeModels.length;
+		if (paidCount > 0) {
+			ctx.ui.notify(
+				`Kilo: ${freeModels.length} free models shown. Use /kilo-toggle or /login kilo for ${paidCount} paid models. Terms: ${URL_KILO_TOS}`,
+				"info",
+			);
+		}
 	});
 
 	// Refresh models on session start if authenticated
@@ -158,8 +194,11 @@ export default async function (pi: ExtensionAPI) {
 
 		if (cred?.type === "oauth") {
 			try {
-				cachedAllModels = await fetchKiloModels({ token: cred.access });
-				stored.all = cachedAllModels;
+				const newModels = await fetchKiloModels({ token: cred.access, freeOnly: false });
+				allModels = newModels;
+				stored.all = allModels;
+				freeModels = allModels.filter(isFreeModel);
+				stored.free = freeModels;
 				
 				// Update global toggle registration
 				const ctxReRegister = createCtxReRegister(ctx as any, {
@@ -167,11 +206,12 @@ export default async function (pi: ExtensionAPI) {
 				});
 				registerWithGlobalToggle(PROVIDER_KILO, stored, ctxReRegister, true);
 				
-				if (cachedAllModels.length > 0 && showPaidModels && !KILO_FREE_ONLY) {
-					ctxReRegister(cachedAllModels);
+				// Apply current view mode
+				if (showPaidModels && !KILO_FREE_ONLY) {
+					ctxReRegister(allModels);
 				}
 			} catch (error) {
-				logWarning("kilo", "Failed to fetch models at session start", error);
+				logWarning("kilo", "Failed to refresh models at session start", error);
 			}
 		}
 	});
