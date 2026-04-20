@@ -192,14 +192,18 @@ function shapeMessagesForCline(messages: any[]): any[] {
 // =============================================================================
 
 export default async function (pi: ExtensionAPI) {
-	// Fetch free models from OpenRouter (Cline only exposes free models without auth)
-	let freeModels = await fetchClineModels().catch((err) => {
-		logWarning("cline", "Failed to fetch free models at startup", err);
+	// Fetch ALL models from OpenRouter (free and paid)
+	// The global /free toggle will filter based on cost.input
+	let allModels = await fetchClineModels(false).catch((err) => {
+		logWarning("cline", "Failed to fetch models at startup", err);
 		return [];
 	});
 
+	// Also fetch free-only list for the global toggle's free filter
+	let freeModels = allModels.filter((m) => m.cost.input === 0);
+
 	// Create re-register function for global toggle
-	const reRegister = (m: typeof freeModels) => {
+	const reRegister = (m: typeof allModels) => {
 		pi.registerProvider(PROVIDER_CLINE, {
 			baseUrl: BASE_URL_CLINE,
 			api: "openai-completions" as const,
@@ -215,17 +219,16 @@ export default async function (pi: ExtensionAPI) {
 		});
 	};
 
-	// Register with global toggle
-	// Note: Cline only provides free models without OAuth, so free=all for now
+	// Register with global toggle (separate free and all lists)
 	registerWithGlobalToggle(
 		PROVIDER_CLINE,
-		{ free: freeModels, all: freeModels },
+		{ free: freeModels, all: allModels },
 		(m) => reRegister(m),
 		false, // no key until OAuth
 	);
 
-	// Initial registration
-	reRegister(freeModels);
+	// Initial registration with all models
+	reRegister(allModels);
 
 	// Cline-specific: refresh task ID and re-register headers before each agent run
 	pi.on("before_agent_start", async (_event, ctx) => {
@@ -244,13 +247,16 @@ export default async function (pi: ExtensionAPI) {
 	// Cline-specific: refresh model list at session start
 	pi.on("session_start", async (_event, ctx) => {
 		try {
-			const fresh = await fetchClineModels();
+			const fresh = await fetchClineModels(false);
 			if (fresh.length > 0) {
-				freeModels = fresh;
-				reRegister(freeModels);
+				allModels = fresh;
+				freeModels = allModels.filter((m) => m.cost.input === 0);
+				reRegister(allModels);
 				if (ctx.model?.provider === PROVIDER_CLINE) {
+					const freeCount = freeModels.length;
+					const paidCount = allModels.length - freeCount;
 					ctx.ui.notify(
-						`Cline: ${freeModels.length} free models available`,
+						`Cline: ${freeCount} free, ${paidCount} paid models available`,
 						"info",
 					);
 				}
