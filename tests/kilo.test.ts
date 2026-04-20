@@ -23,8 +23,19 @@ vi.mock("../providers/kilo/kilo-models.ts", () => ({
 
 vi.mock("../provider-helper.ts", () => ({
 	createReRegister: vi.fn(() => vi.fn()),
-	setupProvider: (...args: unknown[]) => mockSetupProvider(...args),
 	enhanceWithCI: (models: unknown[]) => models,
+}));
+
+vi.mock("../index.ts", () => ({
+	registerWithGlobalToggle: vi.fn(),
+	isFreeModel: (m: { cost?: { input?: number } }) => (m.cost?.input ?? 0) === 0,
+}));
+
+vi.mock("../config.ts", () => ({
+	KILO_FREE_ONLY: false,
+	KILO_SHOW_PAID: false,
+	PROVIDER_KILO: "kilo",
+	FREE_ONLY: false,
 }));
 
 vi.mock("../lib/util.ts", () => ({
@@ -141,20 +152,18 @@ describe("Kilo Provider", () => {
 		});
 	});
 
-	describe("setupProvider integration", () => {
-		it("should call setupProvider with correct config", async () => {
+	describe("registerWithGlobalToggle integration", () => {
+		it("should call registerWithGlobalToggle with correct config", async () => {
+			const { registerWithGlobalToggle } = await import("../index.ts");
 			mockFetchKiloModels.mockResolvedValue([]);
 
 			await kiloProvider(mockPi);
 
-			expect(mockSetupProvider).toHaveBeenCalledWith(
-				mockPi,
-				expect.objectContaining({
-					providerId: "kilo",
-					tosUrl: expect.stringContaining("kilo.ai"),
-					reRegister: expect.any(Function),
-				}),
+			expect(registerWithGlobalToggle).toHaveBeenCalledWith(
+				"kilo",
 				expect.objectContaining({ free: [], all: [] }),
+				expect.any(Function),
+				expect.any(Boolean),
 			);
 		});
 	});

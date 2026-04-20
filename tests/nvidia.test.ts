@@ -6,17 +6,21 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModelsDevModel } from "../lib/types.ts";
 
-let capturedSetupConfig: any = null;
-let capturedStored: any = null;
+let capturedToggleArgs: any = null;
 
-// Mock provider-helper for toggle behavior testing
+// Mock for toggle behavior testing
 vi.mock("../provider-helper.ts", () => ({
 	enhanceWithCI: (m: any[]) => m,
 	createReRegister: vi.fn(() => vi.fn()),
-	setupProvider: vi.fn((_pi: any, config: any, stored: any) => {
-		capturedSetupConfig = config;
-		capturedStored = stored;
+}));
+
+vi.mock("../index.ts", () => ({
+	registerWithGlobalToggle: vi.fn((...args: any[]) => {
+		capturedToggleArgs = args;
 	}),
+	isFreeModel: (m: any) => (m.cost?.input ?? 0) === 0,
+	getGlobalFreeOnly: () => false,
+	providerRegistry: new Map(),
 }));
 
 // Minimal mocks for imports
@@ -27,13 +31,6 @@ vi.mock("../config.ts", () => ({
 	PROVIDER_KILO: "kilo", // added for index.ts import
 	applyHidden: (m: any[]) => m,
 	FREE_ONLY: false,
-}));
-
-vi.mock("../index.ts", () => ({
-	registerWithGlobalToggle: vi.fn(),
-	isFreeModel: (m: any) => (m.cost?.input ?? 0) === 0,
-	getGlobalFreeOnly: () => false,
-	providerRegistry: new Map(),
 }));
 
 vi.mock("../constants.ts", () => ({
@@ -48,8 +45,7 @@ import nvidiaProvider from "../providers/nvidia/nvidia.ts";
 describe("NVIDIA Provider", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		capturedSetupConfig = null;
-		capturedStored = null;
+		capturedToggleArgs = null;
 	});
 
 	describe("model filtering logic", () => {
@@ -258,16 +254,16 @@ describe("NVIDIA Provider", () => {
 			}),
 		);
 
-		// Should setup toggle with both free and all model sets
-		expect(capturedSetupConfig).toMatchObject({
-			providerId: "nvidia",
-			initialShowPaid: true, // From mock config
+		// Should call registerWithGlobalToggle with both free and all model sets
+		expect(capturedToggleArgs).toBeDefined();
+		expect(capturedToggleArgs[0]).toBe("nvidia"); // providerId
+		expect(capturedToggleArgs[1]).toMatchObject({
+			free: expect.any(Array),
+			all: expect.any(Array),
 		});
-		expect(capturedStored.free).toBeDefined();
-		expect(capturedStored.all).toBeDefined();
-		expect(capturedStored.free.length).toBeGreaterThanOrEqual(0);
-		expect(capturedStored.all.length).toBeGreaterThanOrEqual(
-			capturedStored.free.length,
+		expect(capturedToggleArgs[1].free.length).toBeGreaterThanOrEqual(0);
+		expect(capturedToggleArgs[1].all.length).toBeGreaterThanOrEqual(
+			capturedToggleArgs[1].free.length,
 		);
 	});
 });
