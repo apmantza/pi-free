@@ -7,6 +7,23 @@ on:
     branches: [master]
 
 jobs:
+  typecheck:
+    name: Type check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Type check
+        run: npx tsc --noEmit
+
   install-test:
     name: Install test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
