@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Cloudflare Workers AI provider** — New provider for Cloudflare's serverless GPU platform:
+  - 50+ open-source models: Llama 4, Mistral Small 3.1, Qwen 2.5/3, DeepSeek R1, Gemma 4, Kimi K2.5/2.6, and more
+  - **10,000 Neurons/day FREE tier** (resets daily at 00:00 UTC)
+  - **$0.011 per 1,000 Neurons** beyond free allocation
+  - Only requires `CLOUDFLARE_API_TOKEN` — account ID auto-derived from token
+  - Toggle with `/cloudflare-toggle`
+  - Create token at https://dash.cloudflare.com/profile/api-tokens
+
+- **Unified dynamic built-in providers module** — New `providers/dynamic-built-in/` module that dynamically fetches models from Pi's built-in providers when users have API keys:
+  - **Mistral** (`MISTRAL_API_KEY`) — Fetches from `api.mistral.ai/v1/models`
+  - **Groq** (`GROQ_API_KEY`) — Fetches from `api.groq.com/openai/v1/models`
+  - **Cerebras** (`CEREBRAS_API_KEY`) — Fetches from `api.cerebras.ai/v1/models`
+  - **xAI** (`XAI_API_KEY`) — Fetches from `api.x.ai/v1/models`
+  - **Hugging Face** (`HF_TOKEN` — optional) — Fetches public + authenticated models
+  - **OpenRouter** — Moved from `index.ts` to unified module with dynamic fetch
+  - All integrate with global `/free` toggle and have per-provider toggle commands (`/mistral-toggle`, `/groq-toggle`, etc.)
+
+- **Global `/free` toggle system** — New centralized free/paid filtering across ALL providers:
+  - `/free on/off/status` — Toggle free-only view globally
+  - `/free-providers` — Show free/paid model counts by provider
+  - `FREE_ONLY` config option and `PI_FREE_ONLY` environment variable
+  - Providers register via `registerWithGlobalToggle()` for unified filtering
+
 ### Fixed
 - **Toggle commands now actually filter models from UI** — Previously, toggle commands only showed notifications but didn't remove paid models from the model picker:
   - **OpenRouter (`/openrouter-toggle`)**: Now uses `registerProvider`/`unregisterProvider` to actually filter models from the picker UI
