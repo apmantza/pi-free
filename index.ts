@@ -322,6 +322,13 @@ export default async function (pi: ExtensionAPI) {
 		cline(pi),
 	]);
 
+	// Setup dynamic built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face)
+	// These only activate if the user has configured API keys
+	const { setupDynamicBuiltInProviders } = await import(
+		"./providers/dynamic-built-in/index.ts"
+	);
+	await setupDynamicBuiltInProviders(pi);
+
 	// Apply initial global filter if free-only mode is enabled
 	if (globalFreeOnly) {
 		_logger.info("[pi-free] Applying initial free-only filter");
