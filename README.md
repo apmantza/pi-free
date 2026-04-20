@@ -58,16 +58,17 @@ Free models are shown by default — look for the provider prefixes:
 Want to see paid models too? Run the toggle command for your provider:
 
 ```
-/zen-toggle      # Toggle Zen free/paid models
-/kilo-toggle     # Toggle Kilo free/paid models
+/zen-toggle         # Toggle Zen free/paid models
+/kilo-toggle        # Toggle Kilo free/paid models
 /openrouter-toggle  # Toggle OpenRouter free/paid models
-/nvidia-toggle   # Toggle NVIDIA zero-cost/credit-costing models
-/cline-toggle    # Toggle Cline free/paid models
-/mistral-toggle  # Toggle Mistral free/paid models
-/ollama-toggle   # Toggle Ollama models (requires SHOW_PAID=true)
-/go-toggle       # Toggle Go models (⚠️ paid only — requires subscription)
-/fireworks-toggle # Toggle Fireworks models (⚠️ paid only — no free tier)
+/nvidia-toggle      # Toggle NVIDIA zero-cost/credit-costing models
+/cline-toggle      # Toggle Cline free/paid models
+/mistral-toggle     # Toggle Mistral free/paid models
+/ollama-toggle     # Toggle Ollama models (requires SHOW_PAID=true)
+/go-toggle         # Toggle Go models (⚠️ paid only — requires subscription)
 ```
+
+**Note:** Fireworks has no toggle command since all models are paid-only with no free tier.
 
 You'll see a notification like: `zen: showing free models` or `zen: showing all models (including paid)`
 
