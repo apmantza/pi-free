@@ -9,11 +9,19 @@
  * Requires CLOUDFLARE_API_TOKEN with Workers AI permission.
  * Get a free token at: https://dash.cloudflare.com/profile/api-tokens
  *
+ * API Reference:
+ *   List models: GET /accounts/{account_id}/ai/models
+ *   Run model:  POST /accounts/{account_id}/ai/run/{model_name}
+ *   curl example:
+ *     curl https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/ai/run/$MODEL_NAME \
+ *       -X POST \
+ *       -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+ *
  * Responds to global /free toggle (shows models but warns they're freemium).
  *
  * Usage:
  *   pi install git:github.com/apmantza/pi-free
- *   # Set CLOUDFLARE_API_TOKEN env var
+ *   # Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN env vars
  *   # Models appear in /model selector
  *   # Use /cloudflare-toggle to show all vs limited set
  */
