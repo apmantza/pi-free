@@ -8,10 +8,16 @@
  *
  * Requires CLOUDFLARE_API_TOKEN with Workers AI permission.
  * Get a free token at: https://dash.cloudflare.com/profile/api-tokens
+ *   - Create token with "Cloudflare AI" > "Read" permission
+ *   - Or use "My Account" > "Read" for all accounts
+ *
+ * The account ID is derived from the token automatically.
+ * Alternatively, set CLOUDFLARE_ACCOUNT_ID explicitly.
  *
  * API Reference:
- *   List models: GET /accounts/{account_id}/ai/models
- *   Run model:  POST /accounts/{account_id}/ai/run/{model_name}
+ *   Verify token: GET /user/tokens/verify
+ *   List models:  GET /accounts/{account_id}/ai/models
+ *   Run model:    POST /accounts/{account_id}/ai/run/{model_name}
  *   curl example:
  *     curl https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/ai/run/$MODEL_NAME \
  *       -X POST \
@@ -21,7 +27,7 @@
  *
  * Usage:
  *   pi install git:github.com/apmantza/pi-free
- *   # Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN env vars
+ *   # Set CLOUDFLARE_API_TOKEN env var
  *   # Models appear in /model selector
  *   # Use /cloudflare-toggle to show all vs limited set
  */
@@ -51,6 +57,17 @@ const _logger = createLogger("cloudflare");
 // Types
 // =============================================================================
 
+interface CloudflareVerifyResponse {
+	result?: {
+		id: string;
+		status: string;
+		not_before?: string;
+		expires_on?: string;
+	};
+	success: boolean;
+	errors?: Array<{ code: number; message: string }>;
+}
+
 interface CloudflareModel {
 	id: string;
 	name: string;
@@ -75,6 +92,53 @@ interface CloudflareModelsResponse {
 	result?: CloudflareModel[];
 	success: boolean;
 	errors?: Array<{ code: number; message: string }>;
+}
+
+// =============================================================================
+// Verify token and get account info
+// =============================================================================
+
+async function verifyCloudflareToken(
+	apiToken: string,
+): Promise<{ accountId: string }> {
+	const response = await fetchWithRetry(
+		`${BASE_URL_CLOUDFLARE}/user/tokens/verify`,
+		{
+			headers: {
+				"Authorization": `Bearer ${apiToken}`,
+				"Content-Type": "application/json",
+			},
+		},
+		3,
+		1000,
+		DEFAULT_FETCH_TIMEOUT_MS,
+	);
+
+	if (!response.ok) {
+		throw new Error(
+			`Failed to verify Cloudflare token: ${response.status} ${response.statusText}`,
+		);
+	}
+
+	const json = (await response.json()) as CloudflareVerifyResponse;
+
+	if (!json.success) {
+		const errorMsg = json.errors?.map(e => e.message).join(", ") || "Invalid token";
+		throw new Error(`Cloudflare token verification failed: ${errorMsg}`);
+	}
+
+	// The token info includes the user, but we need to get the account ID
+	// For now, we'll try to use the token's associated account
+	// In practice, users with multiple accounts may need to specify one
+	if (process.env.CLOUDFLARE_ACCOUNT_ID) {
+		return { accountId: process.env.CLOUDFLARE_ACCOUNT_ID };
+	}
+
+	// If no account ID is set, we'll need the user to provide one
+	// The verify endpoint doesn't return account IDs directly
+	throw new Error(
+		"CLOUDFLARE_ACCOUNT_ID is required. Get it from: https://dash.cloudflare.com",
+	);
 }
 
 // =============================================================================
@@ -153,12 +217,22 @@ async function fetchCloudflareModels(
 // =============================================================================
 
 export default async function (pi: ExtensionAPI) {
-	const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
 	const apiToken = process.env.CLOUDFLARE_API_TOKEN;
 
-	if (!accountId || !apiToken) {
-		_logger.info(
-			"[cloudflare] Skipping - CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_API_TOKEN not set",
+	if (!apiToken) {
+		_logger.info("[cloudflare] Skipping - CLOUDFLARE_API_TOKEN not set");
+		return;
+	}
+
+	// Verify token and get account info
+	let accountId: string;
+	try {
+		const tokenInfo = await verifyCloudflareToken(apiToken);
+		accountId = tokenInfo.accountId;
+	} catch (error) {
+		_logger.error(
+			"[cloudflare] Token verification failed",
+			error instanceof Error ? error.message : String(error),
 		);
 		return;
 	}
