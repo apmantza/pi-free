@@ -161,6 +161,9 @@ function setupBuiltInProviderToggles(pi: ExtensionAPI, _state: FilterState) {
 			// Filter to only free models by re-registering with filtered list
 			const freeModels = openrouterModels.filter(isFreeModel);
 			pi.registerProvider("openrouter", {
+				baseUrl: "https://openrouter.ai/api/v1",
+				apiKey: "OPENROUTER_API_KEY",
+				api: "openai-completions",
 				models: freeModels,
 			});
 			_logger.info(
@@ -200,6 +203,9 @@ function setupBuiltInProviderToggles(pi: ExtensionAPI, _state: FilterState) {
 				// Filter to only free models
 				const freeModels = openrouterModels.filter(isFreeModel);
 				pi.registerProvider("openrouter", {
+					baseUrl: "https://openrouter.ai/api/v1",
+					apiKey: "OPENROUTER_API_KEY",
+					api: "openai-completions",
 					models: freeModels,
 				});
 				ctx.ui.notify(
