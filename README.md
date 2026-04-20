@@ -38,7 +38,7 @@ Start Pi and press `Ctrl+L` to open the model picker.
 
 Free models are shown by default — look for the provider prefixes:
 
-**✅ Actually Free (no usage limits, no payment required):**
+**✅ Offers Free Models (no usage limits, no payment required):**
 - `zen/` — OpenCode Zen models (no setup required)
 - `kilo/` — Kilo models (free models available immediately, more after `/login kilo`)
 - `openrouter/` — OpenRouter models (free account required)
@@ -64,17 +64,17 @@ Free models are shown by default — look for the provider prefixes:
 Want to see paid models too? Run the toggle command for your provider:
 
 ```
-/zen-toggle         # Toggle Zen (✅ actually free)
-/kilo-toggle        # Toggle Kilo (✅ actually free)
-/openrouter-toggle  # Toggle OpenRouter (✅ actually free)
-/cline-toggle      # Toggle Cline (✅ actually free)
+/zen-toggle         # Toggle Zen (✅ offers free models)
+/kilo-toggle        # Toggle Kilo (✅ offers free models)
+/openrouter-toggle  # Toggle OpenRouter (✅ offers free models)
+/cline-toggle      # Toggle Cline (✅ offers free models)
 /mistral-toggle     # Toggle Mistral (🔧 dynamic - needs API key)
 /groq-toggle        # Toggle Groq (🔧 dynamic - needs API key)
 /cerebras-toggle   # Toggle Cerebras (🔧 dynamic - needs API key)
 ```
 
 **Notes:**
-- **Toggle commands are mainly for ✅ Actually Free providers** — to switch between "free models only" vs "show paid models too"
+- **Toggle commands are mainly for ✅ Offers Free Models providers** — to switch between "free models only" vs "show paid models too"
 - **🔄 Freemium providers** (NVIDIA, Cloudflare, Ollama, Modal) show all models by default — you manage your usage limits via their dashboards
 - **💳 Paid-only providers** (Go, Fireworks) have no toggle since all models require payment
 
@@ -362,13 +362,13 @@ Each provider has toggle commands to switch between free and all models:
 | `/zen-toggle` | Toggle between free/all Zen models |
 | `/kilo-toggle` | Toggle between free/all Kilo models |
 | `/openrouter-toggle` | Toggle between free/all OpenRouter models |
-| `/cline-toggle` | Toggle between free/all Cline models (✅ actually free) |
+| `/cline-toggle` | Toggle between free/all Cline models (✅ offers free models) |
 | `/mistral-toggle` | Toggle between free/all Mistral models (🔧 dynamic) |
 | `/groq-toggle` | Toggle between free/all Groq models (🔧 dynamic) |
 | `/cerebras-toggle` | Toggle between free/all Cerebras models (🔧 dynamic) |
 
 **The toggle command:**
-- **For ✅ Actually Free providers**: Switches between showing only free models vs. all available models (including paid)
+- **For ✅ Offers Free Models providers**: Switches between showing only free models vs. all available models (including paid)
 - **For 🔧 Dynamic API providers**: Filters the model list when you have an API key configured
 - **Persists your preference** to `~/.pi/free.json` for next startup
 - Shows a notification: "zen: showing free models" or "zen: showing all models (including paid)"

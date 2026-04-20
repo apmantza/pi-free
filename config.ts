@@ -37,6 +37,8 @@ const _logger = createLogger("config");
 interface PiFreeConfig {
 	// API Keys
 	nvidia_api_key?: string;
+	cloudflare_api_token?: string;
+	ollama_api_key?: string;
 	fireworks_api_key?: string;
 	modal_api_key?: string;
 	opencode_api_key?: string; // Used by some providers
@@ -62,6 +64,8 @@ interface PiFreeConfig {
 
 const CONFIG_TEMPLATE: PiFreeConfig = {
 	nvidia_api_key: "",
+	cloudflare_api_token: "",
+	ollama_api_key: "",
 	fireworks_api_key: "",
 	modal_api_key: "",
 	opencode_api_key: "",
