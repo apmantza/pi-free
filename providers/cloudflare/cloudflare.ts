@@ -166,85 +166,71 @@ async function getCloudflareAccount(
 
 // =============================================================================
 // Fallback model list (when API fails)
+// Source: https://free-llm.com/provider/cloudflare-workers-ai
 // =============================================================================
 
 /**
- * Fallback models that work with Cloudflare Workers AI free tier.
- * These are Cloudflare-hosted models (prefix @cf/) that don't require
- * external provider setup. External models (Claude, OpenAI, etc.) need
- * separate API keys and aren't included in the 10K neurons/day free tier.
+ * Verified free models from Cloudflare Workers AI.
+ * All models use the 10K neurons/day free allocation.
  */
 const FALLBACK_CLOUDFLARE_MODELS: ProviderModelConfig[] = [
+	// Meta Llama Models (128K context)
 	{
 		id: "@cf/meta/llama-3.1-8b-instruct",
 		name: "Llama 3.1 8B Instruct",
 		reasoning: false,
 		input: ["text"],
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 8192,
+		contextWindow: 128000,
 		maxTokens: 4096,
 	},
 	{
-		id: "@cf/meta/llama-3.3-8b-instruct",
-		name: "Llama 3.3 8B Instruct",
+		id: "@cf/meta/llama-3.2-3b-instruct",
+		name: "Llama 3.2 3B Instruct",
 		reasoning: false,
 		input: ["text"],
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 8192,
+		contextWindow: 128000,
 		maxTokens: 4096,
 	},
+	// Mistral via Hugging Face (32K context, multilingual)
 	{
-		id: "@cf/mistral/mistral-7b-instruct-v0.2",
-		name: "Mistral 7B Instruct",
+		id: "@hf/mistral/mistral-7b-instruct-v0.2",
+		name: "Mistral 7B Instruct v0.2",
 		reasoning: false,
 		input: ["text"],
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 8192,
+		contextWindow: 32000,
 		maxTokens: 4096,
 	},
+	// Alibaba Qwen (32K context, Chinese)
 	{
-		id: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
-		name: "DeepSeek R1 Distill Qwen 32B",
+		id: "@cf/qwen/qwen1.5-7b-chat-awq",
+		name: "Qwen 1.5 7B Chat (AWQ)",
+		reasoning: false,
+		input: ["text"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 32000,
+		maxTokens: 4096,
+	},
+	// DeepSeek Coder via Hugging Face (16K context, code-focused)
+	{
+		id: "@hf/thebloke/deepseek-coder-6.7b-instruct-awq",
+		name: "DeepSeek Coder 6.7B Instruct (AWQ)",
 		reasoning: true,
 		input: ["text"],
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 16384,
+		contextWindow: 16000,
 		maxTokens: 4096,
 	},
+	// Microsoft Phi-2 (2K context, reasoning)
 	{
-		id: "@cf/nousresearch/hermes-2-pro-mistral-7b",
-		name: "Hermes 2 Pro Mistral 7B",
-		reasoning: false,
+		id: "@cf/microsoft/phi-2",
+		name: "Microsoft Phi-2",
+		reasoning: true,
 		input: ["text"],
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 8192,
-		maxTokens: 4096,
-	},
-	{
-		id: "@cf/meta/llama-3.1-70b-instruct",
-		name: "Llama 3.1 70B Instruct",
-		reasoning: false,
-		input: ["text"],
-		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 8192,
-		maxTokens: 4096,
-	},
-	{
-		id: "@cf/meta/llama-guard-3-8b",
-		name: "Llama Guard 3 8B",
-		reasoning: false,
-		input: ["text"],
-		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 8192,
-		maxTokens: 4096,
-	},
-	{
-		id: "@cf/baai/bge-base-en-v1.5",
-		name: "BGE Base EN v1.5 (Embeddings)",
-		reasoning: false,
-		input: ["text"],
-		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 4096,
+		contextWindow: 2048,
 		maxTokens: 1024,
 	},
 ];
