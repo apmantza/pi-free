@@ -165,7 +165,113 @@ async function getCloudflareAccount(
 }
 
 // =============================================================================
-// Fetch + map
+// Fallback model list (when API fails)
+// =============================================================================
+
+const FALLBACK_CLOUDFLARE_MODELS: ProviderModelConfig[] = [
+	{
+		id: "@cf/meta/llama-3.1-8b-instruct",
+		name: "Llama 3.1 8B Instruct",
+		reasoning: false,
+		input: ["text"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 8192,
+		maxTokens: 4096,
+	},
+	{
+		id: "@cf/moonshotai/kimi-k2.6",
+		name: "Kimi K2.6",
+		reasoning: true,
+		input: ["text", "image"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 200000,
+		maxTokens: 64000,
+	},
+	{
+		id: "anthropic/claude-opus-4.7",
+		name: "Claude Opus 4.7",
+		reasoning: true,
+		input: ["text"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 200000,
+		maxTokens: 4096,
+	},
+	{
+		id: "alibaba/qwen3.5-397b-a17b",
+		name: "Qwen 3.5 397B",
+		reasoning: true,
+		input: ["text"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 128000,
+		maxTokens: 8192,
+	},
+	{
+		id: "alibaba/qwen3-max",
+		name: "Qwen 3 Max",
+		reasoning: true,
+		input: ["text"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 128000,
+		maxTokens: 8192,
+	},
+	{
+		id: "minimax/m2.7",
+		name: "MiniMax M2.7",
+		reasoning: false,
+		input: ["text"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 8192,
+		maxTokens: 4096,
+	},
+	{
+		id: "google/gemini-3-flash",
+		name: "Gemini 3 Flash",
+		reasoning: false,
+		input: ["text", "image"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 1000000,
+		maxTokens: 8192,
+	},
+	{
+		id: "google/gemini-3.1-flash-lite",
+		name: "Gemini 3.1 Flash Lite",
+		reasoning: false,
+		input: ["text", "image"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 1000000,
+		maxTokens: 8192,
+	},
+	{
+		id: "google/gemini-3.1-pro",
+		name: "Gemini 3.1 Pro",
+		reasoning: true,
+		input: ["text", "image"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 2000000,
+		maxTokens: 8192,
+	},
+	{
+		id: "openai/o4-mini",
+		name: "OpenAI o4-mini",
+		reasoning: true,
+		input: ["text", "image"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 128000,
+		maxTokens: 4096,
+	},
+	{
+		id: "moonshotai/kimi-k2.5",
+		name: "Kimi K2.5",
+		reasoning: true,
+		input: ["text"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 200000,
+		maxTokens: 64000,
+	},
+];
+
+// =============================================================================
+// Fetch + map (with fallback)
 // =============================================================================
 
 async function fetchCloudflareModels(
@@ -174,68 +280,73 @@ async function fetchCloudflareModels(
 ): Promise<ProviderModelConfig[]> {
 	const url = `${BASE_URL_CLOUDFLARE}/accounts/${accountId}/ai/models`;
 
-	const response = await fetchWithRetry(
-		url,
-		{
-			headers: {
-				Authorization: `Bearer ${apiToken}`,
-				"Content-Type": "application/json",
-			},
-		},
-		3,
-		1000,
-		DEFAULT_FETCH_TIMEOUT_MS,
-	);
-
-	if (!response.ok) {
-		throw new Error(
-			`Failed to fetch Cloudflare models: ${response.status} ${response.statusText}`,
-		);
-	}
-
-	const json = (await response.json()) as CloudflareModelsResponse;
-
-	if (!json.success || !json.result) {
-		const errorMsg =
-			json.errors?.map((e) => e.message).join(", ") || "Unknown error";
-		throw new Error(`Cloudflare API error: ${errorMsg}`);
-	}
-
-	// Filter to text-generation models only (chat models)
-	const chatModels = json.result.filter(
-		(m) => m.capabilities?.text_generation === true,
-	);
-
-	_logger.info(
-		`[cloudflare] Fetched ${chatModels.length} text generation models`,
-	);
-
-	const result = applyHidden(
-		chatModels.map(
-			(m): ProviderModelConfig => ({
-				id: m.id,
-				name: m.name,
-				// Cloudflare models don't explicitly declare reasoning
-				reasoning: m.id.includes("qwq") || m.id.includes("deepseek-r1"),
-				input: m.input_modalities?.includes("image")
-					? ["text", "image"]
-					: ["text"],
-				// Cloudflare uses "Neurons" not per-token pricing
-				// All models consume the same 10K Neurons/day free pool
-				// Mark as "free" for display purposes (freemium model)
-				cost: {
-					input: 0, // Freemium: 10K Neurons/day free
-					output: 0,
-					cacheRead: 0,
-					cacheWrite: 0,
+	try {
+		const response = await fetchWithRetry(
+			url,
+			{
+				headers: {
+					Authorization: `Bearer ${apiToken}`,
+					"Content-Type": "application/json",
 				},
-				contextWindow: m.property?.context_window ?? 8192,
-				maxTokens: m.property?.max_output_tokens ?? 4096,
-			}),
-		),
-	);
+			},
+			3,
+			1000,
+			DEFAULT_FETCH_TIMEOUT_MS,
+		);
 
-	return result;
+		if (!response.ok) {
+			throw new Error(
+				`Failed to fetch Cloudflare models: ${response.status} ${response.statusText}`,
+			);
+		}
+
+		const json = (await response.json()) as CloudflareModelsResponse;
+
+		if (!json.success || !json.result) {
+			// API call succeeded but returned error - use fallback
+			_logger.warn(
+				`[cloudflare] Models API returned error, using fallback list: ${json.errors?.[0]?.message || "Unknown"}`,
+			);
+			return applyHidden(FALLBACK_CLOUDFLARE_MODELS);
+		}
+
+		// Filter to text-generation models only (chat models)
+		const chatModels = json.result.filter(
+			(m) => m.capabilities?.text_generation === true,
+		);
+
+		_logger.info(
+			`[cloudflare] Fetched ${chatModels.length} text generation models`,
+		);
+
+		const result = applyHidden(
+			chatModels.map(
+				(m): ProviderModelConfig => ({
+					id: m.id,
+					name: m.name,
+					reasoning: m.id.includes("qwq") || m.id.includes("deepseek-r1"),
+					input: m.input_modalities?.includes("image")
+						? ["text", "image"]
+						: ["text"],
+					cost: {
+						input: 0,
+						output: 0,
+						cacheRead: 0,
+						cacheWrite: 0,
+					},
+					contextWindow: m.property?.context_window ?? 8192,
+					maxTokens: m.property?.max_output_tokens ?? 4096,
+				}),
+			),
+		);
+
+		return result;
+	} catch (error) {
+		_logger.warn(
+			`[cloudflare] Failed to fetch models from API, using fallback list: ${error instanceof Error ? error.message : String(error)}`,
+		);
+		return applyHidden(FALLBACK_CLOUDFLARE_MODELS);
+	}
 }
 
 // =============================================================================
