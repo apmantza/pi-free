@@ -168,6 +168,12 @@ async function getCloudflareAccount(
 // Fallback model list (when API fails)
 // =============================================================================
 
+/**
+ * Fallback models that work with Cloudflare Workers AI free tier.
+ * These are Cloudflare-hosted models (prefix @cf/) that don't require
+ * external provider setup. External models (Claude, OpenAI, etc.) need
+ * separate API keys and aren't included in the 10K neurons/day free tier.
+ */
 const FALLBACK_CLOUDFLARE_MODELS: ProviderModelConfig[] = [
 	{
 		id: "@cf/meta/llama-3.1-8b-instruct",
@@ -179,44 +185,8 @@ const FALLBACK_CLOUDFLARE_MODELS: ProviderModelConfig[] = [
 		maxTokens: 4096,
 	},
 	{
-		id: "@cf/moonshotai/kimi-k2.6",
-		name: "Kimi K2.6",
-		reasoning: true,
-		input: ["text", "image"],
-		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 200000,
-		maxTokens: 64000,
-	},
-	{
-		id: "anthropic/claude-opus-4.7",
-		name: "Claude Opus 4.7",
-		reasoning: true,
-		input: ["text"],
-		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 200000,
-		maxTokens: 4096,
-	},
-	{
-		id: "alibaba/qwen3.5-397b-a17b",
-		name: "Qwen 3.5 397B",
-		reasoning: true,
-		input: ["text"],
-		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 128000,
-		maxTokens: 8192,
-	},
-	{
-		id: "alibaba/qwen3-max",
-		name: "Qwen 3 Max",
-		reasoning: true,
-		input: ["text"],
-		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 128000,
-		maxTokens: 8192,
-	},
-	{
-		id: "minimax/m2.7",
-		name: "MiniMax M2.7",
+		id: "@cf/meta/llama-3.3-8b-instruct",
+		name: "Llama 3.3 8B Instruct",
 		reasoning: false,
 		input: ["text"],
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
@@ -224,49 +194,58 @@ const FALLBACK_CLOUDFLARE_MODELS: ProviderModelConfig[] = [
 		maxTokens: 4096,
 	},
 	{
-		id: "google/gemini-3-flash",
-		name: "Gemini 3 Flash",
+		id: "@cf/mistral/mistral-7b-instruct-v0.2",
+		name: "Mistral 7B Instruct",
 		reasoning: false,
-		input: ["text", "image"],
+		input: ["text"],
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 1000000,
-		maxTokens: 8192,
-	},
-	{
-		id: "google/gemini-3.1-flash-lite",
-		name: "Gemini 3.1 Flash Lite",
-		reasoning: false,
-		input: ["text", "image"],
-		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 1000000,
-		maxTokens: 8192,
-	},
-	{
-		id: "google/gemini-3.1-pro",
-		name: "Gemini 3.1 Pro",
-		reasoning: true,
-		input: ["text", "image"],
-		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 2000000,
-		maxTokens: 8192,
-	},
-	{
-		id: "openai/o4-mini",
-		name: "OpenAI o4-mini",
-		reasoning: true,
-		input: ["text", "image"],
-		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 128000,
+		contextWindow: 8192,
 		maxTokens: 4096,
 	},
 	{
-		id: "moonshotai/kimi-k2.5",
-		name: "Kimi K2.5",
+		id: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
+		name: "DeepSeek R1 Distill Qwen 32B",
 		reasoning: true,
 		input: ["text"],
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 200000,
-		maxTokens: 64000,
+		contextWindow: 16384,
+		maxTokens: 4096,
+	},
+	{
+		id: "@cf/nousresearch/hermes-2-pro-mistral-7b",
+		name: "Hermes 2 Pro Mistral 7B",
+		reasoning: false,
+		input: ["text"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 8192,
+		maxTokens: 4096,
+	},
+	{
+		id: "@cf/meta/llama-3.1-70b-instruct",
+		name: "Llama 3.1 70B Instruct",
+		reasoning: false,
+		input: ["text"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 8192,
+		maxTokens: 4096,
+	},
+	{
+		id: "@cf/meta/llama-guard-3-8b",
+		name: "Llama Guard 3 8B",
+		reasoning: false,
+		input: ["text"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 8192,
+		maxTokens: 4096,
+	},
+	{
+		id: "@cf/baai/bge-base-en-v1.5",
+		name: "BGE Base EN v1.5 (Embeddings)",
+		reasoning: false,
+		input: ["text"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 4096,
+		maxTokens: 1024,
 	},
 ];
 
