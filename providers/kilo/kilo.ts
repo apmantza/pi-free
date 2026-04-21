@@ -19,14 +19,14 @@ import type {
 } from "@mariozechner/pi-coding-agent";
 import { KILO_FREE_ONLY, KILO_SHOW_PAID, PROVIDER_KILO } from "../../config.ts";
 import { URL_KILO_TOS } from "../../constants.ts";
-import { registerWithGlobalToggle, isFreeModel } from "../../index.ts";
+import { isFreeModel, registerWithGlobalToggle } from "../../index.ts";
+import { cleanModelName, logWarning } from "../../lib/util.ts";
 import {
+	createCtxReRegister,
+	createReRegister,
 	enhanceWithCI,
 	type StoredModels,
-	createReRegister,
-	createCtxReRegister,
 } from "../../provider-helper.ts";
-import { cleanModelName, logWarning } from "../../lib/util.ts";
 import { loginKilo, refreshKiloToken } from "./kilo-auth.ts";
 import { fetchKiloModels, KILO_GATEWAY_BASE } from "./kilo-models.ts";
 
@@ -44,7 +44,7 @@ export default async function (pi: ExtensionAPI) {
 	// If no API key, this will return free models only
 	let allModels: ProviderModelConfig[] = [];
 	let freeModels: ProviderModelConfig[] = [];
-	
+
 	try {
 		// Fetch all models (returns free-only if no auth, all if auth available)
 		allModels = await fetchKiloModels({ freeOnly: false });
@@ -62,7 +62,8 @@ export default async function (pi: ExtensionAPI) {
 
 	// State tracking
 	let showPaidModels = KILO_SHOW_PAID;
-	let currentModels = KILO_SHOW_PAID && !KILO_FREE_ONLY ? allModels : freeModels;
+	let currentModels =
+		KILO_SHOW_PAID && !KILO_FREE_ONLY ? allModels : freeModels;
 
 	// Shared model storage for global toggle
 	const stored: StoredModels = { free: freeModels, all: allModels };
@@ -87,18 +88,21 @@ export default async function (pi: ExtensionAPI) {
 			const cred = await loginKilo(callbacks);
 			try {
 				// Fetch all models with the new token
-				const newModels = await fetchKiloModels({ token: cred.access, freeOnly: false });
+				const newModels = await fetchKiloModels({
+					token: cred.access,
+					freeOnly: false,
+				});
 				allModels = newModels;
 				stored.all = allModels;
 				freeModels = allModels.filter(isFreeModel);
 				stored.free = freeModels;
-				
+
 				// Update global toggle registration with new lists
 				const globalReRegister = createReRegister(pi, {
 					...KILO_PROVIDER_CONFIG,
 				});
 				registerWithGlobalToggle(PROVIDER_KILO, stored, globalReRegister, true);
-				
+
 				// If paid mode is enabled, show all models
 				if (showPaidModels && !KILO_FREE_ONLY) {
 					currentModels = allModels;
@@ -145,29 +149,34 @@ export default async function (pi: ExtensionAPI) {
 		oauth: oauthConfig,
 	});
 
-	console.log(`[kilo] Registered ${currentModels.length} models (${freeModels.length} free, ${allModels.length - freeModels.length} paid)`);
+	// Registration complete - models registered silently (use LOG_LEVEL=info to see details)
 
 	// Per-provider toggle command (works independently of global /free)
 	pi.registerCommand("kilo-toggle", {
 		description: "Toggle between free and all Kilo models",
 		handler: async (_args, ctx) => {
 			showPaidModels = !showPaidModels;
-			
+
 			// Determine which models to show
-			const modelsToShow = showPaidModels && allModels.length > 0
-				? allModels
-				: freeModels;
-			
+			const modelsToShow =
+				showPaidModels && allModels.length > 0 ? allModels : freeModels;
+
 			currentModels = modelsToShow;
 			reRegister(modelsToShow);
-			
+
 			const freeCount = freeModels.length;
 			const paidCount = allModels.length - freeCount;
-			
+
 			if (showPaidModels && allModels.length > 0) {
-				ctx.ui.notify(`kilo: showing all ${allModels.length} models (${freeCount} free, ${paidCount} paid)`, "info");
+				ctx.ui.notify(
+					`kilo: showing all ${allModels.length} models (${freeCount} free, ${paidCount} paid)`,
+					"info",
+				);
 			} else {
-				ctx.ui.notify(`kilo: showing ${freeCount} free models (${paidCount} paid hidden)`, "info");
+				ctx.ui.notify(
+					`kilo: showing ${freeCount} free models (${paidCount} paid hidden)`,
+					"info",
+				);
 			}
 		},
 	});
@@ -194,18 +203,21 @@ export default async function (pi: ExtensionAPI) {
 
 		if (cred?.type === "oauth") {
 			try {
-				const newModels = await fetchKiloModels({ token: cred.access, freeOnly: false });
+				const newModels = await fetchKiloModels({
+					token: cred.access,
+					freeOnly: false,
+				});
 				allModels = newModels;
 				stored.all = allModels;
 				freeModels = allModels.filter(isFreeModel);
 				stored.free = freeModels;
-				
+
 				// Update global toggle registration
 				const ctxReRegister = createCtxReRegister(ctx as any, {
 					...KILO_PROVIDER_CONFIG,
 				});
 				registerWithGlobalToggle(PROVIDER_KILO, stored, ctxReRegister, true);
-				
+
 				// Apply current view mode
 				if (showPaidModels && !KILO_FREE_ONLY) {
 					ctxReRegister(allModels);

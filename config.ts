@@ -38,6 +38,7 @@ interface PiFreeConfig {
 	// API Keys
 	nvidia_api_key?: string;
 	cloudflare_api_token?: string;
+	cloudflare_account_id?: string;
 	ollama_api_key?: string;
 	fireworks_api_key?: string;
 	modal_api_key?: string;
@@ -65,6 +66,7 @@ interface PiFreeConfig {
 const CONFIG_TEMPLATE: PiFreeConfig = {
 	nvidia_api_key: "",
 	cloudflare_api_token: "",
+	cloudflare_account_id: "",
 	ollama_api_key: "",
 	fireworks_api_key: "",
 	modal_api_key: "",
@@ -218,6 +220,10 @@ export const OLLAMA_API_KEY = resolve("OLLAMA_API_KEY", file.ollama_api_key);
 export const CLOUDFLARE_API_TOKEN = resolve(
 	"CLOUDFLARE_API_TOKEN",
 	file.cloudflare_api_token,
+);
+export const CLOUDFLARE_ACCOUNT_ID = resolve(
+	"CLOUDFLARE_ACCOUNT_ID",
+	file.cloudflare_account_id,
 );
 export const OPENCODE_API_KEY = resolve(
 	"OPENCODE_API_KEY",

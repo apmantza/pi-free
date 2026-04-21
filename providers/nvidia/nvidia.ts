@@ -13,7 +13,10 @@
  * Responds to global /free toggle for free/paid model filtering.
  */
 
-import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ProviderModelConfig,
+} from "@mariozechner/pi-coding-agent";
 import {
 	applyHidden,
 	NVIDIA_SHOW_PAID,
@@ -28,11 +31,7 @@ import {
 import { registerWithGlobalToggle } from "../../index.ts";
 import type { ModelsDevProvider } from "../../lib/types.ts";
 import { fetchWithRetry, isUsableModel } from "../../lib/util.ts";
-import {
-	createReRegister,
-	enhanceWithCI,
-} from "../../provider-helper.ts";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { createReRegister, enhanceWithCI } from "../../provider-helper.ts";
 
 // =============================================================================
 // Fetch + map
@@ -147,5 +146,5 @@ export default async function (pi: ExtensionAPI) {
 		models: enhanceWithCI(initialModels),
 	});
 
-	console.log(`[nvidia] Registered ${initialModels.length} models`);
+	// Registration complete - models registered silently (use LOG_LEVEL=info to see details)
 }

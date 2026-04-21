@@ -11,15 +11,16 @@
  *   - Create token with "Cloudflare AI" > "Read" permission
  *   - Or use "My Account" > "Read" for all accounts
  *
- * The account ID is derived from the token automatically.
- * Alternatively, set CLOUDFLARE_ACCOUNT_ID explicitly.
+ * The account ID is fetched automatically from the /accounts API using your token.
+ * Optionally set CLOUDFLARE_ACCOUNT_ID (env var or free.json) to skip auto-detection
+ * or to specify a particular account if you have multiple.
  *
  * API Reference:
- *   Verify token: GET /user/tokens/verify
- *   List models:  GET /accounts/{account_id}/ai/models
- *   Run model:    POST /accounts/{account_id}/ai/run/{model_name}
- *   curl example:
- *     curl https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/ai/run/$MODEL_NAME \
+ *   List accounts: GET /client/v4/accounts
+ *   List models:   GET /client/v4/accounts/{account_id}/ai/models
+ *   Run model:     POST /client/v4/accounts/{account_id}/ai/run/{model_name}
+ *   curl example (account ID auto-detected by the provider):
+ *     curl https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/ai/run/$MODEL_NAME \
  *       -X POST \
  *       -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
  *
@@ -28,7 +29,7 @@
  * Usage:
  *   pi install git:github.com/apmantza/pi-free
  *   # Set CLOUDFLARE_API_TOKEN env var
- *   # Models appear in /model selector
+ *   # Models appear in /model selector (account auto-detected)
  *   # Use /cloudflare-toggle to show all vs limited set
  */
 
@@ -38,6 +39,7 @@ import type {
 } from "@mariozechner/pi-coding-agent";
 import {
 	applyHidden,
+	CLOUDFLARE_ACCOUNT_ID,
 	CLOUDFLARE_API_TOKEN,
 	CLOUDFLARE_SHOW_PAID,
 } from "../../config.ts";
@@ -56,17 +58,6 @@ const _logger = createLogger("cloudflare");
 // =============================================================================
 // Types
 // =============================================================================
-
-interface CloudflareVerifyResponse {
-	result?: {
-		id: string;
-		status: string;
-		not_before?: string;
-		expires_on?: string;
-	};
-	success: boolean;
-	errors?: Array<{ code: number; message: string }>;
-}
 
 interface CloudflareModel {
 	id: string;
@@ -98,11 +89,28 @@ interface CloudflareModelsResponse {
 // Verify token and get account info
 // =============================================================================
 
-async function verifyCloudflareToken(
+interface CloudflareAccount {
+	id: string;
+	name: string;
+}
+
+interface CloudflareAccountsResponse {
+	result?: CloudflareAccount[];
+	success: boolean;
+	errors?: Array<{ code: number; message: string }>;
+}
+
+async function getCloudflareAccount(
 	apiToken: string,
 ): Promise<{ accountId: string }> {
+	// Check for explicit account ID first (env var or free.json)
+	if (CLOUDFLARE_ACCOUNT_ID) {
+		return { accountId: CLOUDFLARE_ACCOUNT_ID };
+	}
+
+	// Fetch accounts accessible by this token
 	const response = await fetchWithRetry(
-		`${BASE_URL_CLOUDFLARE}/user/tokens/verify`,
+		`${BASE_URL_CLOUDFLARE}/accounts`,
 		{
 			headers: {
 				Authorization: `Bearer ${apiToken}`,
@@ -116,30 +124,30 @@ async function verifyCloudflareToken(
 
 	if (!response.ok) {
 		throw new Error(
-			`Failed to verify Cloudflare token: ${response.status} ${response.statusText}`,
+			`Failed to fetch Cloudflare accounts: ${response.status} ${response.statusText}`,
 		);
 	}
 
-	const json = (await response.json()) as CloudflareVerifyResponse;
+	const json = (await response.json()) as CloudflareAccountsResponse;
 
 	if (!json.success) {
 		const errorMsg =
-			json.errors?.map((e) => e.message).join(", ") || "Invalid token";
-		throw new Error(`Cloudflare token verification failed: ${errorMsg}`);
+			json.errors?.map((e) => e.message).join(", ") || "Unknown error";
+		throw new Error(`Cloudflare API error: ${errorMsg}`);
 	}
 
-	// The token info includes the user, but we need to get the account ID
-	// For now, we'll try to use the token's associated account
-	// In practice, users with multiple accounts may need to specify one
-	if (process.env.CLOUDFLARE_ACCOUNT_ID) {
-		return { accountId: process.env.CLOUDFLARE_ACCOUNT_ID };
+	if (!json.result || json.result.length === 0) {
+		throw new Error(
+			"No Cloudflare accounts found. Create an account at https://dash.cloudflare.com",
+		);
 	}
 
-	// If no account ID is set, we'll need the user to provide one
-	// The verify endpoint doesn't return account IDs directly
-	throw new Error(
-		"CLOUDFLARE_ACCOUNT_ID is required. Get it from: https://dash.cloudflare.com",
-	);
+	// Use first account (tokens typically have access to one account)
+	// Users with multiple accounts can set CLOUDFLARE_ACCOUNT_ID explicitly
+	const account = json.result[0];
+	_logger.debug(`Using Cloudflare account: ${account.name} (${account.id})`);
+
+	return { accountId: account.id };
 }
 
 // =============================================================================
@@ -233,13 +241,13 @@ export default async function (pi: ExtensionAPI) {
 	// Inject into process.env so Pi's apiKey lookup finds it
 	process.env.CLOUDFLARE_API_TOKEN = apiToken;
 
-	// Verify token and get account info
+	// Get account info from token
 	let accountId: string;
 	try {
-		const tokenInfo = await verifyCloudflareToken(apiToken);
-		accountId = tokenInfo.accountId;
+		const accountInfo = await getCloudflareAccount(apiToken);
+		accountId = accountInfo.accountId;
 	} catch (error) {
-		_logger.error("[cloudflare] Token verification failed", {
+		_logger.error("[cloudflare] Failed to get account", {
 			error: error instanceof Error ? error.message : String(error),
 		});
 		return;
