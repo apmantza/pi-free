@@ -6,20 +6,22 @@
  *   - 10,000 Neurons per day FREE (resets daily at 00:00 UTC)
  *   - $0.011 per 1,000 Neurons beyond free allocation
  *
- * Requires CLOUDFLARE_API_TOKEN with Workers AI permission.
- * Get a free token at: https://dash.cloudflare.com/profile/api-tokens
- *   - Create token with "Cloudflare AI" > "Read" permission
- *   - Or use "My Account" > "Read" for all accounts
+ * Requires:
+ *   1. CLOUDFLARE_API_TOKEN with Workers AI permission
+ *      Get at: https://dash.cloudflare.com/profile/api-tokens
+ *      Create token with "Cloudflare AI" > "Read" permission
+ *   2. CLOUDFLARE_ACCOUNT_ID (RECOMMENDED - see below)
  *
- * The account ID is fetched automatically from the /accounts API using your token.
- * Optionally set CLOUDFLARE_ACCOUNT_ID (env var or free.json) to skip auto-detection
- * or to specify a particular account if you have multiple.
+ * IMPORTANT: Set CLOUDFLARE_ACCOUNT_ID to avoid permission issues
+ *   - Your API token needs "Account:Read" permission to auto-fetch accounts
+ *   - Most AI-only tokens lack this permission, causing "No accounts found" errors
+ *   - Set via: CLOUDFLARE_ACCOUNT_ID env var OR cloudflare_account_id in ~/.pi/free.json
+ *   - Find your Account ID at: https://dash.cloudflare.com (right sidebar)
  *
  * API Reference:
- *   List accounts: GET /client/v4/accounts
  *   List models:   GET /client/v4/accounts/{account_id}/ai/models
  *   Run model:     POST /client/v4/accounts/{account_id}/ai/run/{model_name}
- *   curl example (account ID auto-detected by the provider):
+ *   curl example:
  *     curl https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/ai/run/$MODEL_NAME \
  *       -X POST \
  *       -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
@@ -28,8 +30,8 @@
  *
  * Usage:
  *   pi install git:github.com/apmantza/pi-free
- *   # Set CLOUDFLARE_API_TOKEN env var
- *   # Models appear in /model selector (account auto-detected)
+ *   # Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID
+ *   # Models appear in /model selector
  *   # Use /cloudflare-toggle to show all vs limited set
  */
 
@@ -102,11 +104,18 @@ interface CloudflareAccountsResponse {
 
 async function getCloudflareAccount(
 	apiToken: string,
-): Promise<{ accountId: string }> {
+): Promise<{ accountId: string; source: "config" | "auto" }> {
 	// Check for explicit account ID first (env var or free.json)
 	if (CLOUDFLARE_ACCOUNT_ID) {
-		return { accountId: CLOUDFLARE_ACCOUNT_ID };
+		_logger.debug(
+			`[cloudflare] Using account ID from config: ${CLOUDFLARE_ACCOUNT_ID}`,
+		);
+		return { accountId: CLOUDFLARE_ACCOUNT_ID, source: "config" };
 	}
+
+	_logger.debug(
+		"[cloudflare] No CLOUDFLARE_ACCOUNT_ID set, attempting auto-detection...",
+	);
 
 	// Fetch accounts accessible by this token
 	const response = await fetchWithRetry(
@@ -138,16 +147,21 @@ async function getCloudflareAccount(
 
 	if (!json.result || json.result.length === 0) {
 		throw new Error(
-			"No Cloudflare accounts found. Create an account at https://dash.cloudflare.com",
+			"No Cloudflare accounts accessible with this token. " +
+				"Your API token may lack 'Account:Read' permission, or no accounts are associated with it. " +
+				"To fix this, set CLOUDFLARE_ACCOUNT_ID env var or add 'cloudflare_account_id' to ~/.pi/free.json",
 		);
 	}
 
 	// Use first account (tokens typically have access to one account)
 	// Users with multiple accounts can set CLOUDFLARE_ACCOUNT_ID explicitly
 	const account = json.result[0];
-	_logger.debug(`Using Cloudflare account: ${account.name} (${account.id})`);
+	_logger.info(
+		`[cloudflare] Auto-detected account: ${account.name} (${account.id}). ` +
+			`Consider setting CLOUDFLARE_ACCOUNT_ID to skip auto-detection.`,
+	);
 
-	return { accountId: account.id };
+	return { accountId: account.id, source: "auto" };
 }
 
 // =============================================================================
