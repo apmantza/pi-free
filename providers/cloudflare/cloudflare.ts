@@ -58,111 +58,8 @@ import { createReRegister, enhanceWithCI } from "../../provider-helper.ts";
 const _logger = createLogger("cloudflare");
 
 // =============================================================================
-// Types
+// Verified free-tier models from https://free-llm.com/provider/cloudflare-workers-ai
 // =============================================================================
-
-interface CloudflareModel {
-	id: string;
-	name: string;
-	description?: string;
-	capabilities: {
-		text_generation?: boolean;
-		image_generation?: boolean;
-		speech_recognition?: boolean;
-		text_to_speech?: boolean;
-		translation?: boolean;
-		image_classification?: boolean;
-	};
-	input_modalities?: string[];
-	output_modalities?: string[];
-	property?: {
-		context_window?: number;
-		max_output_tokens?: number;
-	};
-}
-
-interface CloudflareModelsResponse {
-	result?: CloudflareModel[];
-	success: boolean;
-	errors?: Array<{ code: number; message: string }>;
-}
-
-// =============================================================================
-// Verify token and get account info
-// =============================================================================
-
-interface CloudflareAccount {
-	id: string;
-	name: string;
-}
-
-interface CloudflareAccountsResponse {
-	result?: CloudflareAccount[];
-	success: boolean;
-	errors?: Array<{ code: number; message: string }>;
-}
-
-async function getCloudflareAccount(
-	apiToken: string,
-): Promise<{ accountId: string; source: "config" | "auto" }> {
-	// Check for explicit account ID first (env var or free.json)
-	if (CLOUDFLARE_ACCOUNT_ID) {
-		_logger.debug(
-			`[cloudflare] Using account ID from config: ${CLOUDFLARE_ACCOUNT_ID}`,
-		);
-		return { accountId: CLOUDFLARE_ACCOUNT_ID, source: "config" };
-	}
-
-	_logger.debug(
-		"[cloudflare] No CLOUDFLARE_ACCOUNT_ID set, attempting auto-detection...",
-	);
-
-	// Fetch accounts accessible by this token
-	const response = await fetchWithRetry(
-		`${BASE_URL_CLOUDFLARE}/accounts`,
-		{
-			headers: {
-				Authorization: `Bearer ${apiToken}`,
-				"Content-Type": "application/json",
-			},
-		},
-		3,
-		1000,
-		DEFAULT_FETCH_TIMEOUT_MS,
-	);
-
-	if (!response.ok) {
-		throw new Error(
-			`Failed to fetch Cloudflare accounts: ${response.status} ${response.statusText}`,
-		);
-	}
-
-	const json = (await response.json()) as CloudflareAccountsResponse;
-
-	if (!json.success) {
-		const errorMsg =
-			json.errors?.map((e) => e.message).join(", ") || "Unknown error";
-		throw new Error(`Cloudflare API error: ${errorMsg}`);
-	}
-
-	if (!json.result || json.result.length === 0) {
-		throw new Error(
-			"No Cloudflare accounts accessible with this token. " +
-				"Your API token may lack 'Account:Read' permission, or no accounts are associated with it. " +
-				"To fix this, set CLOUDFLARE_ACCOUNT_ID env var or add 'cloudflare_account_id' to ~/.pi/free.json",
-		);
-	}
-
-	// Use first account (tokens typically have access to one account)
-	// Users with multiple accounts can set CLOUDFLARE_ACCOUNT_ID explicitly
-	const account = json.result[0];
-	_logger.info(
-		`[cloudflare] Auto-detected account: ${account.name} (${account.id}). ` +
-			`Consider setting CLOUDFLARE_ACCOUNT_ID to skip auto-detection.`,
-	);
-
-	return { accountId: account.id, source: "auto" };
-}
 
 // =============================================================================
 // Fallback model list (when API fails)
@@ -236,82 +133,18 @@ const FALLBACK_CLOUDFLARE_MODELS: ProviderModelConfig[] = [
 ];
 
 // =============================================================================
-// Fetch + map (with fallback)
+// Get models (static list - no API calls)
 // =============================================================================
 
-async function fetchCloudflareModels(
-	accountId: string,
-	apiToken: string,
-): Promise<ProviderModelConfig[]> {
-	const url = `${BASE_URL_CLOUDFLARE}/accounts/${accountId}/ai/models`;
-
-	try {
-		const response = await fetchWithRetry(
-			url,
-			{
-				headers: {
-					Authorization: `Bearer ${apiToken}`,
-					"Content-Type": "application/json",
-				},
-			},
-			3,
-			1000,
-			DEFAULT_FETCH_TIMEOUT_MS,
-		);
-
-		if (!response.ok) {
-			throw new Error(
-				`Failed to fetch Cloudflare models: ${response.status} ${response.statusText}`,
-			);
-		}
-
-		const json = (await response.json()) as CloudflareModelsResponse;
-
-		if (!json.success || !json.result) {
-			// API call succeeded but returned error - use fallback
-			_logger.warn(
-				`[cloudflare] Models API returned error, using fallback list: ${json.errors?.[0]?.message || "Unknown"}`,
-			);
-			return applyHidden(FALLBACK_CLOUDFLARE_MODELS);
-		}
-
-		// Filter to text-generation models only (chat models)
-		const chatModels = json.result.filter(
-			(m) => m.capabilities?.text_generation === true,
-		);
-
-		_logger.info(
-			`[cloudflare] Fetched ${chatModels.length} text generation models`,
-		);
-
-		const result = applyHidden(
-			chatModels.map(
-				(m): ProviderModelConfig => ({
-					id: m.id,
-					name: m.name,
-					reasoning: m.id.includes("qwq") || m.id.includes("deepseek-r1"),
-					input: m.input_modalities?.includes("image")
-						? ["text", "image"]
-						: ["text"],
-					cost: {
-						input: 0,
-						output: 0,
-						cacheRead: 0,
-						cacheWrite: 0,
-					},
-					contextWindow: m.property?.context_window ?? 8192,
-					maxTokens: m.property?.max_output_tokens ?? 4096,
-				}),
-			),
-		);
-
-		return result;
-	} catch (error) {
-		_logger.warn(
-			`[cloudflare] Failed to fetch models from API, using fallback list: ${error instanceof Error ? error.message : String(error)}`,
-		);
-		return applyHidden(FALLBACK_CLOUDFLARE_MODELS);
-	}
+/**
+ * Return the static list of verified free-tier models.
+ * No API calls needed - these are known working models from free-llm.com
+ */
+async function getCloudflareModels(): Promise<ProviderModelConfig[]> {
+	_logger.info(
+		`[cloudflare] Using ${FALLBACK_CLOUDFLARE_MODELS.length} verified free-tier models`,
+	);
+	return applyHidden(FALLBACK_CLOUDFLARE_MODELS);
 }
 
 // =============================================================================
@@ -331,29 +164,17 @@ export default async function (pi: ExtensionAPI) {
 	// Inject into process.env so Pi's apiKey lookup finds it
 	process.env.CLOUDFLARE_API_TOKEN = apiToken;
 
-	// Get account info from token
-	let accountId: string;
-	try {
-		const accountInfo = await getCloudflareAccount(apiToken);
-		accountId = accountInfo.accountId;
-	} catch (error) {
-		_logger.error("[cloudflare] Failed to get account", {
-			error: error instanceof Error ? error.message : String(error),
-		});
+	// Use configured account ID (required)
+	if (!CLOUDFLARE_ACCOUNT_ID) {
+		_logger.error(
+			"[cloudflare] CLOUDFLARE_ACCOUNT_ID not set. Add to ~/.pi/free.json or set env var.",
+		);
 		return;
 	}
+	const accountId = CLOUDFLARE_ACCOUNT_ID;
 
-	// Fetch models
-	let allModels: ProviderModelConfig[] = [];
-
-	try {
-		allModels = await fetchCloudflareModels(accountId, apiToken);
-	} catch (error) {
-		_logger.error("[cloudflare] Failed to fetch models at startup", {
-			error: error instanceof Error ? error.message : String(error),
-		});
-		return;
-	}
+	// Get models (static list - no API calls needed)
+	const allModels = await getCloudflareModels();
 
 	// For Cloudflare, all models share the same free tier
 	// So "free" and "all" are the same set
