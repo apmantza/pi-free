@@ -10,7 +10,7 @@ Free AI model providers for [Pi](https://pi.dev). Access **free models** from mu
 
 When you install pi-free, it:
 
-1. **Registers 11 AI providers** with Pi's model picker — 9 with free tiers + 2 paid-only (OpenCode Go, Fireworks)
+1. **Registers 10+ AI providers** with Pi's model picker — 9 unique free-tier providers plus dynamic providers for Pi's built-in services when API keys are configured
 
 2. **Filters to show only free models by default** — You see only the models that cost $0 to use, no API key required for some providers. Paid-only providers are hidden until you explicitly enable them.
 
@@ -57,7 +57,8 @@ Free models are shown by default — look for the provider prefixes:
 
 **💳 Paid Only (no free tier):**
 - `go/` — OpenCode Go models (requires subscription — $5 first month, then $10/month)
-- `fireworks/` — Fireworks models (credit-based pricing, no free tier)
+
+**Note:** Fireworks is now a [built-in Pi provider](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/CHANGELOG.md#0681---2026-04-22) — no extension needed. Set `FIREWORKS_API_KEY` to use it directly.
 
 ### 3. Toggle between free and paid models
 
@@ -76,13 +77,13 @@ Want to see paid models too? Run the toggle command for your provider:
 **Notes:**
 - **Toggle commands are mainly for ✅ Offers Free Models providers** — to switch between "free models only" vs "show paid models too"
 - **🔄 Freemium providers** (NVIDIA, Cloudflare, Ollama, Modal) show all models by default — you manage your usage limits via their dashboards
-- **💳 Paid-only providers** (Go, Fireworks) have no toggle since all models require payment
+- **💳 Paid-only providers** (Go) have no toggle since all models require payment
 
 You'll see a notification like: `zen: showing free models` or `zen: showing all models (including paid)`
 
 ### 4. Add API keys for more providers (optional)
 
-Some providers require a free account or API key. **Two providers (Go, Fireworks) are paid-only with no free tier.**
+Some providers require a free account or API key.
 
 **The first time you run Pi after installing this extension, a config file is automatically created:**
 - **Linux/Mac:** `~/.pi/free.json`
@@ -96,11 +97,12 @@ Add your API keys to this file:
   "nvidia_api_key": "nvapi-...",
   "cloudflare_api_token": "...",
   "ollama_api_key": "...",
-  "fireworks_api_key": "...",
   "mistral_api_key": "...",
   "modal_api_key": "sk-modal-..."
 }
 ```
+
+**Note:** Fireworks is now a [built-in Pi provider](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/CHANGELOG.md#0681---2026-04-22) — no extension needed. Set `FIREWORKS_API_KEY` to use it directly.
 
 Or set environment variables instead (same names, uppercase: `OPENROUTER_API_KEY`, `NVIDIA_API_KEY`, etc.)
 
@@ -157,7 +159,7 @@ Free tier resets every 5 hours + 7 days.
 
 ## Providers That Need Authentication
 
-Some providers require free accounts or OAuth to access their free tiers. **Two providers (Go, Fireworks) are paid-only — they have no free tier.**
+Some providers require free accounts or OAuth to access their free tiers. **Go is a paid-only provider — it has no free tier.**
 
 ---
 
@@ -329,28 +331,6 @@ Set `OPENCODE_GO_API_KEY` (or `opencode_go_api_key` in `~/.pi/free.json`) and `G
 
 Toggle with `/go-toggle`.
 
-### Fireworks (credit-based — no free tier)
-
-Fireworks provides fast inference for open-source models. **All models are credit-based with no free tier.** You must set `FIREWORKS_SHOW_PAID=true` to even see these models.
-
-Get an API key at [fireworks.ai](https://fireworks.ai), then:
-
-**Option A: Environment variable**
-```bash
-export FIREWORKS_API_KEY="..."
-export FIREWORKS_SHOW_PAID=true
-```
-
-**Option B: Config file** (`~/.pi/free.json`)
-```json
-{
-  "fireworks_api_key": "YOUR_KEY",
-  "fireworks_show_paid": true
-}
-```
-
-Toggle with `/fireworks-toggle`.
-
 ---
 
 ## Slash Commands
@@ -373,7 +353,7 @@ Each provider has toggle commands to switch between free and all models:
 - **Persists your preference** to `~/.pi/free.json` for next startup
 - Shows a notification: "zen: showing free models" or "zen: showing all models (including paid)"
 
-**Note:** 🔄 Freemium providers (NVIDIA, Cloudflare, Ollama, Modal) don't have toggle commands — they show all models and you manage usage via their dashboards. 💳 Paid-only providers (Go, Fireworks) also have no toggle since all models require payment.
+**Note:** 🔄 Freemium providers (NVIDIA, Cloudflare, Ollama Cloud, Modal) don't have toggle commands — they show all models and you manage usage via their dashboards. 💳 Paid-only providers (Go) also have no toggle since all models require payment.
 
 ---
 
@@ -385,7 +365,6 @@ Create `~/.pi/free.json` in your home directory:
 {
   "openrouter_api_key": "YOUR_OPENROUTER_KEY",
   "nvidia_api_key": "YOUR_NVIDIA_KEY",
-  "fireworks_api_key": "YOUR_FIREWORKS_KEY",
   "mistral_api_key": "YOUR_MISTRAL_KEY",
   "opencode_api_key": "YOUR_ZEN_KEY",
   "opencode_go_api_key": "YOUR_GO_KEY",

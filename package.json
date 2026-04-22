@@ -2,7 +2,7 @@
 	"name": "pi-free",
 	"version": "1.0.9",
 	"type": "module",
-	"description": "Free model filtering for Pi - Adds free/paid filtering for ALL providers (built-in + extension). Includes unique providers: Kilo, NVIDIA, Cline, Qwen, Modal, Fireworks.",
+	"description": "AIO free models for PI: Kilo, Cline, Nvidia, Ollama Cloud and others",
 	"keywords": [
 		"pi-package",
 		"pi-extension",
@@ -11,7 +11,6 @@
 		"nvidia-nim",
 		"kilo",
 		"cline",
-		"fireworks",
 		"qwen",
 		"qwen-oauth",
 		"modal"
@@ -52,8 +51,7 @@
 	"peerDependencies": {
 		"@mariozechner/pi-ai": "*",
 		"@mariozechner/pi-coding-agent": "*",
-		"@mariozechner/pi-tui": "*",
-		"@sinclair/typebox": "*"
+		"@mariozechner/pi-tui": "*"
 	},
 	"devDependencies": {
 		"@vitest/ui": "^1.0.0",

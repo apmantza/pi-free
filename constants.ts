@@ -9,10 +9,9 @@
 
 export const PROVIDER_KILO = "kilo";
 export const PROVIDER_CLINE = "cline";
-export const PROVIDER_FIREWORKS = "fireworks";
 export const PROVIDER_NVIDIA = "nvidia";
 export const PROVIDER_CLOUDFLARE = "cloudflare";
-export const PROVIDER_OLLAMA = "ollama";
+export const PROVIDER_OLLAMA = "ollama-cloud";
 /** @deprecated Qwen provider is deprecated. The 1,000 req/day free tier is no longer available. */
 export const PROVIDER_QWEN = "qwen";
 export const PROVIDER_MODAL = "modal";
@@ -20,7 +19,6 @@ export const PROVIDER_MODAL = "modal";
 export const ALL_UNIQUE_PROVIDERS = [
 	PROVIDER_KILO,
 	PROVIDER_CLINE,
-	PROVIDER_FIREWORKS,
 	PROVIDER_NVIDIA,
 	/** @deprecated Qwen free tier no longer available */
 	PROVIDER_QWEN,
@@ -36,7 +34,6 @@ export const BASE_URL_NVIDIA = "https://integrate.api.nvidia.com/v1";
 export const BASE_URL_CLOUDFLARE = "https://api.cloudflare.com/client/v4";
 export const BASE_URL_OLLAMA = "https://ollama.com/v1"; // OpenAI-compatible API endpoint
 export const BASE_URL_CLINE = "https://api.cline.bot/api/v1";
-export const BASE_URL_FIREWORKS = "https://api.fireworks.ai/inference/v1";
 export const BASE_URL_MODAL = "https://api.us-west-2.modal.direct/v1";
 export const BASE_URL_QWEN =
 	"https://dashscope.aliyuncs.com/compatible-mode/v1";

@@ -39,31 +39,7 @@ import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
 import { createReRegister, enhanceWithCI } from "../../provider-helper.ts";
 
-const _logger = createLogger("ollama");
-
-// =============================================================================
-// Types
-// =============================================================================
-
-interface OllamaModel {
-	name: string;
-	model: string;
-	modified_at: string;
-	size: number;
-	digest: string;
-	details?: {
-		parent_model?: string;
-		format?: string;
-		family?: string;
-		families?: string[];
-		parameter_size?: string;
-		quantization_level?: string;
-	};
-}
-
-interface OllamaTagsResponse {
-	models?: OllamaModel[];
-}
+const _logger = createLogger("ollama-cloud");
 
 // =============================================================================
 // Fetch + map
@@ -98,7 +74,9 @@ async function fetchOllamaModels(
 	};
 	const models = json.data ?? [];
 
-	_logger.info(`[ollama] Fetched ${models.length} models from Ollama Cloud`);
+	_logger.info(
+		`[ollama-cloud] Fetched ${models.length} models from Ollama Cloud`,
+	);
 
 	// Filter to chat/text generation models only
 	const chatModels = models.filter((m) => {
@@ -137,27 +115,6 @@ async function fetchOllamaModels(
 	return result;
 }
 
-/**
- * Parse parameter size string (e.g., "7B", "70B") to estimate context window
- */
-function parseContextWindow(paramSize?: string): number {
-	if (!paramSize) return 8192;
-
-	const match = paramSize.match(/(\d+(?:\.\d+)?)\s*([KMGT]?)/i);
-	if (!match) return 8192;
-
-	const size = parseFloat(match[1]);
-	const unit = match[2].toUpperCase();
-
-	// Rough heuristic: larger models tend to have larger context windows
-	// This is a simplification - actual context varies by model architecture
-	if (unit === "T" || size >= 100) return 128000; // 100B+ models
-	if (size >= 70) return 128000; // 70B models
-	if (size >= 30) return 32768; // 30B+ models
-	if (size >= 7) return 32768; // 7B+ models
-	return 8192; // Smaller models
-}
-
 // =============================================================================
 // Extension Entry Point
 // =============================================================================
@@ -167,7 +124,7 @@ export default async function (pi: ExtensionAPI) {
 
 	if (!apiKey) {
 		_logger.info(
-			"[ollama] Skipping - OLLAMA_API_KEY not set (env var or ~/.pi/free.json)",
+			"[ollama-cloud] Skipping - OLLAMA_API_KEY not set (env var or ~/.pi/free.json)",
 		);
 		return;
 	}
@@ -178,7 +135,7 @@ export default async function (pi: ExtensionAPI) {
 	try {
 		allModels = await fetchOllamaModels(apiKey);
 	} catch (error) {
-		_logger.error("[ollama] Failed to fetch models at startup", {
+		_logger.error("[ollama-cloud] Failed to fetch models at startup", {
 			error: error instanceof Error ? error.message : String(error),
 		});
 		return;
@@ -210,6 +167,6 @@ export default async function (pi: ExtensionAPI) {
 	});
 
 	_logger.info(
-		`[ollama] Registered ${initialModels.length} models (usage-based free tier)`,
+		`[ollama-cloud] Registered ${initialModels.length} models (usage-based free tier)`,
 	);
 }

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking Changes
+- **Removed Fireworks provider** — Fireworks is now a built-in Pi provider (added in pi 0.68.1), so the extension's Fireworks provider has been removed to avoid conflicts:
+  - Deleted `providers/fireworks/fireworks.ts` and `tests/fireworks.test.ts`
+  - Removed all Fireworks configuration options from `config.ts` (`fireworks_api_key`, `fireworks_show_paid`)
+  - Users should now use Pi's built-in Fireworks support with `FIREWORKS_API_KEY`
+
+- **Renamed Ollama provider to `ollama-cloud`** — Changed provider ID from `"ollama"` to `"ollama-cloud"` to avoid collision with Pi's built-in local Ollama provider:
+  - This prevents provider ID conflicts when both are registered
+  - All log messages and documentation now reference "Ollama Cloud"
+
+### Removed
+- **Dropped `@sinclair/typebox` peer dependency** — Pi 0.69.0 migrated from `@sinclair/typebox` to `typebox` 1.x. The extension didn't directly import this package, so it was removed from `peerDependencies` to avoid potential conflicts.
+
 ### Fixed
 - **Ollama Cloud API endpoint** — Fixed broken Ollama Cloud integration:
   - Changed `BASE_URL_OLLAMA` from `https://ollama.com` to `https://ollama.com/v1` — the OpenAI-compatible API endpoint

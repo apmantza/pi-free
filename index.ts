@@ -10,7 +10,6 @@
  * - NVIDIA: NVIDIA NIM hosting (free tier available)
  * - Qwen: OAuth-based Qwen access
  * - Modal: Modal Labs hosting
- * - Fireworks: Fireworks AI (paid, but useful for failover)
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
@@ -25,7 +24,6 @@ import {
 // Import unique provider extensions (only providers NOT built into pi)
 import cline from "./providers/cline/cline.ts";
 import cloudflare from "./providers/cloudflare/cloudflare.ts";
-import fireworks from "./providers/fireworks/fireworks.ts";
 import kilo from "./providers/kilo/kilo.ts";
 import modal from "./providers/modal/modal.ts";
 import nvidia from "./providers/nvidia/nvidia.ts";
@@ -150,7 +148,6 @@ export default async function (pi: ExtensionAPI) {
 	// Each provider will register itself with the global toggle system
 	await Promise.allSettled([
 		cloudflare(pi),
-		fireworks(pi),
 		modal(pi),
 		nvidia(pi),
 		kilo(pi),

@@ -56,7 +56,7 @@ export interface StoredModels {
 // =============================================================================
 
 export interface OpenAICompatibleConfig {
-	/** Provider identifier (e.g., "nvidia", "fireworks") */
+	/** Provider identifier (e.g., "nvidia", "modal") */
 	providerId: string;
 	/** Base URL for the API */
 	baseUrl: string;

@@ -23,8 +23,6 @@ import type {
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
 import {
-	getFireworksApiKey,
-	getFireworksShowPaid,
 	getModalApiKey,
 	getNvidiaApiKey,
 	getNvidiaShowPaid,
@@ -46,7 +44,7 @@ const _logger = createLogger("provider-factory");
 // =============================================================================
 
 export interface ProviderDefinition {
-	/** Provider identifier (e.g., "nvidia", "fireworks") */
+	/** Provider identifier (e.g., "nvidia", "modal") */
 	providerId: string;
 	/** Base URL for the API */
 	baseUrl: string;
@@ -80,14 +78,12 @@ export interface ProviderDefinition {
 
 const API_KEY_GETTERS: Record<string, () => string | undefined> = {
 	nvidia_api_key: getNvidiaApiKey,
-	fireworks_api_key: getFireworksApiKey,
 	opencode_api_key: getOpencodeApiKey,
 	modal_api_key: getModalApiKey,
 };
 
 const SHOW_PAID_GETTERS: Record<string, () => boolean> = {
 	NVIDIA_SHOW_PAID: getNvidiaShowPaid,
-	FIREWORKS_SHOW_PAID: getFireworksShowPaid,
 };
 
 // =============================================================================

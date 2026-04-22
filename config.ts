@@ -13,7 +13,6 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
 	PROVIDER_CLINE,
-	PROVIDER_FIREWORKS,
 	PROVIDER_KILO,
 	PROVIDER_MODAL,
 	PROVIDER_NVIDIA,
@@ -28,7 +27,6 @@ interface PiFreeConfig {
 	cloudflare_api_token?: string;
 	cloudflare_account_id?: string;
 	ollama_api_key?: string;
-	fireworks_api_key?: string;
 	modal_api_key?: string;
 	opencode_api_key?: string;
 	mistral_api_key?: string;
@@ -44,7 +42,6 @@ interface PiFreeConfig {
 	nvidia_show_paid?: boolean;
 	cloudflare_show_paid?: boolean;
 	ollama_show_paid?: boolean;
-	fireworks_show_paid?: boolean;
 	cline_show_paid?: boolean;
 	qwen_show_paid?: boolean;
 	modal_show_paid?: boolean;
@@ -57,7 +54,6 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	cloudflare_api_token: "",
 	cloudflare_account_id: "",
 	ollama_api_key: "",
-	fireworks_api_key: "",
 	modal_api_key: "",
 	opencode_api_key: "",
 	mistral_api_key: "",
@@ -73,7 +69,6 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	nvidia_show_paid: false,
 	cloudflare_show_paid: false,
 	ollama_show_paid: false,
-	fireworks_show_paid: false,
 	cline_show_paid: false,
 	qwen_show_paid: false,
 	modal_show_paid: false,
@@ -149,13 +144,6 @@ export function getNvidiaShowPaid(): boolean {
 	return resolveBool("NVIDIA_SHOW_PAID", loadConfigFile().nvidia_show_paid);
 }
 
-export function getFireworksShowPaid(): boolean {
-	return resolveBool(
-		"FIREWORKS_SHOW_PAID",
-		loadConfigFile().fireworks_show_paid,
-	);
-}
-
 export function getClineShowPaid(): boolean {
 	return resolveBool("CLINE_SHOW_PAID", loadConfigFile().cline_show_paid);
 }
@@ -209,10 +197,6 @@ export function getKiloFreeOnly(): boolean {
 
 export function getNvidiaApiKey(): string | undefined {
 	return resolve("NVIDIA_API_KEY", loadConfigFile().nvidia_api_key);
-}
-
-export function getFireworksApiKey(): string | undefined {
-	return resolve("FIREWORKS_API_KEY", loadConfigFile().fireworks_api_key);
 }
 
 export function getModalApiKey(): string | undefined {
@@ -303,7 +287,6 @@ export function getConfig(): PiFreeConfig {
 
 export {
 	PROVIDER_CLINE,
-	PROVIDER_FIREWORKS,
 	PROVIDER_KILO,
 	PROVIDER_MODAL,
 	PROVIDER_NVIDIA,
