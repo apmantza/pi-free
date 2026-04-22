@@ -18,6 +18,7 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
+import { OPENROUTER_SHOW_PAID, saveConfig } from "../../config.ts";
 import {
 	BASE_URL_OPENROUTER,
 	DEFAULT_FETCH_TIMEOUT_MS,
@@ -53,7 +54,7 @@ interface DynamicProviderConfig {
 	providerId: string;
 	apiKeyEnvVar: string;
 	baseUrl: string;
-	api: "openai-completions" | "mistral-conversations";
+	api: "openai-completions" | "mistral-conversations" | "anthropic-messages";
 	fetchModels: (apiKey: string) => Promise<ProviderModelConfig[]>;
 	defaultShowPaid: boolean;
 }
@@ -388,6 +389,15 @@ const FETCH_FUNCTIONS: Record<
 	openrouter: fetchOpenRouterModels,
 };
 
+// Providers that support free/paid toggling (have pricing info in API)
+// OpenRouter exposes actual pricing
+const TOGGLEABLE_PROVIDERS = new Set(["openrouter"]);
+
+// Map provider IDs to their config show_paid flags
+const PROVIDER_CONFIG_FLAGS: Record<string, boolean> = {
+	openrouter: OPENROUTER_SHOW_PAID,
+};
+
 // =============================================================================
 // Main Setup Function
 // =============================================================================
@@ -440,14 +450,19 @@ export async function setupDynamicBuiltInProviders(
 			const initialModels = config.defaultShowPaid ? allModels : freeModels;
 			reRegister(initialModels);
 
-			// Register toggle command for this provider
-			setupProviderToggle(
-				pi,
-				config.providerId,
-				freeModels,
-				allModels,
-				reRegister,
-			);
+			// Register toggle command only for providers with pricing info
+			if (TOGGLEABLE_PROVIDERS.has(config.providerId)) {
+				const initialShowPaid =
+					PROVIDER_CONFIG_FLAGS[config.providerId] ?? false;
+				setupProviderToggle(
+					pi,
+					config.providerId,
+					freeModels,
+					allModels,
+					reRegister,
+					initialShowPaid,
+				);
+			}
 
 			_logger.info(`[dynamic] ${config.providerId}: registered successfully`);
 		} catch (error) {
@@ -471,19 +486,25 @@ function setupProviderToggle(
 	freeModels: ProviderModelConfig[],
 	allModels: ProviderModelConfig[],
 	reRegister: (models: ProviderModelConfig[]) => void,
+	initialShowPaid = false,
 ): void {
-	let showPaid = false;
+	let showPaid = initialShowPaid;
 
 	pi.registerCommand(`${providerId}-toggle`, {
-		description: `Toggle between free and all ${providerId} models`,
+		description: `Toggle free/paid ${providerId} models`,
 		handler: async (_args, ctx) => {
 			showPaid = !showPaid;
 			const modelsToShow = showPaid ? allModels : freeModels;
 			reRegister(modelsToShow);
 
+			// Persist to config for openrouter
+			if (providerId === "openrouter") {
+				saveConfig({ openrouter_show_paid: showPaid });
+			}
+
 			const count = modelsToShow.length;
-			const type = showPaid ? "all" : "free";
-			ctx.ui.notify(`${providerId}: showing ${count} ${type} models`, "info");
+			const type = showPaid ? "paid" : "free";
+			ctx.ui.notify(`${providerId}: ${count} ${type} models`, "info");
 		},
 	});
 }

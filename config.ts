@@ -61,6 +61,7 @@ interface PiFreeConfig {
 	modal_show_paid?: boolean;
 	// Built-in pi providers
 	openrouter_show_paid?: boolean;
+	opencode_show_paid?: boolean;
 }
 
 const CONFIG_TEMPLATE: PiFreeConfig = {
@@ -85,6 +86,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	modal_show_paid: false,
 	// Built-in pi providers - default to showing only free
 	openrouter_show_paid: false,
+	opencode_show_paid: false,
 };
 
 const PI_DIR = join(process.env.HOME || process.env.USERPROFILE || "", ".pi");
@@ -191,6 +193,10 @@ export const CLOUDFLARE_SHOW_PAID = resolveBool(
 export const OPENROUTER_SHOW_PAID = resolveBool(
 	"OPENROUTER_SHOW_PAID",
 	file.openrouter_show_paid,
+);
+export const OPENCODE_SHOW_PAID = resolveBool(
+	"OPENCODE_SHOW_PAID",
+	file.opencode_show_paid,
 );
 
 // Global free-only mode (new in v2.0) - applies to ALL providers

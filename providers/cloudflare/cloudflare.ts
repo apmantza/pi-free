@@ -1,209 +1,371 @@
 /**
  * Cloudflare Workers AI Provider Extension
  *
- * Provides access to 50+ open-source models via Cloudflare's serverless GPU network.
+ * Provides access to Cloudflare's serverless GPU network with 18+ models.
  * All models use Cloudflare's "Neurons" pricing system:
  *   - 10,000 Neurons per day FREE (resets daily at 00:00 UTC)
  *   - $0.011 per 1,000 Neurons beyond free allocation
  *
- * Requires:
- *   1. CLOUDFLARE_API_TOKEN with Workers AI permission
- *      Get at: https://dash.cloudflare.com/profile/api-tokens
- *      Create token with "Cloudflare AI" > "Read" permission
- *   2. CLOUDFLARE_ACCOUNT_ID (RECOMMENDED - see below)
+ * Setup:
+ *   1. Create API token at https://dash.cloudflare.com/profile/api-tokens
+ *      with "Cloudflare AI" > "Read" permission
+ *   2. Get Account ID from https://dash.cloudflare.com (right sidebar)
+ *   3. Add credentials to ~/.pi/agent/auth.json or set env vars
  *
- * IMPORTANT: Set CLOUDFLARE_ACCOUNT_ID to avoid permission issues
- *   - Your API token needs "Account:Read" permission to auto-fetch accounts
- *   - Most AI-only tokens lack this permission, causing "No accounts found" errors
- *   - Set via: CLOUDFLARE_ACCOUNT_ID env var OR cloudflare_account_id in ~/.pi/free.json
- *   - Find your Account ID at: https://dash.cloudflare.com (right sidebar)
+ * Auth (in order of priority):
+ *   - Environment: CF_API_TOKEN and CF_ACCOUNT_ID
+ *   - Config file: ~/.pi/agent/auth.json
+ *     { "cloudflare-ai": { "access": "token", "account_id": "id" } }
+ *   - Legacy: CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID env vars
  *
- * API Reference:
- *   List models:   GET /client/v4/accounts/{account_id}/ai/models
- *   Run model:     POST /client/v4/accounts/{account_id}/ai/run/{model_name}
- *   curl example:
- *     curl https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/ai/run/$MODEL_NAME \
- *       -X POST \
- *       -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
- *
- * Responds to global /free toggle (shows models but warns they're freemium).
- *
- * Usage:
- *   pi install git:github.com/apmantza/pi-free
- *   # Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID
- *   # Models appear in /model selector
- *   # Use /cloudflare-toggle to show all vs limited set
+ * Models can be customized via ~/.pi/cloudflare-models.json
  */
 
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
-import {
-	applyHidden,
-	CLOUDFLARE_ACCOUNT_ID,
-	CLOUDFLARE_API_TOKEN,
-	CLOUDFLARE_SHOW_PAID,
-} from "../../config.ts";
-import {
-	BASE_URL_CLOUDFLARE,
-	DEFAULT_FETCH_TIMEOUT_MS,
-	PROVIDER_CLOUDFLARE,
-} from "../../constants.ts";
-import { registerWithGlobalToggle } from "../../index.ts";
 import { createLogger } from "../../lib/logger.ts";
-import { fetchWithRetry } from "../../lib/util.ts";
-import { createReRegister, enhanceWithCI } from "../../provider-helper.ts";
 
 const _logger = createLogger("cloudflare");
 
 // =============================================================================
-// Verified free-tier models from https://free-llm.com/provider/cloudflare-workers-ai
+// Auth Resolution
 // =============================================================================
 
+interface CloudflareAuth {
+	token?: string;
+	accountId?: string;
+}
+
+function getCloudflareAuth(): CloudflareAuth {
+	const result: CloudflareAuth = {};
+
+	// Check new env var names first
+	if (process.env.CF_API_TOKEN) result.token = process.env.CF_API_TOKEN;
+	if (process.env.CF_ACCOUNT_ID) result.accountId = process.env.CF_ACCOUNT_ID;
+
+	// Check legacy env var names
+	if (!result.token && process.env.CLOUDFLARE_API_TOKEN) {
+		result.token = process.env.CLOUDFLARE_API_TOKEN;
+	}
+	if (!result.accountId && process.env.CLOUDFLARE_ACCOUNT_ID) {
+		result.accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+	}
+
+	if (result.token && result.accountId) return result;
+
+	// Check ~/.pi/free.json (pi-free config)
+	try {
+		const configPath = join(homedir(), ".pi", "free.json");
+		if (existsSync(configPath)) {
+			const config = JSON.parse(readFileSync(configPath, "utf-8"));
+			if (!result.token && config.cloudflare_api_token) {
+				result.token = config.cloudflare_api_token;
+			}
+			if (!result.accountId && config.cloudflare_account_id) {
+				result.accountId = config.cloudflare_account_id;
+			}
+		}
+	} catch {
+		// Ignore config file errors
+	}
+
+	return result;
+}
+
 // =============================================================================
-// Fallback model list (when API fails)
-// Source: https://free-llm.com/provider/cloudflare-workers-ai
+// Compatibility Settings
 // =============================================================================
 
 /**
- * Verified free models from Cloudflare Workers AI.
- * All models use the 10K neurons/day free allocation.
+ * Cloudflare Workers AI compatibility settings.
+ * Prevents 413 Payload Too Large errors by disabling unsupported parameters.
  */
-const FALLBACK_CLOUDFLARE_MODELS: ProviderModelConfig[] = [
-	// Meta Llama Models (128K context)
+const CLOUDFLARE_COMPAT: {
+	supportsStore?: boolean;
+	supportsDeveloperRole?: boolean;
+	supportsReasoningEffort?: boolean;
+	supportsStrictMode?: boolean;
+	maxTokensField?: "max_tokens" | "max_completion_tokens";
+	requiresThinkingAsText?: boolean;
+} = {
+	supportsStore: false,
+	supportsDeveloperRole: false,
+	supportsReasoningEffort: false,
+	supportsStrictMode: false,
+	maxTokensField: "max_tokens",
+};
+
+// =============================================================================
+// Default Models (18 models from Cloudflare Workers AI)
+// =============================================================================
+
+interface ModelConfig extends ProviderModelConfig {
+	compat?: { requiresThinkingAsText?: boolean };
+	_remove?: boolean;
+}
+
+const DEFAULT_MODELS: ModelConfig[] = [
+	// Frontier models
+	{
+		id: "@cf/moonshotai/kimi-k2.5",
+		name: "Kimi K2.5",
+		reasoning: true,
+		input: ["text", "image"],
+		cost: { input: 0.6, output: 3.0, cacheRead: 0.1, cacheWrite: 0 },
+		contextWindow: 256000,
+		maxTokens: 8192,
+	},
+	{
+		id: "@cf/meta/llama-4-scout-17b-16e-instruct",
+		name: "Llama 4 Scout 17B",
+		reasoning: false,
+		input: ["text", "image"],
+		cost: { input: 0.27, output: 0.85, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 131072,
+		maxTokens: 8192,
+	},
+	{
+		id: "@cf/nvidia/nemotron-3-120b-a12b",
+		name: "Nemotron 3 Super 120B",
+		reasoning: true,
+		input: ["text"],
+		cost: { input: 0.5, output: 1.5, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 256000,
+		maxTokens: 8192,
+		compat: { requiresThinkingAsText: true },
+	},
+	{
+		id: "@cf/google/gemma-4-26b-a4b-it",
+		name: "Gemma 4 26B",
+		reasoning: true,
+		input: ["text", "image"],
+		cost: { input: 0.1, output: 0.3, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 256000,
+		maxTokens: 8192,
+		compat: { requiresThinkingAsText: true },
+	},
+	{
+		id: "@cf/google/gemma-3-12b-it",
+		name: "Gemma 3 12B",
+		reasoning: false,
+		input: ["text", "image"],
+		cost: { input: 0.345, output: 0.556, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 80000,
+		maxTokens: 8192,
+	},
+	{
+		id: "@cf/qwen/qwen3-30b-a3b-fp8",
+		name: "Qwen3 30B A3B",
+		reasoning: true,
+		input: ["text"],
+		cost: { input: 0.051, output: 0.34, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 32768,
+		maxTokens: 8192,
+		compat: { requiresThinkingAsText: true },
+	},
+	{
+		id: "@cf/zai-org/glm-4.7-flash",
+		name: "GLM-4.7 Flash",
+		reasoning: false,
+		input: ["text"],
+		cost: { input: 0.06, output: 0.4, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 131072,
+		maxTokens: 8192,
+	},
+	// Popular models
+	{
+		id: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+		name: "Llama 3.3 70B (Fast)",
+		reasoning: false,
+		input: ["text"],
+		cost: { input: 0.5, output: 0.5, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 131072,
+		maxTokens: 8192,
+	},
 	{
 		id: "@cf/meta/llama-3.1-8b-instruct",
-		name: "Llama 3.1 8B Instruct",
+		name: "Llama 3.1 8B",
 		reasoning: false,
 		input: ["text"],
-		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 128000,
-		maxTokens: 4096,
+		cost: { input: 0.1, output: 0.1, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 131072,
+		maxTokens: 8192,
 	},
 	{
-		id: "@cf/meta/llama-3.2-3b-instruct",
-		name: "Llama 3.2 3B Instruct",
+		id: "@cf/meta/llama-3.1-70b-instruct",
+		name: "Llama 3.1 70B",
 		reasoning: false,
 		input: ["text"],
-		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 128000,
-		maxTokens: 4096,
+		cost: { input: 0.5, output: 0.5, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 131072,
+		maxTokens: 8192,
 	},
-	// Mistral via Hugging Face (32K context, multilingual)
 	{
-		id: "@hf/mistral/mistral-7b-instruct-v0.2",
-		name: "Mistral 7B Instruct v0.2",
+		id: "@cf/meta/llama-3.1-405b-instruct",
+		name: "Llama 3.1 405B",
 		reasoning: false,
 		input: ["text"],
-		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 32000,
-		maxTokens: 4096,
+		cost: { input: 2.0, output: 2.0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 131072,
+		maxTokens: 8192,
 	},
-	// Alibaba Qwen (32K context, Chinese)
 	{
-		id: "@cf/qwen/qwen1.5-7b-chat-awq",
-		name: "Qwen 1.5 7B Chat (AWQ)",
-		reasoning: false,
-		input: ["text"],
-		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 32000,
-		maxTokens: 4096,
-	},
-	// DeepSeek Coder via Hugging Face (16K context, code-focused)
-	{
-		id: "@hf/thebloke/deepseek-coder-6.7b-instruct-awq",
-		name: "DeepSeek Coder 6.7B Instruct (AWQ)",
+		id: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
+		name: "DeepSeek R1 Distill Qwen 32B",
 		reasoning: true,
 		input: ["text"],
-		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 16000,
-		maxTokens: 4096,
+		cost: { input: 0.3, output: 0.3, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 32768,
+		maxTokens: 8192,
+		compat: { requiresThinkingAsText: true },
 	},
-	// Microsoft Phi-2 (2K context, reasoning)
 	{
-		id: "@cf/microsoft/phi-2",
-		name: "Microsoft Phi-2",
+		id: "@cf/deepseek-ai/deepseek-math-7b-instruct",
+		name: "DeepSeek Math 7B",
 		reasoning: true,
 		input: ["text"],
-		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 2048,
-		maxTokens: 1024,
+		cost: { input: 0.1, output: 0.1, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 16384,
+		maxTokens: 4096,
+	},
+	// Mistral models
+	{
+		id: "@cf/mistral/mistral-small-3.1-24b-instruct",
+		name: "Mistral Small 3.1 24B",
+		reasoning: false,
+		input: ["text", "image"],
+		cost: { input: 0.3, output: 0.3, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 32768,
+		maxTokens: 8192,
+	},
+	{
+		id: "@cf/mistral/mistral-7b-instruct-v0.2-lora",
+		name: "Mistral 7B Instruct",
+		reasoning: false,
+		input: ["text"],
+		cost: { input: 0.1, output: 0.1, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 32768,
+		maxTokens: 4096,
+	},
+	{
+		id: "@cf/mistral/mixtral-8x7b-instruct-v0.1-awq",
+		name: "Mixtral 8x7B Instruct",
+		reasoning: false,
+		input: ["text"],
+		cost: { input: 0.3, output: 0.3, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 32768,
+		maxTokens: 4096,
+	},
+	// Qwen and Gemma
+	{
+		id: "@cf/qwen/qwen1.5-14b-chat-awq",
+		name: "Qwen 1.5 14B Chat",
+		reasoning: false,
+		input: ["text"],
+		cost: { input: 0.2, output: 0.2, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 32768,
+		maxTokens: 8192,
+	},
+	{
+		id: "@cf/google/gemma-2b-it-lora",
+		name: "Gemma 2B",
+		reasoning: false,
+		input: ["text"],
+		cost: { input: 0.05, output: 0.05, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 8192,
+		maxTokens: 2048,
+	},
+	{
+		id: "@cf/google/gemma-7b-it-lora",
+		name: "Gemma 7B",
+		reasoning: false,
+		input: ["text"],
+		cost: { input: 0.1, output: 0.1, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 8192,
+		maxTokens: 2048,
 	},
 ];
 
 // =============================================================================
-// Get models (static list - no API calls)
+// Model Customization (user overrides)
 // =============================================================================
 
-/**
- * Return the static list of verified free-tier models.
- * No API calls needed - these are known working models from free-llm.com
- */
-async function getCloudflareModels(): Promise<ProviderModelConfig[]> {
-	_logger.info(
-		`[cloudflare] Using ${FALLBACK_CLOUDFLARE_MODELS.length} verified free-tier models`,
-	);
-	return applyHidden(FALLBACK_CLOUDFLARE_MODELS);
+function getModels(): ProviderModelConfig[] {
+	// Apply Cloudflare compat settings to all default models
+	const defaults = DEFAULT_MODELS.map((m) => ({
+		...m,
+		compat: { ...CLOUDFLARE_COMPAT, ...m.compat },
+	})) as ProviderModelConfig[];
+
+	// Check for user overrides
+	const overridePath = join(homedir(), ".pi", "cloudflare-models.json");
+	if (!existsSync(overridePath)) return defaults;
+
+	try {
+		const override = JSON.parse(
+			readFileSync(overridePath, "utf-8"),
+		) as ModelConfig[];
+		const modelMap = new Map<string, any>(defaults.map((m) => [m.id, m]));
+
+		for (const model of override) {
+			if (model._remove) {
+				modelMap.delete(model.id);
+			} else {
+				// Apply Cloudflare compat settings to user overrides
+				model.compat = { ...CLOUDFLARE_COMPAT, ...model.compat };
+				modelMap.set(model.id, model);
+			}
+		}
+
+		return Array.from(modelMap.values()) as ProviderModelConfig[];
+	} catch (e) {
+		_logger.warn(
+			`[cloudflare] Failed to load ~/.pi/cloudflare-models.json: ${e instanceof Error ? e.message : String(e)}`,
+		);
+		return defaults;
+	}
 }
 
 // =============================================================================
 // Extension Entry Point
 // =============================================================================
 
-export default async function (pi: ExtensionAPI) {
-	const apiToken = CLOUDFLARE_API_TOKEN;
+export default async function cloudflareProvider(pi: ExtensionAPI) {
+	const { token: apiToken, accountId } = getCloudflareAuth();
 
 	if (!apiToken) {
 		_logger.info(
-			"[cloudflare] Skipping - CLOUDFLARE_API_TOKEN not set (env var or ~/.pi/free.json)",
+			"[cloudflare] CF_API_TOKEN or CLOUDFLARE_API_TOKEN not set. Provider will not be available.",
 		);
 		return;
 	}
 
-	// Inject into process.env so Pi's apiKey lookup finds it
+	if (!accountId) {
+		_logger.info(
+			"[cloudflare] CF_ACCOUNT_ID or CLOUDFLARE_ACCOUNT_ID not set. Provider will not be available.",
+		);
+		return;
+	}
+
+	// Also inject into process.env for pi's API key lookup
 	process.env.CLOUDFLARE_API_TOKEN = apiToken;
 
-	// Use configured account ID (required)
-	if (!CLOUDFLARE_ACCOUNT_ID) {
-		_logger.error(
-			"[cloudflare] CLOUDFLARE_ACCOUNT_ID not set. Add to ~/.pi/free.json or set env var.",
-		);
-		return;
-	}
-	const accountId = CLOUDFLARE_ACCOUNT_ID;
+	const models = getModels();
 
-	// Get models (static list - no API calls needed)
-	const allModels = await getCloudflareModels();
-
-	// For Cloudflare, all models share the same free tier
-	// So "free" and "all" are the same set
-	const freeModels = allModels;
-	const stored = { free: freeModels, all: allModels };
-	const hasKey = true; // We have the key since we checked above
-
-	// Create re-register function
-	const reRegister = createReRegister(pi, {
-		providerId: PROVIDER_CLOUDFLARE,
-		baseUrl: `${BASE_URL_CLOUDFLARE}/accounts/${accountId}/ai/v1`,
+	pi.registerProvider("cloudflare", {
+		baseUrl: `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1`,
 		apiKey: "CLOUDFLARE_API_TOKEN",
-	});
-
-	// Register with global toggle system
-	registerWithGlobalToggle(PROVIDER_CLOUDFLARE, stored, reRegister, hasKey);
-
-	// Register initial models
-	// Note: CLOUDFLARE_SHOW_PAID doesn't change the model list since all models
-	// use the same free tier pool. It's kept for consistency with other providers.
-	const initialModels = CLOUDFLARE_SHOW_PAID ? allModels : freeModels;
-	pi.registerProvider(PROVIDER_CLOUDFLARE, {
-		baseUrl: `${BASE_URL_CLOUDFLARE}/accounts/${accountId}/ai/v1`,
-		apiKey: "CLOUDFLARE_API_TOKEN",
-		api: "openai-completions" as const,
-		models: enhanceWithCI(initialModels),
+		api: "openai-completions",
+		authHeader: true,
+		models,
 	});
 
 	_logger.info(
-		`[cloudflare] Registered ${initialModels.length} models (10K Neurons/day free tier)`,
+		`[cloudflare] Provider registered with account: ${accountId.slice(0, 8)}... (${models.length} models)`,
 	);
 }

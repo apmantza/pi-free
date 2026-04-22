@@ -63,9 +63,39 @@ export function registerWithGlobalToggle(
 	);
 }
 
-/** Check if a model is free (input cost is 0 or undefined) */
-export function isFreeModel(model: ProviderModelConfig): boolean {
-	return (model.cost?.input ?? 0) === 0;
+// Providers that expose actual per-model pricing via API
+const PRICING_EXPOSED_PROVIDERS = new Set([
+	"openrouter",
+	"opencode",
+	"kilo",
+	"cline",
+]);
+
+/**
+ * Check if a model is free.
+ *
+ * For providers with pricing APIs: uses cost (input === 0 && output === 0)
+ * For providers without pricing: ONLY uses name-based check (name includes "free")
+ */
+export function isFreeModel(
+	model: ProviderModelConfig & { provider?: string },
+): boolean {
+	const provider = model.provider;
+	const hasPricing = provider && PRICING_EXPOSED_PROVIDERS.has(provider);
+
+	// For providers WITH pricing API: cost-based check
+	if (hasPricing) {
+		if ((model.cost?.input ?? 0) === 0 && (model.cost?.output ?? 0) === 0) {
+			return true;
+		}
+	}
+
+	// For providers WITHOUT pricing API: ONLY name-based check
+	if (model.name.toLowerCase().includes("free")) {
+		return true;
+	}
+
+	return false;
 }
 
 /** Get current global free-only state */
@@ -166,13 +196,42 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 		handler: async (_args, ctx) => {
 			const lines = ["📊 Pi-Free Providers:", ""];
 
+			// Providers known to not expose pricing via API (all models show as "free")
+			// OpenRouter and OpenCode expose actual pricing
+			const noPricingApi = new Set([
+				"mistral",
+				"xai",
+				"huggingface",
+				"groq",
+				"cerebras",
+			]);
+			// Freemium providers - all models share a free tier quota
+			// Freemium providers - all models share a free tier quota
+			const freemiumProviders = new Set(["nvidia"]);
+
 			for (const [id, entry] of providerRegistry) {
 				const free = entry.stored.free.length;
 				const all = entry.stored.all.length || free;
 				const indicator = entry.hasKey ? "🔑" : "🆓";
-				lines.push(
-					`${indicator} ${id}: ${free} free / ${all - free} paid (${all} total)`,
-				);
+				const paid = all - free;
+
+				if (freemiumProviders.has(id)) {
+					// Freemium: all models share a free tier (e.g., 1,000 reqs/month)
+					lines.push(`${indicator} ${id}: ${all} models (freemium)`);
+				} else if (noPricingApi.has(id)) {
+					// Provider doesn't expose pricing - can't determine free vs paid
+					lines.push(
+						`${indicator} ${id}: ${all} models (pricing not exposed by API)`,
+					);
+				} else if (paid === 0 && free > 0) {
+					// All models are actually free
+					lines.push(`${indicator} ${id}: ${free} free models`);
+				} else {
+					// Mix of free and paid
+					lines.push(
+						`${indicator} ${id}: ${free} free / ${paid} paid (${all} total)`,
+					);
+				}
 			}
 
 			if (providerRegistry.size === 0) {

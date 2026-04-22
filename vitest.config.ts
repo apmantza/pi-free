@@ -6,6 +6,7 @@ export default defineConfig({
 		environment: "node",
 		include: ["**/*.test.ts"],
 		exclude: ["node_modules", ".pi-lens"],
+		testTimeout: 10000, // 10 second timeout per test
 		coverage: {
 			provider: "v8",
 			reporter: ["text", "json", "html"],

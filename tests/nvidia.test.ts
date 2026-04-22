@@ -23,12 +23,22 @@ vi.mock("../index.ts", () => ({
 	providerRegistry: new Map(),
 }));
 
-// Minimal mocks for imports
+// Minimal mocks for imports - must match paths from both test file AND provider file
 vi.mock("../config.ts", () => ({
 	NVIDIA_API_KEY: "test-key",
 	NVIDIA_SHOW_PAID: true,
 	PROVIDER_NVIDIA: "nvidia",
 	PROVIDER_KILO: "kilo", // added for index.ts import
+	applyHidden: (m: any[]) => m,
+	FREE_ONLY: false,
+}));
+
+// Also mock the path used by providers/nvidia/nvidia.ts (../../config.ts resolves to same file)
+vi.mock("../../config.ts", () => ({
+	NVIDIA_API_KEY: "test-key",
+	NVIDIA_SHOW_PAID: true,
+	PROVIDER_NVIDIA: "nvidia",
+	PROVIDER_KILO: "kilo",
 	applyHidden: (m: any[]) => m,
 	FREE_ONLY: false,
 }));
@@ -249,7 +259,7 @@ describe("NVIDIA Provider", () => {
 			"nvidia",
 			expect.objectContaining({
 				baseUrl: "https://integrate.api.nvidia.com/v1",
-				apiKey: "NVIDIA_API_KEY",
+				apiKey: "test-key",
 				api: "openai-completions",
 			}),
 		);

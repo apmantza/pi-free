@@ -19,6 +19,7 @@ import type {
 } from "@mariozechner/pi-coding-agent";
 import {
 	applyHidden,
+	NVIDIA_API_KEY,
 	NVIDIA_SHOW_PAID,
 	PROVIDER_NVIDIA,
 } from "../../config.ts";
@@ -122,13 +123,13 @@ export default async function (pi: ExtensionAPI) {
 
 	// Store both sets for global toggle
 	const stored = { free: freeModels, all: allModels };
-	const hasKey = !!process.env.NVIDIA_API_KEY;
+	const hasKey = !!(NVIDIA_API_KEY || process.env.NVIDIA_API_KEY);
 
 	// Create re-register function
 	const reRegister = createReRegister(pi, {
 		providerId: PROVIDER_NVIDIA,
 		baseUrl: BASE_URL_NVIDIA,
-		apiKey: "NVIDIA_API_KEY",
+		apiKey: NVIDIA_API_KEY || "NVIDIA_API_KEY",
 	});
 
 	// Register with global toggle system
@@ -138,7 +139,7 @@ export default async function (pi: ExtensionAPI) {
 	const initialModels = NVIDIA_SHOW_PAID ? allModels : freeModels;
 	pi.registerProvider(PROVIDER_NVIDIA, {
 		baseUrl: BASE_URL_NVIDIA,
-		apiKey: "NVIDIA_API_KEY",
+		apiKey: NVIDIA_API_KEY || "NVIDIA_API_KEY",
 		api: "openai-completions" as const,
 		headers: {
 			"User-Agent": "pi-free-providers",
