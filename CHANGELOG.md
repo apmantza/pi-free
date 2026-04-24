@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-04-24
+
 ### Added
 - **Built-in provider toggle support** (`lib/built-in-toggle.ts`) — Enables free/paid filtering for Pi's built-in providers that expose per-model pricing:
   - **OpenCode (`/toggle-opencode`)** — Captures built-in OpenCode models on session start and filters to free-only by default
