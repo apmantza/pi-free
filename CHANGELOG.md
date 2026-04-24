@@ -10,10 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Built-in provider toggle support** (`lib/built-in-toggle.ts`) — Enables free/paid filtering for Pi's built-in providers that expose per-model pricing:
   - **OpenCode (`/toggle-opencode`)** — Captures built-in OpenCode models on session start and filters to free-only by default
+  - **OpenRouter (`/toggle-openrouter`)** — Now uses the built-in toggle system for consistency
   - Toggle works in the current session (no restart needed)
-  - Persisted via `opencode_show_paid` in `~/.pi/free.json`
+  - Persisted via `opencode_show_paid` and `openrouter_show_paid` in `~/.pi/free.json`
 
 ### Changed
+- **OpenRouter moved to built-in toggle system** — OpenRouter is now handled by `lib/built-in-toggle.ts` alongside OpenCode for a unified approach:
+  - Removed from `providers/dynamic-built-in/index.ts`
+  - Eliminated duplicate toggle command registration logic
+  - Consolidated toggle persistence with other built-in providers
+
 - **Standardized all toggle commands to `toggle-{provider}`** — Renamed from `{provider}-toggle` for consistency:
   - `/kilo-toggle` → `/toggle-kilo`
   - `/cline-toggle` → `/toggle-cline`
@@ -25,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `/groq-toggle` → `/toggle-groq`
   - `/cerebras-toggle` → `/toggle-cerebras`
   - `/toggle-opencode` (new)
+
+### Fixed
+- **Ollama Cloud model fetching endpoint** — Corrected the `/v1/models` → `/models` endpoint path in `providers/ollama/ollama.ts`:
+  - The previous fix (2.0.0) incorrectly used `/v1/models`; Ollama Cloud's models endpoint is `/v1/models` for chat completions but `/models` for listing
+  - This ensures model fetching works correctly with the OpenAI-compatible API
 
 ### Removed
 - **Global `/free` command** — Removed the global free-only toggle. Per-provider toggles (`/toggle-{provider}`) are now the only way to switch between free and paid models. The `/free-providers` status command remains.
