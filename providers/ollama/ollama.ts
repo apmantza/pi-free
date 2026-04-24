@@ -51,7 +51,7 @@ async function fetchOllamaModels(
 	// Use OpenAI-compatible /v1/models endpoint for consistency
 	// The native /api/tags returns :cloud suffixes that may not work with /v1/chat/completions
 	const response = await fetchWithRetry(
-		`${BASE_URL_OLLAMA}/v1/models`,
+		`${BASE_URL_OLLAMA}/models`,
 		{
 			headers: {
 				Authorization: `Bearer ${apiKey}`,

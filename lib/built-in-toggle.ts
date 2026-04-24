@@ -6,9 +6,7 @@
  *
  * Currently supports:
  * - opencode (OpenCode / Zen gateway)
- *
- * OpenRouter is intentionally excluded here because it is already
- * handled by providers/dynamic-built-in/index.ts.
+ * - openrouter (OpenRouter)
  *
  * Usage: /toggle-opencode
  */
@@ -18,7 +16,11 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
-import { getOpencodeShowPaid, saveConfig } from "../config.ts";
+import {
+	getOpencodeShowPaid,
+	getOpenrouterShowPaid,
+	saveConfig,
+} from "../config.ts";
 import { createLogger } from "./logger.ts";
 import {
 	getGlobalFreeOnly,
@@ -39,6 +41,7 @@ interface BuiltInToggleConfig {
 
 const BUILT_IN_TOGGLE_PROVIDERS: BuiltInToggleConfig[] = [
 	{ id: "opencode", getShowPaid: getOpencodeShowPaid },
+	{ id: "openrouter", getShowPaid: getOpenrouterShowPaid },
 ];
 
 // =============================================================================

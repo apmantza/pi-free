@@ -23,37 +23,14 @@ import {
 	getGroqApiKey,
 	getHfToken,
 	getMistralApiKey,
-	getOpenrouterApiKey,
-	getOpenrouterShowPaid,
 	getXaiApiKey,
-	saveConfig,
 } from "../../config.ts";
-import {
-	BASE_URL_OPENROUTER,
-	DEFAULT_FETCH_TIMEOUT_MS,
-} from "../../constants.ts";
+import { DEFAULT_FETCH_TIMEOUT_MS } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
-import { fetchOpenRouterCompatibleModels } from "../model-fetcher.ts";
 
 const _logger = createLogger("dynamic-built-in");
-
-// =============================================================================
-// OpenRouter Fetcher
-// =============================================================================
-
-async function fetchOpenRouterModels(
-	apiKey: string,
-): Promise<ProviderModelConfig[]> {
-	const models = await fetchOpenRouterCompatibleModels({
-		baseUrl: BASE_URL_OPENROUTER,
-		apiKey: apiKey || undefined,
-		freeOnly: false,
-	});
-	_logger.info(`[dynamic] Fetched ${models.length} models from OpenRouter`);
-	return models;
-}
 
 // =============================================================================
 // Provider Configurations
@@ -376,13 +353,6 @@ const DYNAMIC_PROVIDERS: Omit<DynamicProviderConfig, "fetchModels">[] = [
 		api: "openai-completions",
 		defaultShowPaid: false,
 	},
-	{
-		providerId: "openrouter",
-		getApiKey: getOpenrouterApiKey,
-		baseUrl: BASE_URL_OPENROUTER,
-		api: "openai-completions",
-		defaultShowPaid: false,
-	},
 ];
 
 // Map provider IDs to their fetch functions
@@ -395,12 +365,7 @@ const FETCH_FUNCTIONS: Record<
 	cerebras: fetchCerebrasModels,
 	xai: fetchXAIModels,
 	huggingface: fetchHuggingFaceModels,
-	openrouter: fetchOpenRouterModels,
 };
-
-// Providers that support free/paid toggling (have pricing info in API)
-// OpenRouter exposes actual pricing
-const TOGGLEABLE_PROVIDERS = new Set(["openrouter"]);
 
 // =============================================================================
 // Main Setup Function
@@ -454,19 +419,6 @@ export async function setupDynamicBuiltInProviders(
 			const initialModels = config.defaultShowPaid ? allModels : freeModels;
 			reRegister(initialModels);
 
-			// Register toggle command only for providers with pricing info
-			if (TOGGLEABLE_PROVIDERS.has(config.providerId)) {
-				const initialShowPaid = getOpenrouterShowPaid();
-				setupProviderToggle(
-					pi,
-					config.providerId,
-					freeModels,
-					allModels,
-					reRegister,
-					initialShowPaid,
-				);
-			}
-
 			_logger.info(`[dynamic] ${config.providerId}: registered successfully`);
 		} catch (error) {
 			_logger.error(
@@ -477,37 +429,4 @@ export async function setupDynamicBuiltInProviders(
 			);
 		}
 	}
-}
-
-// =============================================================================
-// Per-Provider Toggle Command
-// =============================================================================
-
-function setupProviderToggle(
-	pi: ExtensionAPI,
-	providerId: string,
-	freeModels: ProviderModelConfig[],
-	allModels: ProviderModelConfig[],
-	reRegister: (models: ProviderModelConfig[]) => void,
-	initialShowPaid = false,
-): void {
-	let showPaid = initialShowPaid;
-
-	pi.registerCommand(`toggle-${providerId}`, {
-		description: `Toggle free/paid ${providerId} models`,
-		handler: async (_args, ctx) => {
-			showPaid = !showPaid;
-			const modelsToShow = showPaid ? allModels : freeModels;
-			reRegister(modelsToShow);
-
-			// Persist to config for openrouter
-			if (providerId === "openrouter") {
-				saveConfig({ openrouter_show_paid: showPaid });
-			}
-
-			const count = modelsToShow.length;
-			const type = showPaid ? "paid" : "free";
-			ctx.ui.notify(`${providerId}: ${count} ${type} models`, "info");
-		},
-	});
 }
