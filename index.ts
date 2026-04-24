@@ -13,6 +13,7 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { setupBuiltInProviderToggles } from "./lib/built-in-toggle.ts";
 import { createLogger } from "./lib/logger.ts";
 import {
 	applyGlobalFilter,
@@ -37,49 +38,6 @@ const _logger = createLogger("pi-free");
 // =============================================================================
 
 function setupGlobalCommands(pi: ExtensionAPI) {
-	// /free - Global toggle for ALL providers
-	pi.registerCommand("free", {
-		description: "Toggle free-only mode for ALL providers (on/off/status)",
-		handler: async (args, ctx) => {
-			const arg = args.trim().toLowerCase();
-			const registry = getProviderRegistry();
-
-			if (arg === "on" || arg === "true" || arg === "yes") {
-				applyGlobalFilter(pi, true);
-				ctx.ui.notify(
-					"✓ Free-only mode enabled - paid models hidden for all providers",
-					"info",
-				);
-			} else if (arg === "off" || arg === "false" || arg === "no") {
-				applyGlobalFilter(pi, false);
-				ctx.ui.notify(
-					"✓ Paid models enabled - all models visible for all providers",
-					"info",
-				);
-			} else if (arg === "status" || arg === "" || !arg) {
-				const available = await ctx.modelRegistry.getAvailable();
-				const freeCount = available.filter(isFreeModel).length;
-				const status = getGlobalFreeOnly() ? "enabled" : "disabled";
-
-				// Count by provider
-				const lines = [
-					`Free-only mode: ${status}`,
-					`${freeCount}/${available.length} models free`,
-					"",
-				];
-				for (const [id, entry] of registry) {
-					const free = entry.stored.free.length;
-					const all = entry.stored.all.length || free;
-					lines.push(`${id}: ${free}/${all} free`);
-				}
-
-				ctx.ui.notify(lines.join("\n"), "info");
-			} else {
-				ctx.ui.notify("Usage: /free [on|off|status]", "warning");
-			}
-		},
-	});
-
 	// /free-providers - Show free model counts by provider
 	pi.registerCommand("free-providers", {
 		description: "Show free/paid model counts for all pi-free providers",
@@ -165,6 +123,9 @@ export default async function (pi: ExtensionAPI) {
 		"./providers/dynamic-built-in/index.ts"
 	);
 	await setupDynamicBuiltInProviders(pi);
+
+	// Setup toggles for pi's built-in providers (e.g., OpenCode)
+	setupBuiltInProviderToggles(pi);
 
 	// Apply initial global filter if free-only mode is enabled
 	if (globalFreeOnly) {

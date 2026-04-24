@@ -3,9 +3,9 @@
  *
  * Provides access to 300+ AI models via the Kilo Gateway (OpenRouter-compatible).
  * Fetches ALL models at startup (like Cline/OpenRouter), defaults to free-only view.
- * Run /login kilo or use /kilo-toggle to access paid models.
+ * Run /login kilo or use /toggle-kilo to access paid models.
  *
- * Responds to global /free toggle for free/paid model filtering.
+ * Responds to global free-only filter for free/paid model filtering.
  *
  * Usage:
  *   pi install git:github.com/apmantza/pi-free
@@ -156,8 +156,8 @@ export default async function (pi: ExtensionAPI) {
 
 	// Registration complete - models registered silently (use LOG_LEVEL=info to see details)
 
-	// Per-provider toggle command (works independently of global /free)
-	pi.registerCommand("kilo-toggle", {
+	// Per-provider toggle command
+	pi.registerCommand("toggle-kilo", {
 		description: "Toggle between free and all Kilo models",
 		handler: async (_args, ctx) => {
 			showPaidModels = !showPaidModels;
@@ -196,7 +196,7 @@ export default async function (pi: ExtensionAPI) {
 		const paidCount = allModels.length - freeModels.length;
 		if (paidCount > 0) {
 			ctx.ui.notify(
-				`Kilo: ${freeModels.length} free models shown. Use /kilo-toggle or /login kilo for ${paidCount} paid models. Terms: ${URL_KILO_TOS}`,
+				`Kilo: ${freeModels.length} free models shown. Use /toggle-kilo or /login kilo for ${paidCount} paid models. Terms: ${URL_KILO_TOS}`,
 				"info",
 			);
 		}

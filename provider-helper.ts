@@ -1,7 +1,7 @@
 /**
  * Shared provider setup helpers for pi-free-providers.
  * Extracts the common boilerplate pattern repeated across providers:
- *   - /{provider}-toggle command to switch between free/paid models
+ *   - toggle-{provider} command to switch between free/paid models
  *   - model_select handler (clear status for other providers)
  *   - turn_end handler (provider-specific error hook)
  *   - before_agent_start handler (one-time ToS notice)
@@ -31,7 +31,7 @@ export interface ProviderSetupConfig {
 	/** Initial mode - auto-detected from config at startup. */
 	initialShowPaid?: boolean;
 	/**
-	 * Called by /{provider}-toggle command to re-register
+	 * Called by toggle-{provider} command to re-register
 	 * the provider with the given model set.
 	 */
 	reRegister: (models: ProviderModelConfig[], stored: StoredModels) => void;
@@ -42,7 +42,7 @@ export interface ProviderSetupConfig {
 			ui: { notify: (m: string, t: "info" | "warning" | "error") => void };
 		},
 	) => Promise<boolean>;
-	/** When true, skips creating the /{provider}-toggle command. Useful for providers with only one model. */
+	/** When true, skips creating the toggle-{provider} command. Useful for providers with only one model. */
 	skipToggle?: boolean;
 }
 
@@ -176,7 +176,7 @@ export function setupProvider(
 	// ── Single toggle command (skip if requested) ──────────────────────
 
 	if (!config.skipToggle) {
-		pi.registerCommand(`${providerId}-toggle`, {
+		pi.registerCommand(`toggle-${providerId}`, {
 			description: `Toggle between free and all ${providerId} models`,
 			handler: async (_args, ctx) => {
 				// Toggle the mode

@@ -10,7 +10,7 @@
  * image-gen) are filtered by their modalities (output must be ["text"],
  * input must include "text").
  *
- * Responds to global /free toggle for free/paid model filtering.
+ * Responds to global free-only filter for free/paid model filtering.
  */
 
 import type {

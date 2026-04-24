@@ -2,7 +2,7 @@
  * Cline model fetching.
  *
  * Fetches ALL models from OpenRouter (Cline's gateway).
- * Free/paid filtering is handled by the global /free toggle.
+ * Free/paid filtering is handled by the global free-only filter.
  */
 
 import { applyHidden } from "../../config.ts";

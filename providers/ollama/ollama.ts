@@ -11,13 +11,13 @@
  * Requires OLLAMA_API_KEY with cloud access.
  * Get a free key at: https://ollama.com/settings/keys
  *
- * Responds to global /free toggle (shows models but warns they're freemium).
+ * Responds to global free-only filter (shows models but warns they're freemium).
  *
  * Usage:
  *   pi install git:github.com/apmantza/pi-free
  *   # Set OLLAMA_API_KEY env var
  *   # Models appear in /model selector
- *   # Use /ollama-toggle to show all vs limited set
+ *   # Use /toggle-ollama to show all vs limited set
  */
 
 import type {

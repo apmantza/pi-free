@@ -6,7 +6,7 @@
  *   2. ~/.pi/free.json
  *
  * All exported values are getter functions so that runtime changes
- * (e.g. after /{provider}-toggle or /free) are visible immediately.
+ * (e.g. after toggle-{provider}) are visible immediately.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";

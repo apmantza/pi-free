@@ -493,7 +493,7 @@ function setupProviderToggle(
 ): void {
 	let showPaid = initialShowPaid;
 
-	pi.registerCommand(`${providerId}-toggle`, {
+	pi.registerCommand(`toggle-${providerId}`, {
 		description: `Toggle free/paid ${providerId} models`,
 		handler: async (_args, ctx) => {
 			showPaid = !showPaid;

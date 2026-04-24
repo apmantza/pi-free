@@ -7,7 +7,7 @@
  *
  * Auth flow based on pi-cline's proven implementation.
  *
- * Responds to global /free toggle (though Cline only provides free models without auth).
+ * Responds to global free-only filter (though Cline only provides free models without auth).
  *
  * Usage:
  *   pi install git:github.com/apmantza/pi-free
@@ -193,13 +193,13 @@ function shapeMessagesForCline(messages: any[]): any[] {
 
 export default async function (pi: ExtensionAPI) {
 	// Fetch ALL models from OpenRouter (free and paid)
-	// The global /free toggle will filter based on cost.input
+	// The global free-only filter will filter based on cost.input
 	let allModels = await fetchClineModels(false).catch((err) => {
 		logWarning("cline", "Failed to fetch models at startup", err);
 		return [];
 	});
 
-	// Also fetch free-only list for the global toggle's free filter
+	// Also fetch free-only list for the global free-only filter
 	let freeModels = allModels.filter((m) => m.cost.input === 0);
 
 	// Create re-register function for global toggle
@@ -230,10 +230,9 @@ export default async function (pi: ExtensionAPI) {
 	// Initial registration with all models
 	reRegister(allModels);
 
-	// Per-provider toggle command (works independently of global /free)
+	// Per-provider toggle command
 	let showPaidModels = false;
-	let currentModels = allModels;
-	pi.registerCommand("cline-toggle", {
+	pi.registerCommand("toggle-cline", {
 		description: "Toggle between free and all Cline models",
 		handler: async (_args, ctx) => {
 			showPaidModels = !showPaidModels;
@@ -242,7 +241,6 @@ export default async function (pi: ExtensionAPI) {
 			const modelsToShow =
 				showPaidModels && allModels.length > 0 ? allModels : freeModels;
 
-			currentModels = modelsToShow;
 			reRegister(modelsToShow);
 
 			const freeCount = freeModels.length;
