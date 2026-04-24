@@ -8,7 +8,8 @@
  * - Kilo: OAuth-based free models
  * - Cline: Cline bot integration
  * - NVIDIA: NVIDIA NIM hosting (free tier available)
- * - Qwen: OAuth-based Qwen access
+ * - Ollama Cloud: Ollama's cloud-hosted models with usage-based free tier
+ * - Qwen: OAuth-based Qwen access (deprecated)
  * - Modal: Modal Labs hosting
  */
 

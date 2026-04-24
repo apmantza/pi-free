@@ -23,6 +23,7 @@ export const ALL_UNIQUE_PROVIDERS = [
 	/** @deprecated Qwen free tier no longer available */
 	PROVIDER_QWEN,
 	PROVIDER_MODAL,
+	PROVIDER_OLLAMA,
 ] as const;
 
 // =============================================================================
