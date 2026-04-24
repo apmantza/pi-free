@@ -112,7 +112,11 @@ function ensureConfigFile(): void {
 export function loadConfigFile(): PiFreeConfig {
 	try {
 		return JSON.parse(readFileSync(CONFIG_PATH, "utf8")) as PiFreeConfig;
-	} catch {
+	} catch (err) {
+		_logger.warn("Could not parse config file — returning empty config", {
+			path: CONFIG_PATH,
+			error: err instanceof Error ? err.message : String(err),
+		});
 		return {};
 	}
 }
