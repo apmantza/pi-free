@@ -140,7 +140,7 @@ function registerToggleCommand(
 	pi: ExtensionAPI,
 	config: BuiltInToggleConfig,
 ): void {
-	const commandName = `${config.id}-toggle`;
+	const commandName = `toggle-${config.id}`;
 	pi.registerCommand(commandName, {
 		description: `Toggle free/paid ${config.id} models`,
 		handler: async (_args, ctx) => {

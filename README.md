@@ -6,21 +6,23 @@ Free AI model providers for [Pi](https://pi.dev). Access **free models** from mu
 
 ## What does pi-free do
 
-**pi-free is a Pi extension that unlocks free AI models from 9 providers — and adds 2 paid providers for convenience.**
+**pi-free is a Pi extension that unlocks free AI models from multiple providers.**
 
 When you install pi-free, it:
 
-1. **Registers 10+ AI providers** with Pi's model picker — 9 unique free-tier providers plus dynamic providers for Pi's built-in services when API keys are configured
+1. **Registers free-tier providers** with Pi's model picker — Kilo, Cline, NVIDIA, Cloudflare, Modal, Ollama Cloud, and more
 
-2. **Filters to show only free models by default** — You see only the models that cost $0 to use, no API key required for some providers. Paid-only providers are hidden until you explicitly enable them.
+2. **Fetches models dynamically** for Pi's built-in providers when API keys are configured — Mistral, Groq, Cerebras, xAI, Hugging Face, OpenRouter
 
-3. **Provides a toggle command** — Run `/{provider}-toggle` (e.g., `/zen-toggle`, `/kilo-toggle`) to switch between free-only mode and showing all models including paid ones
+3. **Filters to show only free models by default** for providers that expose pricing — You see only the models that cost $0 to use. Paid models are hidden until you explicitly toggle them on.
 
-4. **Handles authentication for you** — OAuth flows (Kilo, Cline) open your browser automatically; API keys are read from `~/.pi/free.json` or environment variables
+4. **Provides per-provider toggle commands** — Run `/toggle-{provider}` (e.g., `/toggle-kilo`, `/toggle-opencode`) to switch between free-only mode and showing all models including paid ones
 
-5. **Adds Coding Index scores** — Model names include a coding benchmark score (CI: 45.2) to help you pick capable coding models at a glance
+5. **Handles authentication for you** — OAuth flows (Kilo, Cline) open your browser automatically; API keys are read from `~/.pi/free.json` or environment variables
 
-6. **Persists your preferences** — Your toggle choices (free vs all models) are saved to `~/.pi/free.json` and remembered across Pi restarts
+6. **Adds Coding Index scores** — Model names include a coding benchmark score (CI: 45.2) to help you pick capable coding models at a glance
+
+7. **Persists your preferences** — Your toggle choices (free vs all models) are saved to `~/.pi/free.json` and remembered across Pi restarts
 
 ---
 
@@ -39,7 +41,7 @@ Start Pi and press `Ctrl+L` to open the model picker.
 Free models are shown by default — look for the provider prefixes:
 
 **✅ Offers Free Models (no usage limits, no payment required):**
-- `zen/` — OpenCode Zen models (no setup required)
+- `opencode/` — OpenCode models (no setup required; toggle with `/toggle-opencode`)
 - `kilo/` — Kilo models (free models available immediately, more after `/login kilo`)
 - `openrouter/` — OpenRouter models (free account required)
 - `cline/` — Cline models (run `/login cline` to use)
@@ -48,15 +50,14 @@ Free models are shown by default — look for the provider prefixes:
 - `nvidia/` — NVIDIA NIM models (1,000 free requests/month, then credits)
 - `cloudflare/` — Cloudflare Workers AI (10K Neurons/day free tier, then $0.011/1K Neurons)
 - `modal/` — GLM-5.1 FP8 via Modal (free promotional period until April 30, 2026)
-- `ollama/` — Ollama Cloud models (usage-based free tier, resets every 5 hours + 7 days)
+- `ollama-cloud/` — Ollama Cloud models (usage-based free tier, resets every 5 hours + 7 days)
 
-**🔧 Dynamic API Providers (free models when API key configured):**
-- `mistral/` — Mistral models (free models via API when `MISTRAL_API_KEY` set)
-- `groq/` — Groq models (free models via API when `GROQ_API_KEY` set)
-- `cerebras/` — Cerebras models (free models via API when `CEREBRAS_API_KEY` set)
-
-**💳 Paid Only (no free tier):**
-- `go/` — OpenCode Go models (requires subscription — $5 first month, then $10/month)
+**🔧 Dynamic API Providers (fetched when API key configured):**
+- `mistral/` — Mistral models (when `MISTRAL_API_KEY` set)
+- `groq/` — Groq models (when `GROQ_API_KEY` set)
+- `cerebras/` — Cerebras models (when `CEREBRAS_API_KEY` set)
+- `xai/` — xAI models (when `XAI_API_KEY` set)
+- `huggingface/` — Hugging Face models (when `HF_TOKEN` set)
 
 **Note:** Fireworks is now a [built-in Pi provider](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/CHANGELOG.md#0681---2026-04-22) — no extension needed. Set `FIREWORKS_API_KEY` to use it directly.
 
@@ -65,21 +66,24 @@ Free models are shown by default — look for the provider prefixes:
 Want to see paid models too? Run the toggle command for your provider:
 
 ```
-/zen-toggle         # Toggle Zen (✅ offers free models)
-/kilo-toggle        # Toggle Kilo (✅ offers free models)
-/openrouter-toggle  # Toggle OpenRouter (✅ offers free models)
-/cline-toggle      # Toggle Cline (✅ offers free models)
-/mistral-toggle     # Toggle Mistral (🔧 dynamic - needs API key)
-/groq-toggle        # Toggle Groq (🔧 dynamic - needs API key)
-/cerebras-toggle   # Toggle Cerebras (🔧 dynamic - needs API key)
+/toggle-opencode   # Toggle OpenCode (✅ offers free models)
+/toggle-kilo       # Toggle Kilo (✅ offers free models)
+/toggle-openrouter # Toggle OpenRouter (✅ offers free models)
+/toggle-cline      # Toggle Cline (✅ offers free models)
+/toggle-nvidia     # Toggle NVIDIA (🔄 freemium)
+/toggle-cloudflare # Toggle Cloudflare (🔄 freemium)
+/toggle-ollama     # Toggle Ollama Cloud (🔄 freemium)
+/toggle-mistral    # Toggle Mistral (🔧 dynamic - needs API key)
+/toggle-groq       # Toggle Groq (🔧 dynamic - needs API key)
+/toggle-cerebras   # Toggle Cerebras (🔧 dynamic - needs API key)
 ```
 
 **Notes:**
-- **Toggle commands are mainly for ✅ Offers Free Models providers** — to switch between "free models only" vs "show paid models too"
-- **🔄 Freemium providers** (NVIDIA, Cloudflare, Ollama, Modal) show all models by default — you manage your usage limits via their dashboards
-- **💳 Paid-only providers** (Go) have no toggle since all models require payment
+- **Toggle commands are mainly for ✅ and 🔄 providers** — to switch between "free models only" vs "show paid models too"
+- **🔧 Dynamic providers** show all fetched models by default — the toggle filters the list when you have an API key configured
+- **Freemium providers** show all models by default; you manage your usage limits via their dashboards
 
-You'll see a notification like: `zen: showing free models` or `zen: showing all models (including paid)`
+You'll see a notification like: `opencode: showing free models` or `opencode: showing all models`
 
 ### 4. Add API keys for more providers (optional)
 
@@ -102,8 +106,6 @@ Add your API keys to this file:
 }
 ```
 
-**Note:** Fireworks is now a [built-in Pi provider](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/CHANGELOG.md#0681---2026-04-22) — no extension needed. Set `FIREWORKS_API_KEY` to use it directly.
-
 Or set environment variables instead (same names, uppercase: `OPENROUTER_API_KEY`, `NVIDIA_API_KEY`, etc.)
 
 See the [Providers That Need Authentication](#providers-that-need-authentication) section below for detailed setup instructions per provider.
@@ -112,7 +114,8 @@ See the [Providers That Need Authentication](#providers-that-need-authentication
 
 | Command | What it does |
 |---------|-------------|
-| `/{provider}-toggle` | Switch between free-only and all models for that provider |
+| `/toggle-{provider}` | Switch between free-only and all models for that provider |
+| `/free-providers` | Show free/paid model counts for all providers |
 | `/login kilo` | Start OAuth flow for Kilo |
 | `/login cline` | Start OAuth flow for Cline |
 | `/logout kilo` | Clear Kilo OAuth credentials |
@@ -122,48 +125,16 @@ See the [Providers That Need Authentication](#providers-that-need-authentication
 
 ## Using Free Models (No Setup Required)
 
-### OpenCode Zen — Easiest Start
+### OpenCode
 
 Works immediately with zero setup:
 
 1. Press `Ctrl+L`
-2. Search for `zen/`
-3. Pick any model (e.g., `zen/mimo-v2-omni-free`)
+2. Search for `opencode/`
+3. Pick any model (e.g., `opencode/big-pickle`)
 4. Start chatting
 
-No account, no API key, no OAuth.
-
-### Ollama Cloud
-
-Get an API key from [ollama.com/settings/keys](https://ollama.com/settings/keys), then:
-
-**Option A: Environment variable**
-```bash
-export OLLAMA_API_KEY="..."
-export OLLAMA_SHOW_PAID=true
-```
-
-**Option B: Config file** (`~/.pi/free.json`)
-```json
-{
-  "ollama_api_key": "YOUR_KEY",
-  "ollama_show_paid": true
-}
-```
-
-**Note:** Ollama requires `OLLAMA_SHOW_PAID=true` because they have usage limits on their cloud API.
-
-Free tier resets every 5 hours + 7 days.
-
----
-
-## Providers That Need Authentication
-
-Some providers require free accounts or OAuth to access their free tiers. **Go is a paid-only provider — it has no free tier.**
-
----
-
-### 🆓 Free Providers
+No account, no API key, no OAuth. Run `/toggle-opencode` to switch between free and paid OpenCode models.
 
 ### Kilo (free models, more after login)
 
@@ -181,7 +152,33 @@ This command will:
 
 - No credit card required
 - Free tier: 200 requests/hour
-- After login, run `/kilo-toggle` to switch between free-only and all models
+- After login, run `/toggle-kilo` to switch between free-only and all models
+
+### Cline (free account)
+
+Cline models appear immediately in the model picker. To use them, authenticate with Cline's free account:
+
+```
+/login cline
+```
+
+This command will:
+1. Open your browser to Cline's sign-in page
+2. Wait for you to complete sign-in
+3. Automatically complete login once approved
+
+- Free account required (no credit card)
+- Uses local ports 48801-48811 for OAuth callback
+
+---
+
+## Providers That Need Authentication
+
+Some providers require a free account or API key to access their free tiers.
+
+---
+
+### 🆓 Free Providers
 
 ### OpenRouter (free models available)
 
@@ -199,10 +196,7 @@ export OPENROUTER_API_KEY="sk-or-v1-..."
 }
 ```
 
-Then in Pi:
-```
-/openrouter-all   # Show all models (free + paid)
-```
+Then use `/toggle-openrouter` to switch between free-only and all models.
 
 ### NVIDIA NIM (Free Credits System)
 
@@ -234,7 +228,7 @@ Or in `~/.pi/free.json`:
 }
 ```
 
-Toggle anytime with `/nvidia-toggle`
+Toggle anytime with `/toggle-nvidia`
 
 ### Cloudflare Workers AI (10K Neurons/day Free Tier)
 
@@ -258,23 +252,7 @@ export CLOUDFLARE_ACCOUNT_ID="your_account_id"  # Optional
 
 **Models available:** Llama 4, Mistral Small 3.1, DeepSeek R1, Gemma 4, Kimi K2.5/2.6, and more.
 
-Toggle with `/cloudflare-toggle`
-
-### Cline (free account)
-
-Cline models appear immediately in the model picker. To use them, authenticate with Cline's free account:
-
-```
-/login cline
-```
-
-This command will:
-1. Open your browser to Cline's sign-in page
-2. Wait for you to complete sign-in
-3. Automatically complete login once approved
-
-- Free account required (no credit card)
-- Uses local ports 48801-48811 for OAuth callback
+Toggle with `/toggle-cloudflare`
 
 ### Modal (GLM-5.1 FP8 — free promotional period until April 30, 2026)
 
@@ -299,6 +277,28 @@ Then select a `modal/` model in the model picker.
 - Model: GLM-5.1 FP8 (128k context, 16k max output)
 - No credit card required during the promotional period
 
+### Ollama Cloud
+
+Get an API key from [ollama.com/settings/keys](https://ollama.com/settings/keys), then:
+
+**Option A: Environment variable**
+```bash
+export OLLAMA_API_KEY="..."
+export OLLAMA_SHOW_PAID=true
+```
+
+**Option B: Config file** (`~/.pi/free.json`)
+```json
+{
+  "ollama_api_key": "YOUR_KEY",
+  "ollama_show_paid": true
+}
+```
+
+**Note:** Ollama requires `OLLAMA_SHOW_PAID=true` because they have usage limits on their cloud API.
+
+Free tier resets every 5 hours + 7 days.
+
 ### Mistral (free API key)
 
 Add API key to `~/.pi/free.json` or environment variables:
@@ -309,51 +309,29 @@ export MISTRAL_API_KEY="..."
 
 ---
 
-### 💳 Paid-Only Providers
-
-> **⚠️ These providers have no free tier. All usage incurs costs.**
-
-### OpenCode Go (subscription — $5 first month, then $10/month)
-
-Go provides access to curated open coding models via a monthly subscription. There is no free tier.
-
-Set `OPENCODE_GO_API_KEY` (or `opencode_go_api_key` in `~/.pi/free.json`) and `GO_SHOW_PAID=true` to enable.
-
-**Models available:**
-- GLM-5
-- Kimi K2.5
-- MiMo-V2-Pro
-- MiMo-V2-Omni
-- MiniMax M2.7
-- MiniMax M2.5
-
-**Pricing:** $5 first month, then $10/month. See [opencode.ai/docs/go](https://opencode.ai/docs/go).
-
-Toggle with `/go-toggle`.
-
----
-
 ## Slash Commands
 
 Each provider has toggle commands to switch between free and all models:
 
 | Command | Action |
 |---------|--------|
-| `/zen-toggle` | Toggle between free/all Zen models |
-| `/kilo-toggle` | Toggle between free/all Kilo models |
-| `/openrouter-toggle` | Toggle between free/all OpenRouter models |
-| `/cline-toggle` | Toggle between free/all Cline models (✅ offers free models) |
-| `/mistral-toggle` | Toggle between free/all Mistral models (🔧 dynamic) |
-| `/groq-toggle` | Toggle between free/all Groq models (🔧 dynamic) |
-| `/cerebras-toggle` | Toggle between free/all Cerebras models (🔧 dynamic) |
+| `/toggle-opencode` | Toggle between free/all OpenCode models |
+| `/toggle-kilo` | Toggle between free/all Kilo models |
+| `/toggle-openrouter` | Toggle between free/all OpenRouter models |
+| `/toggle-cline` | Toggle between free/all Cline models |
+| `/toggle-nvidia` | Toggle between free/all NVIDIA models |
+| `/toggle-cloudflare` | Toggle between free/all Cloudflare models |
+| `/toggle-ollama` | Toggle between free/all Ollama Cloud models |
+| `/toggle-mistral` | Toggle between free/all Mistral models (🔧 dynamic) |
+| `/toggle-groq` | Toggle between free/all Groq models (🔧 dynamic) |
+| `/toggle-cerebras` | Toggle between free/all Cerebras models (🔧 dynamic) |
 
 **The toggle command:**
-- **For ✅ Offers Free Models providers**: Switches between showing only free models vs. all available models (including paid)
-- **For 🔧 Dynamic API providers**: Filters the model list when you have an API key configured
+- **For ✅ free providers**: Switches between showing only free models vs. all available models (including paid)
+- **For 🔄 freemium providers**: Shows all models by default; toggle switches between filtered and full list
+- **For 🔧 dynamic API providers**: Filters the model list when you have an API key configured
 - **Persists your preference** to `~/.pi/free.json` for next startup
-- Shows a notification: "zen: showing free models" or "zen: showing all models (including paid)"
-
-**Note:** 🔄 Freemium providers (NVIDIA, Cloudflare, Ollama Cloud, Modal) don't have toggle commands — they show all models and you manage usage via their dashboards. 💳 Paid-only providers (Go) also have no toggle since all models require payment.
+- Shows a notification: "opencode: showing free models" or "opencode: showing all models"
 
 ---
 
@@ -366,8 +344,7 @@ Create `~/.pi/free.json` in your home directory:
   "openrouter_api_key": "YOUR_OPENROUTER_KEY",
   "nvidia_api_key": "YOUR_NVIDIA_KEY",
   "mistral_api_key": "YOUR_MISTRAL_KEY",
-  "opencode_api_key": "YOUR_ZEN_KEY",
-  "opencode_go_api_key": "YOUR_GO_KEY",
+  "opencode_api_key": "YOUR_OPENCODE_KEY",
   "ollama_api_key": "YOUR_OLLAMA_KEY",
   "ollama_show_paid": true,
   "modal_api_key": "YOUR_MODAL_KEY",

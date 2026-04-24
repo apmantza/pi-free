@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Built-in provider toggle support** (`lib/built-in-toggle.ts`) — Enables free/paid filtering for Pi's built-in providers that expose per-model pricing:
+  - **OpenCode (`/toggle-opencode`)** — Captures built-in OpenCode models on session start and filters to free-only by default
+  - Toggle works in the current session (no restart needed)
+  - Persisted via `opencode_show_paid` in `~/.pi/free.json`
+
+### Changed
+- **Standardized all toggle commands to `toggle-{provider}`** — Renamed from `{provider}-toggle` for consistency:
+  - `/kilo-toggle` → `/toggle-kilo`
+  - `/cline-toggle` → `/toggle-cline`
+  - `/openrouter-toggle` → `/toggle-openrouter`
+  - `/nvidia-toggle` → `/toggle-nvidia`
+  - `/cloudflare-toggle` → `/toggle-cloudflare`
+  - `/ollama-toggle` → `/toggle-ollama`
+  - `/mistral-toggle` → `/toggle-mistral`
+  - `/groq-toggle` → `/toggle-groq`
+  - `/cerebras-toggle` → `/toggle-cerebras`
+  - `/toggle-opencode` (new)
+
+### Removed
+- **Global `/free` command** — Removed the global free-only toggle. Per-provider toggles (`/toggle-{provider}`) are now the only way to switch between free and paid models. The `/free-providers` status command remains.
+
 ## [2.0.0] - 2026-04-23
 
 ### Breaking Changes
