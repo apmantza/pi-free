@@ -16,17 +16,10 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
-import {
-	getOpencodeShowPaid,
-	getOpenrouterShowPaid,
-	saveConfig,
-} from "../config.ts";
+import { getOpencodeShowPaid, getOpenrouterShowPaid } from "../config.ts";
 import { createLogger } from "./logger.ts";
-import {
-	getGlobalFreeOnly,
-	isFreeModel,
-	registerWithGlobalToggle,
-} from "./registry.ts";
+import { isFreeModel, registerWithGlobalToggle } from "./registry.ts";
+import { createToggleState } from "./toggle-state.ts";
 
 const _logger = createLogger("built-in-toggle");
 
@@ -49,10 +42,9 @@ const BUILT_IN_TOGGLE_PROVIDERS: BuiltInToggleConfig[] = [
 // =============================================================================
 
 interface BuiltInProviderState {
-	free: ProviderModelConfig[];
-	all: ProviderModelConfig[];
+	stored: { free: ProviderModelConfig[]; all: ProviderModelConfig[] };
 	reRegister: (models: ProviderModelConfig[]) => void;
-	showPaid: boolean;
+	toggleState: ReturnType<typeof createToggleState<ProviderModelConfig>>;
 }
 
 const providerStates = new Map<string, BuiltInProviderState>();
@@ -102,35 +94,29 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 				});
 			};
 
-			providerStates.set(config.id, {
-				free: freeModels,
-				all: allModels,
-				reRegister,
-				showPaid: config.getShowPaid(),
+			const stored = { free: freeModels, all: allModels };
+			const toggleState = createToggleState<ProviderModelConfig>({
+				providerId: config.id,
+				initialShowPaid: config.getShowPaid(),
+				initialModels: stored,
 			});
 
-			// Register with global free-only filter
-			registerWithGlobalToggle(
-				config.id,
-				{ free: freeModels, all: allModels },
+			providerStates.set(config.id, {
+				stored,
 				reRegister,
-				true,
-			);
+				toggleState,
+			});
+
+			registerWithGlobalToggle(config.id, stored, reRegister, true);
 
 			_logger.info(
 				`[built-in-toggle] ${config.id}: captured ${allModels.length} models (${freeModels.length} free)`,
 			);
 
-			// Respect global free-only setting at capture time
-			if (!getGlobalFreeOnly() && !config.getShowPaid()) {
-				// Default: show free only (same as other pi-free providers)
-				if (freeModels.length > 0) {
-					reRegister(freeModels);
-					_logger.info(
-						`[built-in-toggle] ${config.id}: applied free-only filter`,
-					);
-				}
-			}
+			const applied = toggleState.applyCurrent(reRegister);
+			_logger.info(
+				`[built-in-toggle] ${config.id}: applied ${applied.mode} mode with ${applied.models.length} models`,
+			);
 		}
 	});
 }
@@ -156,21 +142,16 @@ function registerToggleCommand(
 				return;
 			}
 
-			state.showPaid = !state.showPaid;
+			const applied = state.toggleState.toggle(state.reRegister);
 
-			// Persist preference
-			saveConfig({ [`${config.id}_show_paid`]: state.showPaid });
-
-			if (state.showPaid) {
-				state.reRegister(state.all);
+			if (applied.mode === "all") {
 				ctx.ui.notify(
-					`${config.id}: showing all ${state.all.length} models`,
+					`${config.id}: showing all ${state.stored.all.length} models`,
 					"info",
 				);
 			} else {
-				state.reRegister(state.free);
 				ctx.ui.notify(
-					`${config.id}: showing ${state.free.length} free models`,
+					`${config.id}: showing ${state.stored.free.length} free models`,
 					"info",
 				);
 			}

@@ -16,8 +16,10 @@
 
 import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { getClineShowPaid } from "../../config.ts";
 import { BASE_URL_CLINE, PROVIDER_CLINE } from "../../constants.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
+import { createToggleState } from "../../lib/toggle-state.ts";
 import { logWarning } from "../../lib/util.ts";
 import { enhanceWithCI } from "../../provider-helper.ts";
 import { loginCline, refreshClineToken } from "./cline-auth.ts";
@@ -192,17 +194,18 @@ function shapeMessagesForCline(messages: any[]): any[] {
 // =============================================================================
 
 export default async function (pi: ExtensionAPI) {
-	// Fetch ALL models from OpenRouter (free and paid)
-	// The global free-only filter will filter based on cost.input
 	let allModels = await fetchClineModels(false).catch((err) => {
 		logWarning("cline", "Failed to fetch models at startup", err);
 		return [];
 	});
-
-	// Also fetch free-only list for the global free-only filter
 	let freeModels = allModels.filter((m) => m.cost.input === 0);
+	const stored = { free: freeModels, all: allModels };
+	const toggleState = createToggleState({
+		providerId: PROVIDER_CLINE,
+		initialShowPaid: getClineShowPaid(),
+		initialModels: stored,
+	});
 
-	// Create re-register function for global toggle
 	const reRegister = (m: typeof allModels) => {
 		pi.registerProvider(PROVIDER_CLINE, {
 			baseUrl: BASE_URL_CLINE,
@@ -219,36 +222,19 @@ export default async function (pi: ExtensionAPI) {
 		});
 	};
 
-	// Register with global toggle (separate free and all lists)
-	registerWithGlobalToggle(
-		PROVIDER_CLINE,
-		{ free: freeModels, all: allModels },
-		(m) => reRegister(m),
-		false, // no key until OAuth
-	);
+	registerWithGlobalToggle(PROVIDER_CLINE, stored, (m) => reRegister(m), false);
+	toggleState.applyCurrent(reRegister);
 
-	// Initial registration with all models
-	reRegister(allModels);
-
-	// Per-provider toggle command
-	let showPaidModels = false;
 	pi.registerCommand("toggle-cline", {
 		description: "Toggle between free and all Cline models",
 		handler: async (_args, ctx) => {
-			showPaidModels = !showPaidModels;
+			const applied = toggleState.toggle(reRegister);
+			const freeCount = stored.free.length;
+			const paidCount = stored.all.length - freeCount;
 
-			// Determine which models to show
-			const modelsToShow =
-				showPaidModels && allModels.length > 0 ? allModels : freeModels;
-
-			reRegister(modelsToShow);
-
-			const freeCount = freeModels.length;
-			const paidCount = allModels.length - freeCount;
-
-			if (showPaidModels && allModels.length > 0) {
+			if (applied.mode === "all") {
 				ctx.ui.notify(
-					`cline: showing all ${allModels.length} models (${freeCount} free, ${paidCount} paid)`,
+					`cline: showing all ${stored.all.length} models (${freeCount} free, ${paidCount} paid)`,
 					"info",
 				);
 			} else {
@@ -260,31 +246,31 @@ export default async function (pi: ExtensionAPI) {
 		},
 	});
 
-	// Cline-specific: refresh task ID and re-register headers before each agent run
 	pi.on("before_agent_start", async (_event, ctx) => {
 		if (ctx.model?.provider !== PROVIDER_CLINE) return;
 		_currentTaskId = generateUlid();
-		reRegister(freeModels);
+		toggleState.applyCurrent(reRegister);
 	});
 
-	// Cline-specific: shape messages to Cline's expected envelope format
 	pi.on("context", async (event, ctx) => {
 		if (ctx.model?.provider !== PROVIDER_CLINE) return;
 		const sourceMessages = Array.isArray(event.messages) ? event.messages : [];
 		return { messages: shapeMessagesForCline(sourceMessages) };
 	});
 
-	// Cline-specific: refresh model list at session start
 	pi.on("session_start", async (_event, ctx) => {
 		try {
 			const fresh = await fetchClineModels(false);
 			if (fresh.length > 0) {
 				allModels = fresh;
 				freeModels = allModels.filter((m) => m.cost.input === 0);
-				reRegister(allModels);
+				stored.all = allModels;
+				stored.free = freeModels;
+				toggleState.setModels(stored);
+				toggleState.applyCurrent(reRegister);
 				if (ctx.model?.provider === PROVIDER_CLINE) {
-					const freeCount = freeModels.length;
-					const paidCount = allModels.length - freeCount;
+					const freeCount = stored.free.length;
+					const paidCount = stored.all.length - freeCount;
 					ctx.ui.notify(
 						`Cline: ${freeCount} free, ${paidCount} paid models available`,
 						"info",

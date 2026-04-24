@@ -17,8 +17,16 @@ vi.mock("../lib/registry.ts", () => ({
 	getGlobalFreeOnly: () => false,
 }));
 
+const mockGetClineShowPaid = vi.fn();
+const mockSaveConfig = vi.fn();
+
 vi.mock("../lib/util.ts", () => ({
 	logWarning: vi.fn(),
+}));
+
+vi.mock("../config.ts", () => ({
+	getClineShowPaid: () => mockGetClineShowPaid(),
+	saveConfig: (...args: unknown[]) => mockSaveConfig(...args),
 }));
 
 vi.mock("../providers/cline/cline-auth.ts", () => ({
@@ -42,16 +50,21 @@ describe("Cline Provider", () => {
 	let mockPi: ExtensionAPI;
 	let mockRegisterProvider: ReturnType<typeof vi.fn>;
 	let mockOn: ReturnType<typeof vi.fn>;
+	let commandHandlers: Record<string, Function>;
 
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mockRegisterProvider = vi.fn();
 		mockOn = vi.fn();
+		commandHandlers = {};
+		mockGetClineShowPaid.mockReturnValue(false);
 
 		mockPi = {
 			registerProvider: mockRegisterProvider,
 			on: mockOn,
-			registerCommand: vi.fn(),
+			registerCommand: vi.fn((name: string, config: { handler: Function }) => {
+				commandHandlers[name] = config.handler;
+			}),
 		} as unknown as ExtensionAPI;
 	});
 
@@ -132,6 +145,84 @@ describe("Cline Provider", () => {
 	});
 
 	describe("request handling", () => {
+		it("should persist and re-apply paid mode across lifecycle hooks", async () => {
+			const initialModels = [
+				{
+					id: "free-model",
+					name: "Free Model",
+					reasoning: false,
+					input: ["text" as const],
+					cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+					contextWindow: 200000,
+					maxTokens: 8192,
+				},
+				{
+					id: "paid-model",
+					name: "Paid Model",
+					reasoning: false,
+					input: ["text" as const],
+					cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
+					contextWindow: 200000,
+					maxTokens: 8192,
+				},
+			];
+			vi.mocked(fetchClineModels)
+				.mockResolvedValueOnce(initialModels)
+				.mockResolvedValueOnce(initialModels);
+
+			await clineProvider(mockPi);
+			mockRegisterProvider.mockClear();
+
+			const notify = vi.fn();
+			await commandHandlers["toggle-cline"]({}, { ui: { notify } });
+
+			expect(mockSaveConfig).toHaveBeenCalledWith({ cline_show_paid: true });
+			expect(mockRegisterProvider).toHaveBeenLastCalledWith(
+				"cline",
+				expect.objectContaining({
+					models: expect.arrayContaining([
+						expect.objectContaining({ id: "free-model" }),
+						expect.objectContaining({ id: "paid-model" }),
+					]),
+				}),
+			);
+
+			mockRegisterProvider.mockClear();
+			const beforeRequestHandler = mockOn.mock.calls.find(
+				(call) => call[0] === "before_agent_start",
+			)?.[1];
+			await beforeRequestHandler({}, { model: { provider: "cline" } });
+
+			expect(mockRegisterProvider).toHaveBeenCalledWith(
+				"cline",
+				expect.objectContaining({
+					models: expect.arrayContaining([
+						expect.objectContaining({ id: "free-model" }),
+						expect.objectContaining({ id: "paid-model" }),
+					]),
+				}),
+			);
+
+			mockRegisterProvider.mockClear();
+			const sessionStartHandler = mockOn.mock.calls.find(
+				(call) => call[0] === "session_start",
+			)?.[1];
+			await sessionStartHandler(
+				{},
+				{ model: { provider: "cline" }, ui: { notify } },
+			);
+
+			expect(mockRegisterProvider).toHaveBeenCalledWith(
+				"cline",
+				expect.objectContaining({
+					models: expect.arrayContaining([
+						expect.objectContaining({ id: "free-model" }),
+						expect.objectContaining({ id: "paid-model" }),
+					]),
+				}),
+			);
+		});
+
 		it("should re-register provider with fresh headers on before_agent_start", async () => {
 			vi.mocked(fetchClineModels).mockResolvedValue([]);
 
