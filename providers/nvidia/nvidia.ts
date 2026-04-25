@@ -248,7 +248,6 @@ async function fetchNvidiaModels(
 			// Filter out known 404 models (listed but not provisioned for chat)
 			.filter((m) => {
 				if (NVIDIA_KNOWN_404_MODELS.has(m.id)) {
-					console.warn(`[nvidia] Skipping known 404 model: ${m.id}`);
 					return false;
 				}
 				return true;

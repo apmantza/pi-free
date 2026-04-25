@@ -23,7 +23,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **NVIDIA provider now sends `authHeader: true`** — Explicitly enables `Authorization: Bearer` header injection. Previously relied on pi's implicit behavior which could fail in some configurations.
 
+### Removed
+
+- **NVIDIA 404 model warning log** — Removed the `console.warn("[nvidia] Skipping known 404 model: ...")` output when filtering out known broken models. The filter still works silently; use `/probe-nvidia` to identify new 404s if needed.
+
 ### Changed
+
+- **Cloudflare provider now fetches models dynamically** — Replaced static 19-model hardcoded list with live API fetch from `api.cloudflare.com/client/v4/accounts/{account_id}/ai/models`:
+  - Automatically discovers all 30+ text generation models (was manually maintaining 19)
+  - Smart filtering excludes embeddings, image generation, speech, translation, and vision-only models via regex patterns
+  - Metadata inference from model IDs: detects vision (`vision`/`multimodal`), reasoning (`r1`/`thinking`/`qwq`), context windows, and estimated costs
+  - Fixed Mistral Small ID: changed from incorrect `@cf/mistralai/...` to correct `@cf/mistral/...`
+  - Added new fallback models: Kimi K2.6, OpenAI GPT-OSS 120B/20B, Qwen 2.5 Coder 32B, QwQ 32B, Llama 3.2 11B Vision
+  - Graceful fallback to expanded 18-model hardcoded list if API fetch fails
 
 - **NVIDIA provider now queries NVIDIA's API directly** — Source of truth switched from `models.dev` curated JSON to `https://integrate.api.nvidia.com/v1/models`:
   - Eliminates 57 missing models and 25 stale entries from the old third-party source

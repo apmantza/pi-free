@@ -1,7 +1,7 @@
 /**
  * Cloudflare Workers AI Provider Extension
  *
- * Provides access to Cloudflare's serverless GPU network with 18+ models.
+ * Provides access to Cloudflare's serverless GPU network with 30+ models.
  * All models use Cloudflare's "Neurons" pricing system:
  *   - 10,000 Neurons per day FREE (resets daily at 00:00 UTC)
  *   - $0.011 per 1,000 Neurons beyond free allocation
@@ -17,8 +17,6 @@
  *   - Config file: ~/.pi/agent/auth.json
  *     { "cloudflare-ai": { "access": "token", "account_id": "id" } }
  *   - Legacy: CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID env vars
- *
- * Models can be customized via ~/.pi/cloudflare-models.json
  */
 
 import { existsSync, readFileSync } from "node:fs";
@@ -28,7 +26,9 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
+import { DEFAULT_FETCH_TIMEOUT_MS } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
+import { fetchWithRetry } from "../../lib/util.ts";
 
 const _logger = createLogger("cloudflare");
 
@@ -81,36 +81,60 @@ function getCloudflareAuth(): CloudflareAuth {
 // Compatibility Settings
 // =============================================================================
 
-/**
- * Cloudflare Workers AI compatibility settings.
- * Prevents 413 Payload Too Large errors by disabling unsupported parameters.
- */
-const CLOUDFLARE_COMPAT: {
-	supportsStore?: boolean;
-	supportsDeveloperRole?: boolean;
-	supportsReasoningEffort?: boolean;
-	supportsStrictMode?: boolean;
-	maxTokensField?: "max_tokens" | "max_completion_tokens";
-	requiresThinkingAsText?: boolean;
-} = {
+const CLOUDFLARE_COMPAT = {
 	supportsStore: false,
 	supportsDeveloperRole: false,
 	supportsReasoningEffort: false,
 	supportsStrictMode: false,
-	maxTokensField: "max_tokens",
+	maxTokensField: "max_tokens" as const,
 };
 
 // =============================================================================
-// Default Models (18 models from Cloudflare Workers AI)
+// Known non-chat model patterns (to filter out)
 // =============================================================================
 
-interface ModelConfig extends ProviderModelConfig {
-	compat?: { requiresThinkingAsText?: boolean };
-	_remove?: boolean;
-}
+const NON_CHAT_PATTERNS = [
+	// Embeddings
+	/bge-/i,
+	/embed/i,
+	/embedding/i,
+	/pfnet\/plamo-embedding/i,
+	/qwen3-embedding/i,
+	// Image generation
+	/flux/i,
+	/stable-diffusion/i,
+	/dreamshaper/i,
+	/lucid-origin/i,
+	/phoenix/i,
+	// Speech/audio
+	/whisper/i,
+	/aura-/i,
+	/nova-/i,
+	/melotts/i,
+	// Translation (not chat)
+	/indictrans/i,
+	/m2m100/i,
+	// Vision-only models
+	/llava/i,
+	/detr-/i,
+	/resnet/i,
+	/unum\/uform/i,
+	// Code/SQL only
+	/sqlcoder/i,
+	// Classification/reranking
+	/reranker/i,
+	/distilbert/i,
+	// Safety/moderation
+	/llama-guard/i,
+	// Turn detection
+	/smart-turn/i,
+];
 
-const DEFAULT_MODELS: ModelConfig[] = [
-	// Frontier models
+// =============================================================================
+// Fallback models (used if API fetch fails)
+// =============================================================================
+
+const FALLBACK_MODELS: ProviderModelConfig[] = [
 	{
 		id: "@cf/moonshotai/kimi-k2.5",
 		name: "Kimi K2.5",
@@ -119,6 +143,17 @@ const DEFAULT_MODELS: ModelConfig[] = [
 		cost: { input: 0.6, output: 3.0, cacheRead: 0.1, cacheWrite: 0 },
 		contextWindow: 256000,
 		maxTokens: 8192,
+		compat: { ...CLOUDFLARE_COMPAT, requiresThinkingAsText: true },
+	},
+	{
+		id: "@cf/moonshotai/kimi-k2.6",
+		name: "Kimi K2.6",
+		reasoning: true,
+		input: ["text", "image"],
+		cost: { input: 0.8, output: 4.0, cacheRead: 0.1, cacheWrite: 0 },
+		contextWindow: 256000,
+		maxTokens: 8192,
+		compat: { ...CLOUDFLARE_COMPAT, requiresThinkingAsText: true },
 	},
 	{
 		id: "@cf/meta/llama-4-scout-17b-16e-instruct",
@@ -128,6 +163,7 @@ const DEFAULT_MODELS: ModelConfig[] = [
 		cost: { input: 0.27, output: 0.85, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 131072,
 		maxTokens: 8192,
+		compat: CLOUDFLARE_COMPAT,
 	},
 	{
 		id: "@cf/nvidia/nemotron-3-120b-a12b",
@@ -137,7 +173,27 @@ const DEFAULT_MODELS: ModelConfig[] = [
 		cost: { input: 0.5, output: 1.5, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 256000,
 		maxTokens: 8192,
-		compat: { requiresThinkingAsText: true },
+		compat: { ...CLOUDFLARE_COMPAT, requiresThinkingAsText: true },
+	},
+	{
+		id: "@cf/openai/gpt-oss-120b",
+		name: "GPT-OSS 120B",
+		reasoning: true,
+		input: ["text"],
+		cost: { input: 0.5, output: 1.5, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 128000,
+		maxTokens: 8192,
+		compat: { ...CLOUDFLARE_COMPAT, requiresThinkingAsText: true },
+	},
+	{
+		id: "@cf/openai/gpt-oss-20b",
+		name: "GPT-OSS 20B",
+		reasoning: true,
+		input: ["text"],
+		cost: { input: 0.2, output: 0.6, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 128000,
+		maxTokens: 8192,
+		compat: { ...CLOUDFLARE_COMPAT, requiresThinkingAsText: true },
 	},
 	{
 		id: "@cf/google/gemma-4-26b-a4b-it",
@@ -147,7 +203,7 @@ const DEFAULT_MODELS: ModelConfig[] = [
 		cost: { input: 0.1, output: 0.3, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 256000,
 		maxTokens: 8192,
-		compat: { requiresThinkingAsText: true },
+		compat: { ...CLOUDFLARE_COMPAT, requiresThinkingAsText: true },
 	},
 	{
 		id: "@cf/google/gemma-3-12b-it",
@@ -157,6 +213,7 @@ const DEFAULT_MODELS: ModelConfig[] = [
 		cost: { input: 0.345, output: 0.556, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 80000,
 		maxTokens: 8192,
+		compat: CLOUDFLARE_COMPAT,
 	},
 	{
 		id: "@cf/qwen/qwen3-30b-a3b-fp8",
@@ -166,7 +223,27 @@ const DEFAULT_MODELS: ModelConfig[] = [
 		cost: { input: 0.051, output: 0.34, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 32768,
 		maxTokens: 8192,
-		compat: { requiresThinkingAsText: true },
+		compat: { ...CLOUDFLARE_COMPAT, requiresThinkingAsText: true },
+	},
+	{
+		id: "@cf/qwen/qwen2.5-coder-32b-instruct",
+		name: "Qwen 2.5 Coder 32B",
+		reasoning: false,
+		input: ["text"],
+		cost: { input: 0.3, output: 0.3, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 32768,
+		maxTokens: 8192,
+		compat: CLOUDFLARE_COMPAT,
+	},
+	{
+		id: "@cf/qwen/qwq-32b",
+		name: "QwQ 32B (Reasoning)",
+		reasoning: true,
+		input: ["text"],
+		cost: { input: 0.3, output: 0.3, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 32768,
+		maxTokens: 8192,
+		compat: { ...CLOUDFLARE_COMPAT, requiresThinkingAsText: true },
 	},
 	{
 		id: "@cf/zai-org/glm-4.7-flash",
@@ -176,34 +253,17 @@ const DEFAULT_MODELS: ModelConfig[] = [
 		cost: { input: 0.06, output: 0.4, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 131072,
 		maxTokens: 8192,
+		compat: CLOUDFLARE_COMPAT,
 	},
-	// Popular models
 	{
 		id: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-		name: "Llama 3.3 70B (Fast)",
+		name: "Llama 3.3 70B Fast",
 		reasoning: false,
 		input: ["text"],
 		cost: { input: 0.5, output: 0.5, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 131072,
 		maxTokens: 8192,
-	},
-	{
-		id: "@cf/meta/llama-3.1-8b-instruct",
-		name: "Llama 3.1 8B",
-		reasoning: false,
-		input: ["text"],
-		cost: { input: 0.1, output: 0.1, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 131072,
-		maxTokens: 8192,
-	},
-	{
-		id: "@cf/meta/llama-3.1-70b-instruct",
-		name: "Llama 3.1 70B",
-		reasoning: false,
-		input: ["text"],
-		cost: { input: 0.5, output: 0.5, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 131072,
-		maxTokens: 8192,
+		compat: CLOUDFLARE_COMPAT,
 	},
 	{
 		id: "@cf/meta/llama-3.1-405b-instruct",
@@ -213,121 +273,213 @@ const DEFAULT_MODELS: ModelConfig[] = [
 		cost: { input: 2.0, output: 2.0, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 131072,
 		maxTokens: 8192,
+		compat: CLOUDFLARE_COMPAT,
 	},
 	{
-		id: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
-		name: "DeepSeek R1 Distill Qwen 32B",
-		reasoning: true,
+		id: "@cf/meta/llama-3.1-70b-instruct",
+		name: "Llama 3.1 70B",
+		reasoning: false,
 		input: ["text"],
-		cost: { input: 0.3, output: 0.3, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 32768,
+		cost: { input: 0.5, output: 0.5, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 131072,
 		maxTokens: 8192,
-		compat: { requiresThinkingAsText: true },
+		compat: CLOUDFLARE_COMPAT,
 	},
 	{
-		id: "@cf/deepseek-ai/deepseek-math-7b-instruct",
-		name: "DeepSeek Math 7B",
-		reasoning: true,
-		input: ["text"],
-		cost: { input: 0.1, output: 0.1, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 16384,
-		maxTokens: 4096,
-	},
-	// Mistral models
-	{
-		id: "@cf/mistral/mistral-small-3.1-24b-instruct",
-		name: "Mistral Small 3.1 24B",
+		id: "@cf/meta/llama-3.2-11b-vision-instruct",
+		name: "Llama 3.2 11B Vision",
 		reasoning: false,
 		input: ["text", "image"],
-		cost: { input: 0.3, output: 0.3, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 32768,
-		maxTokens: 8192,
-	},
-	{
-		id: "@cf/mistral/mistral-7b-instruct-v0.2-lora",
-		name: "Mistral 7B Instruct",
-		reasoning: false,
-		input: ["text"],
-		cost: { input: 0.1, output: 0.1, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 32768,
-		maxTokens: 4096,
-	},
-	{
-		id: "@cf/mistral/mixtral-8x7b-instruct-v0.1-awq",
-		name: "Mixtral 8x7B Instruct",
-		reasoning: false,
-		input: ["text"],
-		cost: { input: 0.3, output: 0.3, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 32768,
-		maxTokens: 4096,
-	},
-	// Qwen and Gemma
-	{
-		id: "@cf/qwen/qwen1.5-14b-chat-awq",
-		name: "Qwen 1.5 14B Chat",
-		reasoning: false,
-		input: ["text"],
 		cost: { input: 0.2, output: 0.2, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 32768,
+		contextWindow: 128000,
 		maxTokens: 8192,
-	},
-	{
-		id: "@cf/google/gemma-2b-it-lora",
-		name: "Gemma 2B",
-		reasoning: false,
-		input: ["text"],
-		cost: { input: 0.05, output: 0.05, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 8192,
-		maxTokens: 2048,
-	},
-	{
-		id: "@cf/google/gemma-7b-it-lora",
-		name: "Gemma 7B",
-		reasoning: false,
-		input: ["text"],
-		cost: { input: 0.1, output: 0.1, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 8192,
-		maxTokens: 2048,
+		compat: CLOUDFLARE_COMPAT,
 	},
 ];
 
 // =============================================================================
-// Model Customization (user overrides)
+// Model metadata inference
 // =============================================================================
 
-function getModels(): ProviderModelConfig[] {
-	// Apply Cloudflare compat settings to all default models
-	const defaults = DEFAULT_MODELS.map((m) => ({
-		...m,
-		compat: { ...CLOUDFLARE_COMPAT, ...m.compat },
-	})) as ProviderModelConfig[];
+interface CloudflareModel {
+	id: string;
+	name?: string;
+	description?: string;
+	task?: {
+		id?: string;
+		name?: string;
+	};
+}
 
-	// Check for user overrides
-	const overridePath = join(homedir(), ".pi", "cloudflare-models.json");
-	if (!existsSync(overridePath)) return defaults;
+function isChatModel(modelId: string): boolean {
+	return !NON_CHAT_PATTERNS.some((pattern) => pattern.test(modelId));
+}
+
+function inferModelName(id: string): string {
+	// Extract the model name part after the last /
+	const namePart = id.split("/").pop() || id;
+
+	// Remove common suffixes
+	const clean = namePart
+		.replace(/-instruct$/i, "")
+		.replace(/-chat$/i, "")
+		.replace(/-it$/i, "")
+		.replace(/-awq$/i, " (AWQ)")
+		.replace(/-fp8$/i, " (FP8)")
+		.replace(/-fast$/i, " (Fast)")
+		.replace(/-lora$/i, " (LoRA)")
+		.replace(/-hf$/i, " (HF)")
+		.replace(/-v\d+\.\d+$/i, "");
+
+	// Convert to title case
+	return clean
+		.split("-")
+		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+		.join(" ")
+		.replace(/\b(\d+(?:\.\d+)?)[bB]\b/g, "$1B");
+}
+
+function inferModelMetadata(id: string): Partial<ProviderModelConfig> {
+	const hasVision = /vision|multimodal|vl|llava/i.test(id);
+	const hasReasoning = /reason|r1|thinking|qwq|nemotron|oss/i.test(id);
+
+	// Default context windows by model family
+	let contextWindow = 32768;
+	let maxTokens = 4096;
+
+	if (/llama-3\.1|llama-3\.3|llama-4|gemma-4|kimi|nemotron/i.test(id)) {
+		contextWindow = 128000;
+		maxTokens = 8192;
+	}
+	if (/llama-3\.2-11b/i.test(id)) {
+		contextWindow = 128000;
+		maxTokens = 8192;
+	}
+	if (/gemma-3/i.test(id)) {
+		contextWindow = 80000;
+		maxTokens = 8192;
+	}
+
+	// Estimate costs based on model size (very rough approximation)
+	let inputCost = 0.1;
+	let outputCost = 0.3;
+
+	const sizeMatch = id.match(/(\d+)(?:\.\d+)?[bB]/);
+	if (sizeMatch) {
+		const size = parseInt(sizeMatch[1], 10);
+		if (size >= 100) {
+			inputCost = 0.5;
+			outputCost = 1.5;
+		} else if (size >= 70) {
+			inputCost = 0.5;
+			outputCost = 0.5;
+		} else if (size >= 30) {
+			inputCost = 0.3;
+			outputCost = 0.3;
+		} else if (size >= 8) {
+			inputCost = 0.2;
+			outputCost = 0.2;
+		}
+	}
+
+	// Override for specific known models
+	if (id.includes("llama-3.1-405b")) {
+		inputCost = 2.0;
+		outputCost = 2.0;
+	}
+	if (id.includes("kimi-k2.5")) {
+		inputCost = 0.6;
+		outputCost = 3.0;
+	}
+	if (id.includes("kimi-k2.6")) {
+		inputCost = 0.8;
+		outputCost = 4.0;
+	}
+
+	return {
+		name: inferModelName(id),
+		reasoning: hasReasoning,
+		input: hasVision ? (["text", "image"] as const) : (["text"] as const),
+		cost: { input: inputCost, output: outputCost, cacheRead: 0, cacheWrite: 0 },
+		contextWindow,
+		maxTokens,
+		compat: hasReasoning
+			? { ...CLOUDFLARE_COMPAT, requiresThinkingAsText: true }
+			: CLOUDFLARE_COMPAT,
+	};
+}
+
+// =============================================================================
+// Dynamic model fetching
+// =============================================================================
+
+async function fetchCloudflareModels(
+	token: string,
+	accountId: string,
+): Promise<ProviderModelConfig[]> {
+	const baseUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}`;
 
 	try {
-		const override = JSON.parse(
-			readFileSync(overridePath, "utf-8"),
-		) as ModelConfig[];
-		const modelMap = new Map<string, any>(defaults.map((m) => [m.id, m]));
+		const response = await fetchWithRetry(
+			`${baseUrl}/ai/models`,
+			{
+				headers: {
+					Authorization: `Bearer ${token}`,
+					"Content-Type": "application/json",
+				},
+			},
+			3,
+			1000,
+			DEFAULT_FETCH_TIMEOUT_MS,
+		);
 
-		for (const model of override) {
-			if (model._remove) {
-				modelMap.delete(model.id);
-			} else {
-				// Apply Cloudflare compat settings to user overrides
-				model.compat = { ...CLOUDFLARE_COMPAT, ...model.compat };
-				modelMap.set(model.id, model);
-			}
+		if (!response.ok) {
+			throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 		}
 
-		return Array.from(modelMap.values()) as ProviderModelConfig[];
-	} catch (e) {
+		const json = (await response.json()) as {
+			success?: boolean;
+			result?: CloudflareModel[];
+			errors?: Array<{ message: string }>;
+		};
+
+		if (!json.success || !json.result) {
+			throw new Error(
+				json.errors?.[0]?.message || "API returned unsuccessful response",
+			);
+		}
+
+		// Filter to chat/text generation models only
+		const chatModels = json.result.filter((m) => isChatModel(m.id));
+
+		// Map to ProviderModelConfig
+		const models = chatModels.map((m): ProviderModelConfig => {
+			const inferred = inferModelMetadata(m.id);
+
+			return {
+				id: m.id,
+				name: m.name || inferred.name || m.id,
+				reasoning: inferred.reasoning || false,
+				input: inferred.input || ["text"],
+				cost: inferred.cost || {
+					input: 0.1,
+					output: 0.3,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				contextWindow: inferred.contextWindow || 32768,
+				maxTokens: inferred.maxTokens || 4096,
+				compat: inferred.compat || CLOUDFLARE_COMPAT,
+			};
+		});
+
+		_logger.info(`[cloudflare] Fetched ${models.length} chat models from API`);
+		return models;
+	} catch (error) {
 		_logger.warn(
-			`[cloudflare] Failed to load ~/.pi/cloudflare-models.json: ${e instanceof Error ? e.message : String(e)}`,
+			`[cloudflare] Failed to fetch models from API: ${error instanceof Error ? error.message : String(error)}`,
 		);
-		return defaults;
+		return [];
 	}
 }
 
@@ -352,7 +504,13 @@ export default async function cloudflareProvider(pi: ExtensionAPI) {
 		return;
 	}
 
-	const models = getModels();
+	// Try to fetch models dynamically, fall back to hardcoded list
+	let models = await fetchCloudflareModels(apiToken, accountId);
+
+	if (models.length === 0) {
+		_logger.info("[cloudflare] Using fallback model list");
+		models = FALLBACK_MODELS;
+	}
 
 	pi.registerProvider("cloudflare", {
 		baseUrl: `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1`,
