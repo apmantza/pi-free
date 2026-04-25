@@ -10,6 +10,7 @@ import {
 	BASE_URL_OPENROUTER,
 	DEFAULT_FETCH_TIMEOUT_MS,
 	DEFAULT_MIN_SIZE_B,
+	PROVIDER_CLINE,
 } from "../../constants.ts";
 import type { ProviderModelConfig } from "../../lib/types.ts";
 import {
@@ -117,7 +118,7 @@ export async function fetchClineModels(
 		});
 	}
 
-	return applyHidden(models);
+	return applyHidden(models, PROVIDER_CLINE);
 }
 
 /**

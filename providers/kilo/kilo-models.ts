@@ -3,6 +3,7 @@
  */
 
 import { applyHidden } from "../../config.ts";
+import { PROVIDER_KILO } from "../../constants.ts";
 import { fetchOpenRouterCompatibleModels } from "../model-fetcher.ts";
 
 const KILO_API_BASE = process.env.KILO_API_URL || "https://api.kilo.ai";
@@ -22,5 +23,5 @@ export async function fetchKiloModels(options?: {
 		freeOnly: options?.freeOnly,
 	});
 
-	return applyHidden(models);
+	return applyHidden(models, PROVIDER_KILO);
 }

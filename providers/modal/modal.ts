@@ -13,18 +13,21 @@ import { BASE_URL_MODAL, URL_MODAL_TOS } from "../../constants.ts";
 import { createProvider } from "../../provider-factory.ts";
 
 function getModalModels(): ProviderModelConfig[] {
-	return applyHidden([
-		{
-			id: "zai-org/GLM-5.1-FP8",
-			name: "GLM-5.1 FP8 (Modal)",
-			reasoning: true,
-			input: ["text"],
-			// Promotional/free-period pricing may change; keep conservative placeholders.
-			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-			contextWindow: 128000,
-			maxTokens: 16384,
-		},
-	]);
+	return applyHidden(
+		[
+			{
+				id: "zai-org/GLM-5.1-FP8",
+				name: "GLM-5.1 FP8 (Modal)",
+				reasoning: true,
+				input: ["text"],
+				// Promotional/free-period pricing may change; keep conservative placeholders.
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 128000,
+				maxTokens: 16384,
+			},
+		],
+		PROVIDER_MODAL,
+	);
 }
 
 export default function (pi: Parameters<typeof createProvider>[0]) {
