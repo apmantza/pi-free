@@ -254,10 +254,30 @@ export function getOpenrouterApiKey(): string | undefined {
 // Hidden models (re-reads config on every call)
 // =============================================================================
 
-export function applyHidden<T extends { id: string }>(models: T[]): T[] {
+/**
+ * Apply hidden models filter with provider scoping.
+ * Hidden models can be specified as:
+ *   - "model-id" (global, applies to all providers - deprecated)
+ *   - "provider/model-id" (provider-specific, preferred)
+ */
+export function applyHidden<T extends { id: string }>(
+	models: T[],
+	providerId?: string,
+): T[] {
 	const hidden = new Set(loadConfigFile().hidden_models ?? []);
 	if (hidden.size === 0) return models;
-	return models.filter((m) => !hidden.has(m.id));
+
+	return models.filter((m) => {
+		// Check provider-scoped ID (preferred format: "provider/model-id")
+		if (providerId && hidden.has(`${providerId}/${m.id}`)) {
+			return false;
+		}
+		// Check global ID (legacy format, still supported for backward compat)
+		if (hidden.has(m.id)) {
+			return false;
+		}
+		return true;
+	});
 }
 
 // =============================================================================

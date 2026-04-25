@@ -272,6 +272,7 @@ async function fetchNvidiaModels(
 					maxTokens: m.limit.output,
 				}),
 			),
+		PROVIDER_NVIDIA,
 	);
 
 	return result;
@@ -383,10 +384,10 @@ export default async function (pi: ExtensionAPI) {
 				return;
 			}
 
-			// Auto-hide 404 models in config
+			// Auto-hide 404 models in config (provider-scoped)
 			const config = loadConfigFile();
 			const existingHidden = new Set(config.hidden_models ?? []);
-			for (const id of notFound) existingHidden.add(id);
+			for (const id of notFound) existingHidden.add(`${PROVIDER_NVIDIA}/${id}`);
 			saveConfig({ hidden_models: Array.from(existingHidden) });
 
 			// Re-register so hidden models disappear immediately

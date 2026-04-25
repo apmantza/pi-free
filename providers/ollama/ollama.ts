@@ -130,6 +130,7 @@ async function fetchOllamaModels(
 				maxTokens: 4096, // Default, varies by model
 			}),
 		),
+		PROVIDER_OLLAMA,
 	);
 
 	return result;
@@ -223,10 +224,10 @@ export default async function (pi: ExtensionAPI) {
 				return;
 			}
 
-			// Auto-hide 403 models in config
+			// Auto-hide 403 models in config (provider-scoped)
 			const config = loadConfigFile();
 			const existingHidden = new Set(config.hidden_models ?? []);
-			for (const id of notFound) existingHidden.add(id);
+			for (const id of notFound) existingHidden.add(`${PROVIDER_OLLAMA}/${id}`);
 			saveConfig({ hidden_models: Array.from(existingHidden) });
 
 			// Re-register so hidden models disappear immediately
