@@ -133,6 +133,58 @@ See the [Providers That Need Authentication](#providers-that-need-authentication
 
 ---
 
+## Features
+
+### 🔍 NVIDIA: Pre-Filtering + 404 Detection
+
+NVIDIA's API lists 130+ models, but 57+ return 404 "Function not found" when you try to use them. pi-free solves this:
+
+- **57 known 404s hard-filtered** — Discontinued models (`dbrx-instruct`, `codellama-70b`), embedding models mislabeled as chat-capable (`nv-embed-*`), and stale catalog entries are silently excluded
+- **Auto-discovery from NVIDIA's API** — Queries `integrate.api.nvidia.com/v1/models` directly for the ground-truth list
+- **`/probe-nvidia` command** — On-demand health check: tests every model with a minimal request, auto-hides new 404s, and re-registers immediately
+
+### 🌩️ Cloudflare: Dynamic Model Discovery
+
+Cloudflare Workers AI offers 80+ models including embeddings, image generation, and speech. pi-free automatically finds the chat models:
+
+- **Live API fetching** — Calls Cloudflare's `/ai/models` endpoint on startup to get the current catalog
+- **Smart filtering** — Automatically excludes embeddings (`bge-*`, `embed-*`), image generation (`flux`, `stable-diffusion`), speech (`whisper`, `aura-*`), translation, and vision-only models via regex patterns
+- **Metadata inference** — Detects vision support (`llava`, `vision` in name), reasoning (`r1`, `thinking`, `qwq`), context windows, and estimated costs from model IDs
+- **Expanding fallback** — 18 hand-curated models (Kimi K2.6, GPT-OSS, Qwen 2.5 Coder, QwQ, Llama 3.2 Vision, etc.) if API is unreachable
+
+### 🎯 Coding Index (CI) Scores
+
+Every model shows a **Coding Index score** (e.g., `CI: 52.3`) in the model picker:
+
+- **Benchmark-based** — Scores derived from Artificial Analysis coding benchmarks (HumanEval, MBPP, etc.)
+- **Quality indicator** — Higher scores = better coding performance
+- **All providers** — Applied to every model from every provider (NVIDIA, Cloudflare, Mistral, Groq, etc.)
+
+### 🔄 Free/Paid Model Toggling
+
+Providers have different pricing models. pi-free handles them all:
+
+- **Free-only by default** — Shows only zero-cost models initially
+- **Per-provider toggles** — Run `/toggle-{provider}` to switch between "free only" vs "all models"
+- **Persists across sessions** — Your preference is saved to `~/.pi/free.json`
+- **Instant updates** — Changes apply immediately; no Pi restart needed
+
+**Provider types:**
+
+- ✅ **Free providers** (OpenCode, Kilo, Cline) — Toggle between free-only vs paid models
+- 🔄 **Freemium** (NVIDIA, Cloudflare, Modal, Ollama) — Free tier with limits, toggle shows all
+- 🔧 **Dynamic API** (Mistral, Groq, Cerebras, xAI) — Fetched when API key configured, toggle filters the list
+
+### 🔐 OAuth + API Key Handling
+
+Authentication is handled automatically:
+
+- **OAuth flows** — `/login kilo` and `/login cline` open your browser, wait for authorization, and complete automatically
+- **Multiple auth sources** — API keys read from `~/.pi/free.json`, environment variables, or standard Pi auth files (`~/.pi/agent/auth.json`)
+- **Smart fallbacks** — New env var names (e.g., `CF_API_TOKEN`) with legacy support (`CLOUDFLARE_API_TOKEN`)
+
+---
+
 ## Using Free Models (No Setup Required)
 
 ### OpenCode
