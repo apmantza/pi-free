@@ -19,6 +19,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`scripts/probe-nvidia.mjs`** — Standalone Node.js script to reproduce the probe. Reads `~/.pi/free.json` for the API key, batches 20 requests at a time with 10s timeout, and prints all broken model IDs for adding to the blocklist.
 
+- **Ollama Cloud 403 handling** — Same pattern as NVIDIA 404s for Ollama Cloud:
+  - `OLLAMA_KNOWN_403_MODELS` blocklist for models that return 403 "access denied"
+  - `/probe-ollama` command to test all models on-demand, auto-hide broken ones, and re-register
+  - `scripts/probe-ollama.mjs` standalone script for blocklist maintenance
+
+- **Provider-scoped hidden models** — Hidden models are now provider-specific:
+  - Format: `"provider/model-id"` (e.g., `"ollama/kimi-k2.6"`, `"nvidia/broken-model"`)
+  - A model hidden from one provider doesn't hide it from other providers
+  - Backward compatible with old global `"model-id"` format
+  - All providers updated: NVIDIA, Ollama, Cloudflare, Cline, Kilo, Modal
+
 ### Fixed
 
 - **NVIDIA provider now sends `authHeader: true`** — Explicitly enables `Authorization: Bearer` header injection. Previously relied on pi's implicit behavior which could fail in some configurations.

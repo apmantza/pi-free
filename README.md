@@ -415,6 +415,25 @@ Each provider has toggle commands to switch between free and all models:
 - **Persists your preference** to `~/.pi/free.json` for next startup
 - Shows a notification: "opencode: showing free models" or "opencode: showing all models"
 
+### Probe Commands (Health Check)
+
+Test models for 404/403 errors and auto-hide broken ones:
+
+| Command         | What it does                                                |
+| --------------- | ----------------------------------------------------------- |
+| `/probe-nvidia` | Test all NVIDIA models, auto-hide 404s in `~/.pi/free.json` |
+| `/probe-ollama` | Test all Ollama models, auto-hide 403s in `~/.pi/free.json` |
+
+**How it works:**
+
+1. Sends a minimal test request to every model
+2. Identifies broken models (404/403 responses)
+3. **Auto-hides** broken models in your config (provider-scoped: `"ollama/kimi-k2.6"`)
+4. Re-registers the provider so broken models disappear immediately
+5. Hidden models persist across Pi restarts
+
+Use these when you see models that appear in the picker but fail when you try to use them.
+
 ---
 
 ## Configuration
