@@ -42,6 +42,16 @@ import { createReRegister, enhanceWithCI } from "../../provider-helper.ts";
 const _logger = createLogger("ollama-cloud");
 
 // =============================================================================
+// Known 403 models (listed but return "access denied" on /v1/chat/completions)
+// These are models that appear in /v1/models but aren't provisioned for chat.
+// Add new IDs here as they surface via /probe-ollama command.
+// =============================================================================
+const OLLAMA_KNOWN_403_MODELS: ReadonlySet<string> = new Set([
+	// Example entries - populate via probe-ollama.mjs
+	// "model-id-that-403s",
+]);
+
+// =============================================================================
 // Fetch + map
 // =============================================================================
 
@@ -79,12 +89,20 @@ async function fetchOllamaModels(
 	);
 
 	// Filter to chat/text generation models only
-	const chatModels = models.filter((m) => {
-		// Skip embedding-only models (typically have "embed" in name)
-		const name = m.id.toLowerCase();
-		if (name.includes("embed")) return false;
-		return true;
-	});
+	const chatModels = models
+		.filter((m) => {
+			// Skip embedding-only models (typically have "embed" in name)
+			const name = m.id.toLowerCase();
+			if (name.includes("embed")) return false;
+			return true;
+		})
+		// Filter out known 403 models (listed but not provisioned for chat)
+		.filter((m) => {
+			if (OLLAMA_KNOWN_403_MODELS.has(m.id)) {
+				return false;
+			}
+			return true;
+		});
 
 	const result = applyHidden(
 		chatModels.map(
@@ -169,4 +187,74 @@ export default async function (pi: ExtensionAPI) {
 	_logger.info(
 		`[ollama-cloud] Registered ${initialModels.length} models (usage-based free tier)`,
 	);
+
+	// ── Probe command: test all registered models for 403s ─────────────
+	pi.registerCommand("probe-ollama", {
+		description: "Test all Ollama Cloud models for 403 'access denied' errors",
+		handler: async (_args, ctx) => {
+			if (!apiKey) {
+				ctx.ui.notify("OLLAMA_API_KEY not set", "error");
+				return;
+			}
+
+			const modelsToTest = allModels;
+			ctx.ui.notify(`Probing ${modelsToTest.length} Ollama models…`, "info");
+
+			const notFound: string[] = [];
+			const batchSize = 5;
+
+			for (let i = 0; i < modelsToTest.length; i += batchSize) {
+				const batch = modelsToTest.slice(i, i + batchSize);
+				const results = await Promise.all(
+					batch.map(async (m) => {
+						const ok = await probeOllamaModel(apiKey, m.id);
+						return { id: m.id, ok };
+					}),
+				);
+				for (const r of results) {
+					if (!r.ok) notFound.push(r.id);
+				}
+			}
+
+			if (notFound.length === 0) {
+				ctx.ui.notify("All Ollama models are accessible ✅", "info");
+				return;
+			}
+
+			ctx.ui.notify(
+				`Found ${notFound.length} broken models:\n${notFound.join("\n")}`,
+				"warning",
+			);
+		},
+	});
+}
+
+/**
+ * Probe a single Ollama model with a minimal chat request.
+ * Returns true if the model is accessible (not 403), false if it 403s.
+ */
+async function probeOllamaModel(
+	apiKey: string,
+	modelId: string,
+): Promise<boolean> {
+	try {
+		const response = await fetch(`${BASE_URL_OLLAMA}/chat/completions`, {
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${apiKey}`,
+				"Content-Type": "application/json",
+				"User-Agent": "pi-free-providers",
+			},
+			body: JSON.stringify({
+				model: modelId,
+				messages: [{ role: "user", content: "hi" }],
+				max_tokens: 1,
+			}),
+		});
+		// 403 = access denied (model not provisioned)
+		// 200/400/401/etc = at least accessible
+		return response.status !== 403;
+	} catch {
+		return true; // Network errors are not "access denied"
+	}
 }
