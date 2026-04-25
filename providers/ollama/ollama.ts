@@ -28,6 +28,8 @@ import {
 	applyHidden,
 	getOllamaApiKey,
 	getOllamaShowPaid,
+	loadConfigFile,
+	saveConfig,
 } from "../../config.ts";
 import {
 	BASE_URL_OLLAMA,
@@ -221,8 +223,20 @@ export default async function (pi: ExtensionAPI) {
 				return;
 			}
 
+			// Auto-hide 403 models in config
+			const config = loadConfigFile();
+			const existingHidden = new Set(config.hidden_models ?? []);
+			for (const id of notFound) existingHidden.add(id);
+			saveConfig({ hidden_models: Array.from(existingHidden) });
+
+			// Re-register so hidden models disappear immediately
+			const filtered = await fetchOllamaModels(apiKey);
+			stored.free = filtered;
+			stored.all = filtered;
+			reRegister(filtered);
+
 			ctx.ui.notify(
-				`Found ${notFound.length} broken models:\n${notFound.join("\n")}`,
+				`Found ${notFound.length} broken models (auto-hidden):\n${notFound.join("\n")}`,
 				"warning",
 			);
 		},
