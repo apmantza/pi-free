@@ -29,6 +29,7 @@ import { DEFAULT_FETCH_TIMEOUT_MS } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
+import { enhanceWithCI } from "../../provider-helper.ts";
 
 const _logger = createLogger("dynamic-built-in");
 
@@ -403,7 +404,7 @@ export async function setupDynamicBuiltInProviders(
 					baseUrl: config.baseUrl,
 					apiKey,
 					api: config.api,
-					models,
+					models: enhanceWithCI(models),
 				});
 			};
 
