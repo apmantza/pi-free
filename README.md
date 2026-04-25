@@ -16,7 +16,7 @@ When you install pi-free, it:
 
 3. **Filters to show only free models by default** for providers that expose pricing — You see only the models that cost $0 to use. Paid models are hidden until you explicitly toggle them on.
 
-4. **Provides per-provider toggle commands** — Run `/toggle-{provider}` (e.g., `/toggle-kilo`, `/toggle-opencode`) to switch between free-only mode and showing all models including paid ones
+4. **Provides per-provider toggle commands** — Run `/toggle-{provider}` (e.g., `/toggle-kilo`, `/toggle-opencode`) to switch between free-only mode and showing all models including paid ones. Changes apply immediately and your preference is saved for the next Pi restart.
 
 5. **Handles authentication for you** — OAuth flows (Kilo, Cline) open your browser automatically; API keys are read from `~/.pi/free.json` or environment variables
 
@@ -85,6 +85,8 @@ Want to see paid models too? Run the toggle command for your provider:
 
 You'll see a notification like: `opencode: showing free models` or `opencode: showing all models`
 
+**Note:** Built-in provider toggles such as OpenCode and OpenRouter update in the current session — no restart needed.
+
 ### 4. Add API keys for more providers (optional)
 
 Some providers require a free account or API key.
@@ -107,6 +109,8 @@ Add your API keys to this file:
 ```
 
 Or set environment variables instead (same names, uppercase: `OPENROUTER_API_KEY`, `NVIDIA_API_KEY`, etc.)
+
+If `~/.pi/free.json` contains invalid JSON, pi-free now logs the parse error to `~/.pi/free.log` so you can fix the file quickly.
 
 See the [Providers That Need Authentication](#providers-that-need-authentication) section below for detailed setup instructions per provider.
 
@@ -369,6 +373,8 @@ pi-free now writes extension logs to:
 - **Linux/macOS:** `~/.pi/free.log`
 
 Useful env vars:
+
+If the extension fails to read `~/.pi/free.json`, check this log first — config parse errors are written here.
 
 ```bash
 # Console log verbosity (default: error)

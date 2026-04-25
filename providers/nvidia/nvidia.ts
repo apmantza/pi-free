@@ -17,7 +17,13 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
-import { applyHidden, getNvidiaApiKey, PROVIDER_NVIDIA } from "../../config.ts";
+import {
+	applyHidden,
+	getNvidiaApiKey,
+	loadConfigFile,
+	PROVIDER_NVIDIA,
+	saveConfig,
+} from "../../config.ts";
 import {
 	BASE_URL_NVIDIA,
 	DEFAULT_FETCH_TIMEOUT_MS,
@@ -55,6 +61,73 @@ const NVIDIA_NON_CHAT_PATTERNS: RegExp[] = [
 	/embedqa/i,
 	/embedcode/i,
 ];
+
+/**
+ * Models that appear in NVIDIA's /v1/models but return 404 "Function not found"
+ * on /v1/chat/completions. These are listed but not actually provisioned for
+ * hosted chat inference. Community-reported; add new IDs as they surface.
+ *
+ * Users can also hide individual models via hidden_models in ~/.pi/free.json.
+ */
+const NVIDIA_KNOWN_404_MODELS: ReadonlySet<string> = new Set([
+	"01-ai/yi-large",
+	"adept/fuyu-8b",
+	"ai21labs/jamba-1.5-large-instruct",
+	"aisingapore/sea-lion-7b-instruct",
+	"baai/bge-m3",
+	"bigcode/starcoder2-15b",
+	"databricks/dbrx-instruct",
+	"deepseek-ai/deepseek-coder-6.7b-instruct",
+	"google/codegemma-1.1-7b",
+	"google/codegemma-7b",
+	"google/deplot",
+	"google/gemma-2b",
+	"google/recurrentgemma-2b",
+	"ibm/granite-3.0-3b-a800m-instruct",
+	"ibm/granite-3.0-8b-instruct",
+	"ibm/granite-34b-code-instruct",
+	"ibm/granite-8b-code-instruct",
+	"meta/codellama-70b",
+	"meta/llama2-70b",
+	"microsoft/kosmos-2",
+	"microsoft/phi-3-vision-128k-instruct",
+	"microsoft/phi-3.5-moe-instruct",
+	"mistralai/codestral-22b-instruct-v0.1",
+	"mistralai/mistral-7b-instruct-v0.3",
+	"mistralai/mistral-large",
+	"mistralai/mistral-large-2-instruct",
+	"mistralai/mixtral-8x22b-v0.1",
+	"nv-mistralai/mistral-nemo-12b-instruct",
+	"nvidia/cosmos-reason2-8b",
+	"nvidia/embed-qa-4",
+	"nvidia/llama-3.1-nemotron-51b-instruct",
+	"nvidia/llama-3.1-nemotron-70b-instruct",
+	"nvidia/llama-3.1-nemotron-ultra-253b-v1",
+	"nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1",
+	"nvidia/llama-3.2-nemoretriever-300m-embed-v1",
+	"nvidia/llama-3.2-nv-embedqa-1b-v1",
+	"nvidia/llama-3.2-nv-embedqa-1b-v2",
+	"nvidia/llama-nemotron-embed-1b-v2",
+	"nvidia/llama-nemotron-embed-vl-1b-v2",
+	"nvidia/llama3-chatqa-1.5-70b",
+	"nvidia/mistral-nemo-minitron-8b-8k-instruct",
+	"nvidia/nemotron-4-340b-instruct",
+	"nvidia/nemotron-4-340b-reward",
+	"nvidia/nemotron-nano-3-30b-a3b",
+	"nvidia/neva-22b",
+	"nvidia/nv-embed-v1",
+	"nvidia/nv-embedcode-7b-v1",
+	"nvidia/nv-embedqa-e5-v5",
+	"nvidia/nv-embedqa-mistral-7b-v2",
+	"nvidia/nvclip",
+	"nvidia/riva-translate-4b-instruct",
+	"snowflake/arctic-embed-l",
+	"writer/palmyra-creative-122b",
+	"writer/palmyra-fin-70b-32k",
+	"writer/palmyra-med-70b",
+	"writer/palmyra-med-70b-32k",
+	"zyphra/zamba2-7b-instruct",
+]);
 
 /**
  * Infer model metadata from a NVIDIA model ID for models not present in
@@ -172,6 +245,14 @@ async function fetchNvidiaModels(
 				}
 				return true;
 			})
+			// Filter out known 404 models (listed but not provisioned for chat)
+			.filter((m) => {
+				if (NVIDIA_KNOWN_404_MODELS.has(m.id)) {
+					console.warn(`[nvidia] Skipping known 404 model: ${m.id}`);
+					return false;
+				}
+				return true;
+			})
 			// NVIDIA is freemium — all models are usable with free credits.
 			// No cost filtering applied.
 			.map(
@@ -200,6 +281,36 @@ async function fetchNvidiaModels(
 // =============================================================================
 // Extension Entry Point
 // =============================================================================
+
+/**
+ * Probe a single NVIDIA model with a minimal chat request.
+ * Returns true if the model is routable (not 404), false if it 404s.
+ */
+async function probeNvidiaModel(
+	apiKey: string,
+	modelId: string,
+): Promise<boolean> {
+	try {
+		const response = await fetch(`${BASE_URL_NVIDIA}/chat/completions`, {
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${apiKey}`,
+				"Content-Type": "application/json",
+				"User-Agent": "pi-free-providers",
+			},
+			body: JSON.stringify({
+				model: modelId,
+				messages: [{ role: "user", content: "hi" }],
+				max_tokens: 1,
+			}),
+		});
+		// 404 = function not found (model not provisioned)
+		// 200/400/401/etc = at least routable
+		return response.status !== 404;
+	} catch {
+		return true; // Network errors are not "model not found"
+	}
+}
 
 export default async function (pi: ExtensionAPI) {
 	const apiKey = getNvidiaApiKey();
@@ -233,10 +344,63 @@ export default async function (pi: ExtensionAPI) {
 		baseUrl: BASE_URL_NVIDIA,
 		apiKey: apiKey || "NVIDIA_API_KEY",
 		api: "openai-completions" as const,
+		authHeader: true,
 		headers: {
 			"User-Agent": "pi-free-providers",
 		},
 		models: enhanceWithCI(initialModels),
+	});
+
+	// ── Probe command: test all registered models for 404s ─────────────
+	pi.registerCommand("probe-nvidia", {
+		description: "Test all NVIDIA models for 404 'Function not found' errors",
+		handler: async (_args, ctx) => {
+			if (!apiKey) {
+				ctx.ui.notify("NVIDIA_API_KEY not set", "error");
+				return;
+			}
+
+			const modelsToTest = allModels;
+			ctx.ui.notify(`Probing ${modelsToTest.length} NVIDIA models…`, "info");
+
+			const notFound: string[] = [];
+			const batchSize = 5;
+
+			for (let i = 0; i < modelsToTest.length; i += batchSize) {
+				const batch = modelsToTest.slice(i, i + batchSize);
+				const results = await Promise.all(
+					batch.map(async (m) => {
+						const ok = await probeNvidiaModel(apiKey, m.id);
+						return { id: m.id, ok };
+					}),
+				);
+				for (const r of results) {
+					if (!r.ok) notFound.push(r.id);
+				}
+			}
+
+			if (notFound.length === 0) {
+				ctx.ui.notify("All NVIDIA models are routable ✅", "info");
+				return;
+			}
+
+			// Auto-hide 404 models in config
+			const config = loadConfigFile();
+			const existingHidden = new Set(config.hidden_models ?? []);
+			for (const id of notFound) existingHidden.add(id);
+			saveConfig({ hidden_models: Array.from(existingHidden) });
+
+			// Re-register so hidden models disappear immediately
+			const filtered = await fetchNvidiaModels(apiKey);
+			stored.free = filtered;
+			stored.all = filtered;
+			reRegister(filtered);
+
+			ctx.ui.notify(
+				`Found ${notFound.length} broken models (auto-hidden):\n${notFound.join("\n")}`,
+				"warning",
+			);
+		},
 	});
 
 	// Registration complete - models registered silently (use LOG_LEVEL=info to see details)

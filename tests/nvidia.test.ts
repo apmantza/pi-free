@@ -28,6 +28,8 @@ vi.mock("../config.ts", () => ({
 	PROVIDER_NVIDIA: "nvidia",
 	PROVIDER_KILO: "kilo",
 	applyHidden: (m: any[]) => m,
+	loadConfigFile: vi.fn(() => ({ hidden_models: [] })),
+	saveConfig: vi.fn(),
 }));
 
 vi.mock("../constants.ts", () => ({
@@ -89,7 +91,7 @@ describe("NVIDIA Provider", () => {
 					"nvidia/llama-3.1-70b-instruct",
 					"deepseek-ai/deepseek-v4-flash",
 					"nvidia/nv-embed-v1",
-					"mistralai/mistral-large",
+					"mistralai/mistral-large-3-675b-instruct-2512",
 				]) as any;
 			}
 			if (url.includes("models.dev")) {
@@ -134,7 +136,9 @@ describe("NVIDIA Provider", () => {
 			),
 		).toBe(true);
 		expect(
-			registeredModels.some((m: any) => m.id === "mistralai/mistral-large"),
+			registeredModels.some(
+				(m: any) => m.id === "mistralai/mistral-large-3-675b-instruct-2512",
+			),
 		).toBe(true);
 		expect(
 			registeredModels.some((m: any) => m.id === "nvidia/nv-embed-v1"),
@@ -210,14 +214,14 @@ describe("NVIDIA Provider", () => {
 		vi.mocked(fetchWithRetry).mockImplementation(async (url: string) => {
 			if (url.includes("integrate.api.nvidia.com/v1/models")) {
 				return mockNvidiaApiResponse([
-					"ai21labs/jamba-1.5-large-instruct",
+					"mistralai/mistral-large-3-675b-instruct-2512",
 				]) as any;
 			}
 			if (url.includes("models.dev")) {
 				return mockModelsDevResponse({
-					"jamba-1.5-large-instruct": {
-						id: "ai21labs/jamba-1.5-large-instruct",
-						name: "Jamba 1.5 Large",
+					"mistral-large-3-675b-instruct-2512": {
+						id: "mistralai/mistral-large-3-675b-instruct-2512",
+						name: "Mistral Large 3",
 						reasoning: false,
 						limit: { context: 256000, output: 8192 },
 						modalities: { input: ["text"], output: ["text"] },
@@ -239,7 +243,7 @@ describe("NVIDIA Provider", () => {
 		const registeredModels = (mockPi.registerProvider as any).mock.calls[0][1]
 			.models;
 		const model = registeredModels.find(
-			(m: any) => m.id === "ai21labs/jamba-1.5-large-instruct",
+			(m: any) => m.id === "mistralai/mistral-large-3-675b-instruct-2512",
 		);
 
 		expect(model).toBeDefined();
@@ -282,6 +286,50 @@ describe("NVIDIA Provider", () => {
 				(m: any) => m.id === "nvidia/llama-3.1-70b-instruct",
 			),
 		).toBe(true);
+	});
+
+	it("should filter out known 404 models", async () => {
+		vi.mocked(fetchWithRetry).mockImplementation(async (url: string) => {
+			if (url.includes("integrate.api.nvidia.com/v1/models")) {
+				return mockNvidiaApiResponse([
+					"nvidia/llama-3.1-70b-instruct",
+					"aisingapore/sea-lion-7b-instruct",
+					"nvidia/cosmos-reason2-8b",
+					"databricks/dbrx-instruct",
+				]) as any;
+			}
+			if (url.includes("models.dev")) {
+				return mockModelsDevResponse({}) as any;
+			}
+			throw new Error("Unexpected URL: " + url);
+		});
+
+		const mockPi = {
+			registerProvider: vi.fn(),
+			on: vi.fn(),
+			registerCommand: vi.fn(),
+		} as unknown as ExtensionAPI;
+
+		await nvidiaProvider(mockPi);
+
+		const registeredModels = (mockPi.registerProvider as any).mock.calls[0][1]
+			.models;
+		expect(
+			registeredModels.some(
+				(m: any) => m.id === "nvidia/llama-3.1-70b-instruct",
+			),
+		).toBe(true);
+		expect(
+			registeredModels.some(
+				(m: any) => m.id === "aisingapore/sea-lion-7b-instruct",
+			),
+		).toBe(false);
+		expect(
+			registeredModels.some((m: any) => m.id === "nvidia/cosmos-reason2-8b"),
+		).toBe(false);
+		expect(
+			registeredModels.some((m: any) => m.id === "databricks/dbrx-instruct"),
+		).toBe(false);
 	});
 
 	it("should configure provider correctly with toggle support", async () => {

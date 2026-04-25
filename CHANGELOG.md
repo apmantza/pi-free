@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Static 404 model blocklist for NVIDIA** — Probed all 136 models from `integrate.api.nvidia.com/v1/models` and identified 57 that return 404 "Function not found" on `/v1/chat/completions`. These are now hard-filtered so they never appear in the model selector:
+  - Covers discontinued models (`databricks/dbrx-instruct`, `meta/codellama-70b`, `meta/llama2-70b`, `ibm/granite-*`, etc.)
+  - Covers embedding-only models listed as chat-capable (`nvidia/nv-embed-v1`, `nvidia/nv-embedqa-*`, `snowflake/arctic-embed-l`, etc.)
+  - Covers stale API catalog entries (`mistralai/mistral-large`, `mistralai/mistral-large-2-instruct`, `writer/palmyra-*`, etc.)
+  - Full list in `NVIDIA_KNOWN_404_MODELS` in `providers/nvidia/nvidia.ts`
+
+- **`/probe-nvidia` command** — On-demand model health check. Tests every registered NVIDIA model with a minimal `max_tokens: 1` request, auto-hides any new 404s in `~/.pi/free.json`, and re-registers the provider immediately.
+
+- **`scripts/probe-nvidia.mjs`** — Standalone Node.js script to reproduce the probe. Reads `~/.pi/free.json` for the API key, batches 20 requests at a time with 10s timeout, and prints all broken model IDs for adding to the blocklist.
+
+### Fixed
+
+- **NVIDIA provider now sends `authHeader: true`** — Explicitly enables `Authorization: Bearer` header injection. Previously relied on pi's implicit behavior which could fail in some configurations.
+
 ### Changed
 
 - **NVIDIA provider now queries NVIDIA's API directly** — Source of truth switched from `models.dev` curated JSON to `https://integrate.api.nvidia.com/v1/models`:
