@@ -4,7 +4,6 @@
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ModelsDevModel } from "../lib/types.ts";
 
 let capturedToggleArgs: any = null;
 
@@ -38,202 +37,76 @@ vi.mock("../constants.ts", () => ({
 	URL_MODELS_DEV: "https://models.dev/api.json",
 }));
 
+vi.mock("../lib/util.ts", () => ({
+	fetchWithRetry: vi.fn(),
+	isUsableModel: vi.fn((id: string, minSize?: number) => {
+		// Simple size check for testing
+		if (minSize !== undefined) {
+			const sizeMatch = id.match(/(\d+(?:\.\d+)?)b(?!\w)/i);
+			if (sizeMatch) {
+				const size = Number.parseFloat(sizeMatch[1]);
+				if (size < minSize) return false;
+			}
+		}
+		return true;
+	}),
+}));
+
+import { fetchWithRetry } from "../lib/util.ts";
 import nvidiaProvider from "../providers/nvidia/nvidia.ts";
+
+function mockNvidiaApiResponse(modelIds: string[]) {
+	return {
+		ok: true,
+		json: async () => ({ data: modelIds.map((id) => ({ id })) }),
+	};
+}
+
+function mockModelsDevResponse(models: Record<string, any>) {
+	return {
+		ok: true,
+		json: async () => ({
+			nvidia: {
+				id: "nvidia",
+				api: "openai-completions",
+				models,
+			},
+		}),
+	};
+}
 
 describe("NVIDIA Provider", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		capturedToggleArgs = null;
+		vi.mocked(fetchWithRetry).mockReset();
 	});
 
-	describe("model filtering logic", () => {
-		// Helper to simulate the filtering logic from fetchNvidiaModels
-		function filterModels(models: ModelsDevModel[]): ModelsDevModel[] {
-			return models
-				.filter((m) => {
-					// Size filtering (from isUsableModel with NVIDIA_MIN_SIZE_B = 70)
-					const sizeMatch = m.id.match(/(\d+(?:\.\d+)?)b(?!\w)/i);
-					if (sizeMatch) {
-						const size = Number.parseFloat(sizeMatch[1]);
-						if (size < 70) return false;
-					}
-					return true;
-				})
-				.filter((m) => {
-					// Modalities filtering - non-chat models
-					const modalities = m.modalities;
-					if (modalities) {
-						const output = modalities.output ?? [];
-						const input = modalities.input ?? [];
-						if (!output.includes("text")) return false;
-						if (!input.includes("text")) return false;
-					}
-					return true;
-				})
-				.filter((m) => {
-					// Cost filtering
-					if ((m.cost?.input ?? 0) > 0) return false;
-					return true;
-				});
-		}
-
-		it("should include chat models with text input/output", () => {
-			const models: ModelsDevModel[] = [
-				{
-					id: "test/chat-70b",
-					name: "Chat Model",
-					reasoning: false,
-					limit: { context: 128000, output: 4096 },
-					modalities: { input: ["text"], output: ["text"] },
-					cost: { input: 0, output: 0 },
-				},
-			];
-			const filtered = filterModels(models);
-			expect(filtered).toHaveLength(1);
-			expect(filtered[0].id).toBe("test/chat-70b");
+	it("should include models from NVIDIA API with models.dev metadata enrichment", async () => {
+		vi.mocked(fetchWithRetry).mockImplementation(async (url: string) => {
+			if (url.includes("integrate.api.nvidia.com/v1/models")) {
+				return mockNvidiaApiResponse([
+					"nvidia/llama-3.1-70b-instruct",
+					"deepseek-ai/deepseek-v4-flash",
+					"nvidia/nv-embed-v1",
+					"mistralai/mistral-large",
+				]) as any;
+			}
+			if (url.includes("models.dev")) {
+				return mockModelsDevResponse({
+					"llama-3.1-70b-instruct": {
+						id: "nvidia/llama-3.1-70b-instruct",
+						name: "Llama 3.1 70B Instruct",
+						reasoning: false,
+						limit: { context: 128000, output: 4096 },
+						modalities: { input: ["text"], output: ["text"] },
+						cost: { input: 0, output: 0 },
+					},
+				}) as any;
+			}
+			throw new Error("Unexpected URL: " + url);
 		});
 
-		it("should include vision models (text+image input, text output)", () => {
-			const models: ModelsDevModel[] = [
-				{
-					id: "test/vision-70b",
-					name: "Vision Model",
-					reasoning: false,
-					limit: { context: 128000, output: 4096 },
-					modalities: { input: ["text", "image"], output: ["text"] },
-					cost: { input: 0, output: 0 },
-				},
-			];
-			const filtered = filterModels(models);
-			expect(filtered).toHaveLength(1);
-			expect(filtered[0].id).toBe("test/vision-70b");
-		});
-
-		it("should filter out image generation models (image output)", () => {
-			const models: ModelsDevModel[] = [
-				{
-					id: "test/image-gen-70b",
-					name: "Image Gen Model",
-					reasoning: false,
-					limit: { context: 4096, output: 0 },
-					modalities: { input: ["text"], output: ["image"] },
-					cost: { input: 0, output: 0 },
-				},
-			];
-			const filtered = filterModels(models);
-			expect(filtered).toHaveLength(0);
-		});
-
-		it("should filter out OCR models (image-only input)", () => {
-			const models: ModelsDevModel[] = [
-				{
-					id: "test/ocr-70b",
-					name: "OCR Model",
-					reasoning: false,
-					limit: { context: 0, output: 4096 },
-					modalities: { input: ["image"], output: ["text"] },
-					cost: { input: 0, output: 0 },
-				},
-			];
-			const filtered = filterModels(models);
-			expect(filtered).toHaveLength(0);
-		});
-
-		it("should filter out speech-to-text models (audio-only input)", () => {
-			const models: ModelsDevModel[] = [
-				{
-					id: "test/speech-70b",
-					name: "Speech Model",
-					reasoning: false,
-					limit: { context: 0, output: 4096 },
-					modalities: { input: ["audio"], output: ["text"] },
-					cost: { input: 0, output: 0 },
-				},
-			];
-			const filtered = filterModels(models);
-			expect(filtered).toHaveLength(0);
-		});
-
-		it("should filter small models (< 70B)", () => {
-			const models: ModelsDevModel[] = [
-				{
-					id: "test/chat-8b",
-					name: "Small Chat Model",
-					reasoning: false,
-					limit: { context: 128000, output: 4096 },
-					modalities: { input: ["text"], output: ["text"] },
-					cost: { input: 0, output: 0 },
-				},
-			];
-			const filtered = filterModels(models);
-			expect(filtered).toHaveLength(0);
-		});
-
-		it("should filter paid models when cost > 0", () => {
-			const models: ModelsDevModel[] = [
-				{
-					id: "test/paid-70b",
-					name: "Paid Model",
-					reasoning: false,
-					limit: { context: 128000, output: 4096 },
-					modalities: { input: ["text"], output: ["text"] },
-					cost: { input: 0.5, output: 1.0 },
-				},
-			];
-			const filtered = filterModels(models);
-			expect(filtered).toHaveLength(0);
-		});
-
-		it("should handle mixed model list correctly", () => {
-			const models: ModelsDevModel[] = [
-				{
-					id: "nvidia/chat-70b",
-					name: "Chat 70B",
-					reasoning: false,
-					limit: { context: 128000, output: 4096 },
-					modalities: { input: ["text"], output: ["text"] },
-					cost: { input: 0, output: 0 },
-				},
-				{
-					id: "openai/whisper-large-v3",
-					name: "Whisper",
-					reasoning: false,
-					limit: { context: 0, output: 4096 },
-					modalities: { input: ["audio"], output: ["text"] },
-					cost: { input: 0, output: 0 },
-				},
-				{
-					id: "black-forest-labs/flux.1-dev",
-					name: "FLUX.1",
-					reasoning: false,
-					limit: { context: 4096, output: 0 },
-					modalities: { input: ["text"], output: ["image"] },
-					cost: { input: 0, output: 0 },
-				},
-				{
-					id: "nvidia/nemoretriever-ocr-v1",
-					name: "OCR",
-					reasoning: false,
-					limit: { context: 0, output: 4096 },
-					modalities: { input: ["image"], output: ["text"] },
-					cost: { input: 0, output: 0 },
-				},
-				{
-					id: "nvidia/nemotron-8b",
-					name: "Small Model",
-					reasoning: false,
-					limit: { context: 128000, output: 4096 },
-					modalities: { input: ["text"], output: ["text"] },
-					cost: { input: 0, output: 0 },
-				},
-			];
-			const filtered = filterModels(models);
-			expect(filtered).toHaveLength(1);
-			expect(filtered[0].id).toBe("nvidia/chat-70b");
-		});
-	});
-
-	it("should configure provider correctly with toggle support", async () => {
 		const mockPi = {
 			registerProvider: vi.fn(),
 			on: vi.fn(),
@@ -242,7 +115,194 @@ describe("NVIDIA Provider", () => {
 
 		await nvidiaProvider(mockPi);
 
-		// Should call registerProvider with nvidia provider
+		const registeredModels = (mockPi.registerProvider as any).mock.calls[0][1]
+			.models;
+
+		expect(
+			registeredModels.some(
+				(m: any) => m.id === "nvidia/llama-3.1-70b-instruct",
+			),
+		).toBe(true);
+		expect(
+			registeredModels.find(
+				(m: any) => m.id === "nvidia/llama-3.1-70b-instruct",
+			).name,
+		).toBe("Llama 3.1 70B Instruct");
+		expect(
+			registeredModels.some(
+				(m: any) => m.id === "deepseek-ai/deepseek-v4-flash",
+			),
+		).toBe(true);
+		expect(
+			registeredModels.some((m: any) => m.id === "mistralai/mistral-large"),
+		).toBe(true);
+		expect(
+			registeredModels.some((m: any) => m.id === "nvidia/nv-embed-v1"),
+		).toBe(false);
+	});
+
+	it("should infer metadata for models not present in models.dev", async () => {
+		vi.mocked(fetchWithRetry).mockImplementation(async (url: string) => {
+			if (url.includes("integrate.api.nvidia.com/v1/models")) {
+				return mockNvidiaApiResponse(["deepseek-ai/deepseek-v4-flash"]) as any;
+			}
+			if (url.includes("models.dev")) {
+				return mockModelsDevResponse({}) as any;
+			}
+			throw new Error("Unexpected URL: " + url);
+		});
+
+		const mockPi = {
+			registerProvider: vi.fn(),
+			on: vi.fn(),
+			registerCommand: vi.fn(),
+		} as unknown as ExtensionAPI;
+
+		await nvidiaProvider(mockPi);
+
+		const registeredModels = (mockPi.registerProvider as any).mock.calls[0][1]
+			.models;
+		const model = registeredModels.find(
+			(m: any) => m.id === "deepseek-ai/deepseek-v4-flash",
+		);
+
+		expect(model).toBeDefined();
+		expect(model.name).toBe("Deepseek V4 Flash");
+		expect(model.reasoning).toBe(false);
+		expect(model.contextWindow).toBe(128000);
+		expect(model.maxTokens).toBe(4096);
+		expect(model.input).toEqual(["text"]);
+		expect(model.cost.input).toBe(0);
+	});
+
+	it("should exclude non-chat models via ID heuristics", async () => {
+		vi.mocked(fetchWithRetry).mockImplementation(async (url: string) => {
+			if (url.includes("integrate.api.nvidia.com/v1/models")) {
+				return mockNvidiaApiResponse([
+					"nvidia/nv-embed-v1",
+					"openai/whisper-large-v3",
+					"nvidia/nemotron-parse",
+					"nvidia/llama-3.1-70b-instruct",
+				]) as any;
+			}
+			if (url.includes("models.dev")) {
+				return mockModelsDevResponse({}) as any;
+			}
+			throw new Error("Unexpected URL: " + url);
+		});
+
+		const mockPi = {
+			registerProvider: vi.fn(),
+			on: vi.fn(),
+			registerCommand: vi.fn(),
+		} as unknown as ExtensionAPI;
+
+		await nvidiaProvider(mockPi);
+
+		const registeredModels = (mockPi.registerProvider as any).mock.calls[0][1]
+			.models;
+		expect(registeredModels.map((m: any) => m.id)).toEqual([
+			"nvidia/llama-3.1-70b-instruct",
+		]);
+	});
+
+	it("should not filter paid models since NVIDIA is freemium", async () => {
+		vi.mocked(fetchWithRetry).mockImplementation(async (url: string) => {
+			if (url.includes("integrate.api.nvidia.com/v1/models")) {
+				return mockNvidiaApiResponse([
+					"ai21labs/jamba-1.5-large-instruct",
+				]) as any;
+			}
+			if (url.includes("models.dev")) {
+				return mockModelsDevResponse({
+					"jamba-1.5-large-instruct": {
+						id: "ai21labs/jamba-1.5-large-instruct",
+						name: "Jamba 1.5 Large",
+						reasoning: false,
+						limit: { context: 256000, output: 8192 },
+						modalities: { input: ["text"], output: ["text"] },
+						cost: { input: 2.0, output: 6.0 },
+					},
+				}) as any;
+			}
+			throw new Error("Unexpected URL: " + url);
+		});
+
+		const mockPi = {
+			registerProvider: vi.fn(),
+			on: vi.fn(),
+			registerCommand: vi.fn(),
+		} as unknown as ExtensionAPI;
+
+		await nvidiaProvider(mockPi);
+
+		const registeredModels = (mockPi.registerProvider as any).mock.calls[0][1]
+			.models;
+		const model = registeredModels.find(
+			(m: any) => m.id === "ai21labs/jamba-1.5-large-instruct",
+		);
+
+		expect(model).toBeDefined();
+		expect(model.cost.input).toBe(2.0);
+		expect(model.cost.output).toBe(6.0);
+	});
+
+	it("should fall back to models.dev when NVIDIA API is unreachable", async () => {
+		vi.mocked(fetchWithRetry).mockImplementation(async (url: string) => {
+			if (url.includes("integrate.api.nvidia.com/v1/models")) {
+				return { ok: false, status: 500, statusText: "Server Error" } as any;
+			}
+			if (url.includes("models.dev")) {
+				return mockModelsDevResponse({
+					"llama-3.1-70b-instruct": {
+						id: "nvidia/llama-3.1-70b-instruct",
+						name: "Llama 3.1 70B Instruct",
+						reasoning: false,
+						limit: { context: 128000, output: 4096 },
+						modalities: { input: ["text"], output: ["text"] },
+						cost: { input: 0, output: 0 },
+					},
+				}) as any;
+			}
+			throw new Error("Unexpected URL: " + url);
+		});
+
+		const mockPi = {
+			registerProvider: vi.fn(),
+			on: vi.fn(),
+			registerCommand: vi.fn(),
+		} as unknown as ExtensionAPI;
+
+		await nvidiaProvider(mockPi);
+
+		const registeredModels = (mockPi.registerProvider as any).mock.calls[0][1]
+			.models;
+		expect(
+			registeredModels.some(
+				(m: any) => m.id === "nvidia/llama-3.1-70b-instruct",
+			),
+		).toBe(true);
+	});
+
+	it("should configure provider correctly with toggle support", async () => {
+		vi.mocked(fetchWithRetry).mockImplementation(async (url: string) => {
+			if (url.includes("integrate.api.nvidia.com/v1/models")) {
+				return mockNvidiaApiResponse(["nvidia/llama-3.1-70b-instruct"]) as any;
+			}
+			if (url.includes("models.dev")) {
+				return mockModelsDevResponse({}) as any;
+			}
+			throw new Error("Unexpected URL: " + url);
+		});
+
+		const mockPi = {
+			registerProvider: vi.fn(),
+			on: vi.fn(),
+			registerCommand: vi.fn(),
+		} as unknown as ExtensionAPI;
+
+		await nvidiaProvider(mockPi);
+
 		expect(mockPi.registerProvider).toHaveBeenCalledWith(
 			"nvidia",
 			expect.objectContaining({
@@ -252,16 +312,15 @@ describe("NVIDIA Provider", () => {
 			}),
 		);
 
-		// Should call registerWithGlobalToggle with both free and all model sets
 		expect(capturedToggleArgs).toBeDefined();
-		expect(capturedToggleArgs[0]).toBe("nvidia"); // providerId
+		expect(capturedToggleArgs[0]).toBe("nvidia");
 		expect(capturedToggleArgs[1]).toMatchObject({
 			free: expect.any(Array),
 			all: expect.any(Array),
 		});
-		expect(capturedToggleArgs[1].free.length).toBeGreaterThanOrEqual(0);
-		expect(capturedToggleArgs[1].all.length).toBeGreaterThanOrEqual(
-			capturedToggleArgs[1].free.length,
+		// NVIDIA is freemium — free and all should be identical
+		expect(capturedToggleArgs[1].free.length).toBe(
+			capturedToggleArgs[1].all.length,
 		);
 	});
 });

@@ -7,9 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **NVIDIA provider now queries NVIDIA's API directly** — Source of truth switched from `models.dev` curated JSON to `https://integrate.api.nvidia.com/v1/models`:
+  - Eliminates 57 missing models and 25 stale entries from the old third-party source
+  - Models not in `models.dev` get inferred metadata (128k context, 4k output, vision/reasoning heuristics)
+  - Added regex-based non-chat model filtering for unknown models (embeddings, whisper, reward models, safety guards, parsers, detectors, etc.)
+  - Graceful fallback to `models.dev` if NVIDIA API is unreachable
+  - Removed paid/free toggle filtering — NVIDIA is freemium (all models use free credits)
+
+## [2.0.2] - 2026-04-24
+
+### Fixed
+
+- **Provider toggle state now persists reliably** — Follow-up fixes to the new `toggle-{provider}` flow ensure saved free-vs-all preferences are restored consistently across sessions for built-in and extension-managed providers.
+- **Config parse errors are now logged** — Invalid `~/.pi/free.json` content is no longer ignored silently; startup parse failures are written to `~/.pi/free.log` to make misconfiguration easier to diagnose.
+
+### Changed
+
+- **README refreshed** — Clarified that provider toggle changes apply immediately, persist across restarts, and that malformed config is surfaced in the extension log.
+
 ## [2.0.1] - 2026-04-24
 
 ### Added
+
 - **Built-in provider toggle support** (`lib/built-in-toggle.ts`) — Enables free/paid filtering for Pi's built-in providers that expose per-model pricing:
   - **OpenCode (`/toggle-opencode`)** — Captures built-in OpenCode models on session start and filters to free-only by default
   - **OpenRouter (`/toggle-openrouter`)** — Now uses the built-in toggle system for consistency
@@ -17,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Persisted via `opencode_show_paid` and `openrouter_show_paid` in `~/.pi/free.json`
 
 ### Changed
+
 - **OpenRouter moved to built-in toggle system** — OpenRouter is now handled by `lib/built-in-toggle.ts` alongside OpenCode for a unified approach:
   - Removed from `providers/dynamic-built-in/index.ts`
   - Eliminated duplicate toggle command registration logic
@@ -35,16 +57,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `/toggle-opencode` (new)
 
 ### Fixed
+
 - **Ollama Cloud model fetching endpoint** — Corrected the `/v1/models` → `/models` endpoint path in `providers/ollama/ollama.ts`:
   - The previous fix (2.0.0) incorrectly used `/v1/models`; Ollama Cloud's models endpoint is `/v1/models` for chat completions but `/models` for listing
   - This ensures model fetching works correctly with the OpenAI-compatible API
 
 ### Removed
+
 - **Global `/free` command** — Removed the global free-only toggle. Per-provider toggles (`/toggle-{provider}`) are now the only way to switch between free and paid models. The `/free-providers` status command remains.
 
 ## [2.0.0] - 2026-04-23
 
 ### Breaking Changes
+
 - **Removed Fireworks provider** — Fireworks is now a built-in Pi provider (added in pi 0.68.1), so the extension's Fireworks provider has been removed to avoid conflicts:
   - Deleted `providers/fireworks/fireworks.ts` and `tests/fireworks.test.ts`
   - Removed all Fireworks configuration options from `config.ts` (`fireworks_api_key`, `fireworks_show_paid`)
@@ -55,15 +80,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - All log messages and documentation now reference "Ollama Cloud"
 
 ### Removed
+
 - **Dropped `@sinclair/typebox` peer dependency** — Pi 0.69.0 migrated from `@sinclair/typebox` to `typebox` 1.x. The extension didn't directly import this package, so it was removed from `peerDependencies` to avoid potential conflicts.
 
 ### Fixed
+
 - **Ollama Cloud API endpoint** — Fixed broken Ollama Cloud integration:
   - Changed `BASE_URL_OLLAMA` from `https://ollama.com` to `https://ollama.com/v1` — the OpenAI-compatible API endpoint
   - Fixed model fetching to use `/v1/models` instead of `/api/tags` — ensures model IDs work with chat completions endpoint
   - Previously calls went to HTML homepage instead of API endpoints, causing 404 errors
 
 ### Removed
+
 - **Removed paid model warning on selection** — Deleted the `model_select` event handler that showed:
   - `⚠️ Paid model selected (${model.id}). Use "/free off" to enable paid models.`
   - This warning was redundant since the global `/free` toggle and provider toggles already control model visibility
@@ -73,12 +101,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Modal provider now sets `skipToggle: true` to prevent toggle command creation
 
 ### Changed
+
 - **Marked Qwen provider as fully deprecated** — Updated messaging to clarify the provider is broken:
   - Changed model name from `"Qwen Coder — Free 1k/day"` to `"Qwen Coder — DEPRECATED (free tier discontinued)"`
   - Updated all JSDoc comments to clearly state auth is broken and free tier is no longer available
   - Provider remains for backward compatibility but should not be used
 
 ### Added
+
 - **Cloudflare Workers AI provider** — New provider for Cloudflare's serverless GPU platform:
   - 50+ open-source models: Llama 4, Mistral Small 3.1, Qwen 2.5/3, DeepSeek R1, Gemma 4, Kimi K2.5/2.6, and more
   - **10,000 Neurons/day FREE tier** (resets daily at 00:00 UTC)
@@ -103,12 +133,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Providers register via `registerWithGlobalToggle()` for unified filtering
 
 ### Fixed
+
 - **Toggle commands now actually filter models from UI** — Previously, toggle commands only showed notifications but didn't remove paid models from the model picker:
   - **OpenRouter (`/openrouter-toggle`)**: Now uses `registerProvider`/`unregisterProvider` to actually filter models from the picker UI
   - **NVIDIA (`/nvidia-toggle`)**: Added dynamic `showPaid` parameter to `fetchNvidiaModels()` so toggle properly switches between free and paid model sets
   - **Fireworks**: Removed broken toggle command — all models are paid with no free tier, so there was nothing to toggle
 
 ### Added
+
 - **OpenRouter per-provider free model toggle** — Added `/openrouter-toggle` command for the built-in OpenRouter provider:
   - `/openrouter-toggle` — Switch between showing only free models vs all models (including paid)
   - New config flag `openrouter_show_paid` in `~/.pi/free.json` (default: `false`)
@@ -116,6 +148,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - This brings OpenRouter (a built-in pi provider) in line with extension providers that have per-provider toggles
 
 ### Deprecated
+
 - **Qwen provider** — The 1,000 requests/day free tier is no longer available from Qwen/DashScope. The provider code remains for backward compatibility but is now deprecated:
   - Added `@deprecated` JSDoc tags to all Qwen-related exports
   - Added deprecation warning when Qwen provider loads
@@ -123,11 +156,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Consider migrating to other free providers: Kilo, Cline, NVIDIA, or Modal
 
 ### Added
+
 - **Go provider** — OpenCode Go subscription gateway (⚠️ paid only — $5 first month, then $10/month, no free tier) with models: GLM-5, Kimi K2.5, MiMo-V2-Pro, MiMo-V2-Omni, MiniMax M2.7, MiniMax M2.5
   - Set `OPENCODE_GO_API_KEY` or `opencode_go_api_key` in `~/.pi/free.json`
   - Toggle with `/go-toggle`
 
 ### Fixed
+
 - **All providers now show Coding Index scores in model selector** — Added `enhanceWithCI()` to factory-based providers (nvidia, fireworks, mistral, modal, ollama) and cline. Now all providers display CI scores in `/models` command (pi-models extension).
 
 - **All providers now show in `--list-models`** — Providers (zen, openrouter, go) that registered models only in `session_start` were missing from `pi --list-models` which runs before session starts. Added immediate registration for these providers:
@@ -137,22 +172,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - All 11 providers now visible in `--list-models`
 
 ### Changed
+
 - Updated README with clear free vs paid provider distinction (9 free + 2 paid-only: Go, Fireworks)
 - Added Go and Fireworks provider documentation under new "💳 Paid-Only Providers" section
 - Added `opencode_go_api_key` to config file template
 - Updated package.json description and keywords to include all 11 providers
 
 ### Added
+
 - **Provider model cache** (`lib/provider-cache.ts`) — New utility for caching provider model lists to `~/.pi/provider-cache.json`. Used by zen provider for faster startup and offline access after first successful fetch.
 
 ## [1.0.9] - 2026-04-14
 
 ### Fixed
+
 - **Qwen OAuth breaks other OAuth providers** — `modifyModels` receives all models across every registered provider, not just Qwen's. The previous `map()` stamped the Qwen dashscope `baseUrl` onto every model, causing other OAuth providers (Kilo, OpenRouter, etc.) to return 404 after a `/login qwen` flow. Now only models with `provider === PROVIDER_QWEN` are patched; others pass through unchanged.
 
 ## [1.0.8] - 2026-04-13
 
 ### Added
+
 - **Modal provider** — Free access to GLM-5.1 FP8 (128k context, 16k max output) during promotional period (free until April 30, 2026)
   - Requires a free Modal API key (`MODAL_API_KEY` or `modal_api_key` in `~/.pi/free.json`)
   - Model: `zai-org/GLM-5.1-FP8` — 128k context window, 16k max output tokens
@@ -162,6 +201,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 131k context window, 16k max output tokens, zero cost
 
 ### Fixed
+
 - **Qwen OAuth browser launch on Windows** — URLs with `&` query params were truncated by `cmd.exe`'s `&` command separator; switched to `powershell.exe Start-Process` which passes the URL as a literal string
 - **Qwen API endpoint** — Replicates qwen-code's `getCurrentEndpoint()` logic: uses `resource_url` from OAuth token response (`dashscope.aliyuncs.com` for Chinese accounts, `portal.qwen.ai` for international), with fallback to `dashscope.aliyuncs.com/compatible-mode/v1`
 - **Qwen DashScope headers** — Added all headers required by DashScope's OpenAI-compatible API: `X-DashScope-AuthType: qwen-oauth`, `X-DashScope-CacheControl: enable`, `X-DashScope-UserAgent`, `Client-Code: QwenCode`
@@ -170,6 +210,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.5] - 2025-04-03
 
 ### Fixed
+
 - **NVIDIA provider non-chat model filtering** (comment/implementation mismatch)
   - Added modalities-based filtering to exclude embedding, speech-to-text, OCR, and image-gen models
   - Filters models where `output` is not `["text"]` (e.g., image generation like `black-forest-labs/flux.1-dev`)
@@ -180,6 +221,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.4] - 2025-04-03
 
 ### Fixed
+
 - **All tests now passing** (127/127)
   - Fixed mock paths in kilo.test.ts, zen.test.ts, ollama.test.ts
   - Fixed createCtxReRegister mocks in zen.test.ts and openrouter.test.ts
@@ -187,6 +229,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added missing DEFAULT_MIN_SIZE_B constant to openrouter mock
 
 ### Changed
+
 - **Code quality improvements**
   - Refactored usage modules to break circular dependency (limits.ts ↔ formatters.ts)
   - Created usage/types.ts with shared interfaces (FreeTierLimit, FreeTierUsage)
@@ -195,12 +238,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.3] - 2025-04-03
 
 ### Changed
+
 - Updated package.json metadata (name, description, keywords, repository URL)
 - Updated .npmignore for cleaner publishes
 
 ## [1.0.0] - 2024-03-28
 
 ### Added
+
 - Initial release with 6 providers: Kilo, Zen, OpenRouter, NVIDIA, Cline, Fireworks
 - Free tier usage tracking across all sessions
 - Provider failover with model hopping
@@ -210,12 +255,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hardcoded benchmark data from Artificial Analysis
 
 ### Changed
-- **Major refactoring**: Split free-tier-limits.ts into usage/* modules
+
+- **Major refactoring**: Split free-tier-limits.ts into usage/\* modules
   - usage/tracking.ts - runtime session tracking
   - usage/cumulative.ts - persistent storage
   - usage/formatters.ts - display formatting
   - 77% line reduction (741 → 166 lines)
-- **Major refactoring**: Split usage-widget.ts into widget/* modules
+- **Major refactoring**: Split usage-widget.ts into widget/\* modules
   - widget/data.ts - data collection
   - widget/format.ts - formatting utilities
   - widget/render.ts - HTML generation
@@ -240,6 +286,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added resetUsageStats() for test isolation
 
 ### Fixed
+
 - fetchWithRetry() now properly throws after exhausting retries
 - Auth error pattern matching now handles more message variants
 - Test isolation for free-tier-limits tests
