@@ -32,7 +32,11 @@ import {
 } from "../../constants.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import type { ModelsDevModel, ModelsDevProvider } from "../../lib/types.ts";
-import { fetchWithRetry, isUsableModel } from "../../lib/util.ts";
+import {
+	fetchWithRetry,
+	fetchWithTimeout,
+	isUsableModel,
+} from "../../lib/util.ts";
 import { createReRegister, enhanceWithCI } from "../../provider-helper.ts";
 
 // =============================================================================
@@ -291,24 +295,28 @@ async function probeNvidiaModel(
 	modelId: string,
 ): Promise<boolean> {
 	try {
-		const response = await fetch(`${BASE_URL_NVIDIA}/chat/completions`, {
-			method: "POST",
-			headers: {
-				Authorization: `Bearer ${apiKey}`,
-				"Content-Type": "application/json",
-				"User-Agent": "pi-free-providers",
+		const response = await fetchWithTimeout(
+			`${BASE_URL_NVIDIA}/chat/completions`,
+			{
+				method: "POST",
+				headers: {
+					Authorization: `Bearer ${apiKey}`,
+					"Content-Type": "application/json",
+					"User-Agent": "pi-free-providers",
+				},
+				body: JSON.stringify({
+					model: modelId,
+					messages: [{ role: "user", content: "hi" }],
+					max_tokens: 1,
+				}),
 			},
-			body: JSON.stringify({
-				model: modelId,
-				messages: [{ role: "user", content: "hi" }],
-				max_tokens: 1,
-			}),
-		});
+			10000, // 10 second timeout
+		);
 		// 404 = function not found (model not provisioned)
 		// 200/400/401/etc = at least routable
 		return response.status !== 404;
 	} catch {
-		return true; // Network errors are not "model not found"
+		return true; // Network errors / timeouts are not "model not found"
 	}
 }
 

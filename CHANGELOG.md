@@ -32,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Probe commands timeout handling** — Added `fetchWithTimeout` with 10-second timeout to `/probe-nvidia` and `/probe-ollama` commands. Prevents the coding harness from freezing when individual model probe requests hang indefinitely.
+
 - **NVIDIA provider now sends `authHeader: true`** — Explicitly enables `Authorization: Bearer` header injection. Previously relied on pi's implicit behavior which could fail in some configurations.
 
 ### Removed

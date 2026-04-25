@@ -38,7 +38,7 @@ import {
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
-import { fetchWithRetry } from "../../lib/util.ts";
+import { fetchWithRetry, fetchWithTimeout } from "../../lib/util.ts";
 import { createReRegister, enhanceWithCI } from "../../provider-helper.ts";
 
 const _logger = createLogger("ollama-cloud");
@@ -253,23 +253,28 @@ async function probeOllamaModel(
 	modelId: string,
 ): Promise<boolean> {
 	try {
-		const response = await fetch(`${BASE_URL_OLLAMA}/chat/completions`, {
-			method: "POST",
-			headers: {
-				Authorization: `Bearer ${apiKey}`,
-				"Content-Type": "application/json",
-				"User-Agent": "pi-free-providers",
+		const response = await fetchWithTimeout(
+			`${BASE_URL_OLLAMA}/chat/completions`,
+			{
+				method: "POST",
+				headers: {
+					Authorization: `Bearer ${apiKey}`,
+					"Content-Type": "application/json",
+					"User-Agent": "pi-free-providers",
+				},
+				body: JSON.stringify({
+					model: modelId,
+					messages: [{ role: "user", content: "hi" }],
+					max_tokens: 1,
+				}),
 			},
-			body: JSON.stringify({
-				model: modelId,
-				messages: [{ role: "user", content: "hi" }],
-				max_tokens: 1,
-			}),
-		});
+			10000, // 10 second timeout
+		);
 		// 403 = access denied (model not provisioned)
 		// 200/400/401/etc = at least accessible
 		return response.status !== 403;
 	} catch {
-		return true; // Network errors are not "access denied"
+		// Network errors / timeouts are not "access denied"
+		return true;
 	}
 }
