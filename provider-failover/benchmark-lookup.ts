@@ -71,12 +71,12 @@ function normalizeSizeTokenOrder(id: string): string {
 
 /**
  * Extract the base model ID from a provider model ID.
- * Strips provider prefix ("openai/"), :free suffix, date suffixes, and version suffixes.
+ * Strips ALL provider prefixes ("openai/", "@cf/meta/", "@cf/qwen/"), :free suffix, date suffixes, and version suffixes.
  */
 function extractBaseModelId(modelId: string): string {
 	return modelId
 		.toLowerCase()
-		.replace(/^[^/]+\//, "") // Strip provider prefix like "openai/"
+		.replace(/^.*\//, "") // Strip ALL path prefixes - keep only last segment
 		.replace(/:free$/, "") // Strip :free suffix
 		.replace(/-\d{8}$/, "") // Strip date suffixes like -20250514
 		.replace(/-v\d+(\.\d+)?$/, "") // Strip version suffixes like -v1.1
