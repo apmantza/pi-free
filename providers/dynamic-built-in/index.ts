@@ -404,7 +404,7 @@ export async function setupDynamicBuiltInProviders(
 					baseUrl: config.baseUrl,
 					apiKey,
 					api: config.api,
-					models: enhanceWithCI(models),
+					models: enhanceWithCI(models, config.providerId),
 				});
 			};
 

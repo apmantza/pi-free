@@ -160,6 +160,19 @@ Every model shows a **Coding Index score** (e.g., `CI: 52.3`) in the model picke
 - **Quality indicator** — Higher scores = better coding performance
 - **All providers** — Applied to every model from every provider (NVIDIA, Cloudflare, Mistral, Groq, etc.)
 
+**Missing CI scores?** Provider model IDs often don't match benchmark database keys exactly. pi-free applies provider-specific normalization to improve matching:
+
+| Provider       | Normalization Applied                                              |
+| -------------- | ------------------------------------------------------------------ |
+| **NVIDIA**     | Strips vendor prefixes (`meta/`, `mistralai/`, `microsoft/`, etc.) |
+| **Cloudflare** | Strips `@cf/namespace/` prefixes                                   |
+| **Groq**       | Removes `-versatile` and numeric suffixes (`-32768`)               |
+| **Cerebras**   | Normalizes `llama3.1` → `llama-3.1`, adds `instruct` suffix        |
+| **Mistral**    | Strips `-latest` suffix                                            |
+| **Ollama**     | Converts `model:tag` → `model-tag`                                 |
+
+**Debug missing scores:** Check `~/.pi/modelmatch.log` to see which models matched/didn't match and what normalization was applied.
+
 ### 🔄 Free/Paid Model Toggling
 
 Providers have different pricing models. pi-free handles them all:
@@ -466,12 +479,10 @@ export NVIDIA_API_KEY="..."
 
 ## Logging & Debugging
 
-pi-free now writes extension logs to:
+pi-free writes extension logs to:
 
 - **Windows:** `%USERPROFILE%\.pi\free.log`
 - **Linux/macOS:** `~/.pi/free.log`
-
-Useful env vars:
 
 If the extension fails to read `~/.pi/free.json`, check this log first — config parse errors are written here.
 
@@ -487,6 +498,45 @@ PI_FREE_LOG_PATH=/tmp/pi-free.log
 
 # Disable file logging
 PI_FREE_FILE_LOG=false
+```
+
+### Model Matching Debug Log
+
+To diagnose why some models don't show Coding Index scores, pi-free writes detailed matching diagnostics to:
+
+- **Windows:** `%USERPROFILE%\.pi\modelmatch.log`
+- **Linux/macOS:** `~/.pi/modelmatch.log`
+
+**Log format:**
+
+```
+timestamp|provider|modelId|modelName|action|strategy|normalizedId|matchKey|codingIndex|details
+```
+
+**Example entries:**
+
+```
+2026-04-26T10:30:00Z|nvidia|meta/llama-3.1-405b-instruct|Llama 3.1 405B|match|provider-normalized:strip-nvidia-prefix|llama-3.1-405b-instruct|llama-3.1-instruct-405b|52.3|
+2026-04-26T10:30:01Z|groq|llama-3.1-70b-versatile|Llama 3.1 70B Versatile|match|strip-groq-versatile|llama-3.1-70b|llama-3.1-instruct-70b|48.5|
+2026-04-26T10:30:02Z|cloudflare|@cf/meta/llama-3.1-70b|Llama 3.1 70B|miss|all-strategies-failed|llama-3.1-70b|||
+```
+
+**Common mismatch patterns:**
+
+- `miss` + `all-strategies-failed` = Model not in benchmark database or ID format not recognized
+- Check `normalizedId` column to see what the lookup tried against
+
+**View the log:**
+
+```bash
+# Pretty-print with column alignment
+cat ~/.pi/modelmatch.log | column -t -s '|'
+
+# See only misses (models without CI scores)
+grep '|miss|' ~/.pi/modelmatch.log
+
+# See stats for specific provider
+grep '|nvidia|' ~/.pi/modelmatch.log | grep -c '|match|'
 ```
 
 ---

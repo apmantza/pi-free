@@ -79,10 +79,11 @@ export interface OpenAICompatibleConfig {
  */
 export function enhanceWithCI(
 	models: ProviderModelConfig[],
+	providerId?: string,
 ): ProviderModelConfig[] {
 	return models.map((m) => ({
 		...m,
-		name: enhanceModelNameWithCodingIndex(m.name, m.id),
+		name: enhanceModelNameWithCodingIndex(m.name, m.id, providerId),
 	}));
 }
 
@@ -105,7 +106,7 @@ export function registerOpenAICompatible(
 			"User-Agent": "pi-free-providers",
 			...headers,
 		},
-		models: enhanceWithCI(models),
+		models: enhanceWithCI(models, providerId),
 		...(oauth && { oauth: oauth as any }),
 	});
 }
@@ -144,7 +145,7 @@ export function createCtxReRegister(
 				"User-Agent": "pi-free-providers",
 				...headers,
 			},
-			models: enhanceWithCI(models),
+			models: enhanceWithCI(models, providerId),
 			...(oauth && { oauth: oauth as any }),
 		});
 	};
@@ -169,7 +170,7 @@ export function setupProvider(
 
 	// Wrap reRegister to automatically add CI scores to all models
 	const reRegister = (models: ProviderModelConfig[], _s: StoredModels) => {
-		const enhanced = enhanceWithCI(models);
+		const enhanced = enhanceWithCI(models, providerId);
 		config.reRegister(enhanced, _s);
 	};
 

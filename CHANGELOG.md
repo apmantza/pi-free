@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Model matching debug logging** — Added `~/.pi/modelmatch.log` to diagnose which models get Coding Index scores and which don't:
+  - Logs every matching attempt with provider, model ID, normalization strategy, and result
+  - CSV-like format: `timestamp|provider|modelId|modelName|action|strategy|normalizedId|matchKey|codingIndex|details`
+  - Provider-specific normalizers for better matching:
+    - **NVIDIA**: Strips vendor prefixes (`meta/`, `mistralai/`, `microsoft/`, `qwen/`, etc.)
+    - **Cloudflare**: Strips `@cf/namespace/` prefixes
+    - **Groq**: Removes `-versatile` and numeric context suffixes (`-32768`)
+    - **Cerebras**: Normalizes `llama3.1` → `llama-3.1`, auto-adds `instruct` suffix
+    - **Mistral**: Strips `-latest` suffix
+    - **Ollama**: Converts `model:tag` → `model-tag`
+  - Common suffix stripping: `:free`, date codes (`-20250514`), versions (`-v1.1`), `-it`, `-fp8`/`-bf16`
+
+- **Enhanced benchmark lookup** — `enhanceModelNameWithCodingIndex()` now accepts optional `provider` parameter for provider-aware normalization
+
 - **Static 404 model blocklist for NVIDIA** — Probed all 136 models from `integrate.api.nvidia.com/v1/models` and identified 57 that return 404 "Function not found" on `/v1/chat/completions`. These are now hard-filtered so they never appear in the model selector:
   - Covers discontinued models (`databricks/dbrx-instruct`, `meta/codellama-70b`, `meta/llama2-70b`, `ibm/granite-*`, etc.)
   - Covers embedding-only models listed as chat-capable (`nvidia/nv-embed-v1`, `nvidia/nv-embedqa-*`, `snowflake/arctic-embed-l`, etc.)
