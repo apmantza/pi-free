@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.2] - 2026-04-26
+
 ### Added
 
 - **Model matching debug logging** — Added `~/.pi/modelmatch.log` to diagnose which models get Coding Index scores and which don't:

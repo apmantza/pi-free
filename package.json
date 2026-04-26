@@ -1,6 +1,6 @@
 {
 	"name": "pi-free",
-	"version": "2.0.1",
+	"version": "2.0.2",
 	"type": "module",
 	"description": "AIO free models for PI: Kilo, Cline, Nvidia, Ollama Cloud and others",
 	"keywords": [
