@@ -54,10 +54,10 @@
 		"@mariozechner/pi-tui": "*"
 	},
 	"devDependencies": {
-		"@vitest/ui": "^1.0.0",
+		"@vitest/ui": "^4.1.5",
 		"tsx": "^4.0.0",
 		"typescript": "^6.0.2",
-		"vitest": "^1.0.0"
+		"vitest": "^4.1.5"
 	},
 	"pi": {
 		"extensions": [
