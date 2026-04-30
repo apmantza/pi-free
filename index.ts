@@ -112,9 +112,7 @@ export default async function (pi: ExtensionAPI) {
 		kilo(pi),
 		ollama(pi),
 		// Qwen is deprecated
-		qwen(pi).catch((err) => {
-			_logger.warn("[pi-free] Qwen provider failed to load (deprecated)", err);
-		}),
+		qwen(pi),
 		cline(pi),
 	]);
 

@@ -148,7 +148,7 @@ export async function createProvider(
 	}
 
 	// 5. Build storage (free/all or single set)
-	const stored: StoredModels = def.hasFreeTier
+	let stored: StoredModels = def.hasFreeTier
 		? {
 				free: models.filter((m) => (m.cost?.input ?? 0) === 0),
 				all: models,
@@ -182,9 +182,12 @@ export async function createProvider(
 			providerId: def.providerId,
 			tosUrl: def.tosUrl,
 			initialShowPaid: def.isPaidMode ?? !!def.showPaidFlag,
-			reRegister: (m: ProviderModelConfig[]) => {
-				stored.free = m;
-				stored.all = m;
+			reRegister: (m: ProviderModelConfig[], _stored?: StoredModels) => {
+				// Keep stored as the original model lists for global toggle lookups;
+				// m is the CI-enhanced subset that gets registered with pi.
+				if (_stored) {
+					stored = _stored;
+				}
 				reRegister(m);
 			},
 			skipToggle: def.skipToggle,
@@ -192,13 +195,19 @@ export async function createProvider(
 		stored,
 	);
 
-	// 8. Optional: before_provider_request hook
+	// 8. Optional: before_provider_request hook (scoped to this provider)
 	if (def.beforeProviderRequest) {
 		const hook = def.beforeProviderRequest;
 		(pi.on as (event: string, handler: (e: unknown) => unknown) => void)(
 			"before_provider_request",
 			(event: unknown) => {
-				const evt = event as { type: string; payload: unknown };
+				const evt = event as {
+					type: string;
+					provider?: string;
+					payload: unknown;
+				};
+				// Only apply to this provider's requests
+				if (evt.provider !== def.providerId) return;
 				const payload = evt.payload as Record<string, unknown>;
 				return hook(payload);
 			},

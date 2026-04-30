@@ -28,6 +28,7 @@ import {
 import { DEFAULT_FETCH_TIMEOUT_MS } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
+import { createToggleState } from "../../lib/toggle-state.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
 import { enhanceWithCI } from "../../provider-helper.ts";
 
@@ -408,6 +409,32 @@ export async function setupDynamicBuiltInProviders(
 				});
 			};
 
+			// Create per-provider toggle state
+			const toggleState = createToggleState({
+				providerId: config.providerId,
+				initialShowPaid: config.defaultShowPaid,
+				initialModels: { free: freeModels, all: allModels },
+			});
+
+			// Register toggle command for this provider
+			pi.registerCommand(`toggle-${config.providerId}`, {
+				description: `Toggle between free and all ${config.providerId} models`,
+				handler: async (_args, ctx) => {
+					const applied = toggleState.toggle(reRegister);
+					if (applied.mode === "all") {
+						ctx.ui.notify(
+							`${config.providerId}: showing all ${allModels.length} models`,
+							"info",
+						);
+					} else {
+						ctx.ui.notify(
+							`${config.providerId}: showing ${freeModels.length} free models`,
+							"info",
+						);
+					}
+				},
+			});
+
 			// Register with global toggle
 			registerWithGlobalToggle(
 				config.providerId,
@@ -416,9 +443,8 @@ export async function setupDynamicBuiltInProviders(
 				true, // hasKey
 			);
 
-			// Initial registration (default to free)
-			const initialModels = config.defaultShowPaid ? allModels : freeModels;
-			reRegister(initialModels);
+			// Initial registration (respect config state)
+			toggleState.applyCurrent(reRegister);
 
 			_logger.info(`[dynamic] ${config.providerId}: registered successfully`);
 		} catch (error) {

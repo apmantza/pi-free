@@ -30,6 +30,7 @@ import {
 	NVIDIA_MIN_SIZE_B,
 	URL_MODELS_DEV,
 } from "../../constants.ts";
+import { createLogger } from "../../lib/logger.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import type { ModelsDevModel, ModelsDevProvider } from "../../lib/types.ts";
 import {
@@ -320,6 +321,56 @@ async function probeNvidiaModel(
 	}
 }
 
+const _nvidiaLogger = createLogger("nvidia");
+
+/**
+ * Run probe on a list of models and auto-hide 404s.
+ * Shared between the /probe-nvidia command and auto-probe on session_start.
+ */
+async function runNvidiaProbe(
+	apiKey: string,
+	modelsToTest: ProviderModelConfig[],
+	stored: { free: ProviderModelConfig[]; all: ProviderModelConfig[] },
+	reRegister: (models: ProviderModelConfig[]) => void,
+): Promise<void> {
+	const notFound: string[] = [];
+	const batchSize = 5;
+
+	for (let i = 0; i < modelsToTest.length; i += batchSize) {
+		const batch = modelsToTest.slice(i, i + batchSize);
+		const results = await Promise.all(
+			batch.map(async (m) => {
+				const ok = await probeNvidiaModel(apiKey, m.id);
+				return { id: m.id, ok };
+			}),
+		);
+		for (const r of results) {
+			if (!r.ok) notFound.push(r.id);
+		}
+	}
+
+	if (notFound.length === 0) {
+		_nvidiaLogger.info("Auto-probe: all NVIDIA models are routable");
+		return;
+	}
+
+	// Auto-hide 404 models in config (provider-scoped)
+	const cfg = loadConfigFile();
+	const existingHidden = new Set(cfg.hidden_models ?? []);
+	for (const id of notFound) existingHidden.add(`${PROVIDER_NVIDIA}/${id}`);
+	saveConfig({ hidden_models: Array.from(existingHidden) });
+
+	// Re-register so hidden models disappear immediately
+	const filtered = await fetchNvidiaModels(apiKey);
+	stored.free = filtered;
+	stored.all = filtered;
+	reRegister(filtered);
+
+	_nvidiaLogger.info(
+		`Auto-probe: found ${notFound.length} broken models (auto-hidden)`,
+	);
+}
+
 export default async function (pi: ExtensionAPI) {
 	const apiKey = getNvidiaApiKey();
 	const hasKey = !!apiKey;
@@ -359,6 +410,19 @@ export default async function (pi: ExtensionAPI) {
 		models: enhanceWithCI(initialModels),
 	});
 
+	// ── Lazy auto-probe on first session_start ──────────────────────
+	let _autoProbeDone = false;
+	pi.on("session_start", async () => {
+		if (_autoProbeDone || !apiKey) return;
+		_autoProbeDone = true;
+		_nvidiaLogger.info("Starting lazy auto-probe of NVIDIA models...");
+		runNvidiaProbe(apiKey, allModels, stored, reRegister).catch((err) => {
+			_nvidiaLogger.warn("Auto-probe failed", {
+				error: err instanceof Error ? err.message : String(err),
+			});
+		});
+	});
+
 	// ── Probe command: test all registered models for 404s ─────────────
 	pi.registerCommand("probe-nvidia", {
 		description: "Test all NVIDIA models for 404 'Function not found' errors",
@@ -371,43 +435,21 @@ export default async function (pi: ExtensionAPI) {
 			const modelsToTest = allModels;
 			ctx.ui.notify(`Probing ${modelsToTest.length} NVIDIA models…`, "info");
 
-			const notFound: string[] = [];
-			const batchSize = 5;
+			await runNvidiaProbe(apiKey, modelsToTest, stored, reRegister);
 
-			for (let i = 0; i < modelsToTest.length; i += batchSize) {
-				const batch = modelsToTest.slice(i, i + batchSize);
-				const results = await Promise.all(
-					batch.map(async (m) => {
-						const ok = await probeNvidiaModel(apiKey, m.id);
-						return { id: m.id, ok };
-					}),
-				);
-				for (const r of results) {
-					if (!r.ok) notFound.push(r.id);
-				}
-			}
-
-			if (notFound.length === 0) {
-				ctx.ui.notify("All NVIDIA models are routable ✅", "info");
-				return;
-			}
-
-			// Auto-hide 404 models in config (provider-scoped)
-			const config = loadConfigFile();
-			const existingHidden = new Set(config.hidden_models ?? []);
-			for (const id of notFound) existingHidden.add(`${PROVIDER_NVIDIA}/${id}`);
-			saveConfig({ hidden_models: Array.from(existingHidden) });
-
-			// Re-register so hidden models disappear immediately
-			const filtered = await fetchNvidiaModels(apiKey);
-			stored.free = filtered;
-			stored.all = filtered;
-			reRegister(filtered);
-
-			ctx.ui.notify(
-				`Found ${notFound.length} broken models (auto-hidden):\n${notFound.join("\n")}`,
-				"warning",
+			// Check if any were hidden (re-read config)
+			const cfgAfter = loadConfigFile();
+			const newHidden = (cfgAfter.hidden_models ?? []).filter((h) =>
+				h.startsWith(`${PROVIDER_NVIDIA}/`),
 			);
+			if (newHidden.length > 0) {
+				ctx.ui.notify(
+					`Found ${newHidden.length} broken models (auto-hidden):\n${newHidden.join("\n")}`,
+					"warning",
+				);
+			} else {
+				ctx.ui.notify("All NVIDIA models are routable ✅", "info");
+			}
 		},
 	});
 

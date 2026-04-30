@@ -99,10 +99,3 @@ export interface ZenGatewayModel {
 	id: string;
 	object?: string;
 }
-
-// Test: LSP should handle new interface
-export interface LspTestInterface {
-	name: string;
-	value: number;
-	enabled: boolean;
-}
