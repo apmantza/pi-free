@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Consistent `isFreeModel` helper with Route A/B logic** — Created a unified helper for free model detection that automatically detects whether a provider exposes pricing:
+
+  - **Route A (pricing-exposed)**: Model is free if `cost === 0` OR `"free"` in name (OR logic)
+  - **Route B (non-pricing-exposed)**: Model is free only if `"free"` in name
+  - Dynamic detection: If ALL models have cost === 0, assumes pricing not exposed → uses Route B
+  - If ANY model has cost > 0, assumes pricing exposed → uses Route A
+  - All providers (Cline, Kilo, NVIDIA, Ollama, dynamic built-in) now use this consistent helper
+
+- **Comprehensive `isFreeModel` test suite** — Added 30+ unit tests covering Route A, Route B, freemium behavior, and edge cases. Tests verify correct classification on actual OpenRouter API data (371 models, 30 free).
+
+### Changed
+
+- **Cline provider now uses `isFreeModel`** — Fixed Cline to use the consistent `isFreeModel` helper instead of `m.cost.input === 0`. Previously used cost-only filtering, now uses proper OR logic for pricing-exposed providers.
+
+- **NVIDIA test expectations updated** — Updated tests to reflect strict Route B behavior (name-only detection for non-pricing-exposed providers). Added test for models with `"free"` in name being marked as free.
+
+### Removed
+
+- **Qwen provider (deprecated)** — Removed Qwen OAuth provider as the 1,000 req/day free tier is no longer available. Provider remains functional for existing authenticated users but new free tier registrations are not supported.
+
+- **Modal provider** — Removed single-model Modal provider (only had GLM-5.1 FP8). Users should use other providers for GLM models.
+
+- **Cloudflare provider** — Removed Cloudflare Workers AI provider as it's now built into pi core. Users can use pi's built-in Cloudflare provider instead.
+
+- **Qwen test file** — Removed `tests/qwen.test.ts` along with the deprecated provider.
+
 ### Fixed
 
 - **`provider-factory.ts` — `beforeProviderRequest` hook now scoped to owning provider** —

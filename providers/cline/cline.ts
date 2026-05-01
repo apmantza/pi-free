@@ -18,7 +18,7 @@ import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { getClineShowPaid } from "../../config.ts";
 import { BASE_URL_CLINE, PROVIDER_CLINE } from "../../constants.ts";
-import { registerWithGlobalToggle } from "../../lib/registry.ts";
+import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { createToggleState } from "../../lib/toggle-state.ts";
 import { logWarning } from "../../lib/util.ts";
 import { enhanceWithCI } from "../../provider-helper.ts";
@@ -198,7 +198,9 @@ export default async function (pi: ExtensionAPI) {
 		logWarning("cline", "Failed to fetch models at startup", err);
 		return [];
 	});
-	let freeModels = allModels.filter((m) => m.cost.input === 0);
+	let freeModels = allModels.filter((m) =>
+		isFreeModel({ ...m, provider: PROVIDER_CLINE }, allModels),
+	);
 	const stored = { free: freeModels, all: allModels };
 	const toggleState = createToggleState({
 		providerId: PROVIDER_CLINE,
@@ -263,7 +265,9 @@ export default async function (pi: ExtensionAPI) {
 			const fresh = await fetchClineModels(false);
 			if (fresh.length > 0) {
 				allModels = fresh;
-				freeModels = allModels.filter((m) => m.cost.input === 0);
+				freeModels = allModels.filter((m) =>
+					isFreeModel({ ...m, provider: PROVIDER_CLINE }, allModels),
+				);
 				stored.all = allModels;
 				stored.free = freeModels;
 				toggleState.setModels(stored);

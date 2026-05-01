@@ -23,12 +23,12 @@ import type {
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
 import {
-	getModalApiKey,
 	getNvidiaApiKey,
 	getNvidiaShowPaid,
 	getOpencodeApiKey,
 } from "./config.ts";
 import { createLogger } from "./lib/logger.ts";
+import { isFreeModel } from "./lib/registry.ts";
 import { logWarning } from "./lib/util.ts";
 import {
 	createReRegister,
@@ -58,7 +58,11 @@ export interface ProviderDefinition {
 	showPaidFlag?: string;
 	/** ToS URL to show on first use */
 	tosUrl?: string;
-	/** Whether this provider has a free tier (free + paid models). Default: false */
+	/**
+	 * @deprecated No longer used. Free model detection is now handled consistently
+	 * by isFreeModel() using Route A (cost-based) for pricing-exposed providers
+	 * and Route B (name-based) for non-pricing-exposed providers.
+	 */
 	hasFreeTier?: boolean;
 	/** Whether to skip creating a toggle command (e.g., for single-model providers). Default: false */
 	skipToggle?: boolean;
@@ -79,7 +83,6 @@ export interface ProviderDefinition {
 const API_KEY_GETTERS: Record<string, () => string | undefined> = {
 	nvidia_api_key: getNvidiaApiKey,
 	opencode_api_key: getOpencodeApiKey,
-	modal_api_key: getModalApiKey,
 };
 
 const SHOW_PAID_GETTERS: Record<string, () => boolean> = {
@@ -147,13 +150,17 @@ export async function createProvider(
 		return;
 	}
 
-	// 5. Build storage (free/all or single set)
-	let stored: StoredModels = def.hasFreeTier
-		? {
-				free: models.filter((m) => (m.cost?.input ?? 0) === 0),
-				all: models,
-			}
-		: { free: models, all: models };
+	// 5. Build storage using consistent isFreeModel helper
+	// Route A: pricing-exposed providers use cost-based detection
+	// Route B: non-pricing-exposed providers use name-based detection ("free" in name)
+	// Freemium models (usage quota) are NOT marked as free
+	const freeModels = models.filter((m) =>
+		isFreeModel({ ...m, provider: def.providerId }, models),
+	);
+	let stored: StoredModels = {
+		free: freeModels,
+		all: models,
+	};
 
 	// 6. Register provider (pass literal key so we don't mutate process.env)
 	pi.registerProvider(def.providerId, {

@@ -17,7 +17,8 @@ vi.mock("../lib/registry.ts", () => ({
 	registerWithGlobalToggle: vi.fn((...args: any[]) => {
 		capturedToggleArgs = args;
 	}),
-	isFreeModel: (m: any) => (m.cost?.input ?? 0) === 0,
+	// NVIDIA uses Route B (non-pricing-exposed): name-based detection only
+	isFreeModel: (m: any) => m.name.toLowerCase().includes("free"),
 	getGlobalFreeOnly: () => false,
 	providerRegistry: new Map(),
 }));
@@ -210,7 +211,7 @@ describe("NVIDIA Provider", () => {
 		]);
 	});
 
-	it("should not filter paid models since NVIDIA is freemium", async () => {
+	it("should include models regardless of cost (NVIDIA is not pricing-exposed)", async () => {
 		vi.mocked(fetchWithRetry).mockImplementation(async (url: string) => {
 			if (url.includes("integrate.api.nvidia.com/v1/models")) {
 				return mockNvidiaApiResponse([
@@ -366,9 +367,55 @@ describe("NVIDIA Provider", () => {
 			free: expect.any(Array),
 			all: expect.any(Array),
 		});
-		// NVIDIA is freemium — free and all should be identical
-		expect(capturedToggleArgs[1].free.length).toBe(
-			capturedToggleArgs[1].all.length,
-		);
+		// NVIDIA uses Route B (name-based): free only if name contains "free"
+		// Since test models don't have "free" in name, free should be empty
+		expect(capturedToggleArgs[1].free.length).toBe(0);
+		expect(capturedToggleArgs[1].all.length).toBeGreaterThan(0);
+	});
+
+	it("should mark models with 'free' in name as free (Route B behavior)", async () => {
+		vi.mocked(fetchWithRetry).mockImplementation(async (url: string) => {
+			if (url.includes("integrate.api.nvidia.com/v1/models")) {
+				return mockNvidiaApiResponse([
+					"nvidia/llama-3.1-70b-instruct",
+					"nvidia/llama-3.1-free-edition",
+				]) as any;
+			}
+			if (url.includes("models.dev")) {
+				return mockModelsDevResponse({
+					"llama-3.1-70b-instruct": {
+						id: "nvidia/llama-3.1-70b-instruct",
+						name: "Llama 3.1 70B Instruct",
+						reasoning: false,
+						limit: { context: 128000, output: 4096 },
+						modalities: { input: ["text"], output: ["text"] },
+						cost: { input: 0, output: 0 },
+					},
+					"llama-3.1-free-edition": {
+						id: "nvidia/llama-3.1-free-edition",
+						name: "Llama 3.1 Free Edition",
+						reasoning: false,
+						limit: { context: 128000, output: 4096 },
+						modalities: { input: ["text"], output: ["text"] },
+						cost: { input: 0, output: 0 },
+					},
+				}) as any;
+			}
+			throw new Error("Unexpected URL: " + url);
+		});
+
+		const mockPi = {
+			registerProvider: vi.fn(),
+			on: vi.fn(),
+			registerCommand: vi.fn(),
+		} as unknown as ExtensionAPI;
+
+		await nvidiaProvider(mockPi);
+
+		expect(capturedToggleArgs).toBeDefined();
+		// Only the model with "free" in name should be marked as free
+		expect(capturedToggleArgs[1].free.length).toBe(1);
+		expect(capturedToggleArgs[1].free[0].name).toBe("Llama 3.1 Free Edition");
+		expect(capturedToggleArgs[1].all.length).toBe(2);
 	});
 });

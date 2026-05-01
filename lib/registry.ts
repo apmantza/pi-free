@@ -32,43 +32,92 @@ interface ProviderEntry {
 const providerRegistry = new Map<string, ProviderEntry>();
 let globalFreeOnly = getFreeOnly();
 
-// Providers that expose actual per-model pricing via API
-const PRICING_EXPOSED_PROVIDERS = new Set([
-	"openrouter",
-	"opencode",
-	"kilo",
-	"cline",
-]);
-
 // =============================================================================
 // Free-model detection
 // =============================================================================
 
 /**
- * Check if a model is free.
+ * Detect if a provider exposes actual per-model pricing.
  *
- * For providers with pricing APIs: uses cost (input === 0 && output === 0)
- * For providers without pricing: ONLY uses name-based check (name includes "free")
+ * Heuristic: If ALL models have cost === 0, the provider likely doesn't expose
+ * real pricing (cost was defaulted to 0). If SOME models have cost > 0, the
+ * provider definitely exposes pricing.
+ *
+ * @param allModels - All models from the provider to check
+ * @returns true if pricing appears to be exposed (some costs > 0)
+ */
+function detectPricingExposed(allModels: ProviderModelConfig[]): boolean {
+	if (allModels.length === 0) return false;
+
+	// If ANY model has cost > 0, pricing is definitely exposed
+	return allModels.some(
+		(m) => (m.cost?.input ?? 0) > 0 || (m.cost?.output ?? 0) > 0,
+	);
+}
+
+/**
+ * Check if a model is free using adaptive Route A/B logic.
+ *
+ * **Automatic Detection:**
+ * The function detects whether the provider exposes pricing by checking if
+ * ALL models have cost === 0. If so, it assumes no pricing is exposed and
+ * falls back to name-based detection.
+ *
+ * **Route A (Pricing-Exposed Providers):** Uses ONLY cost-based detection.
+ *   - Detected when SOME models have cost > 0
+ *   - Free = cost.input === 0 && cost.output === 0
+ *   - No fallback to name-based detection
+ *
+ * **Route B (Non-Pricing-Exposed Providers):** Uses ONLY name-based detection.
+ *   - Detected when ALL models have cost === 0 (or no models)
+ *   - Free = model name contains "free" (case-insensitive)
+ *   - No cost-based detection (avoids marking freemium as free)
+ *
+ * This automatic detection handles providers without hardcoding - if a provider
+ * shows all models as zero cost, we assume pricing isn't exposed and check
+ * model names instead.
+ *
+ * @param model - The model config to check
+ * @param allModels - Optional: all models from the same provider for detection
+ * @returns true if the model is definitively free per the provider's API
  */
 export function isFreeModel(
 	model: ProviderModelConfig & { provider?: string },
+	allModels?: ProviderModelConfig[],
 ): boolean {
-	const provider = model.provider;
-	const hasPricing = provider && PRICING_EXPOSED_PROVIDERS.has(provider);
+	return isFreeModelInternal(model, allModels);
+}
 
-	// For providers WITH pricing API: cost-based check
-	if (hasPricing) {
-		if ((model.cost?.input ?? 0) === 0 && (model.cost?.output ?? 0) === 0) {
-			return true;
-		}
+// Internal implementation to work around TypeScript filter callback issues
+function isFreeModelInternal(
+	model: ProviderModelConfig & { provider?: string },
+	allModels: ProviderModelConfig[] | undefined,
+): boolean {
+	// Determine if pricing is exposed
+	let pricingExposed: boolean;
+
+	if (allModels && allModels.length > 0) {
+		// Dynamic detection: check if ALL models have cost === 0
+		// If all costs are 0, assume pricing is NOT actually exposed
+		pricingExposed = detectPricingExposed(allModels);
+	} else {
+		// No allModels provided - default to cost-based detection
+		// This maintains backward compatibility
+		pricingExposed = true;
 	}
 
-	// For providers WITHOUT pricing API: ONLY name-based check
-	if (model.name.toLowerCase().includes("free")) {
-		return true;
+	// Route A: Pricing-exposed providers - use OR logic
+	// Model is free if EITHER cost is zero OR name contains "free"
+	if (pricingExposed) {
+		const isZeroCost =
+			(model.cost?.input ?? 0) === 0 && (model.cost?.output ?? 0) === 0;
+		const hasFreeInName = model.name.toLowerCase().includes("free");
+		return isZeroCost || hasFreeInName;
 	}
 
-	return false;
+	// Route B: Non-pricing-exposed providers - use ONLY name-based detection
+	// This handles providers where all costs are defaulted to 0
+	return model.name.toLowerCase().includes("free");
 }
 
 // =============================================================================

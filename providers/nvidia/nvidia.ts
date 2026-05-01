@@ -31,7 +31,7 @@ import {
 	URL_MODELS_DEV,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
-import { registerWithGlobalToggle } from "../../lib/registry.ts";
+import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import type { ModelsDevModel, ModelsDevProvider } from "../../lib/types.ts";
 import {
 	fetchWithRetry,
@@ -384,8 +384,12 @@ export default async function (pi: ExtensionAPI) {
 		return;
 	}
 
-	// Store both sets for global toggle (same list — NVIDIA is freemium)
-	const stored = { free: allModels, all: allModels };
+	// Store both sets for global toggle using consistent isFreeModel helper
+	// NVIDIA uses Route B (name-based): only models with "free" in name are marked free
+	const freeModels = allModels.filter((m) =>
+		isFreeModel({ ...m, provider: PROVIDER_NVIDIA }),
+	);
+	const stored = { free: freeModels, all: allModels };
 
 	// Create re-register function
 	const reRegister = createReRegister(pi, {

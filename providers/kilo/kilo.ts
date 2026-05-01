@@ -52,8 +52,10 @@ export default async function (pi: ExtensionAPI) {
 	try {
 		// Fetch all models (returns free-only if no auth, all if auth available)
 		allModels = await fetchKiloModels({ freeOnly: false });
-		// Derive free list from cost
-		freeModels = allModels.filter(isFreeModel);
+		// Derive free list using isFreeModel with allModels for detection
+		freeModels = allModels.filter((m) =>
+			isFreeModel({ ...m, provider: PROVIDER_KILO }, allModels),
+		);
 	} catch (error) {
 		logWarning("kilo", "Failed to fetch models at startup", error);
 		// Fallback: try to fetch just free models
@@ -99,7 +101,9 @@ export default async function (pi: ExtensionAPI) {
 				});
 				allModels = newModels;
 				stored.all = allModels;
-				freeModels = allModels.filter(isFreeModel);
+				freeModels = allModels.filter((m) =>
+					isFreeModel({ ...m, provider: PROVIDER_KILO }, allModels),
+				);
 				stored.free = freeModels;
 
 				// Update global toggle registration with new lists
@@ -214,7 +218,9 @@ export default async function (pi: ExtensionAPI) {
 				});
 				allModels = newModels;
 				stored.all = allModels;
-				freeModels = allModels.filter(isFreeModel);
+				freeModels = allModels.filter((m) =>
+					isFreeModel({ ...m, provider: PROVIDER_KILO }, allModels),
+				);
 				stored.free = freeModels;
 
 				// Update global toggle registration

@@ -393,7 +393,9 @@ export async function setupDynamicBuiltInProviders(
 
 			// Fetch models
 			const allModels = await FETCH_FUNCTIONS[config.providerId](apiKey);
-			const freeModels = allModels.filter(isFreeModel);
+			const freeModels = allModels.filter((m) =>
+				isFreeModel({ ...m, provider: config.providerId }, allModels),
+			);
 
 			_logger.info(
 				`[dynamic] ${config.providerId}: ${allModels.length} total, ${freeModels.length} free`,

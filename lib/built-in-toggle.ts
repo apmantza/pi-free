@@ -79,7 +79,9 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 			if (providerModels.length === 0) continue;
 
 			const allModels = providerModels.map(modelToProviderConfig);
-			const freeModels = allModels.filter(isFreeModel);
+			const freeModels = allModels.filter((m) =>
+				isFreeModel({ ...m, provider: config.id }, allModels),
+			);
 
 			const baseUrl = providerModels[0].baseUrl;
 			const api = providerModels[0].api;
