@@ -9,6 +9,7 @@
  * - Cline: Cline bot integration
  * - NVIDIA: NVIDIA NIM hosting (free tier available)
  * - Ollama Cloud: Ollama's cloud-hosted models with usage-based free tier
+ * - ZenMux: Unified AI API gateway with 200+ models
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
@@ -26,6 +27,7 @@ import cline from "./providers/cline/cline.ts";
 import kilo from "./providers/kilo/kilo.ts";
 import nvidia from "./providers/nvidia/nvidia.ts";
 import ollama from "./providers/ollama/ollama.ts";
+import zenmux from "./providers/zenmux/zenmux.ts";
 
 const _logger = createLogger("pi-free");
 
@@ -100,7 +102,13 @@ export default async function (pi: ExtensionAPI) {
 
 	// Load all unique providers
 	// Each provider will register itself with the global toggle system
-	await Promise.allSettled([nvidia(pi), kilo(pi), ollama(pi), cline(pi)]);
+	await Promise.allSettled([
+		nvidia(pi),
+		kilo(pi),
+		ollama(pi),
+		cline(pi),
+		zenmux(pi),
+	]);
 
 	// Setup dynamic built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face)
 	// These only activate if the user has configured API keys (OpenRouter works without key too)
