@@ -19,8 +19,12 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
-import { getCrofaiApiKey, PROVIDER_CROFAI } from "../../config.ts";
-import { BASE_URL_CROFAI, DEFAULT_FETCH_TIMEOUT_MS } from "../../constants.ts";
+import { getCrofaiApiKey } from "../../config.ts";
+import {
+	BASE_URL_CROFAI,
+	DEFAULT_FETCH_TIMEOUT_MS,
+	PROVIDER_CROFAI,
+} from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
@@ -92,7 +96,7 @@ async function fetchCrofaiModels(
 	} catch (error) {
 		_logger.error(
 			"[crofai] Failed to fetch models:",
-			error instanceof Error ? error.message : String(error),
+			{ error: error instanceof Error ? error.message : String(error) },
 		);
 		return [];
 	}

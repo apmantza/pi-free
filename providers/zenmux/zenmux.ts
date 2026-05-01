@@ -20,8 +20,12 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
-import { getZenmuxApiKey, PROVIDER_ZENMUX } from "../../config.ts";
-import { BASE_URL_ZENMUX, DEFAULT_FETCH_TIMEOUT_MS } from "../../constants.ts";
+import { getZenmuxApiKey } from "../../config.ts";
+import {
+	BASE_URL_ZENMUX,
+	DEFAULT_FETCH_TIMEOUT_MS,
+	PROVIDER_ZENMUX,
+} from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
@@ -94,7 +98,7 @@ async function fetchZenmuxModels(
 	} catch (error) {
 		_logger.error(
 			"[zenmux] Failed to fetch models:",
-			error instanceof Error ? error.message : String(error),
+			{ error: error instanceof Error ? error.message : String(error) },
 		);
 		return [];
 	}
