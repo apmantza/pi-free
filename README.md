@@ -1,18 +1,18 @@
 # pi-free-providers
 
-Free AI model providers for [Pi](https://pi.dev). Access **free models** from multiple providers in one install.
+Free and paid AI model providers for [Pi](https://pi.dev). Access **free and paid models** from multiple providers in one install.
 
 ---
 
 ## What does pi-free do
 
-**pi-free is a Pi extension that unlocks free AI models from multiple providers.**
+**pi-free is a Pi extension that unlocks free and paid AI models from multiple providers.**
 
 When you install pi-free, it:
 
-1. **Registers free-tier providers** with Pi's model picker — Kilo, Cline, NVIDIA, Cloudflare, Modal, Ollama Cloud, and more
+1. **Registers free-tier providers** with Pi's model picker — Kilo (free), Cline (free), NVIDIA (freemium), ZenMux (paid), CrofAI (paid), Ollama Cloud (freemium), and more
 
-2. **Fetches models dynamically** from provider APIs — Cloudflare Workers AI (30+ models), NVIDIA NIM, and Pi's built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face, OpenRouter) when API keys are configured
+2. **Fetches models dynamically** from provider APIs — NVIDIA NIM, ZenMux, CrofAI, and Pi's built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face, OpenRouter) when API keys are configured
 
 3. **Filters to show only free models by default** for providers that expose pricing — You see only the models that cost $0 to use. Paid models are hidden until you explicitly toggle them on.
 
@@ -40,7 +40,7 @@ Start Pi and press `Ctrl+L` to open the model picker.
 
 Free models are shown by default — look for the provider prefixes:
 
-**✅ Offers Free Models (no usage limits, no payment required):**
+**✅ Free Models (no payment required):**
 
 - `opencode/` — OpenCode models (no setup required; toggle with `/toggle-opencode`)
 - `kilo/` — Kilo models (free models available immediately, more after `/login kilo`)
@@ -50,9 +50,11 @@ Free models are shown by default — look for the provider prefixes:
 **🔄 Freemium (free tier with limits, then paid):**
 
 - `nvidia/` — NVIDIA NIM models (1,000 free requests/month, then credits)
-- `cloudflare/` — Cloudflare Workers AI (10K Neurons/day free tier, then $0.011/1K Neurons)
-- `modal/` — GLM-5.1 FP8 via Modal (free promotional period until April 30, 2026)
 - `ollama-cloud/` — Ollama Cloud models (usage-based free tier, resets every 5 hours + 7 days)
+**💳 Paid Providers (API key with credits required):**
+
+- `zenmux/` — ZenMux AI gateway (200+ models from OpenAI, Anthropic, Google, etc.)
+- `crofai/` — CrofAI OpenAI-compatible API (streaming, reasoning models)
 
 **🔧 Dynamic API Providers (fetched when API key configured):**
 
@@ -74,11 +76,12 @@ Want to see paid models too? Run the toggle command for your provider:
 /toggle-openrouter # Toggle OpenRouter (✅ offers free models)
 /toggle-cline      # Toggle Cline (✅ offers free models)
 /toggle-nvidia     # Toggle NVIDIA (🔄 freemium)
-/toggle-cloudflare # Toggle Cloudflare (🔄 freemium)
 /toggle-ollama     # Toggle Ollama Cloud (🔄 freemium)
 /toggle-mistral    # Toggle Mistral (🔧 dynamic - needs API key)
 /toggle-groq       # Toggle Groq (🔧 dynamic - needs API key)
 /toggle-cerebras   # Toggle Cerebras (🔧 dynamic - needs API key)
+/toggle-zenmux    # Toggle ZenMux (💳 paid - needs API key with credits)
+/toggle-crofai    # Toggle CrofAI (💳 paid - needs API key with credits)
 ```
 
 **Notes:**
@@ -341,7 +344,6 @@ export CLOUDFLARE_ACCOUNT_ID="your_account_id"
 
 **Models available:** Llama 4/3.x, Mistral Small 3.1, DeepSeek R1, Gemma 4, Kimi K2.5/2.6, Qwen 3/2.5, OpenAI GPT-OSS, and more.
 
-Toggle with `/toggle-cloudflare`
 
 ### Modal (GLM-5.1 FP8 — free promotional period until April 30, 2026)
 
@@ -361,7 +363,6 @@ export MODAL_API_KEY="sk-modal-..."
 }
 ```
 
-Then select a `modal/` model in the model picker.
 
 **Details:**
 
@@ -414,11 +415,12 @@ Each provider has toggle commands to switch between free and all models:
 | `/toggle-openrouter` | Toggle between free/all OpenRouter models            |
 | `/toggle-cline`      | Toggle between free/all Cline models                 |
 | `/toggle-nvidia`     | Toggle between free/all NVIDIA models                |
-| `/toggle-cloudflare` | Toggle between free/all Cloudflare models            |
 | `/toggle-ollama`     | Toggle between free/all Ollama Cloud models          |
 | `/toggle-mistral`    | Toggle between free/all Mistral models (🔧 dynamic)  |
 | `/toggle-groq`       | Toggle between free/all Groq models (🔧 dynamic)     |
 | `/toggle-cerebras`   | Toggle between free/all Cerebras models (🔧 dynamic) |
+/toggle-zenmux    # Toggle ZenMux (💳 paid - needs API key with credits)
+/toggle-crofai    # Toggle CrofAI (💳 paid - needs API key with credits)
 
 **The toggle command:**
 
