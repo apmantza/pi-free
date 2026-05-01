@@ -24,6 +24,7 @@ import {
 } from "./lib/registry.ts";
 // Import unique provider extensions (only providers NOT built into pi)
 import cline from "./providers/cline/cline.ts";
+import crofai from "./providers/crofai/crofai.ts";
 import kilo from "./providers/kilo/kilo.ts";
 import nvidia from "./providers/nvidia/nvidia.ts";
 import ollama from "./providers/ollama/ollama.ts";
@@ -108,6 +109,7 @@ export default async function (pi: ExtensionAPI) {
 		ollama(pi),
 		cline(pi),
 		zenmux(pi),
+		crofai(pi),
 	]);
 
 	// Setup dynamic built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face)

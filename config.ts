@@ -29,6 +29,7 @@ interface PiFreeConfig {
 	ollama_api_key?: string;
 	modal_api_key?: string;
 	zenmux_api_key?: string;
+	crofai_api_key?: string;
 	opencode_api_key?: string;
 	mistral_api_key?: string;
 	groq_api_key?: string;
@@ -47,6 +48,7 @@ interface PiFreeConfig {
 	qwen_show_paid?: boolean;
 	modal_show_paid?: boolean;
 	zenmux_show_paid?: boolean;
+	crofai_show_paid?: boolean;
 	openrouter_show_paid?: boolean;
 	opencode_show_paid?: boolean;
 }
@@ -58,6 +60,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	ollama_api_key: "",
 	modal_api_key: "",
 	zenmux_api_key: "",
+	crofai_api_key: "",
 	opencode_api_key: "",
 	mistral_api_key: "",
 	groq_api_key: "",
@@ -76,6 +79,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	qwen_show_paid: false,
 	modal_show_paid: false,
 	zenmux_show_paid: false,
+	crofai_show_paid: false,
 	openrouter_show_paid: false,
 	opencode_show_paid: false,
 };
@@ -169,6 +173,10 @@ export function getZenmuxShowPaid(): boolean {
 	return resolveBool("ZENMUX_SHOW_PAID", loadConfigFile().zenmux_show_paid);
 }
 
+export function getCrofaiShowPaid(): boolean {
+	return resolveBool("CROFAI_SHOW_PAID", loadConfigFile().crofai_show_paid);
+}
+
 export function getOllamaShowPaid(): boolean {
 	return resolveBool("OLLAMA_SHOW_PAID", loadConfigFile().ollama_show_paid);
 }
@@ -217,6 +225,10 @@ export function getModalApiKey(): string | undefined {
 
 export function getZenmuxApiKey(): string | undefined {
 	return resolve("ZENMUX_API_KEY", loadConfigFile().zenmux_api_key);
+}
+
+export function getCrofaiApiKey(): string | undefined {
+	return resolve("CROFAI_API_KEY", loadConfigFile().crofai_api_key);
 }
 
 export function getOllamaApiKey(): string | undefined {
