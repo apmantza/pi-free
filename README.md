@@ -51,10 +51,12 @@ Free models are shown by default — look for the provider prefixes:
 
 - `nvidia/` — NVIDIA NIM models (1,000 free requests/month, then credits)
 - `ollama-cloud/` — Ollama Cloud models (usage-based free tier, resets every 5 hours + 7 days)
-**💳 Paid Providers (API key with credits required):**
+  **💳 Paid Providers (API key with credits required):**
 
 - `zenmux/` — ZenMux AI gateway (200+ models from OpenAI, Anthropic, Google, etc.)
 - `crofai/` — CrofAI OpenAI-compatible API (streaming, reasoning models)
+
+> **Note:** Paid providers may occasionally offer free models or promotional credits. The `isFreeModel` helper automatically detects free models based on provider pricing data or model names containing "free". For providers that don't expose pricing (like CrofAI), only models with "free" in their names are marked as free.
 
 **🔧 Dynamic API Providers (fetched when API key configured):**
 
@@ -146,14 +148,6 @@ NVIDIA's API lists 130+ models, but 57+ return 404 "Function not found" when you
 - **Auto-discovery from NVIDIA's API** — Queries `integrate.api.nvidia.com/v1/models` directly for the ground-truth list
 - **`/probe-nvidia` command** — On-demand health check: tests every model with a minimal request, auto-hides new 404s, and re-registers immediately
 
-### 🌩️ Cloudflare: Dynamic Model Discovery
-
-Cloudflare Workers AI offers 80+ models including embeddings, image generation, and speech. pi-free automatically finds the chat models:
-
-- **Live API fetching** — Calls Cloudflare's `/ai/models` endpoint on startup to get the current catalog
-- **Smart filtering** — Automatically excludes embeddings (`bge-*`, `embed-*`), image generation (`flux`, `stable-diffusion`), speech (`whisper`, `aura-*`), translation, and vision-only models via regex patterns
-- **Metadata inference** — Detects vision support (`llava`, `vision` in name), reasoning (`r1`, `thinking`, `qwq`), context windows, and estimated costs from model IDs
-- **Expanding fallback** — 18 hand-curated models (Kimi K2.6, GPT-OSS, Qwen 2.5 Coder, QwQ, Llama 3.2 Vision, etc.) if API is unreachable
 
 ### 🎯 Coding Index (CI) Scores
 
@@ -161,14 +155,13 @@ Every model shows a **Coding Index score** (e.g., `CI: 52.3`) in the model picke
 
 - **Benchmark-based** — Scores derived from Artificial Analysis coding benchmarks (HumanEval, MBPP, etc.)
 - **Quality indicator** — Higher scores = better coding performance
-- **All providers** — Applied to every model from every provider (NVIDIA, Cloudflare, Mistral, Groq, etc.)
+- **All providers** — Applied to every model from every provider (NVIDIA, Mistral, Groq, etc.)
 
 **Missing CI scores?** Provider model IDs often don't match benchmark database keys exactly. pi-free applies provider-specific normalization to improve matching:
 
 | Provider       | Normalization Applied                                              |
 | -------------- | ------------------------------------------------------------------ |
 | **NVIDIA**     | Strips vendor prefixes (`meta/`, `mistralai/`, `microsoft/`, etc.) |
-| **Cloudflare** | Strips `@cf/namespace/` prefixes                                   |
 | **Groq**       | Removes `-versatile` and numeric suffixes (`-32768`)               |
 | **Cerebras**   | Normalizes `llama3.1` → `llama-3.1`, adds `instruct` suffix        |
 | **Mistral**    | Strips `-latest` suffix                                            |
@@ -188,7 +181,7 @@ Providers have different pricing models. pi-free handles them all:
 **Provider types:**
 
 - ✅ **Free providers** (OpenCode, Kilo, Cline) — Toggle between free-only vs paid models
-- 🔄 **Freemium** (NVIDIA, Cloudflare, Modal, Ollama) — Free tier with limits, toggle shows all
+- 🔄 **Freemium** (NVIDIA, Ollama) — Free tier with limits, toggle shows all
 - 🔧 **Dynamic API** (Mistral, Groq, Cerebras, xAI) — Fetched when API key configured, toggle filters the list
 
 ### 🔐 OAuth + API Key Handling
@@ -317,25 +310,6 @@ Or in `~/.pi/free.json`:
 
 Toggle anytime with `/toggle-nvidia`
 
-### Cloudflare Workers AI (10K Neurons/day Free Tier)
-
-Cloudflare provides **30+ text generation models** (auto-discovered from their API) with a generous free tier:
-
-- **10,000 Neurons per day FREE** (resets daily at 00:00 UTC)
-- **$0.011 per 1,000 Neurons** beyond the free allocation
-- **Models auto-fetched** — All available chat models are discovered dynamically from Cloudflare's API
-
-Get your API token at [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens):
-
-1. Create a token with "Cloudflare AI" → "Read" permission
-2. Or use "My Account" → "Read" for broader access
-
-**Setup:**
-
-```bash
-# New short env vars (recommended)
-export CF_API_TOKEN="your_token_here"
-export CF_ACCOUNT_ID="your_account_id"
 
 # Legacy env vars also work
 export CLOUDFLARE_API_TOKEN="your_token_here"
@@ -343,7 +317,6 @@ export CLOUDFLARE_ACCOUNT_ID="your_account_id"
 ```
 
 **Models available:** Llama 4/3.x, Mistral Small 3.1, DeepSeek R1, Gemma 4, Kimi K2.5/2.6, Qwen 3/2.5, OpenAI GPT-OSS, and more.
-
 
 ### Modal (GLM-5.1 FP8 — free promotional period until April 30, 2026)
 
@@ -362,7 +335,6 @@ export MODAL_API_KEY="sk-modal-..."
   "modal_api_key": "sk-modal-..."
 }
 ```
-
 
 **Details:**
 
@@ -419,8 +391,9 @@ Each provider has toggle commands to switch between free and all models:
 | `/toggle-mistral`    | Toggle between free/all Mistral models (🔧 dynamic)  |
 | `/toggle-groq`       | Toggle between free/all Groq models (🔧 dynamic)     |
 | `/toggle-cerebras`   | Toggle between free/all Cerebras models (🔧 dynamic) |
-/toggle-zenmux    # Toggle ZenMux (💳 paid - needs API key with credits)
-/toggle-crofai    # Toggle CrofAI (💳 paid - needs API key with credits)
+
+/toggle-zenmux # Toggle ZenMux (💳 paid - needs API key with credits)
+/toggle-crofai # Toggle CrofAI (💳 paid - needs API key with credits)
 
 **The toggle command:**
 
