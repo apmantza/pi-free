@@ -17,9 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - If ANY model has cost > 0, assumes pricing exposed → uses Route A
   - All providers (Cline, Kilo, NVIDIA, Ollama, dynamic built-in) now use this consistent helper
 
-- **CrofAI provider** — Added new provider for CrofAI (https://crof.ai), an OpenAI-compatible LLM inference API supporting streaming, reasoning models, and embeddings. Base URL: `https://crof.ai/v1`. Uses Route B detection (name-only) since CrofAI doesn't expose pricing via API.
+- **CrofAI provider (PAID)** — Added new **paid** provider for CrofAI (https://crof.ai), an OpenAI-compatible LLM inference API. **Note: CrofAI is a paid provider** — users must have a CrofAI API key with credits. The provider uses Route B detection (name-only) since CrofAI's API doesn't expose per-model pricing. Only models with `"free"` in their names are marked as free (none currently).
 
-- **ZenMux provider** — Added new provider for ZenMux AI gateway (https://zenmux.ai), a unified API providing access to 200+ models from OpenAI, Anthropic, Google, and other providers through a single endpoint. Supports automatic free/paid model detection using the consistent `isFreeModel` helper.
+- **ZenMux provider (PAID)** — Added new **paid** provider for ZenMux AI gateway (https://zenmux.ai), a unified API for 200+ models from OpenAI, Anthropic, Google, etc. **Note: ZenMux is a paid provider** — users must have a ZenMux API key with credits. The provider uses Route A detection (OR logic) since ZenMux exposes pricing. Models marked as free only if `cost === 0` OR `"free"` in name (2 free models identified: GLM 4.7 Flash Free, GLM 4.6v Flash Free).
 
 - **Comprehensive `isFreeModel` test suite** — Added 30+ unit tests covering Route A, Route B, freemium behavior, and edge cases. Tests verify correct classification on actual OpenRouter API data (371 models, 30 free).
 
