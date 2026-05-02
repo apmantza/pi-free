@@ -87,11 +87,11 @@ async function fetchAIData(): Promise<AAModel[]> {
 }
 
 function normalizeModelName(name: string): string {
-	return name
-		.toLowerCase()
-		.replace(/[^-a-z0-9.]+/g, "-")
-		.replace(/^-+/, "")
-		.replace(/[-]{1,}$/, "");
+	name = name.toLowerCase().replace(/[^-a-z0-9.]+/g, "-");
+	// Strip leading/trailing dashes (no regex — avoids backtracking flags)
+	while (name.startsWith("-")) name = name.slice(1);
+	while (name.endsWith("-")) name = name.slice(0, -1);
+	return name;
 }
 
 function generateChunkFile(
