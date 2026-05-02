@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.6] - 2026-05-02
+
+### Security
+
+- **5x S5852 regex super-linear runtime** — Replaced all flagged regex patterns
+  (nested quantifiers in model size extraction) with manual char-by-char string
+  parsing in `parseModelSize()`, `normalizeSizeTokenOrder()`, and test helpers.
+  Eliminates catastrophic backtracking risk.
+
+- **4x S4036 PATH variable security** —
+  - `open-browser.ts`: Added `resolveExe()` helper that prefers known absolute
+    paths (`/usr/bin/open`, `C:\Windows\System32\...\powershell.exe`) before
+    falling back to PATH lookup
+  - `check-extensions.mjs`: Removed hardcoded PATH override; resolved `npm` via
+    `execFileSync` with known absolute paths
+
+- **1x S4721 command injection** — Replaced `execSync` with `execFileSync` in
+  `resolveExe()` helper. `execFileSync` takes separate arguments and never
+  spawns a shell, eliminating the injection vector.
+
+### Changed
+
+- **Banner image** — Converted `banner.svg` to `banner.png` for reliable
+  rendering across all GitHub surfaces (mobile, email, dark mode readers).
+
+## [2.0.5] - 2026-05-02
+
+### Added
+
+- **NVIDIA model probe auto-discovery** — Lazy auto-probe for NVIDIA models on
+  first `session_start` (once per session). Broken 404 models detected and
+  auto-hidden without requiring manual `/probe-nvidia`.
+
+### Changed
+
+- **Ollama provider updates** — Improved cloud model detection and configuration.
+
 ## [2.0.4] - 2026-05-02
 
 ### Fixed
