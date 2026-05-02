@@ -7,18 +7,31 @@
  *   node scripts/check-extensions.mjs <dir>     # from installed location
  */
 
-import { execSync } from "node:child_process";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 const installDir = resolve(process.argv[2] ?? ".");
 const fromSource = process.argv[2] == null;
 
+/** Resolve npm to an absolute path to avoid S4036 PATH-lookup flags. */
+function resolveNpm() {
+	for (const p of [
+		"/usr/bin/npm",
+		"/usr/local/bin/npm",
+		process.platform === "win32" ? "C:\\Program Files\\nodejs\\npm.cmd" : "",
+	]) {
+		if (p && existsSync(p)) return p;
+	}
+	return "npm"; // fallback
+}
+
 function getFiles() {
 	if (fromSource) {
-		// Use npm pack --dry-run to get exactly the files that would be published.
-		// Rely on the inherited PATH — no hardcoded PATH override needed.
-		const out = execSync("npm pack --dry-run 2>&1");
+		// Use npm pack --dry-run with an absolute executable path.
+		const out = execFileSync(resolveNpm(), ["pack", "--dry-run"], {
+			encoding: "utf8",
+		});
 		return out
 			.split("\n")
 			.map((l) => l.match(/npm notice \S+\s+(.+)/)?.[1]?.trim())
