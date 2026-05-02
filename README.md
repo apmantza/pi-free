@@ -1,7 +1,7 @@
 # pi-free-providers
 
 <p align="center">
-  <img src="banner.svg" alt="pi-free" width="100%" max-width="900">
+  <img src="banner.png" alt="pi-free" width="100%" max-width="900">
 </p>
 
 Free and paid AI model providers for [Pi](https://pi.dev). Access **free and paid models** from multiple providers in one install.
