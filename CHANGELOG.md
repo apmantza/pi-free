@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Eliminates catastrophic backtracking risk.
 
 - **4x S4036 PATH variable security** —
+
   - `open-browser.ts`: Added `resolveExe()` helper that prefers known absolute
     paths (`/usr/bin/open`, `C:\Windows\System32\...\powershell.exe`) before
     falling back to PATH lookup
