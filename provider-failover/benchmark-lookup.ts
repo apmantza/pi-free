@@ -271,7 +271,21 @@ function isVariantQualifier(segment: string): boolean {
  * AA uses instruct-70b order while providers often use 70b-instruct.
  */
 function normalizeSizeTokenOrder(id: string): string {
-	return id.replace(/([\d.]+b)-(instruct|chat)/gi, "$2-$1");
+	// Convert "70b-instruct" → "instruct-70b", "405b-chat" → "chat-405b"
+	const suffixes = new Set(["instruct", "chat"]);
+	const parts = id.split("-");
+	for (let i = 0; i < parts.length - 1; i++) {
+		const lower = parts[i].toLowerCase();
+		if (lower.endsWith("b") && suffixes.has(parts[i + 1].toLowerCase())) {
+			// Validate the part before 'b' is a number
+			const num = lower.slice(0, -1);
+			if (num.length > 0 && !Number.isNaN(Number.parseFloat(num))) {
+				[parts[i], parts[i + 1]] = [parts[i + 1], parts[i]];
+				break;
+			}
+		}
+	}
+	return parts.join("-");
 }
 
 /**

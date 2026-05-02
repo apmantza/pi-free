@@ -175,23 +175,112 @@ export function isUsableModel(modelId: string, minSizeB?: number): boolean {
 		if (KNOWN_SMALL_MODELS.has(baseId)) return false;
 
 		// Check Mixture-of-Experts models first (e.g., "8x22b" = 176b total)
-		const moeMatch = modelId.match(/(\d+)x([\d.]+)b/i);
-		if (moeMatch) {
-			const experts = Number.parseInt(moeMatch[1], 10);
-			const expertSize = Number.parseFloat(moeMatch[2]);
-			if (experts * expertSize < minSizeB) return false;
+		const parsed = parseModelSize(modelId);
+		if (parsed?.type === "moe") {
+			if (parsed.experts * parsed.sizePerExpert < minSizeB) return false;
 			return true; // MoE model passed size check
 		}
 
 		// Standard model size (e.g., "70b", "8b")
-		const sizeMatch = modelId.match(/([\d.]+)b(?![.\d])/i);
-		if (sizeMatch) {
-			const modelSize = Number.parseFloat(sizeMatch[1]);
-			if (modelSize < minSizeB) return false;
-		}
+		if (parsed?.type === "standard" && parsed.size < minSizeB) return false;
 	}
 
 	return true;
+}
+
+// =============================================================================
+// Model Size Parsing (no regex — avoids SonarCloud S5852 flags)
+// =============================================================================
+
+interface MoeSize {
+	type: "moe";
+	experts: number;
+	sizePerExpert: number;
+}
+
+interface StandardSize {
+	type: "standard";
+	size: number;
+}
+
+/**
+ * Extract model size from a model ID without using regex.
+ * Handles both MoE ("8x22b") and standard ("70b", "8b") formats.
+ */
+function parseModelSize(modelId: string): MoeSize | StandardSize | null {
+	const lower = modelId.toLowerCase();
+
+	// MoE: digits "x" digits "b" (e.g., "8x22b", "a35b" is NOT MoE)
+	// Walk through each 'x' to find one preceded by a digit and followed by digits then 'b'
+	let searchPos = 0;
+	while (true) {
+		const xIdx = lower.indexOf("x", searchPos);
+		if (xIdx <= 0) break;
+		const beforeChar = lower[xIdx - 1];
+		if (beforeChar >= "0" && beforeChar <= "9") {
+			const bIdx = lower.indexOf("b", xIdx + 1);
+			if (bIdx > xIdx + 1) {
+				// Walk backwards from x to find start of expert-count number
+				let countStart = xIdx - 1;
+				while (
+					countStart > 0 &&
+					lower[countStart - 1] >= "0" &&
+					lower[countStart - 1] <= "9"
+				) {
+					countStart--;
+				}
+				const experts = Number.parseInt(lower.slice(countStart, xIdx), 10);
+				const size = Number.parseFloat(lower.slice(xIdx + 1, bIdx));
+				if (
+					!Number.isNaN(experts) &&
+					!Number.isNaN(size) &&
+					experts > 0 &&
+					size > 0
+				) {
+					const afterB = lower.slice(bIdx + 1);
+					if (
+						afterB.length === 0 ||
+						((afterB[0] < "0" || afterB[0] > "9") && afterB[0] !== ".")
+					) {
+						return { type: "moe", experts, sizePerExpert: size };
+					}
+				}
+			}
+		}
+		searchPos = xIdx + 1;
+	}
+
+	// Standard: "digits" "b" not followed by digit/dot (e.g., "70b", "8b")
+	for (let i = 0; i < lower.length; i++) {
+		if (lower[i] === "b") {
+			const afterB = lower.slice(i + 1);
+			if (
+				afterB.length > 0 &&
+				((afterB[0] >= "0" && afterB[0] <= "9") || afterB[0] === ".")
+			) {
+				continue; // b followed by digit or dot — not our match
+			}
+			// Walk backwards to find start of number
+			let start = i;
+			while (
+				start > 0 &&
+				((lower[start - 1] >= "0" && lower[start - 1] <= "9") ||
+					lower[start - 1] === ".")
+			) {
+				start--;
+			}
+			if (start < i) {
+				const numStr = lower.slice(start, i);
+				const size = Number.parseFloat(numStr);
+				if (!Number.isNaN(size) && size > 0) {
+					return { type: "standard", size };
+				}
+			}
+			break;
+		}
+	}
+
+	return null;
 }
 
 // =============================================================================

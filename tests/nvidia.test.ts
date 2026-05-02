@@ -7,6 +7,36 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 let capturedToggleArgs: any = null;
 
+// Model size parser (no regex — avoids SonarCloud S5852 flags)
+function parseModelSizeSimple(id: string): number | null {
+	const lower = id.toLowerCase();
+	for (let i = 0; i < lower.length; i++) {
+		if (lower[i] === "b") {
+			const afterB = lower.slice(i + 1);
+			if (
+				afterB.length > 0 &&
+				((afterB[0] >= "0" && afterB[0] <= "9") || afterB[0] === ".")
+			) {
+				continue;
+			}
+			let start = i;
+			while (
+				start > 0 &&
+				((lower[start - 1] >= "0" && lower[start - 1] <= "9") ||
+					lower[start - 1] === ".")
+			) {
+				start--;
+			}
+			if (start < i) {
+				const size = Number.parseFloat(lower.slice(start, i));
+				if (!Number.isNaN(size) && size > 0) return size;
+			}
+			break;
+		}
+	}
+	return null;
+}
+
 // Mock for toggle behavior testing
 vi.mock("../provider-helper.ts", () => ({
 	enhanceWithCI: (m: any[]) => m,
@@ -45,11 +75,8 @@ vi.mock("../lib/util.ts", () => ({
 	isUsableModel: vi.fn((id: string, minSize?: number) => {
 		// Simple size check for testing
 		if (minSize !== undefined) {
-			const sizeMatch = id.match(/([\d.]+)b(?![.\d])/i);
-			if (sizeMatch) {
-				const size = Number.parseFloat(sizeMatch[1]);
-				if (size < minSize) return false;
-			}
+			const size = parseModelSizeSimple(id);
+			if (size !== null && size < minSize) return false;
 		}
 		return true;
 	}),
