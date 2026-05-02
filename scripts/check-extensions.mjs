@@ -21,7 +21,7 @@ function getFiles() {
 		if (process.platform !== "win32") {
 			execOptions.env = {
 				...process.env,
-				PATH: "/usr/local/bin:/usr/bin:/bin",
+				PATH: "/usr/bin:/bin",
 			};
 		}
 		const out = execSync("npm pack --dry-run 2>&1", execOptions);

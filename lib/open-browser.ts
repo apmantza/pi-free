@@ -5,7 +5,27 @@
  * on Windows by using PowerShell's Start-Process instead of cmd.exe.
  */
 
-import { spawn } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+
+/**
+ * Resolve an executable path, preferring the known absolute path if it exists,
+ * falling back to PATH lookup. This avoids relying on an untrusted PATH variable.
+ */
+function resolveExe(name: string, absolutePath: string): string {
+	if (absolutePath && existsSync(absolutePath)) {
+		return absolutePath;
+	}
+	// Fallback: try to resolve via PATH (may still be manipulated)
+	try {
+		const which = process.platform === "win32" ? "where" : "which";
+		return execSync(`${which} ${name}`, { encoding: "utf8" })
+			.trim()
+			.split("\n")[0];
+	} catch {
+		return name; // Last-resort fallback
+	}
+}
 
 /**
  * Open a URL in the user's default browser.
@@ -19,8 +39,12 @@ export function openBrowser(url: string): void {
 		if (process.platform === "win32") {
 			// PowerShell's Start-Process treats the URL as a literal string,
 			// unlike cmd.exe which interprets & as a command separator.
-			spawn(
+			const powershell = resolveExe(
 				"powershell.exe",
+				"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+			);
+			spawn(
+				powershell,
 				[
 					"-NoProfile",
 					"-NonInteractive",
@@ -30,9 +54,11 @@ export function openBrowser(url: string): void {
 				{ detached: true, shell: false, windowsHide: true },
 			).unref();
 		} else if (process.platform === "darwin") {
-			spawn("open", [url], { detached: true }).unref();
+			const open = resolveExe("open", "/usr/bin/open");
+			spawn(open, [url], { detached: true }).unref();
 		} else {
-			spawn("xdg-open", [url], { detached: true }).unref();
+			const xdgOpen = resolveExe("xdg-open", "/usr/bin/xdg-open");
+			spawn(xdgOpen, [url], { detached: true }).unref();
 		}
 	} catch (err) {
 		// Best-effort — browser opening is non-critical
