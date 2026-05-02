@@ -5,7 +5,7 @@
  * on Windows by using PowerShell's Start-Process instead of cmd.exe.
  */
 
-import { execSync, spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 
 /**
@@ -19,7 +19,8 @@ function resolveExe(name: string, absolutePath: string): string {
 	// Fallback: try to resolve via PATH (may still be manipulated)
 	try {
 		const which = process.platform === "win32" ? "where" : "which";
-		return execSync(`${which} ${name}`, { encoding: "utf8" })
+		// Use execFileSync with separate args — no shell injection vector
+		return execFileSync(which, [name], { encoding: "utf8" })
 			.trim()
 			.split("\n")[0];
 	} catch {
