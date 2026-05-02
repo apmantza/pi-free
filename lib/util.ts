@@ -175,7 +175,7 @@ export function isUsableModel(modelId: string, minSizeB?: number): boolean {
 		if (KNOWN_SMALL_MODELS.has(baseId)) return false;
 
 		// Check Mixture-of-Experts models first (e.g., "8x22b" = 176b total)
-		const moeMatch = modelId.match(/(\d+)x(\d+\.\d+|\d+)b/i);
+		const moeMatch = modelId.match(/(\d+)x(\d+(?:\.\d+)?)b/i);
 		if (moeMatch) {
 			const experts = Number.parseInt(moeMatch[1], 10);
 			const expertSize = Number.parseFloat(moeMatch[2]);
@@ -184,7 +184,7 @@ export function isUsableModel(modelId: string, minSizeB?: number): boolean {
 		}
 
 		// Standard model size (e.g., "70b", "8b")
-		const sizeMatch = modelId.match(/(\d+\.\d+|\d+)b(?!\w)/i);
+		const sizeMatch = modelId.match(/(\d+(?:\.\d+)?)b(?!\w)/i);
 		if (sizeMatch) {
 			const modelSize = Number.parseFloat(sizeMatch[1]);
 			if (modelSize < minSizeB) return false;

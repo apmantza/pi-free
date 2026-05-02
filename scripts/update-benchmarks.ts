@@ -89,7 +89,7 @@ async function fetchAIData(): Promise<AAModel[]> {
 function normalizeModelName(name: string): string {
 	return name
 		.toLowerCase()
-		.replace(/[^a-z0-9.-]+/g, "-")
+		.replace(/[^-a-z0-9.]+/g, "-")
 		.replace(/^-+/, "")
 		.replace(/-+$/, "");
 }

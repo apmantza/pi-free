@@ -7,14 +7,6 @@
 
 import { spawn } from "node:child_process";
 
-function getSafeEnv(): NodeJS.ProcessEnv {
-	if (process.platform === "win32") return process.env;
-	return {
-		...process.env,
-		PATH: "/usr/local/bin:/usr/bin:/bin",
-	};
-}
-
 /**
  * Open a URL in the user's default browser.
  *
@@ -24,7 +16,6 @@ function getSafeEnv(): NodeJS.ProcessEnv {
  */
 export function openBrowser(url: string): void {
 	try {
-		const env = getSafeEnv();
 		if (process.platform === "win32") {
 			// PowerShell's Start-Process treats the URL as a literal string,
 			// unlike cmd.exe which interprets & as a command separator.
@@ -36,12 +27,12 @@ export function openBrowser(url: string): void {
 					"-Command",
 					`Start-Process "${url.replace(/[\\"]/g, "\\$&")}"`,
 				],
-				{ detached: true, shell: false, windowsHide: true, env },
+				{ detached: true, shell: false, windowsHide: true },
 			).unref();
 		} else if (process.platform === "darwin") {
-			spawn("open", [url], { detached: true, env }).unref();
+			spawn("open", [url], { detached: true }).unref();
 		} else {
-			spawn("xdg-open", [url], { detached: true, env }).unref();
+			spawn("xdg-open", [url], { detached: true }).unref();
 		}
 	} catch (err) {
 		// Best-effort — browser opening is non-critical

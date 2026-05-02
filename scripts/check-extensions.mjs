@@ -17,16 +17,14 @@ const fromSource = process.argv[2] == null;
 function getFiles() {
 	if (fromSource) {
 		// Use npm pack --dry-run to get exactly the files that would be published
-		const out = execSync("npm pack --dry-run 2>&1", {
-			encoding: "utf8",
-			env: {
+		const execOptions = { encoding: "utf8" };
+		if (process.platform !== "win32") {
+			execOptions.env = {
 				...process.env,
-				PATH:
-					process.platform === "win32"
-						? process.env.PATH
-						: "/usr/local/bin:/usr/bin:/bin",
-			},
-		});
+				PATH: "/usr/local/bin:/usr/bin:/bin",
+			};
+		}
+		const out = execSync("npm pack --dry-run 2>&1", execOptions);
 		return out
 			.split("\n")
 			.map((l) => l.match(/npm notice \S+\s+(.+)/)?.[1]?.trim())

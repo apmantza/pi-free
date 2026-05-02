@@ -271,7 +271,7 @@ function isVariantQualifier(segment: string): boolean {
  * AA uses instruct-70b order while providers often use 70b-instruct.
  */
 function normalizeSizeTokenOrder(id: string): string {
-	return id.replace(/(\d+\.\d+b|\d+b)-(instruct|chat)/gi, "$2-$1");
+	return id.replace(/(\d+(?:\.\d+)?b)-(instruct|chat)/gi, "$2-$1");
 }
 
 /**
