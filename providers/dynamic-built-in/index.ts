@@ -58,7 +58,9 @@ interface FetchModelsOptions {
 async function fetchModelsFromEndpoint(
 	opts: FetchModelsOptions,
 ): Promise<ProviderModelConfig[]> {
-	const url = `${opts.baseUrl.replace(/\/+$/, "")}/models`;
+	let cleanBase = opts.baseUrl;
+	while (cleanBase.endsWith("/")) cleanBase = cleanBase.slice(0, -1);
+	const url = `${cleanBase}/models`;
 	const headers: Record<string, string> = {
 		Accept: "application/json",
 		Authorization: `Bearer ${opts.apiKey}`,

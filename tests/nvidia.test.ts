@@ -45,7 +45,7 @@ vi.mock("../lib/util.ts", () => ({
 	isUsableModel: vi.fn((id: string, minSize?: number) => {
 		// Simple size check for testing
 		if (minSize !== undefined) {
-			const sizeMatch = id.match(/(\d+(?:\.\d+)?)b(?!\w)/i);
+			const sizeMatch = id.match(/(\d+\.\d+|\d+)b(?!\w)/i);
 			if (sizeMatch) {
 				const size = Number.parseFloat(sizeMatch[1]);
 				if (size < minSize) return false;

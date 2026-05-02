@@ -175,7 +175,7 @@ export function isUsableModel(modelId: string, minSizeB?: number): boolean {
 		if (KNOWN_SMALL_MODELS.has(baseId)) return false;
 
 		// Check Mixture-of-Experts models first (e.g., "8x22b" = 176b total)
-		const moeMatch = modelId.match(/(\d+)x(\d+(?:\.\d+)?)b/i);
+		const moeMatch = modelId.match(/(\d+)x(\d+\.\d+|\d+)b/i);
 		if (moeMatch) {
 			const experts = Number.parseInt(moeMatch[1], 10);
 			const expertSize = Number.parseFloat(moeMatch[2]);
@@ -184,7 +184,7 @@ export function isUsableModel(modelId: string, minSizeB?: number): boolean {
 		}
 
 		// Standard model size (e.g., "70b", "8b")
-		const sizeMatch = modelId.match(/(\d+(?:\.\d+)?)b(?!\w)/i);
+		const sizeMatch = modelId.match(/(\d+\.\d+|\d+)b(?!\w)/i);
 		if (sizeMatch) {
 			const modelSize = Number.parseFloat(sizeMatch[1]);
 			if (modelSize < minSizeB) return false;
@@ -205,10 +205,16 @@ export function isUsableModel(modelId: string, minSizeB?: number): boolean {
  */
 export function cleanModelName(name: string): string {
 	// Handle patterns like "Provider : Model Name" or "Provider / Model Name"
-	// Match colon or slash separator with optional surrounding whitespace
-	const separatorMatch = name.match(/^[^:]+\s*[:/]\s*(.+)$/);
-	if (separatorMatch) {
-		return separatorMatch[1].trim();
+	const colonIdx = name.indexOf(":");
+	const slashIdx = name.indexOf("/");
+	const idx =
+		colonIdx === -1
+			? slashIdx
+			: slashIdx === -1
+				? colonIdx
+				: Math.min(colonIdx, slashIdx);
+	if (idx > 0) {
+		return name.slice(idx + 1).trim();
 	}
 	return name.trim();
 }

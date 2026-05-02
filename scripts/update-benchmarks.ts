@@ -9,7 +9,7 @@
  * imports and merges all chunks — this script does NOT overwrite it.
  */
 
-import { writeFileSync, readdirSync, unlinkSync } from "node:fs";
+import { readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const API_KEY = process.env.ARTIFICIAL_ANALYSIS_API_KEY;
@@ -90,7 +90,8 @@ function normalizeModelName(name: string): string {
 	return name
 		.toLowerCase()
 		.replace(/[^a-z0-9.-]+/g, "-")
-		.replace(/^-+|-+$/g, "");
+		.replace(/^-+/, "")
+		.replace(/-+$/, "");
 }
 
 function generateChunkFile(
@@ -207,7 +208,8 @@ function generateBenchmarksChunks(models: AAModel[]): void {
 	// Check if hardcoded-benchmarks.ts needs updating (new chunk count)
 	const mainFile = join(OUTPUT_DIR, "hardcoded-benchmarks.ts");
 	const mainContent = require("fs").readFileSync(mainFile, "utf-8");
-	const currentChunks = (mainContent.match(/BENCHMARKS_CHUNK_\d+/g) || []).length;
+	const currentChunks = (mainContent.match(/BENCHMARKS_CHUNK_\d+/g) || [])
+		.length;
 	if (currentChunks !== chunkIndex) {
 		console.log(
 			`\n⚠️  hardcoded-benchmarks.ts references ${currentChunks} chunks but ${chunkIndex} were generated.`,
@@ -217,9 +219,7 @@ function generateBenchmarksChunks(models: AAModel[]): void {
 		);
 	}
 
-	console.log(
-		`\n✅ Generated ${chunkIndex} chunk files in ${OUTPUT_DIR}/`,
-	);
+	console.log(`\n✅ Generated ${chunkIndex} chunk files in ${OUTPUT_DIR}/`);
 }
 
 async function main() {
@@ -231,7 +231,9 @@ async function main() {
 
 		console.log("\n📝 Next steps:");
 		console.log("  1. Review the chunk file changes");
-		console.log("  2. If chunk count changed, update hardcoded-benchmarks.ts imports");
+		console.log(
+			"  2. If chunk count changed, update hardcoded-benchmarks.ts imports",
+		);
 		console.log("  3. Run tests: npm run test:run");
 		console.log("  4. Commit and push");
 		console.log("  5. Create PR if this was an automated update");
