@@ -29,6 +29,7 @@ interface PiFreeConfig {
 	crofai_api_key?: string;
 	codestral_api_key?: string;
 	mistral_api_key?: string;
+	llm7_api_key?: string;
 	groq_api_key?: string;
 	cerebras_api_key?: string;
 	xai_api_key?: string;
@@ -42,6 +43,7 @@ interface PiFreeConfig {
 	zenmux_show_paid?: boolean;
 	crofai_show_paid?: boolean;
 	codestral_show_paid?: boolean;
+	llm7_show_paid?: boolean;
 	openrouter_show_paid?: boolean;
 	opencode_show_paid?: boolean;
 }
@@ -53,6 +55,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	crofai_api_key: "",
 	codestral_api_key: "",
 	mistral_api_key: "",
+	llm7_api_key: "",
 	groq_api_key: "",
 	cerebras_api_key: "",
 	xai_api_key: "",
@@ -67,6 +70,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	zenmux_show_paid: false,
 	crofai_show_paid: false,
 	codestral_show_paid: false,
+	llm7_show_paid: false,
 	openrouter_show_paid: false,
 	opencode_show_paid: false,
 };
@@ -158,6 +162,10 @@ export function getCodestralShowPaid(): boolean {
 	);
 }
 
+export function getLlm7ShowPaid(): boolean {
+	return resolveBool("LLM7_SHOW_PAID", loadConfigFile().llm7_show_paid);
+}
+
 export function getOllamaShowPaid(): boolean {
 	return resolveBool("OLLAMA_SHOW_PAID", loadConfigFile().ollama_show_paid);
 }
@@ -203,6 +211,10 @@ export function getCrofaiApiKey(): string | undefined {
 
 export function getCodestralApiKey(): string | undefined {
 	return resolve("CODESTRAL_API_KEY", loadConfigFile().codestral_api_key);
+}
+
+export function getLlm7ApiKey(): string | undefined {
+	return resolve("LLM7_API_KEY", loadConfigFile().llm7_api_key);
 }
 
 export function getOllamaApiKey(): string | undefined {

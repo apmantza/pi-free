@@ -28,6 +28,7 @@ import cline from "./providers/cline/cline.ts";
 import codestral from "./providers/codestral/codestral.ts";
 import crofai from "./providers/crofai/crofai.ts";
 import kilo from "./providers/kilo/kilo.ts";
+import llm7 from "./providers/llm7/llm7.ts";
 import nvidia from "./providers/nvidia/nvidia.ts";
 import ollama from "./providers/ollama/ollama.ts";
 import zenmux from "./providers/zenmux/zenmux.ts";
@@ -146,6 +147,7 @@ export default async function (pi: ExtensionAPI) {
 		zenmux(pi),
 		crofai(pi),
 		codestral(pi),
+		llm7(pi),
 	]);
 
 	// Setup dynamic built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face)
