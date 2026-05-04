@@ -136,15 +136,13 @@ function generateBenchmarksChunks(models: AAModel[]): void {
 		// Helper to format optional number fields (strips trailing zeros to avoid S7748)
 		const fmt = (v: number | null | undefined): string => {
 			if (v === null || v === undefined) return "undefined";
-			// Strip trailing zeros after decimal point
-			const fixed = v.toFixed(3);
-			const trimmed = fixed.replace(/\.?0+$/, "");
-			return trimmed || "0";
+			// parseFloat strips trailing zeros (avoids S7748 + S5852 regex backtracking)
+			return String(Number(v.toFixed(3)));
 		};
 
 		return `	"${key}": {
 		// AA Intelligence Index (composite score)
-		intelligenceIndex: ${score.toFixed(1).replace(/\.?0+$/, "") || "0"},
+		intelligenceIndex: ${Number(score.toFixed(1))},
 		normalizedScore: ${normalized},
 
 		// AA specific benchmarks
