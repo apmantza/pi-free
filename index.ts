@@ -99,7 +99,7 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 				"cerebras",
 			]);
 			// Freemium providers - all models share a free tier quota
-			const freemiumProviders = new Set(["nvidia", "sambanova"]);
+			const freemiumProviders = new Set(["nvidia", "sambanova", "ollama-cloud"]);
 			// Trial credit providers - one-time credits, otherwise paid
 			const trialCreditProviders = new Set(["deepinfra"]);
 
@@ -147,18 +147,21 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 function setupQuotaMonitoring(pi: ExtensionAPI) {
 	// Capture rate-limit headers from every provider response
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	(pi as any).on("after_provider_response", (event: { status: number; headers: Record<string, string> }, ctx: any) => {
-		const providerId = ctx.model?.provider;
-		if (!providerId) return;
+	(pi as any).on(
+		"after_provider_response",
+		(event: { status: number; headers: Record<string, string> }, ctx: any) => {
+			const providerId = ctx.model?.provider;
+			if (!providerId) return;
 
-		processQuotaResponse(providerId, event.headers);
+			processQuotaResponse(providerId, event.headers);
 
-		// Update status bar with quota for the active provider
-		const status = formatQuotaStatus(providerId);
-		if (status) {
-			ctx.ui.setStatus("quota", status);
-		}
-	});
+			// Update status bar with quota for the active provider
+			const status = formatQuotaStatus(providerId);
+			if (status) {
+				ctx.ui.setStatus("quota", status);
+			}
+		},
+	);
 
 	// Clear quota status when switching away from a provider
 	pi.on("model_select", (_event, ctx) => {
