@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Codestral provider** — Mistral's code-focused model via codestral.mistral.ai.
+  Free tier (Experiment plan): 2 req/min, 500K tokens/min, 1B tokens/month.
+  Uses pi's built-in Mistral SDK (`mistral-conversations` API type).
+
+- **LLM7.io provider** — OpenAI-compatible API gateway routing across
+  multiple providers (OpenAI, Mistral, Google, DeepSeek, etc.). Free tier:
+  default/fast selectors, 100 req/hr, 20 req/min.
+
+- **DeepInfra provider** — AI inference cloud with 100+ open-source models.
+  $5 one-time credit on signup (no credit card). Models fetched dynamically.
+  Shown as trial credit provider in `/free-providers`.
+
+- **SambaNova provider** — Fast inference on custom RDU hardware with
+  OpenAI-compatible API. All models accessible on free tier (no credit card):
+  20-480 RPM. Models include Llama 3.3 70B, DeepSeek-V3/R1, Llama 4 Maverick.
+  Shown as freemium provider in `/free-providers`.
+
+### Changed
+
+- **Codestral: fixed HTTP 422 error** — Switched API type from
+  `openai-completions` to `mistral-conversations`. The OpenAI completions
+  adapter was sending unrecognized fields (`stream_options`, `store`,
+  `max_completion_tokens`) that Mistral's API rejects with 422.
+
+### Refactored
+
+- **Extracted shared model-fetch helper** — `fetchOpenAICompatibleModels()`
+  in `lib/util.ts` eliminates ~120 lines of duplicated fetch→parse→map
+  boilerplate across CrofAI, DeepInfra, and SambaNova providers.
+
 ## [2.0.6] - 2026-05-02
 
 ### Security
