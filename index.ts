@@ -29,6 +29,7 @@ import codestral from "./providers/codestral/codestral.ts";
 import crofai from "./providers/crofai/crofai.ts";
 import kilo from "./providers/kilo/kilo.ts";
 import llm7 from "./providers/llm7/llm7.ts";
+import deepinfra from "./providers/deepinfra/deepinfra.ts";
 import nvidia from "./providers/nvidia/nvidia.ts";
 import ollama from "./providers/ollama/ollama.ts";
 import zenmux from "./providers/zenmux/zenmux.ts";
@@ -91,6 +92,8 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 			]);
 			// Freemium providers - all models share a free tier quota
 			const freemiumProviders = new Set(["nvidia"]);
+			// Trial credit providers - one-time credits, otherwise paid
+			const trialCreditProviders = new Set(["deepinfra"]);
 
 			for (const [id, entry] of registry) {
 				const free = entry.stored.free.length;
@@ -101,6 +104,9 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 				if (freemiumProviders.has(id)) {
 					// Freemium: all models share a free tier (e.g., 1,000 reqs/month)
 					lines.push(`${indicator} ${id}: ${all} models (freemium)`);
+				} else if (trialCreditProviders.has(id)) {
+					// Trial credit: one-time credits, otherwise paid
+					lines.push(`${indicator} ${id}: ${all} models ($5 trial credit)`);
 				} else if (noPricingApi.has(id)) {
 					// Provider doesn't expose pricing - can't determine free vs paid
 					lines.push(
@@ -148,6 +154,7 @@ export default async function (pi: ExtensionAPI) {
 		crofai(pi),
 		codestral(pi),
 		llm7(pi),
+		deepinfra(pi),
 	]);
 
 	// Setup dynamic built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face)
