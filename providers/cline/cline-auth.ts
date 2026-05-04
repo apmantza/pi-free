@@ -181,7 +181,7 @@ font-family:system-ui,sans-serif;background:#fff;color:#333}
 	if (selectedPort === 0) {
 		cleanup();
 		throw new Error(
-			`No available port for auth callback (tried ${ports[0]}-${ports[ports.length - 1]})`,
+			`No available port for auth callback (tried ${ports[0]}-${ports.at(-1)})`,
 		);
 	}
 

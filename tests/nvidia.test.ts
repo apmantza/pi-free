@@ -275,8 +275,8 @@ describe("NVIDIA Provider", () => {
 		);
 
 		expect(model).toBeDefined();
-		expect(model.cost.input).toBe(2.0);
-		expect(model.cost.output).toBe(6.0);
+		expect(model.cost.input).toBe(2);
+		expect(model.cost.output).toBe(6);
 	});
 
 	it("should fall back to models.dev when NVIDIA API is unreachable", async () => {

@@ -40,11 +40,7 @@ import { getLlm7ApiKey, getLlm7ShowPaid } from "../../config.ts";
 import { BASE_URL_LLM7, PROVIDER_LLM7 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
-import {
-	createReRegister,
-	enhanceWithCI,
-	setupProvider,
-} from "../../provider-helper.ts";
+import { createReRegister, setupProvider } from "../../provider-helper.ts";
 
 const _logger = createLogger("llm7");
 

@@ -108,8 +108,8 @@ export async function fetchOpenRouterCompatibleModels(
 
 			// Filter by pricing if freeOnly
 			if (freeOnly) {
-				const prompt = parseFloat(m.pricing?.prompt ?? "1");
-				const completion = parseFloat(m.pricing?.completion ?? "1");
+				const prompt = Number.parseFloat(m.pricing?.prompt ?? "1");
+				const completion = Number.parseFloat(m.pricing?.completion ?? "1");
 				if (prompt !== 0 || completion !== 0) return false;
 			}
 

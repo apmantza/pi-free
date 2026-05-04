@@ -140,7 +140,7 @@ async function fetchOllamaModels(
 // Extension Entry Point
 // =============================================================================
 
-export default async function (pi: ExtensionAPI) {
+export default async function ollamaProvider(pi: ExtensionAPI) {
 	const apiKey = getOllamaApiKey();
 
 	if (!apiKey) {

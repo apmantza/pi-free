@@ -298,7 +298,7 @@ describe("Utility Functions", () => {
 	describe("fetchWithTimeout", () => {
 		it("should fetch successfully within timeout", async () => {
 			// Mock fetch to return immediately
-			global.fetch = vi.fn().mockResolvedValue({
+			globalThis.fetch = vi.fn().mockResolvedValue({
 				ok: true,
 				status: 200,
 			} as Response);
@@ -317,7 +317,7 @@ describe("Utility Functions", () => {
 				ok: true,
 				status: 200,
 			} as Response);
-			global.fetch = fetchMock;
+			globalThis.fetch = fetchMock;
 
 			await fetchWithTimeout(
 				"https://api.example.com/data",
@@ -341,7 +341,7 @@ describe("Utility Functions", () => {
 
 	describe("fetchWithRetry", () => {
 		it("should succeed on first attempt", async () => {
-			global.fetch = vi.fn().mockResolvedValue({
+			globalThis.fetch = vi.fn().mockResolvedValue({
 				ok: true,
 				status: 200,
 			} as Response);
@@ -349,11 +349,11 @@ describe("Utility Functions", () => {
 			const result = await fetchWithRetry("https://api.example.com/data", {});
 
 			expect(result.ok).toBe(true);
-			expect(global.fetch).toHaveBeenCalledTimes(1);
+			expect(globalThis.fetch).toHaveBeenCalledTimes(1);
 		});
 
 		it("should retry on server error (5xx)", async () => {
-			global.fetch = vi
+			globalThis.fetch = vi
 				.fn()
 				.mockResolvedValueOnce({
 					ok: false,
@@ -372,11 +372,11 @@ describe("Utility Functions", () => {
 			);
 
 			expect(result.ok).toBe(true);
-			expect(global.fetch).toHaveBeenCalledTimes(2);
+			expect(globalThis.fetch).toHaveBeenCalledTimes(2);
 		});
 
 		it("should throw immediately on 429 rate limit", async () => {
-			global.fetch = vi.fn().mockResolvedValue({
+			globalThis.fetch = vi.fn().mockResolvedValue({
 				ok: false,
 				status: 429,
 			} as Response);
@@ -387,7 +387,7 @@ describe("Utility Functions", () => {
 		});
 
 		it("should throw after max retries", async () => {
-			global.fetch = vi.fn().mockResolvedValue({
+			globalThis.fetch = vi.fn().mockResolvedValue({
 				ok: false,
 				status: 500,
 			} as Response);
@@ -396,12 +396,12 @@ describe("Utility Functions", () => {
 				fetchWithRetry("https://api.example.com/data", {}, 2, 50),
 			).rejects.toThrow();
 
-			expect(global.fetch).toHaveBeenCalledTimes(2);
+			expect(globalThis.fetch).toHaveBeenCalledTimes(2);
 		});
 
 		it("should return non-retryable error response", async () => {
 			// 400 Bad Request - should not retry
-			global.fetch = vi.fn().mockResolvedValue({
+			globalThis.fetch = vi.fn().mockResolvedValue({
 				ok: false,
 				status: 400,
 			} as Response);
@@ -410,7 +410,7 @@ describe("Utility Functions", () => {
 
 			expect(result.ok).toBe(false);
 			expect(result.status).toBe(400);
-			expect(global.fetch).toHaveBeenCalledTimes(1);
+			expect(globalThis.fetch).toHaveBeenCalledTimes(1);
 		});
 	});
 });

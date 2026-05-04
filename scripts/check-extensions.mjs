@@ -19,7 +19,9 @@ function resolveNpm() {
 	for (const p of [
 		"/usr/bin/npm",
 		"/usr/local/bin/npm",
-		process.platform === "win32" ? "C:\\Program Files\\nodejs\\npm.cmd" : "",
+		process.platform === "win32"
+			? String.raw`C:\Program Files\nodejs\npm.cmd`
+			: "",
 	]) {
 		if (p && existsSync(p)) return p;
 	}
@@ -77,11 +79,11 @@ const seen = new Set();
 
 for (const file of files) {
 	const src = readFileSync(file, "utf8");
-	const relFile = file.slice(installDir.length + 1).replace(/\\/g, "/");
+	const relFile = file.slice(installDir.length + 1).replaceAll("\\", "/");
 	// Strip comments before matching imports
 	const stripped = src
-		.replace(/\/\/[^\n]*/g, "")
-		.replace(/\/\*[\s\S]*?\*\//g, "");
+		.replaceAll(/\/\/[^\n]*/g, "")
+		.replaceAll(/\/\*[\s\S]*?\*\//g, "");
 	const importRe = /from\s+['"](\.[^'"]+)['"]/g;
 	let match;
 	while ((match = importRe.exec(stripped)) !== null) {

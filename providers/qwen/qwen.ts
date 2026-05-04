@@ -59,7 +59,7 @@ const DASHSCOPE_HEADERS = {
 // Extension entry point
 // =============================================================================
 
-export default async function (pi: ExtensionAPI) {
+export default async function qwenProvider(pi: ExtensionAPI) {
 	// DEPRECATION WARNING
 	_logger.warn(
 		"Qwen provider is deprecated. The 1,000 req/day free tier is no longer available.",

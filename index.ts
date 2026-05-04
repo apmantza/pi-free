@@ -99,7 +99,11 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 				"cerebras",
 			]);
 			// Freemium providers - all models share a free tier quota
-			const freemiumProviders = new Set(["nvidia", "sambanova", "ollama-cloud"]);
+			const freemiumProviders = new Set([
+				"nvidia",
+				"sambanova",
+				"ollama-cloud",
+			]);
 			// Trial credit providers - one-time credits, otherwise paid
 			const trialCreditProviders = new Set(["deepinfra"]);
 
@@ -180,7 +184,7 @@ function setupQuotaMonitoring(pi: ExtensionAPI) {
 // Main Entry Point
 // =============================================================================
 
-export default async function (pi: ExtensionAPI) {
+export default async function piFreeEntry(pi: ExtensionAPI) {
 	const globalFreeOnly = getGlobalFreeOnly();
 	_logger.info(`[pi-free] Initializing (global free-only: ${globalFreeOnly})`);
 

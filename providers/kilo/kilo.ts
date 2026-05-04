@@ -44,7 +44,7 @@ const KILO_PROVIDER_CONFIG = {
 	},
 };
 
-export default async function (pi: ExtensionAPI) {
+export default async function kiloProvider(pi: ExtensionAPI) {
 	// Try to fetch ALL models at startup (like Cline/OpenRouter)
 	// If no API key, this will return free models only
 	let allModels: ProviderModelConfig[] = [];

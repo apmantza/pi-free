@@ -146,9 +146,9 @@ function inferModelFromId(id: string): ModelsDevModel | null {
 	const name = id
 		.split("/")
 		.pop()!
-		.replace(/-/g, " ")
-		.replace(/\b\w/g, (c) => c.toUpperCase())
-		.replace(/\b(\d+(?:\.\d+)?)b\b/gi, "$1B");
+		.replaceAll("-", " ")
+		.replaceAll(/\b\w/g, (c) => c.toUpperCase())
+		.replaceAll(/\b(\d+(?:\.\d+)?)b\b/gi, "$1B");
 
 	const hasVision = /vision|multimodal|vl/i.test(id);
 	const hasReasoning = /reason|r1|thinking/i.test(id);
@@ -369,7 +369,7 @@ async function runNvidiaProbe(
 	);
 }
 
-export default async function (pi: ExtensionAPI) {
+export default async function nvidiaProvider(pi: ExtensionAPI) {
 	const apiKey = getNvidiaApiKey();
 	const hasKey = !!apiKey;
 

@@ -121,7 +121,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 		normalizedScore: 54,
 
 		// AA specific benchmarks
-		codingIndex: 35.0,
+		codingIndex: 35,
 		mathIndex: undefined,
 
 		// Academic benchmarks
@@ -165,7 +165,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 		normalizedScore: 51,
 
 		// AA specific benchmarks
-		codingIndex: 41.0,
+		codingIndex: 41,
 		mathIndex: undefined,
 
 		// Academic benchmarks
@@ -315,7 +315,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 	},
 	"gpt-5.3-codex-xhigh": {
 		// AA Intelligence Index (composite score)
-		intelligenceIndex: 54.0,
+		intelligenceIndex: 54,
 		normalizedScore: 77,
 
 		// AA specific benchmarks
@@ -364,7 +364,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 
 		// AA specific benchmarks
 		codingIndex: 14.5,
-		mathIndex: 3.0,
+		mathIndex: 3,
 
 		// Academic benchmarks
 		mmluPro: 0.732,
@@ -452,7 +452,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 
 		// AA specific benchmarks
 		codingIndex: 6.7,
-		mathIndex: 14.0,
+		mathIndex: 14,
 
 		// Academic benchmarks
 		mmluPro: 0.752,
@@ -491,7 +491,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 	},
 	"gemini-3-flash-preview-non-reasoning": {
 		// AA Intelligence Index (composite score)
-		intelligenceIndex: 35.0,
+		intelligenceIndex: 35,
 		normalizedScore: 50,
 
 		// AA specific benchmarks
@@ -671,7 +671,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 		normalizedScore: 22,
 
 		// AA specific benchmarks
-		codingIndex: 9.0,
+		codingIndex: 9,
 		mathIndex: undefined,
 
 		// Academic benchmarks
@@ -716,7 +716,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 
 		// AA specific benchmarks
 		codingIndex: 42.6,
-		mathIndex: 97.0,
+		mathIndex: 97,
 
 		// Academic benchmarks
 		mmluPro: 0.89,
@@ -825,7 +825,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 		normalizedScore: 11,
 
 		// AA specific benchmarks
-		codingIndex: 0.0,
+		codingIndex: 0,
 		mathIndex: 2.3,
 
 		// Academic benchmarks
@@ -892,7 +892,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 
 		// AA specific benchmarks
 		codingIndex: 29.6,
-		mathIndex: 39.0,
+		mathIndex: 39,
 
 		// Academic benchmarks
 		mmluPro: 0.8,
@@ -953,7 +953,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 	},
 	"claude-opus-4.6-adaptive-reasoning-max-effort": {
 		// AA Intelligence Index (composite score)
-		intelligenceIndex: 53.0,
+		intelligenceIndex: 53,
 		normalizedScore: 76,
 
 		// AA specific benchmarks
@@ -1023,7 +1023,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 		normalizedScore: 61,
 
 		// AA specific benchmarks
-		codingIndex: 43.0,
+		codingIndex: 43,
 		mathIndex: undefined,
 
 		// Academic benchmarks
@@ -1046,7 +1046,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 
 		// AA specific benchmarks
 		codingIndex: 22.7,
-		mathIndex: 38.0,
+		mathIndex: 38,
 
 		// Academic benchmarks
 		mmluPro: 0.807,
@@ -1063,7 +1063,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 	},
 	"devstral-2": {
 		// AA Intelligence Index (composite score)
-		intelligenceIndex: 22.0,
+		intelligenceIndex: 22,
 		normalizedScore: 31,
 
 		// AA specific benchmarks
@@ -1111,7 +1111,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 		normalizedScore: 21,
 
 		// AA specific benchmarks
-		codingIndex: 10.0,
+		codingIndex: 10,
 		mathIndex: 31.7,
 
 		// Academic benchmarks
@@ -1129,12 +1129,12 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 	},
 	"ministral-3-14b": {
 		// AA Intelligence Index (composite score)
-		intelligenceIndex: 16.0,
+		intelligenceIndex: 16,
 		normalizedScore: 23,
 
 		// AA specific benchmarks
 		codingIndex: 10.9,
-		mathIndex: 30.0,
+		mathIndex: 30,
 
 		// Academic benchmarks
 		mmluPro: 0.693,
@@ -1156,7 +1156,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 
 		// AA specific benchmarks
 		codingIndex: 21.7,
-		mathIndex: 82.0,
+		mathIndex: 82,
 
 		// Academic benchmarks
 		mmluPro: 0.815,
@@ -1222,7 +1222,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 
 		// AA specific benchmarks
 		codingIndex: 4.8,
-		mathIndex: 22.0,
+		mathIndex: 22,
 
 		// Academic benchmarks
 		mmluPro: 0.524,
@@ -1283,7 +1283,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 	},
 	"deepseek-r1-distill-llama-70b": {
 		// AA Intelligence Index (composite score)
-		intelligenceIndex: 16.0,
+		intelligenceIndex: 16,
 		normalizedScore: 23,
 
 		// AA specific benchmarks
@@ -1309,8 +1309,8 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 		normalizedScore: 39,
 
 		// AA specific benchmarks
-		codingIndex: 24.0,
-		mathIndex: 76.0,
+		codingIndex: 24,
+		mathIndex: 76,
 
 		// Academic benchmarks
 		mmluPro: 0.849,
@@ -1332,7 +1332,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 
 		// AA specific benchmarks
 		codingIndex: 34.6,
-		mathIndex: 59.0,
+		mathIndex: 59,
 
 		// Academic benchmarks
 		mmluPro: 0.837,
@@ -1398,7 +1398,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 
 		// AA specific benchmarks
 		codingIndex: 36.7,
-		mathIndex: 92.0,
+		mathIndex: 92,
 
 		// Academic benchmarks
 		mmluPro: 0.862,
@@ -1415,7 +1415,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 	},
 	"r1-1776": {
 		// AA Intelligence Index (composite score)
-		intelligenceIndex: 12.0,
+		intelligenceIndex: 12,
 		normalizedScore: 17,
 
 		// AA specific benchmarks
@@ -1442,7 +1442,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 
 		// AA specific benchmarks
 		codingIndex: 9.8,
-		mathIndex: 80.0,
+		mathIndex: 80,
 
 		// Academic benchmarks
 		mmluPro: 0.725,
@@ -1552,7 +1552,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 
 		// AA specific benchmarks
 		codingIndex: 4.1,
-		mathIndex: 6.0,
+		mathIndex: 6,
 
 		// Academic benchmarks
 		mmluPro: 0.531,
@@ -1569,7 +1569,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 	},
 	"nova-premier": {
 		// AA Intelligence Index (composite score)
-		intelligenceIndex: 19.0,
+		intelligenceIndex: 19,
 		normalizedScore: 27,
 
 		// AA specific benchmarks
@@ -1589,7 +1589,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 		// Metadata
 		lastUpdated: "2026-04-06",
 	},
-	"nova-2.0-lite-low": {
+	"nova-2-lite-low": {
 		// AA Intelligence Index (composite score)
 		intelligenceIndex: 24.6,
 		normalizedScore: 35,
@@ -1611,7 +1611,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 		// Metadata
 		lastUpdated: "2026-04-06",
 	},
-	"nova-2.0-lite-medium": {
+	"nova-2-lite-medium": {
 		// AA Intelligence Index (composite score)
 		intelligenceIndex: 29.7,
 		normalizedScore: 42,
@@ -1633,7 +1633,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 		// Metadata
 		lastUpdated: "2026-04-06",
 	},
-	"nova-2.0-pro-preview-non-reasoning": {
+	"nova-2-pro-preview-non-reasoning": {
 		// AA Intelligence Index (composite score)
 		intelligenceIndex: 23.1,
 		normalizedScore: 33,
@@ -1655,7 +1655,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 		// Metadata
 		lastUpdated: "2026-04-06",
 	},
-	"nova-2.0-pro-preview-low": {
+	"nova-2-pro-preview-low": {
 		// AA Intelligence Index (composite score)
 		intelligenceIndex: 31.9,
 		normalizedScore: 46,
@@ -1677,14 +1677,14 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 		// Metadata
 		lastUpdated: "2026-04-06",
 	},
-	"nova-2.0-omni-non-reasoning": {
+	"nova-2-omni-non-reasoning": {
 		// AA Intelligence Index (composite score)
 		intelligenceIndex: 16.6,
 		normalizedScore: 24,
 
 		// AA specific benchmarks
 		codingIndex: 13.8,
-		mathIndex: 37.0,
+		mathIndex: 37,
 
 		// Academic benchmarks
 		mmluPro: 0.719,
@@ -1699,9 +1699,9 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 		// Metadata
 		lastUpdated: "2026-04-06",
 	},
-	"nova-2.0-lite-non-reasoning": {
+	"nova-2-lite-non-reasoning": {
 		// AA Intelligence Index (composite score)
-		intelligenceIndex: 18.0,
+		intelligenceIndex: 18,
 		normalizedScore: 26,
 
 		// AA specific benchmarks
@@ -1721,9 +1721,9 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 		// Metadata
 		lastUpdated: "2026-04-06",
 	},
-	"nova-2.0-omni-medium": {
+	"nova-2-omni-medium": {
 		// AA Intelligence Index (composite score)
-		intelligenceIndex: 28.0,
+		intelligenceIndex: 28,
 		normalizedScore: 40,
 
 		// AA specific benchmarks
@@ -1743,14 +1743,14 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 		// Metadata
 		lastUpdated: "2026-04-06",
 	},
-	"nova-2.0-pro-preview-medium": {
+	"nova-2-pro-preview-medium": {
 		// AA Intelligence Index (composite score)
 		intelligenceIndex: 35.7,
 		normalizedScore: 51,
 
 		// AA specific benchmarks
 		codingIndex: 30.4,
-		mathIndex: 89.0,
+		mathIndex: 89,
 
 		// Academic benchmarks
 		mmluPro: 0.83,
@@ -1765,14 +1765,14 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 		// Metadata
 		lastUpdated: "2026-04-06",
 	},
-	"nova-2.0-omni-low": {
+	"nova-2-omni-low": {
 		// AA Intelligence Index (composite score)
 		intelligenceIndex: 23.2,
 		normalizedScore: 33,
 
 		// AA specific benchmarks
 		codingIndex: 13.9,
-		mathIndex: 56.0,
+		mathIndex: 56,
 
 		// Academic benchmarks
 		mmluPro: 0.798,
@@ -1794,7 +1794,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 
 		// AA specific benchmarks
 		codingIndex: 11.2,
-		mathIndex: 18.0,
+		mathIndex: 18,
 
 		// Academic benchmarks
 		mmluPro: 0.714,
@@ -1811,7 +1811,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 	},
 	"phi-4-multimodal-instruct": {
 		// AA Intelligence Index (composite score)
-		intelligenceIndex: 10.0,
+		intelligenceIndex: 10,
 		normalizedScore: 14,
 
 		// AA specific benchmarks
@@ -1877,7 +1877,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 	},
 	"lfm2-8b-a1b": {
 		// AA Intelligence Index (composite score)
-		intelligenceIndex: 7.0,
+		intelligenceIndex: 7,
 		normalizedScore: 10,
 
 		// AA specific benchmarks
@@ -1899,7 +1899,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 	},
 	"lfm2.5-1.2b-instruct": {
 		// AA Intelligence Index (composite score)
-		intelligenceIndex: 8.0,
+		intelligenceIndex: 8,
 		normalizedScore: 11,
 
 		// AA specific benchmarks
@@ -1943,7 +1943,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 	},
 	"lfm2-2.6b": {
 		// AA Intelligence Index (composite score)
-		intelligenceIndex: 8.0,
+		intelligenceIndex: 8,
 		normalizedScore: 11,
 
 		// AA specific benchmarks
@@ -1969,7 +1969,7 @@ export const BENCHMARKS_CHUNK_0: Record<string, HardcodedBenchmark> = {
 		normalizedScore: 9,
 
 		// AA specific benchmarks
-		codingIndex: 1.0,
+		codingIndex: 1,
 		mathIndex: undefined,
 
 		// Academic benchmarks

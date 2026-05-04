@@ -11,7 +11,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import {
+export {
 	PROVIDER_CLINE,
 	PROVIDER_KILO,
 	PROVIDER_MODAL,
@@ -335,13 +335,3 @@ export function getConfig(): PiFreeConfig {
 }
 
 // =============================================================================
-// Re-export provider names for consistency
-// =============================================================================
-
-export {
-	PROVIDER_CLINE,
-	PROVIDER_KILO,
-	PROVIDER_MODAL,
-	PROVIDER_NVIDIA,
-	PROVIDER_QWEN,
-};

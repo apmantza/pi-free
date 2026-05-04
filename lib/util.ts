@@ -335,8 +335,8 @@ export function mapOpenRouterModel(m: {
 		output_modalities?: string[] | null;
 	};
 }): ProviderModelConfig {
-	const promptPrice = parseFloat(m.pricing?.prompt ?? "0");
-	const completionPrice = parseFloat(m.pricing?.completion ?? "0");
+	const promptPrice = Number.parseFloat(m.pricing?.prompt ?? "0");
+	const completionPrice = Number.parseFloat(m.pricing?.completion ?? "0");
 
 	return {
 		id: m.id,

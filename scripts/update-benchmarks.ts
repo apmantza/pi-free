@@ -9,7 +9,7 @@
  * imports and merges all chunks — this script does NOT overwrite it.
  */
 
-import { readdirSync, unlinkSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const API_KEY = process.env.ARTIFICIAL_ANALYSIS_API_KEY;
@@ -117,14 +117,6 @@ ${entries.join("\n")}
 function generateBenchmarksChunks(models: AAModel[]): void {
 	const today = new Date().toISOString().split("T")[0];
 
-	// Debug: log first model to see structure
-	if (models.length > 0) {
-		console.log(
-			"Sample model:",
-			JSON.stringify(models[0], null, 2).slice(0, 500),
-		);
-	}
-
 	// Filter to models with intelligence scores (allow 0, reject null/undefined)
 	const scoredModels = models.filter(
 		(m) => m.evaluations?.artificial_analysis_intelligence_index != null,
@@ -141,15 +133,18 @@ function generateBenchmarksChunks(models: AAModel[]): void {
 		const score = e.artificial_analysis_intelligence_index!;
 		const normalized = Math.round((score / 70) * 100);
 
-		// Helper to format optional number fields
+		// Helper to format optional number fields (strips trailing zeros to avoid S7748)
 		const fmt = (v: number | null | undefined): string => {
 			if (v === null || v === undefined) return "undefined";
-			return v.toFixed(3); // Keep 3 decimals for precision
+			// Strip trailing zeros after decimal point
+			const fixed = v.toFixed(3);
+			const trimmed = fixed.replace(/\.?0+$/, "");
+			return trimmed || "0";
 		};
 
 		return `	"${key}": {
 		// AA Intelligence Index (composite score)
-		intelligenceIndex: ${score.toFixed(1)},
+		intelligenceIndex: ${score.toFixed(1).replace(/\.?0+$/, "") || "0"},
 		normalizedScore: ${normalized},
 
 		// AA specific benchmarks
@@ -198,16 +193,17 @@ function generateBenchmarksChunks(models: AAModel[]): void {
 		);
 
 		const filename = `benchmarks-chunk-${chunkIndex}.ts`;
+		const entryCount: number = chunk.length;
 		writeFileSync(join(OUTPUT_DIR, filename), content, "utf-8");
 		console.log(
-			`  ✅ Wrote ${filename} (${chunk.length} models: ${firstModel} .. ${lastModel})`,
+			`  ✅ Wrote ${filename} (${entryCount} models: ${firstModel} .. ${lastModel})`,
 		);
 		chunkIndex++;
 	}
 
 	// Check if hardcoded-benchmarks.ts needs updating (new chunk count)
 	const mainFile = join(OUTPUT_DIR, "hardcoded-benchmarks.ts");
-	const mainContent = require("fs").readFileSync(mainFile, "utf-8");
+	const mainContent = readFileSync(mainFile, "utf-8");
 	const currentChunks = (mainContent.match(/BENCHMARKS_CHUNK_\d+/g) || [])
 		.length;
 	if (currentChunks !== chunkIndex) {
@@ -243,4 +239,8 @@ async function main() {
 	}
 }
 
-main();
+// Top-level await — SonarCloud S7785
+main().catch((err) => {
+	console.error("Fatal:", err);
+	process.exit(1);
+});

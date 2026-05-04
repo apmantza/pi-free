@@ -210,7 +210,7 @@ function shapeMessagesForCline(messages: any[]): any[] {
 // Extension entry point
 // =============================================================================
 
-export default async function (pi: ExtensionAPI) {
+export default async function clineProvider(pi: ExtensionAPI) {
 	let allModels = await fetchClineModels(false).catch((err) => {
 		logWarning("cline", "Failed to fetch models at startup", err);
 		return [];

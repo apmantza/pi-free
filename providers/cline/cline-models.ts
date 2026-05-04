@@ -43,8 +43,8 @@ function extractNameFromId(id: string): string {
  */
 function parsePricing(pricingStr: string | undefined): number {
 	if (!pricingStr || pricingStr === "0") return 0;
-	const parsed = parseFloat(pricingStr);
-	return isNaN(parsed) ? 0 : parsed * 1_000_000; // Convert to per-million
+	const parsed = Number.parseFloat(pricingStr);
+	return Number.isNaN(parsed) ? 0 : parsed * 1_000_000; // Convert to per-million
 }
 
 /**
