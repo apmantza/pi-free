@@ -31,6 +31,7 @@ interface PiFreeConfig {
 	mistral_api_key?: string;
 	llm7_api_key?: string;
 	deepinfra_api_key?: string;
+	sambanova_api_key?: string;
 	groq_api_key?: string;
 	cerebras_api_key?: string;
 	xai_api_key?: string;
@@ -46,6 +47,7 @@ interface PiFreeConfig {
 	codestral_show_paid?: boolean;
 	llm7_show_paid?: boolean;
 	deepinfra_show_paid?: boolean;
+	sambanova_show_paid?: boolean;
 	openrouter_show_paid?: boolean;
 	opencode_show_paid?: boolean;
 }
@@ -59,6 +61,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	mistral_api_key: "",
 	llm7_api_key: "",
 	deepinfra_api_key: "",
+	sambanova_api_key: "",
 	groq_api_key: "",
 	cerebras_api_key: "",
 	xai_api_key: "",
@@ -75,6 +78,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	codestral_show_paid: false,
 	llm7_show_paid: false,
 	deepinfra_show_paid: false,
+	sambanova_show_paid: false,
 	openrouter_show_paid: false,
 	opencode_show_paid: false,
 };
@@ -177,6 +181,13 @@ export function getDeepinfraShowPaid(): boolean {
 	);
 }
 
+export function getSambanovaShowPaid(): boolean {
+	return resolveBool(
+		"SAMBANOVA_SHOW_PAID",
+		loadConfigFile().sambanova_show_paid,
+	);
+}
+
 export function getOllamaShowPaid(): boolean {
 	return resolveBool("OLLAMA_SHOW_PAID", loadConfigFile().ollama_show_paid);
 }
@@ -230,6 +241,10 @@ export function getLlm7ApiKey(): string | undefined {
 
 export function getDeepinfraApiKey(): string | undefined {
 	return resolve("DEEPINFRA_TOKEN", loadConfigFile().deepinfra_api_key);
+}
+
+export function getSambanovaApiKey(): string | undefined {
+	return resolve("SAMBANOVA_API_KEY", loadConfigFile().sambanova_api_key);
 }
 
 export function getOllamaApiKey(): string | undefined {
