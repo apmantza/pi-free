@@ -11,11 +11,18 @@
  * - Ollama Cloud: Ollama's cloud-hosted models with usage-based free tier
  * - ZenMux: Unified AI API gateway with 200+ models
  * - Codestral: Mistral's code-focused model via codestral.mistral.ai (free tier)
+ * - DeepInfra: AI inference cloud ($5 trial credit)
+ * - SambaNova: Fast inference on RDU hardware (free tier, no credit card)
+ * - LLM7: AI gateway (free default/fast selectors)
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { setupBuiltInProviderToggles } from "./lib/built-in-toggle.ts";
 import { createLogger } from "./lib/logger.ts";
+import {
+	processQuotaResponse,
+	formatQuotaStatus,
+} from "./lib/quota-monitor.ts";
 import {
 	applyGlobalFilter,
 	getGlobalFreeOnly,
@@ -134,6 +141,39 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 }
 
 // =============================================================================
+// Quota Monitoring
+// =============================================================================
+
+function setupQuotaMonitoring(pi: ExtensionAPI) {
+	// Capture rate-limit headers from every provider response
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	(pi as any).on("after_provider_response", (event: { status: number; headers: Record<string, string> }, ctx: any) => {
+		const providerId = ctx.model?.provider;
+		if (!providerId) return;
+
+		processQuotaResponse(providerId, event.headers);
+
+		// Update status bar with quota for the active provider
+		const status = formatQuotaStatus(providerId);
+		if (status) {
+			ctx.ui.setStatus("quota", status);
+		}
+	});
+
+	// Clear quota status when switching away from a provider
+	pi.on("model_select", (_event, ctx) => {
+		const providerId = ctx.model?.provider;
+		if (!providerId) {
+			ctx.ui.setStatus("quota", undefined);
+			return;
+		}
+		// Show cached quota on provider switch (if still fresh)
+		const status = formatQuotaStatus(providerId);
+		ctx.ui.setStatus("quota", status);
+	});
+}
+
+// =============================================================================
 // Main Entry Point
 // =============================================================================
 
@@ -143,6 +183,9 @@ export default async function (pi: ExtensionAPI) {
 
 	// Setup global commands first
 	setupGlobalCommands(pi);
+
+	// Setup quota monitoring (passive, no extra API calls)
+	setupQuotaMonitoring(pi);
 
 	// Load all unique providers
 	// Each provider will register itself with the global toggle system
