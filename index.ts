@@ -10,6 +10,7 @@
  * - NVIDIA: NVIDIA NIM hosting (free tier available)
  * - Ollama Cloud: Ollama's cloud-hosted models with usage-based free tier
  * - ZenMux: Unified AI API gateway with 200+ models
+ * - Codestral: Mistral's code-focused model via codestral.mistral.ai (free tier)
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
@@ -24,6 +25,7 @@ import {
 } from "./lib/registry.ts";
 // Import unique provider extensions (only providers NOT built into pi)
 import cline from "./providers/cline/cline.ts";
+import codestral from "./providers/codestral/codestral.ts";
 import crofai from "./providers/crofai/crofai.ts";
 import kilo from "./providers/kilo/kilo.ts";
 import nvidia from "./providers/nvidia/nvidia.ts";
@@ -143,6 +145,7 @@ export default async function (pi: ExtensionAPI) {
 		cline(pi),
 		zenmux(pi),
 		crofai(pi),
+		codestral(pi),
 	]);
 
 	// Setup dynamic built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face)

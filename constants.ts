@@ -17,6 +17,7 @@ export const PROVIDER_QWEN = "qwen";
 export const PROVIDER_MODAL = "modal";
 export const PROVIDER_ZENMUX = "zenmux";
 export const PROVIDER_CROFAI = "crofai";
+export const PROVIDER_CODESTRAL = "codestral";
 
 export const ALL_UNIQUE_PROVIDERS = [
 	PROVIDER_KILO,
@@ -28,6 +29,7 @@ export const ALL_UNIQUE_PROVIDERS = [
 	PROVIDER_OLLAMA,
 	PROVIDER_ZENMUX,
 	PROVIDER_CROFAI,
+	PROVIDER_CODESTRAL,
 ] as const;
 
 // =============================================================================
@@ -44,6 +46,7 @@ export const BASE_URL_QWEN =
 	"https://dashscope.aliyuncs.com/compatible-mode/v1";
 export const BASE_URL_ZENMUX = "https://zenmux.ai/api/v1";
 export const BASE_URL_CROFAI = "https://crof.ai/v1";
+export const BASE_URL_CODESTRAL = "https://codestral.mistral.ai/v1";
 
 /** Cline fetches free models from OpenRouter */
 export const BASE_URL_OPENROUTER = "https://openrouter.ai/api/v1";
