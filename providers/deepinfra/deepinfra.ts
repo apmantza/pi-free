@@ -32,88 +32,14 @@ import type {
 import { getDeepinfraApiKey, getDeepinfraShowPaid } from "../../config.ts";
 import {
 	BASE_URL_DEEPINFRA,
-	DEFAULT_FETCH_TIMEOUT_MS,
 	PROVIDER_DEEPINFRA,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
-import {
-	getProxyModelCompat,
-	isLikelyReasoningModel,
-} from "../../lib/provider-compat.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
-import { fetchWithRetry } from "../../lib/util.ts";
+import { fetchOpenAICompatibleModels } from "../../lib/util.ts";
 import { createReRegister, setupProvider } from "../../provider-helper.ts";
 
 const _logger = createLogger("deepinfra");
-
-// =============================================================================
-// Fetch DeepInfra models
-// =============================================================================
-
-interface DeepinfraModel {
-	id: string;
-	object?: string;
-	created?: number;
-	owned_by?: string;
-}
-
-async function fetchDeepinfraModels(
-	apiKey: string,
-): Promise<ProviderModelConfig[]> {
-	_logger.info("[deepinfra] Fetching models from DeepInfra API...");
-
-	try {
-		const response = await fetchWithRetry(
-			`${BASE_URL_DEEPINFRA}/models`,
-			{
-				headers: {
-					Authorization: `Bearer ${apiKey}`,
-					"Content-Type": "application/json",
-				},
-			},
-			3,
-			1000,
-			DEFAULT_FETCH_TIMEOUT_MS,
-		);
-
-		if (!response.ok) {
-			throw new Error(`DeepInfra API error: ${response.status}`);
-		}
-
-		const data = (await response.json()) as {
-			data?: DeepinfraModel[];
-		};
-		const models = data.data ?? [];
-
-		_logger.info(`[deepinfra] Fetched ${models.length} models`);
-
-		return models
-			.filter((m) => m.id)
-			.map((m) => {
-				const name = m.id.split("/").pop() || m.id;
-				return {
-					id: m.id,
-					name,
-					reasoning: isLikelyReasoningModel({ id: m.id, name }),
-					input: ["text"],
-					cost: {
-						input: 0.3, // Default — real pricing varies per model
-						output: 0.9,
-						cacheRead: 0,
-						cacheWrite: 0,
-					},
-					contextWindow: 128_000, // Default, varies by model
-					maxTokens: 4_096,
-					compat: getProxyModelCompat({ id: m.id, name }),
-				} satisfies ProviderModelConfig;
-			});
-	} catch (error) {
-		_logger.error("[deepinfra] Failed to fetch models:", {
-			error: error instanceof Error ? error.message : String(error),
-		});
-		return [];
-	}
-}
 
 // =============================================================================
 // Extension Entry Point
@@ -129,8 +55,13 @@ export default async function deepinfraProvider(pi: ExtensionAPI) {
 		return;
 	}
 
-	// Fetch models
-	const allModels = await fetchDeepinfraModels(apiKey);
+	// Fetch models via shared OpenAI-compatible helper
+	const allModels = await fetchOpenAICompatibleModels(
+		"deepinfra",
+		BASE_URL_DEEPINFRA,
+		apiKey,
+		{ cost: { input: 0.3, output: 0.9 } },
+	);
 
 	if (allModels.length === 0) {
 		_logger.warn("[deepinfra] No models available");

@@ -15,93 +15,18 @@
  *   # Models appear in /model selector
  */
 
-import type {
-	ExtensionAPI,
-	ProviderModelConfig,
-} from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { getCrofaiApiKey, getCrofaiShowPaid } from "../../config.ts";
 import {
 	BASE_URL_CROFAI,
-	DEFAULT_FETCH_TIMEOUT_MS,
 	PROVIDER_CROFAI,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
-import {
-	getProxyModelCompat,
-	isLikelyReasoningModel,
-} from "../../lib/provider-compat.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
-import { fetchWithRetry } from "../../lib/util.ts";
+import { fetchOpenAICompatibleModels } from "../../lib/util.ts";
 import { createReRegister, setupProvider } from "../../provider-helper.ts";
 
 const _logger = createLogger("crofai");
-
-// =============================================================================
-// Fetch CrofAI models
-// =============================================================================
-
-interface CrofaiModel {
-	id: string;
-	object?: string;
-	created?: number;
-	owned_by?: string;
-}
-
-async function fetchCrofaiModels(
-	apiKey: string,
-): Promise<ProviderModelConfig[]> {
-	_logger.info("[crofai] Fetching models from CrofAI API...");
-
-	try {
-		const response = await fetchWithRetry(
-			`${BASE_URL_CROFAI}/models`,
-			{
-				headers: {
-					Authorization: `Bearer ${apiKey}`,
-					"Content-Type": "application/json",
-				},
-			},
-			3,
-			1000,
-			DEFAULT_FETCH_TIMEOUT_MS,
-		);
-
-		if (!response.ok) {
-			throw new Error(`CrofAI API error: ${response.status}`);
-		}
-
-		const data = (await response.json()) as { data?: CrofaiModel[] };
-		const models = data.data ?? [];
-
-		_logger.info(`[crofai] Fetched ${models.length} models`);
-
-		return models
-			.filter((m) => m.id) // Filter out any empty entries
-			.map((m) => {
-				const name = m.id.split("/").pop() || m.id;
-				return {
-					id: m.id,
-					name,
-					reasoning: isLikelyReasoningModel({ id: m.id, name }),
-					input: ["text"],
-					cost: {
-						input: 0, // CrofAI doesn't expose pricing via API
-						output: 0,
-						cacheRead: 0,
-						cacheWrite: 0,
-					},
-					contextWindow: 128000, // Default, varies by model
-					maxTokens: 4096,
-					compat: getProxyModelCompat({ id: m.id, name }),
-				} satisfies ProviderModelConfig;
-			});
-	} catch (error) {
-		_logger.error("[crofai] Failed to fetch models:", {
-			error: error instanceof Error ? error.message : String(error),
-		});
-		return [];
-	}
-}
 
 // =============================================================================
 // Extension Entry Point
@@ -117,8 +42,12 @@ export default async function crofaiProvider(pi: ExtensionAPI) {
 		return;
 	}
 
-	// Fetch models
-	const allModels = await fetchCrofaiModels(apiKey);
+	// Fetch models via shared OpenAI-compatible helper
+	const allModels = await fetchOpenAICompatibleModels(
+		"crofai",
+		BASE_URL_CROFAI,
+		apiKey,
+	);
 
 	if (allModels.length === 0) {
 		_logger.warn("[crofai] No models available");

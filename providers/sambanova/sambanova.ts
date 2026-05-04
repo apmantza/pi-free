@@ -27,95 +27,18 @@
  *   # Models appear in /model selector as "sambanova/Meta-Llama-3.3-70B-Instruct"
  */
 
-import type {
-	ExtensionAPI,
-	ProviderModelConfig,
-} from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { getSambanovaApiKey, getSambanovaShowPaid } from "../../config.ts";
 import {
 	BASE_URL_SAMBANOVA,
-	DEFAULT_FETCH_TIMEOUT_MS,
 	PROVIDER_SAMBANOVA,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
-import {
-	getProxyModelCompat,
-	isLikelyReasoningModel,
-} from "../../lib/provider-compat.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
-import { fetchWithRetry } from "../../lib/util.ts";
+import { fetchOpenAICompatibleModels } from "../../lib/util.ts";
 import { createReRegister, setupProvider } from "../../provider-helper.ts";
 
 const _logger = createLogger("sambanova");
-
-// =============================================================================
-// Fetch SambaNova models
-// =============================================================================
-
-interface SambanovaModel {
-	id: string;
-	object?: string;
-	created?: number;
-	owned_by?: string;
-}
-
-async function fetchSambanovaModels(
-	apiKey: string,
-): Promise<ProviderModelConfig[]> {
-	_logger.info("[sambanova] Fetching models from SambaNova API...");
-
-	try {
-		const response = await fetchWithRetry(
-			`${BASE_URL_SAMBANOVA}/models`,
-			{
-				headers: {
-					Authorization: `Bearer ${apiKey}`,
-					"Content-Type": "application/json",
-				},
-			},
-			3,
-			1000,
-			DEFAULT_FETCH_TIMEOUT_MS,
-		);
-
-		if (!response.ok) {
-			throw new Error(`SambaNova API error: ${response.status}`);
-		}
-
-		const data = (await response.json()) as {
-			data?: SambanovaModel[];
-		};
-		const models = data.data ?? [];
-
-		_logger.info(`[sambanova] Fetched ${models.length} models`);
-
-		return models
-			.filter((m) => m.id)
-			.map((m) => {
-				const name = m.id.split("/").pop() || m.id;
-				return {
-					id: m.id,
-					name,
-					reasoning: isLikelyReasoningModel({ id: m.id, name }),
-					input: ["text"],
-					cost: {
-						input: 0, // Free tier — no per-token pricing
-						output: 0,
-						cacheRead: 0,
-						cacheWrite: 0,
-					},
-					contextWindow: 128_000, // Default, varies by model
-					maxTokens: 8_192,
-					compat: getProxyModelCompat({ id: m.id, name }),
-				} satisfies ProviderModelConfig;
-			});
-	} catch (error) {
-		_logger.error("[sambanova] Failed to fetch models:", {
-			error: error instanceof Error ? error.message : String(error),
-		});
-		return [];
-	}
-}
 
 // =============================================================================
 // Extension Entry Point
@@ -131,8 +54,13 @@ export default async function sambanovaProvider(pi: ExtensionAPI) {
 		return;
 	}
 
-	// Fetch models
-	const allModels = await fetchSambanovaModels(apiKey);
+	// Fetch models via shared OpenAI-compatible helper
+	const allModels = await fetchOpenAICompatibleModels(
+		"sambanova",
+		BASE_URL_SAMBANOVA,
+		apiKey,
+		{ maxTokens: 8_192 },
+	);
 
 	if (allModels.length === 0) {
 		_logger.warn("[sambanova] No models available");

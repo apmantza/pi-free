@@ -1,4 +1,11 @@
 import { createLogger } from "./logger.ts";
+import {
+	getProxyModelCompat,
+	isLikelyReasoningModel,
+} from "./provider-compat.ts";
+import type {
+	ProviderModelConfig as PiProviderModelConfig,
+} from "@mariozechner/pi-coding-agent";
 import type { ProviderModelConfig } from "./types.ts";
 
 const _logger = createLogger("util");
@@ -348,4 +355,99 @@ export function mapOpenRouterModel(m: {
 		maxTokens:
 			m.max_completion_tokens ?? m.top_provider?.max_completion_tokens ?? 4096,
 	};
+}
+
+// =============================================================================
+// OpenAI-Compatible Provider Helpers
+// =============================================================================
+
+/**
+ * Defaults for mapping models from OpenAI-compatible /v1/models endpoints.
+ */
+export interface OpenAIModelDefaults {
+	/** Per-model cost defaults (set to 0 if provider is free-tier). */
+	cost?: { input: number; output: number };
+	/** Default context window (tokens). */
+	contextWindow?: number;
+	/** Default max output tokens. */
+	maxTokens?: number;
+	/** Default input modalities. */
+	input?: string[];
+}
+
+/**
+ * Generic model shape returned by OpenAI-compatible /v1/models endpoints.
+ */
+export interface OpenAIModelEntry {
+	id: string;
+	object?: string;
+	created?: number;
+	owned_by?: string;
+}
+
+/**
+ * Fetch and map models from an OpenAI-compatible /v1/models endpoint.
+ *
+ * Eliminates ~40 lines of duplicated fetch→parse→map boilerplate
+ * that was repeated in CrofAI, DeepInfra, and SambaNova providers.
+ */
+export async function fetchOpenAICompatibleModels(
+	providerId: string,
+	baseUrl: string,
+	apiKey: string,
+	defaults: OpenAIModelDefaults = {},
+): Promise<PiProviderModelConfig[]> {
+	const logger = createLogger(providerId);
+
+	logger.info(`[${providerId}] Fetching models...`);
+
+	try {
+		const response = await fetchWithRetry(
+			`${baseUrl}/models`,
+			{
+				headers: {
+					Authorization: `Bearer ${apiKey}`,
+					"Content-Type": "application/json",
+				},
+			},
+			3,
+			1000,
+			30000,
+		);
+
+		if (!response.ok) {
+			throw new Error(`${providerId} API error: ${response.status}`);
+		}
+
+		const data = (await response.json()) as { data?: OpenAIModelEntry[] };
+		const models = data.data ?? [];
+
+		logger.info(`[${providerId}] Fetched ${models.length} models`);
+
+		return models
+			.filter((m) => m.id)
+			.map((m): PiProviderModelConfig => {
+				const name = m.id.split("/").pop() || m.id;
+				return {
+					id: m.id,
+					name,
+					reasoning: isLikelyReasoningModel({ id: m.id, name }),
+					input: (defaults.input as PiProviderModelConfig["input"]) ?? ["text"],
+					cost: {
+						input: defaults.cost?.input ?? 0,
+						output: defaults.cost?.output ?? 0,
+						cacheRead: 0,
+						cacheWrite: 0,
+					},
+					contextWindow: defaults.contextWindow ?? 128_000,
+					maxTokens: defaults.maxTokens ?? 4_096,
+					compat: getProxyModelCompat({ id: m.id, name }),
+				};
+			});
+	} catch (error) {
+		logger.error(`[${providerId}] Failed to fetch models:`, {
+			error: error instanceof Error ? error.message : String(error),
+		});
+		return [];
+	}
 }
