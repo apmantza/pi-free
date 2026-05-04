@@ -3,8 +3,13 @@
  *
  * Codestral is Mistral AI's code-focused model. This provider registers it
  * through the Codestral-specific endpoint (codestral.mistral.ai) using
- * OpenAI-compatible chat completions — separate from the built-in "mistral"
- * provider which uses api.mistral.ai with the Mistral SDK.
+ * the Mistral SDK (api: "mistral-conversations") — separate from the built-in
+ * "mistral" provider which uses api.mistral.ai.
+ *
+ * NOTE: Do NOT use api: "openai-completions" here. Codestral's API is
+ * Mistral-format (camelCase fields, maxTokens, no stream_options/store).
+ * The OpenAI completions adapter sends OpenAI-specific fields that Mistral
+ * rejects with HTTP 422 "Extra inputs are not permitted".
  *
  * Free tier (Experiment plan):
  *   - 2 req/min, 500K tokens/min, 1B tokens/month
@@ -33,11 +38,7 @@ import { getCodestralApiKey, getMistralApiKey } from "../../config.ts";
 import { BASE_URL_CODESTRAL, PROVIDER_CODESTRAL } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
-import {
-	createReRegister,
-	enhanceWithCI,
-	setupProvider,
-} from "../../provider-helper.ts";
+import { enhanceWithCI, setupProvider } from "../../provider-helper.ts";
 
 const _logger = createLogger("codestral");
 
@@ -84,12 +85,17 @@ export default async function codestralProvider(pi: ExtensionAPI) {
 	const freeModels = allModels; // All $0.30/$0.90 — still accessible via Experiment free tier
 	const stored = { free: freeModels, all: allModels };
 
-	// Create re-register function
-	const reRegister = createReRegister(pi, {
-		providerId: PROVIDER_CODESTRAL,
-		baseUrl: BASE_URL_CODESTRAL,
-		apiKey,
-	});
+	// Re-register function — uses mistral-conversations API (Mistral SDK)
+	// NOT openai-completions: Codestral uses the same API format as Mistral
+	// and rejects OpenAI-specific fields (stream_options, store, max_completion_tokens) with 422.
+	const reRegister = (models: typeof freeModels) => {
+		pi.registerProvider(PROVIDER_CODESTRAL, {
+			baseUrl: BASE_URL_CODESTRAL,
+			apiKey,
+			api: "mistral-conversations" as const,
+			models: enhanceWithCI(models, PROVIDER_CODESTRAL),
+		});
+	};
 
 	// Register with global toggle
 	registerWithGlobalToggle(PROVIDER_CODESTRAL, stored, reRegister, true);
@@ -110,13 +116,8 @@ export default async function codestralProvider(pi: ExtensionAPI) {
 		stored,
 	);
 
-	// Initial registration
-	pi.registerProvider(PROVIDER_CODESTRAL, {
-		baseUrl: BASE_URL_CODESTRAL,
-		apiKey,
-		api: "openai-completions" as const,
-		models: enhanceWithCI(freeModels, PROVIDER_CODESTRAL),
-	});
+	// Initial registration — uses mistral-conversations API (Mistral SDK)
+	reRegister(freeModels);
 
 	_logger.info(`[codestral] Registered codestral-latest via ${keySource}`);
 
