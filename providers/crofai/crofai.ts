@@ -17,10 +17,7 @@
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { getCrofaiApiKey, getCrofaiShowPaid } from "../../config.ts";
-import {
-	BASE_URL_CROFAI,
-	PROVIDER_CROFAI,
-} from "../../constants.ts";
+import { BASE_URL_CROFAI, PROVIDER_CROFAI } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { fetchOpenAICompatibleModels } from "../../lib/util.ts";
@@ -94,6 +91,9 @@ export default async function crofaiProvider(pi: ExtensionAPI) {
 		stored,
 	);
 
-	// Initial registration
-	reRegister(freeModels);
+	// Initial registration — respect persisted toggle state
+	const showPaid = getCrofaiShowPaid();
+	const initialModels =
+		showPaid && stored.all.length > 0 ? stored.all : freeModels;
+	reRegister(initialModels);
 }

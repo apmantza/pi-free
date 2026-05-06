@@ -29,10 +29,7 @@
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { getSambanovaApiKey, getSambanovaShowPaid } from "../../config.ts";
-import {
-	BASE_URL_SAMBANOVA,
-	PROVIDER_SAMBANOVA,
-} from "../../constants.ts";
+import { BASE_URL_SAMBANOVA, PROVIDER_SAMBANOVA } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import { fetchOpenAICompatibleModels } from "../../lib/util.ts";
@@ -104,6 +101,9 @@ export default async function sambanovaProvider(pi: ExtensionAPI) {
 		stored,
 	);
 
-	// Initial registration — all models are free
-	reRegister(freeModels);
+	// Initial registration — respect persisted toggle state
+	const showPaid = getSambanovaShowPaid();
+	const initialModels =
+		showPaid && stored.all.length > 0 ? stored.all : freeModels;
+	reRegister(initialModels);
 }

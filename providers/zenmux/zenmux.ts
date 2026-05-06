@@ -171,6 +171,9 @@ export default async function zenmuxProvider(pi: ExtensionAPI) {
 		stored,
 	);
 
-	// Initial registration
-	reRegister(freeModels);
+	// Initial registration — respect persisted toggle state
+	const showPaid = getZenmuxShowPaid();
+	const initialModels =
+		showPaid && stored.all.length > 0 ? stored.all : freeModels;
+	reRegister(initialModels);
 }

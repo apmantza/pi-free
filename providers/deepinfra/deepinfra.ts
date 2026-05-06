@@ -30,10 +30,7 @@ import type {
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
 import { getDeepinfraApiKey, getDeepinfraShowPaid } from "../../config.ts";
-import {
-	BASE_URL_DEEPINFRA,
-	PROVIDER_DEEPINFRA,
-} from "../../constants.ts";
+import { BASE_URL_DEEPINFRA, PROVIDER_DEEPINFRA } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import { fetchOpenAICompatibleModels } from "../../lib/util.ts";
@@ -106,6 +103,9 @@ export default async function deepinfraProvider(pi: ExtensionAPI) {
 		stored,
 	);
 
-	// Initial registration — register as "all" (paid) since there are no free models
-	reRegister(allModels);
+	// Initial registration — respect persisted toggle state
+	// DeepInfra has no free models; when showPaid=false, shows nothing
+	const showPaid = getDeepinfraShowPaid();
+	const initialModels = showPaid ? allModels : freeModels;
+	reRegister(initialModels);
 }

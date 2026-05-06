@@ -148,6 +148,9 @@ export default async function llm7Provider(pi: ExtensionAPI) {
 		stored,
 	);
 
-	// Initial registration
-	reRegister(freeModels);
+	// Initial registration — respect persisted toggle state
+	const showPaid = getLlm7ShowPaid();
+	const initialModels =
+		showPaid && stored.all.length > 0 ? stored.all : freeModels;
+	reRegister(initialModels);
 }
