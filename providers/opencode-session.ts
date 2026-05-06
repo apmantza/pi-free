@@ -11,7 +11,7 @@ export function createOpenCodeSessionTracker() {
 	let requestCount = 0;
 
 	function generateId(): string {
-		return randomUUID().replace(/-/g, "");
+		return randomUUID().replaceAll("-", "");
 	}
 
 	function getSessionId(): string {

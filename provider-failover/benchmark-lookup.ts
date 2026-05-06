@@ -78,7 +78,7 @@ function logDebug(entry: {
 			entry.codingIndex !== undefined ? entry.codingIndex.toFixed(1) : "",
 			entry.details || "",
 		]
-			.map((f) => f.replace(/[\\|]/g, "\\$&")) // Escape backslashes and pipes
+			.map((f) => f.replaceAll(/[\\|]/g, "\\$&")) // Escape backslashes and pipes
 			.join("|");
 
 		appendFileSync(LOG_FILE, `${line}\n`);
@@ -117,82 +117,105 @@ export function clearMatchLog(): void {
 /**
  * Apply provider-specific ID normalization to handle naming conventions
  */
-function applyProviderNormalization(
-	modelId: string,
-	provider?: string,
-): { normalized: string; strategy: string } {
-	let normalized = modelId.toLowerCase();
-	const strategies: string[] = [];
+/** Normalize NVIDIA model IDs by stripping org prefixes like meta/, mistralai/ */
+function normalizeNvidia(ctx: {
+	normalized: string;
+	strategies: string[];
+}): void {
+	const prefixMatch = ctx.normalized.match(
+		/^(meta|mistralai|microsoft|qwen|nvidia|ibm|google|ai21labs|bigcode|databricks|deepseek-ai|01-ai|adept|aisingapore|baai|bytedance|luma|stabilityai|fireworks|upstage|voyage|snowflake|recursal|kdan|unity|cloudflare|fblgit|nttdata|dito|nousresearch|espressomodels|ftmsh|huggingface|isolationai|pinglab|functionnetwork|huggingfaceh4|mcw|shutterstock)[^/]*\//,
+	);
+	if (prefixMatch) {
+		ctx.normalized = ctx.normalized.replace(/^[^/]+\//, "");
+		ctx.strategies.push("strip-nvidia-prefix");
+	}
+}
 
-	// Provider-specific prefix stripping
-	if (provider === "nvidia") {
-		// NVIDIA uses prefixes like meta/, mistralai/, microsoft/, qwen/
-		const prefixMatch = normalized.match(
-			/^(meta|mistralai|microsoft|qwen|nvidia|ibm|google|ai21labs|bigcode|databricks|deepseek-ai|01-ai|adept|aisingapore|baai|bytedance|luma|stabilityai|fireworks|upstage|voyage|snowflake|recursal|kdan|unity|cloudflare|fblgit|nttdata|dito|nousresearch|espressomodels|ftmsh|huggingface|isolationai|pinglab|functionnetwork|huggingfaceh4|mcw|shutterstock)[^/]*\//,
+/** Normalize Cloudflare model IDs by stripping @cf/namespace/ prefix */
+function normalizeCloudflare(ctx: {
+	normalized: string;
+	strategies: string[];
+}): void {
+	if (ctx.normalized.startsWith("@cf/")) {
+		ctx.normalized = ctx.normalized.replace(/^@cf\/[^/]+\//, "");
+		ctx.strategies.push("strip-cf-namespace");
+	}
+}
+
+/** Strip OpenRouter's :free suffix from model IDs */
+function normalizeFreeSuffix(ctx: {
+	normalized: string;
+	strategies: string[];
+}): void {
+	if (ctx.normalized.includes(":free")) {
+		ctx.normalized = ctx.normalized.replaceAll(/:free$/, "");
+		ctx.strategies.push("strip-free-suffix");
+	}
+}
+
+/** Handle Ollama model:tag format by replacing colons with dashes */
+function normalizeOllama(ctx: {
+	normalized: string;
+	strategies: string[];
+}): void {
+	if (ctx.normalized.includes(":")) {
+		ctx.normalized = ctx.normalized.replace(/:/g, "-");
+		ctx.strategies.push("ollama-colon-to-dash");
+	}
+}
+
+/** Strip Groq-specific numeric suffixes (-32768) and -versatile */
+function normalizeGroq(ctx: {
+	normalized: string;
+	strategies: string[];
+}): void {
+	if (/-\d+$/.test(ctx.normalized)) {
+		ctx.normalized = ctx.normalized.replace(/-\d+$/, "");
+		ctx.strategies.push("strip-groq-numeric-suffix");
+	}
+	if (ctx.normalized.includes("-versatile")) {
+		ctx.normalized = ctx.normalized.replace(/-versatile$/, "");
+		ctx.strategies.push("strip-groq-versatile");
+	}
+}
+
+/** Normalize Cerebras llama format (llama3.1-8b -> llama-3.1-8b) and add -instruct */
+function normalizeCerebras(ctx: {
+	normalized: string;
+	strategies: string[];
+}): void {
+	if (/^llama\d/.test(ctx.normalized)) {
+		ctx.normalized = ctx.normalized.replace(/^llama(\d)/, "llama-$1");
+		ctx.strategies.push("cerebras-llama-dash");
+	}
+	if (
+		/^llama-[\d.]+-\d+b$/.test(ctx.normalized) &&
+		!ctx.normalized.includes("instruct")
+	) {
+		ctx.normalized = ctx.normalized.replace(
+			/^(llama-[\d.]+-\d+b)/,
+			"$1-instruct",
 		);
-		if (prefixMatch) {
-			normalized = normalized.replace(/^[^/]+\//, "");
-			strategies.push("strip-nvidia-prefix");
-		}
+		ctx.strategies.push("add-instruct-suffix");
 	}
+}
 
-	if (provider === "cloudflare") {
-		// Cloudflare uses @cf/namespace/model format
-		if (normalized.startsWith("@cf/")) {
-			normalized = normalized.replace(/^@cf\/[^/]+\//, "");
-			strategies.push("strip-cf-namespace");
-		}
+/** Strip Mistral's -latest suffix */
+function normalizeMistral(ctx: {
+	normalized: string;
+	strategies: string[];
+}): void {
+	if (ctx.normalized.includes("-latest")) {
+		ctx.normalized = ctx.normalized.replaceAll(/-latest$/, "");
+		ctx.strategies.push("strip-mistral-latest");
 	}
+}
 
-	// Provider-agnostic normalization
-	// Strip :free suffix (common in OpenRouter)
-	if (normalized.includes(":free")) {
-		normalized = normalized.replace(/:free$/, "");
-		strategies.push("strip-free-suffix");
-	}
-
-	// Handle Ollama format (model:tag)
-	if (provider === "ollama" && normalized.includes(":")) {
-		normalized = normalized.replace(/:/g, "-");
-		strategies.push("ollama-colon-to-dash");
-	}
-
-	// Handle Groq suffixes
-	if (provider === "groq") {
-		if (/-\d+$/.test(normalized)) {
-			// Strip numeric suffixes like -32768, -131072
-			normalized = normalized.replace(/-\d+$/, "");
-			strategies.push("strip-groq-numeric-suffix");
-		}
-		if (normalized.includes("-versatile")) {
-			normalized = normalized.replace(/-versatile$/, "");
-			strategies.push("strip-groq-versatile");
-		}
-	}
-
-	// Handle Cerebras format (llama3.1-8b -> llama-3.1-8b)
-	if (provider === "cerebras") {
-		if (/^llama\d/.test(normalized)) {
-			normalized = normalized.replace(/^llama(\d)/, "llama-$1");
-			strategies.push("cerebras-llama-dash");
-		}
-		// Add instruct if missing for llama models
-		if (
-			/^llama-[\d.]+-\d+b$/.test(normalized) &&
-			!normalized.includes("instruct")
-		) {
-			normalized = normalized.replace(/^(llama-[\d.]+-\d+b)/, "$1-instruct");
-			strategies.push("add-instruct-suffix");
-		}
-	}
-
-	// Handle Mistral -latest suffix
-	if (provider === "mistral" && normalized.includes("-latest")) {
-		normalized = normalized.replace(/-latest$/, "");
-		strategies.push("strip-mistral-latest");
-	}
-
-	// Strip common suffixes that aren't in benchmark keys
+/** Strip generic suffixes (dates, versions, preview, fp*) that aren't in benchmarks */
+function stripCommonSuffixes(ctx: {
+	normalized: string;
+	strategies: string[];
+}): void {
 	const suffixesToStrip = [
 		/-\d{8}$/, // Date suffixes like -20250514
 		/-v\d+(\.\d+)?$/, // Version suffixes like -v1.1
@@ -204,19 +227,37 @@ function applyProviderNormalization(
 		/-exp$/, // -exp (experimental)
 		/-instruct-0\.\d+$/, // HuggingFace revision tags
 	];
-
 	for (const pattern of suffixesToStrip) {
-		if (pattern.test(normalized)) {
-			normalized = normalized.replace(pattern, "");
-			strategies.push(
+		if (pattern.test(ctx.normalized)) {
+			ctx.normalized = ctx.normalized.replace(pattern, "");
+			ctx.strategies.push(
 				`strip-${pattern.source.replace(/[\\^$.*+?()[\]{}|]/g, "").slice(0, 10)}`,
 			);
 		}
 	}
+}
+
+function applyProviderNormalization(
+	modelId: string,
+	provider?: string,
+): { normalized: string; strategy: string } {
+	const ctx: { normalized: string; strategies: string[] } = {
+		normalized: modelId.toLowerCase(),
+		strategies: [],
+	};
+
+	if (provider === "nvidia") normalizeNvidia(ctx);
+	if (provider === "cloudflare") normalizeCloudflare(ctx);
+	normalizeFreeSuffix(ctx);
+	if (provider === "ollama") normalizeOllama(ctx);
+	if (provider === "groq") normalizeGroq(ctx);
+	if (provider === "cerebras") normalizeCerebras(ctx);
+	if (provider === "mistral") normalizeMistral(ctx);
+	stripCommonSuffixes(ctx);
 
 	return {
-		normalized,
-		strategy: strategies.join(","),
+		normalized: ctx.normalized,
+		strategy: ctx.strategies.join(","),
 	};
 }
 

@@ -88,7 +88,7 @@ async function fetchAIData(): Promise<AAModel[]> {
 
 function sanitizeString(s: string): string {
 	// Strip CRLF characters to prevent log injection (SonarCloud S1075)
-	return s.replace(/[\n\r]/g, "_");
+	return s.replaceAll(/[\n\r]/g, "_");
 }
 
 function normalizeModelName(name: string): string {

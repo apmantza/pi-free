@@ -3,9 +3,7 @@ import {
 	getProxyModelCompat,
 	isLikelyReasoningModel,
 } from "./provider-compat.ts";
-import type {
-	ProviderModelConfig as PiProviderModelConfig,
-} from "@mariozechner/pi-coding-agent";
+import type { ProviderModelConfig as PiProviderModelConfig } from "@mariozechner/pi-coding-agent";
 import type { ProviderModelConfig } from "./types.ts";
 
 const _logger = createLogger("util");
@@ -214,80 +212,89 @@ interface StandardSize {
  * Extract model size from a model ID without using regex.
  * Handles both MoE ("8x22b") and standard ("70b", "8b") formats.
  */
-function parseModelSize(modelId: string): MoeSize | StandardSize | null {
-	const lower = modelId.toLowerCase();
-
-	// MoE: digits "x" digits "b" (e.g., "8x22b", "a35b" is NOT MoE)
-	// Walk through each 'x' to find one preceded by a digit and followed by digits then 'b'
+/**
+ * Parse MoE (Mixture of Experts) model size like "8x22b".
+ */
+function parseMoeSize(lower: string): MoeSize | null {
 	let searchPos = 0;
 	while (true) {
 		const xIdx = lower.indexOf("x", searchPos);
 		if (xIdx <= 0) break;
 		const beforeChar = lower[xIdx - 1];
-		if (beforeChar >= "0" && beforeChar <= "9") {
-			const bIdx = lower.indexOf("b", xIdx + 1);
-			if (bIdx > xIdx + 1) {
-				// Walk backwards from x to find start of expert-count number
-				let countStart = xIdx - 1;
-				while (
-					countStart > 0 &&
-					lower[countStart - 1] >= "0" &&
-					lower[countStart - 1] <= "9"
-				) {
-					countStart--;
-				}
-				const experts = Number.parseInt(lower.slice(countStart, xIdx), 10);
-				const size = Number.parseFloat(lower.slice(xIdx + 1, bIdx));
-				if (
-					!Number.isNaN(experts) &&
-					!Number.isNaN(size) &&
-					experts > 0 &&
-					size > 0
-				) {
-					const afterB = lower.slice(bIdx + 1);
-					if (
-						afterB.length === 0 ||
-						((afterB[0] < "0" || afterB[0] > "9") && afterB[0] !== ".")
-					) {
-						return { type: "moe", experts, sizePerExpert: size };
-					}
-				}
+		if (!(beforeChar >= "0" && beforeChar <= "9")) {
+			searchPos = xIdx + 1;
+			continue;
+		}
+		const bIdx = lower.indexOf("b", xIdx + 1);
+		if (bIdx <= xIdx + 1) {
+			searchPos = xIdx + 1;
+			continue;
+		}
+		let countStart = xIdx - 1;
+		while (
+			countStart > 0 &&
+			lower[countStart - 1] >= "0" &&
+			lower[countStart - 1] <= "9"
+		) {
+			countStart--;
+		}
+		const experts = Number.parseInt(lower.slice(countStart, xIdx), 10);
+		const size = Number.parseFloat(lower.slice(xIdx + 1, bIdx));
+		if (
+			!Number.isNaN(experts) &&
+			!Number.isNaN(size) &&
+			experts > 0 &&
+			size > 0
+		) {
+			const afterB = lower.slice(bIdx + 1);
+			if (
+				afterB.length === 0 ||
+				((afterB[0] < "0" || afterB[0] > "9") && afterB[0] !== ".")
+			) {
+				return { type: "moe", experts, sizePerExpert: size };
 			}
 		}
 		searchPos = xIdx + 1;
 	}
-
-	// Standard: "digits" "b" not followed by digit/dot (e.g., "70b", "8b")
-	for (let i = 0; i < lower.length; i++) {
-		if (lower[i] === "b") {
-			const afterB = lower.slice(i + 1);
-			if (
-				afterB.length > 0 &&
-				((afterB[0] >= "0" && afterB[0] <= "9") || afterB[0] === ".")
-			) {
-				continue; // b followed by digit or dot — not our match
-			}
-			// Walk backwards to find start of number
-			let start = i;
-			while (
-				start > 0 &&
-				((lower[start - 1] >= "0" && lower[start - 1] <= "9") ||
-					lower[start - 1] === ".")
-			) {
-				start--;
-			}
-			if (start < i) {
-				const numStr = lower.slice(start, i);
-				const size = Number.parseFloat(numStr);
-				if (!Number.isNaN(size) && size > 0) {
-					return { type: "standard", size };
-				}
-			}
-			break;
-		}
-	}
-
 	return null;
+}
+
+/**
+ * Parse standard model size like "70b" or "8b".
+ */
+function parseStandardSize(lower: string): StandardSize | null {
+	for (let i = 0; i < lower.length; i++) {
+		if (lower[i] !== "b") continue;
+		const afterB = lower.slice(i + 1);
+		if (
+			afterB.length > 0 &&
+			((afterB[0] >= "0" && afterB[0] <= "9") || afterB[0] === ".")
+		) {
+			continue; // b followed by digit or dot — not our match
+		}
+		let start = i;
+		while (
+			start > 0 &&
+			((lower[start - 1] >= "0" && lower[start - 1] <= "9") ||
+				lower[start - 1] === ".")
+		) {
+			start--;
+		}
+		if (start < i) {
+			const numStr = lower.slice(start, i);
+			const size = Number.parseFloat(numStr);
+			if (!Number.isNaN(size) && size > 0) {
+				return { type: "standard", size };
+			}
+		}
+		break;
+	}
+	return null;
+}
+
+function parseModelSize(modelId: string): MoeSize | StandardSize | null {
+	const lower = modelId.toLowerCase();
+	return parseMoeSize(lower) ?? parseStandardSize(lower) ?? null;
 }
 
 // =============================================================================

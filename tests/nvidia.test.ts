@@ -11,28 +11,26 @@ let capturedToggleArgs: any = null;
 function parseModelSizeSimple(id: string): number | null {
 	const lower = id.toLowerCase();
 	for (let i = 0; i < lower.length; i++) {
-		if (lower[i] === "b") {
-			const afterB = lower.slice(i + 1);
-			if (
-				afterB.length > 0 &&
-				((afterB[0] >= "0" && afterB[0] <= "9") || afterB[0] === ".")
-			) {
-				continue;
-			}
-			let start = i;
-			while (
-				start > 0 &&
-				((lower[start - 1] >= "0" && lower[start - 1] <= "9") ||
-					lower[start - 1] === ".")
-			) {
-				start--;
-			}
-			if (start < i) {
-				const size = Number.parseFloat(lower.slice(start, i));
-				if (!Number.isNaN(size) && size > 0) return size;
-			}
-			break;
+		if (lower[i] !== "b") continue;
+		const afterB = lower.slice(i + 1);
+		if (
+			afterB.length > 0 &&
+			((afterB[0] >= "0" && afterB[0] <= "9") || afterB[0] === ".")
+		) {
+			continue;
 		}
+		let start = i;
+		while (
+			start > 0 &&
+			((lower[start - 1] >= "0" && lower[start - 1] <= "9") ||
+				lower[start - 1] === ".")
+		) {
+			start--;
+		}
+		if (start >= i) break;
+		const size = Number.parseFloat(lower.slice(start, i));
+		if (!Number.isNaN(size) && size > 0) return size;
+		break;
 	}
 	return null;
 }

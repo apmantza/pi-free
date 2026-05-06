@@ -70,7 +70,7 @@ function tryListenOnPort(server: http.Server, port: number): Promise<void> {
 function parseCallback(rawUrl: string, port: number): CallbackResult {
 	const parsed = new NodeURL(rawUrl, `http://127.0.0.1:${port}`);
 	const query = new URLSearchParams(
-		parsed.search.slice(1).replace(/\+/g, "%2B"),
+		parsed.search.slice(1).replaceAll("+", "%2B"),
 	);
 
 	const token =
