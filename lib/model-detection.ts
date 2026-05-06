@@ -206,6 +206,7 @@ export function normalizeModelName(name: string): string {
 	}
 
 	// CI score suffix — regex with disjoint char classes (linear)
+	// Anchored with $, matches at most once → .replace() is correct (S4144 N/A)
 	normalized = normalized.replace(/\(ci:\s*[\d.]+\)$/, "").trimEnd();
 	normalized = normalized.replace(/\[ci:\s*[\d.]+\]$/, "").trimEnd();
 

@@ -34,7 +34,11 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
-import { getCodestralApiKey, getMistralApiKey } from "../../config.ts";
+import {
+	getCodestralApiKey,
+	getCodestralShowPaid,
+	getMistralApiKey,
+} from "../../config.ts";
 import { BASE_URL_CODESTRAL, PROVIDER_CODESTRAL } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
@@ -105,7 +109,7 @@ export default async function codestralProvider(pi: ExtensionAPI) {
 		pi,
 		{
 			providerId: PROVIDER_CODESTRAL,
-			initialShowPaid: false,
+			initialShowPaid: getCodestralShowPaid(),
 			skipToggle: true, // Only one model, no toggle needed
 			reRegister: (models) => {
 				stored.free = models;

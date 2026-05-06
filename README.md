@@ -124,7 +124,6 @@ Add your API keys to this file:
 
 ```json
 {
-  "openrouter_api_key": "sk-or-v1-...",
   "nvidia_api_key": "nvapi-...",
   "ollama_api_key": "...",
   "mistral_api_key": "...",
@@ -148,6 +147,7 @@ See the [Providers That Need Authentication](#providers-that-need-authentication
 | Command              | What it does                                              |
 | -------------------- | --------------------------------------------------------- |
 | `/toggle-{provider}` | Switch between free-only and all models for that provider |
+| `/toggle-free`       | Toggle global free-only mode for ALL providers            |
 | `/free-providers`    | Show free/paid model counts for all providers             |
 | `/login kilo`        | Start OAuth flow for Kilo                                 |
 | `/login cline`       | Start OAuth flow for Cline                                |
@@ -207,7 +207,6 @@ Authentication is handled automatically:
 
 - **OAuth flows** — `/login kilo` and `/login cline` open your browser, wait for authorization, and complete automatically
 - **Multiple auth sources** — API keys read from `~/.pi/free.json`, environment variables, or standard Pi auth files (`~/.pi/agent/auth.json`)
-- **Smart fallbacks** — New env var names (e.g., `CF_API_TOKEN`) with legacy support (`CLOUDFLARE_API_TOKEN`)
 
 ---
 
@@ -280,15 +279,17 @@ Get a free API key at [openrouter.ai/keys](https://openrouter.ai/keys), then eit
 export OPENROUTER_API_KEY="sk-or-v1-..."
 ```
 
-**Option B: Config file** (`~/.pi/free.json`)
+**Option B: Pi's auth file** (`~/.pi/agent/auth.json`)
 
-```json
-{
-  "openrouter_api_key": "sk-or-v1-..."
-}
+OpenRouter reads its key from Pi's built-in auth storage. Set it via:
+
+```bash
+export OPENROUTER_API_KEY="sk-or-v1-..."
 ```
 
 Then use `/toggle-openrouter` to switch between free-only and all models.
+
+**Note:** `openrouter_api_key` in `~/.pi/free.json` is ignored. OpenRouter always reads from Pi's auth system to avoid stale keys.
 
 ### NVIDIA NIM (Free Credits System)
 
@@ -441,7 +442,7 @@ Each provider has toggle commands to switch between free and all models:
 | `/toggle-cerebras`    | Toggle between free/all Cerebras models (🔧 dynamic)     |
 | `/toggle-xai`         | Toggle between free/all xAI models (🔧 dynamic)          |
 | `/toggle-huggingface` | Toggle between free/all Hugging Face models (🔧 dynamic) |
-| `/toggle-codestral`   | Toggle Codestral (💳 paid)                              |
+| `/toggle-codestral`   | Toggle Codestral (💳 paid)                               |
 | `/toggle-deepinfra`   | Toggle DeepInfra (💳 trial credit)                       |
 | `/toggle-sambanova`   | Toggle SambaNova (🔄 freemium)                           |
 | `/toggle-llm7`        | Toggle LLM7 (✅ free gateway)                            |
@@ -483,10 +484,8 @@ Create `~/.pi/free.json` in your home directory:
 
 ```json
 {
-  "openrouter_api_key": "YOUR_OPENROUTER_KEY",
   "nvidia_api_key": "YOUR_NVIDIA_KEY",
   "mistral_api_key": "YOUR_MISTRAL_KEY",
-  "opencode_api_key": "YOUR_OPENCODE_KEY",
   "ollama_api_key": "YOUR_OLLAMA_KEY",
   "ollama_show_paid": true,
   "hidden_models": ["model-id-to-hide"]
@@ -496,8 +495,8 @@ Create `~/.pi/free.json` in your home directory:
 Or use environment variables (same names, uppercase):
 
 ```bash
-export OPENROUTER_API_KEY="..."
 export NVIDIA_API_KEY="..."
+export MISTRAL_API_KEY="..."
 ```
 
 ---
@@ -543,7 +542,7 @@ timestamp|provider|modelId|modelName|action|strategy|normalizedId|matchKey|codin
 ```
 2026-04-26T10:30:00Z|nvidia|meta/llama-3.1-405b-instruct|Llama 3.1 405B|match|provider-normalized:strip-nvidia-prefix|llama-3.1-405b-instruct|llama-3.1-instruct-405b|52.3|
 2026-04-26T10:30:01Z|groq|llama-3.1-70b-versatile|Llama 3.1 70B Versatile|match|strip-groq-versatile|llama-3.1-70b|llama-3.1-instruct-70b|48.5|
-2026-04-26T10:30:02Z|cloudflare|@cf/meta/llama-3.1-70b|Llama 3.1 70B|miss|all-strategies-failed|llama-3.1-70b|||
+2026-04-26T10:30:02Z|groq|mixtral-8x7b-instruct|Mixtral 8x7B|miss|all-strategies-failed|mixtral-8x7b-instruct|||
 ```
 
 **Common mismatch patterns:**

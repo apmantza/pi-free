@@ -103,9 +103,10 @@ export default async function deepinfraProvider(pi: ExtensionAPI) {
 		stored,
 	);
 
-	// Initial registration — respect persisted toggle state
-	// DeepInfra has no free models; when showPaid=false, shows nothing
+	// Initial registration — respect persisted toggle state.
+	// DeepInfra is a trial-credit provider: default to showing ALL models
+	// so new users see something useful immediately.
 	const showPaid = getDeepinfraShowPaid();
-	const initialModels = showPaid ? allModels : freeModels;
+	const initialModels = showPaid ? allModels : allModels;
 	reRegister(initialModels);
 }

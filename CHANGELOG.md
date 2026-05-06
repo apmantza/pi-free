@@ -73,7 +73,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Eliminates catastrophic backtracking risk.
 
 - **4x S4036 PATH variable security** —
-
   - `open-browser.ts`: Added `resolveExe()` helper that prefers known absolute
     paths (`/usr/bin/open`, `C:\Windows\System32\...\powershell.exe`) before
     falling back to PATH lookup
@@ -120,7 +119,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Consistent `isFreeModel` helper with Route A/B logic** — Created a unified helper for free model detection that automatically detects whether a provider exposes pricing:
-
   - **Route A (pricing-exposed)**: Model is free if `cost === 0` OR `"free"` in name (OR logic)
   - **Route B (non-pricing-exposed)**: Model is free only if `"free"` in name
   - Dynamic detection: If ALL models have cost === 0, assumes pricing not exposed → uses Route B
@@ -182,7 +180,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Model matching debug logging** — Added `~/.pi/modelmatch.log` to diagnose which models get Coding Index scores and which don't:
-
   - Logs every matching attempt with provider, model ID, normalization strategy, and result
   - CSV-like format: `timestamp|provider|modelId|modelName|action|strategy|normalizedId|matchKey|codingIndex|details`
   - Provider-specific normalizers for better matching:
@@ -197,7 +194,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Enhanced benchmark lookup** — `enhanceModelNameWithCodingIndex()` now accepts optional `provider` parameter for provider-aware normalization
 
 - **Static 404 model blocklist for NVIDIA** — Probed all 136 models from `integrate.api.nvidia.com/v1/models` and identified 57 that return 404 "Function not found" on `/v1/chat/completions`. These are now hard-filtered so they never appear in the model selector:
-
   - Covers discontinued models (`databricks/dbrx-instruct`, `meta/codellama-70b`, `meta/llama2-70b`, `ibm/granite-*`, etc.)
   - Covers embedding-only models listed as chat-capable (`nvidia/nv-embed-v1`, `nvidia/nv-embedqa-*`, `snowflake/arctic-embed-l`, etc.)
   - Covers stale API catalog entries (`mistralai/mistral-large`, `mistralai/mistral-large-2-instruct`, `writer/palmyra-*`, etc.)
@@ -208,7 +204,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`scripts/probe-nvidia.mjs`** — Standalone Node.js script to reproduce the probe. Reads `~/.pi/free.json` for the API key, batches 20 requests at a time with 10s timeout, and prints all broken model IDs for adding to the blocklist.
 
 - **Ollama Cloud 403 handling** — Same pattern as NVIDIA 404s for Ollama Cloud:
-
   - `OLLAMA_KNOWN_403_MODELS` blocklist for models that return 403 "access denied"
   - `/probe-ollama` command to test all models on-demand, auto-hide broken ones, and re-register
   - `scripts/probe-ollama.mjs` standalone script for blocklist maintenance
@@ -232,7 +227,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Cloudflare provider now fetches models dynamically** — Replaced static 19-model hardcoded list with live API fetch from `api.cloudflare.com/client/v4/accounts/{account_id}/ai/models`:
-
   - Automatically discovers all 30+ text generation models (was manually maintaining 19)
   - Smart filtering excludes embeddings, image generation, speech, translation, and vision-only models via regex patterns
   - Metadata inference from model IDs: detects vision (`vision`/`multimodal`), reasoning (`r1`/`thinking`/`qwq`), context windows, and estimated costs
@@ -260,7 +254,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **OpenRouter moved to built-in toggle system** — OpenRouter is now handled by `lib/built-in-toggle.ts` alongside OpenCode for a unified approach:
-
   - Removed from `providers/dynamic-built-in/index.ts`
   - Eliminated duplicate toggle command registration logic
   - Consolidated toggle persistence with other built-in providers
@@ -292,7 +285,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Breaking Changes
 
 - **Removed Fireworks provider** — Fireworks is now a built-in Pi provider (added in pi 0.68.1), so the extension's Fireworks provider has been removed to avoid conflicts:
-
   - Deleted `providers/fireworks/fireworks.ts` and `tests/fireworks.test.ts`
   - Removed all Fireworks configuration options from `config.ts` (`fireworks_api_key`, `fireworks_show_paid`)
   - Users should now use Pi's built-in Fireworks support with `FIREWORKS_API_KEY`
@@ -315,7 +307,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - **Removed paid model warning on selection** — Deleted the `model_select` event handler that showed:
-
   - `⚠️ Paid model selected (${model.id}). Use "/free off" to enable paid models.`
   - This warning was redundant since the global `/free` toggle and provider toggles already control model visibility
 
@@ -333,7 +324,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Cloudflare Workers AI provider** — New provider for Cloudflare's serverless GPU platform:
-
   - 50+ open-source models: Llama 4, Mistral Small 3.1, Qwen 2.5/3, DeepSeek R1, Gemma 4, Kimi K2.5/2.6, and more
   - **10,000 Neurons/day FREE tier** (resets daily at 00:00 UTC)
   - **$0.011 per 1,000 Neurons** beyond free allocation
@@ -342,7 +332,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Create token at https://dash.cloudflare.com/profile/api-tokens
 
 - **Unified dynamic built-in providers module** — New `providers/dynamic-built-in/` module that dynamically fetches models from Pi's built-in providers when users have API keys:
-
   - **Mistral** (`MISTRAL_API_KEY`) — Fetches from `api.mistral.ai/v1/models`
   - **Groq** (`GROQ_API_KEY`) — Fetches from `api.groq.com/openai/v1/models`
   - **Cerebras** (`CEREBRAS_API_KEY`) — Fetches from `api.cerebras.ai/v1/models`

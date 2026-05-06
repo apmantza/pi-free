@@ -126,7 +126,7 @@ function normalizeNvidia(ctx: {
 		/^(meta|mistralai|microsoft|qwen|nvidia|ibm|google|ai21labs|bigcode|databricks|deepseek-ai|01-ai|adept|aisingapore|baai|bytedance|luma|stabilityai|fireworks|upstage|voyage|snowflake|recursal|kdan|unity|cloudflare|fblgit|nttdata|dito|nousresearch|espressomodels|ftmsh|huggingface|isolationai|pinglab|functionnetwork|huggingfaceh4|mcw|shutterstock)[^/]*\//,
 	);
 	if (prefixMatch) {
-		ctx.normalized = ctx.normalized.replace(/^[^/]+\//, "");
+		ctx.normalized = ctx.normalized.replaceAll(/^[^/]+\//, "");
 		ctx.strategies.push("strip-nvidia-prefix");
 	}
 }
@@ -137,7 +137,7 @@ function normalizeCloudflare(ctx: {
 	strategies: string[];
 }): void {
 	if (ctx.normalized.startsWith("@cf/")) {
-		ctx.normalized = ctx.normalized.replace(/^@cf\/[^/]+\//, "");
+		ctx.normalized = ctx.normalized.replaceAll(/^@cf\/[^/]+\//, "");
 		ctx.strategies.push("strip-cf-namespace");
 	}
 }
@@ -159,7 +159,7 @@ function normalizeOllama(ctx: {
 	strategies: string[];
 }): void {
 	if (ctx.normalized.includes(":")) {
-		ctx.normalized = ctx.normalized.replace(/:/g, "-");
+		ctx.normalized = ctx.normalized.replaceAll(/:/g, "-");
 		ctx.strategies.push("ollama-colon-to-dash");
 	}
 }
@@ -170,11 +170,11 @@ function normalizeGroq(ctx: {
 	strategies: string[];
 }): void {
 	if (/-\d+$/.test(ctx.normalized)) {
-		ctx.normalized = ctx.normalized.replace(/-\d+$/, "");
+		ctx.normalized = ctx.normalized.replaceAll(/-\d+$/, "");
 		ctx.strategies.push("strip-groq-numeric-suffix");
 	}
 	if (ctx.normalized.includes("-versatile")) {
-		ctx.normalized = ctx.normalized.replace(/-versatile$/, "");
+		ctx.normalized = ctx.normalized.replaceAll(/-versatile$/, "");
 		ctx.strategies.push("strip-groq-versatile");
 	}
 }
@@ -185,14 +185,14 @@ function normalizeCerebras(ctx: {
 	strategies: string[];
 }): void {
 	if (/^llama\d/.test(ctx.normalized)) {
-		ctx.normalized = ctx.normalized.replace(/^llama(\d)/, "llama-$1");
+		ctx.normalized = ctx.normalized.replaceAll(/^llama(\d)/, "llama-$1");
 		ctx.strategies.push("cerebras-llama-dash");
 	}
 	if (
 		/^llama-[\d.]+-\d+b$/.test(ctx.normalized) &&
 		!ctx.normalized.includes("instruct")
 	) {
-		ctx.normalized = ctx.normalized.replace(
+		ctx.normalized = ctx.normalized.replaceAll(
 			/^(llama-[\d.]+-\d+b)/,
 			"$1-instruct",
 		);
@@ -229,7 +229,7 @@ function stripCommonSuffixes(ctx: {
 	];
 	for (const pattern of suffixesToStrip) {
 		if (pattern.test(ctx.normalized)) {
-			ctx.normalized = ctx.normalized.replace(pattern, "");
+			ctx.normalized = ctx.normalized.replaceAll(pattern, "");
 			ctx.strategies.push(
 				`strip-${pattern.source.replace(/[\\^$.*+?()[\]{}|]/g, "").slice(0, 10)}`,
 			);
@@ -336,14 +336,14 @@ function normalizeSizeTokenOrder(id: string): string {
 function extractBaseModelId(modelId: string): string {
 	return modelId
 		.toLowerCase()
-		.replace(/^.*\//, "") // Strip ALL path prefixes - keep only last segment
-		.replace(/:free$/, "") // Strip :free suffix
-		.replace(/-\d{8}$/, "") // Strip date suffixes like -20250514
-		.replace(/-v\d+(\.\d+)?$/, "") // Strip version suffixes like -v1.1
-		.replace(/-\d{3,}$/, "") // Strip numeric suffixes like -001, -2603
-		.replace(/-it$/, "") // Strip -it suffix (Gemma convention for "instruct")
-		.replace(/-fp\d+$/, "") // Strip -fp8, -fp16 suffixes
-		.replace(/-bf\d+$/, "") // Strip -bf16 suffixes
+		.replaceAll(/^.*\//, "") // Strip ALL path prefixes - keep only last segment
+		.replaceAll(/:free$/, "") // Strip :free suffix
+		.replaceAll(/-\d{8}$/, "") // Strip date suffixes like -20250514
+		.replaceAll(/-v\d+(\.\d+)?$/, "") // Strip version suffixes like -v1.1
+		.replaceAll(/-\d{3,}$/, "") // Strip numeric suffixes like -001, -2603
+		.replaceAll(/-it$/, "") // Strip -it suffix (Gemma convention for "instruct")
+		.replaceAll(/-fp\d+$/, "") // Strip -fp8, -fp16 suffixes
+		.replaceAll(/-bf\d+$/, "") // Strip -bf16 suffixes
 		.trim();
 }
 
