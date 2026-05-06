@@ -33,6 +33,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   adapter was sending unrecognized fields (`stream_options`, `store`,
   `max_completion_tokens`) that Mistral's API rejects with 422.
 
+### Fixed
+
+- **Toggle commands persist across sessions for all providers** — Providers using
+  `setupProvider` (zenmux, crofai, llm7, sambanova, deepinfra) were always
+  registering `freeModels` on startup, ignoring the persisted `show_paid` config.
+  Now each provider reads its config getter and registers the correct initial
+  model set. Fixes #149.
+
+### Security
+
+- **Log injection prevention** — `scripts/update-benchmarks.ts` sanitizes external
+  API data (CRLF stripping) before logging. Fixes SonarCloud S1075.
+
+### Reliability
+
+- **Prefer `String#replaceAll()` over `String#replace()`** — Replaced all 7 flagged
+  instances. Where regex is unnecessary (2/7), switched to string literal form.
+  Fixes SonarCloud S4144.
+
+### Added
+
+- **`agents.md`** — Codebase guide for AI agents covering architecture, patterns,
+  conventions, testing, and the Pi extension API.
+
 ### Refactored
 
 - **Extracted shared model-fetch helper** — `fetchOpenAICompatibleModels()`
