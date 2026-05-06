@@ -86,7 +86,13 @@ async function fetchAIData(): Promise<AAModel[]> {
 	return models;
 }
 
+function sanitizeString(s: string): string {
+	// Strip CRLF characters to prevent log injection (SonarCloud S1075)
+	return s.replace(/[\n\r]/g, "_");
+}
+
 function normalizeModelName(name: string): string {
+	name = sanitizeString(name);
 	name = name.toLowerCase().replace(/[^-a-z0-9.]+/g, "-");
 	// Strip leading/trailing dashes (no regex — avoids backtracking flags)
 	while (name.startsWith("-")) name = name.slice(1);
@@ -232,13 +238,17 @@ async function main() {
 		console.log("  4. Commit and push");
 		console.log("  5. Create PR if this was an automated update");
 	} catch (error) {
-		console.error("\n❌ Error:", error);
+		const message =
+			error instanceof Error ? error.message : "An unknown error occurred";
+		console.error("\n❌ Error:", message);
 		process.exit(1);
 	}
 }
 
 // Top-level await — SonarCloud S7785
-main().catch((err) => {
-	console.error("Fatal:", err);
+main().catch((err: unknown) => {
+	const message =
+		err instanceof Error ? err.message : "An unknown error occurred";
+	console.error("Fatal:", message);
 	process.exit(1);
 });
