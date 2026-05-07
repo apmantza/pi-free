@@ -15,7 +15,7 @@
  *   # Models appear in /model selector
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getCrofaiApiKey, getCrofaiShowPaid } from "../../config.ts";
 import { BASE_URL_CROFAI, PROVIDER_CROFAI } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";

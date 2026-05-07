@@ -4,7 +4,7 @@
  * Used for failover when providers hit rate limits.
  */
 
-import type { Model } from "@mariozechner/pi-ai";
+import type { Model } from "@earendil-works/pi-ai";
 import type { ProviderModelConfig } from "./types.ts";
 
 export interface ModelInfo {

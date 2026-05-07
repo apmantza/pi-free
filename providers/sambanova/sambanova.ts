@@ -27,7 +27,7 @@
  *   # Models appear in /model selector as "sambanova/Meta-Llama-3.3-70B-Instruct"
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getSambanovaApiKey, getSambanovaShowPaid } from "../../config.ts";
 import { BASE_URL_SAMBANOVA, PROVIDER_SAMBANOVA } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";

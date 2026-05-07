@@ -16,7 +16,7 @@
  * - LLM7: AI gateway (free default/fast selectors)
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { setupBuiltInProviderToggles } from "./lib/built-in-toggle.ts";
 import { createLogger } from "./lib/logger.ts";
 import {

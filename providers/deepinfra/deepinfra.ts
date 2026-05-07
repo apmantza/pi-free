@@ -28,7 +28,7 @@
 import type {
 	ExtensionAPI,
 	ProviderModelConfig,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import { getDeepinfraApiKey } from "../../config.ts";
 import { BASE_URL_DEEPINFRA, PROVIDER_DEEPINFRA } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";

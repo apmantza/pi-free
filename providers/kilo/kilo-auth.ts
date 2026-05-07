@@ -5,7 +5,7 @@
 import type {
 	OAuthCredentials,
 	OAuthLoginCallbacks,
-} from "@mariozechner/pi-ai";
+} from "@earendil-works/pi-ai";
 import {
 	KILO_POLL_INTERVAL_MS,
 	KILO_TOKEN_EXPIRATION_MS,

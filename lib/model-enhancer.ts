@@ -3,7 +3,7 @@
  * Adds Coding Index scores to model names for display in /model
  */
 
-import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
+import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { enhanceModelNameWithCodingIndex } from "../provider-failover/benchmark-lookup.ts";
 
 /**

@@ -16,7 +16,7 @@ import crypto from "node:crypto";
 import type {
 	OAuthCredentials,
 	OAuthLoginCallbacks,
-} from "@mariozechner/pi-ai";
+} from "@earendil-works/pi-ai";
 import { createLogger } from "../../lib/logger.ts";
 import { openBrowser } from "../../lib/open-browser.ts";
 

@@ -6,7 +6,7 @@
  * - Route B (non-pricing-exposed): Name-based only, no cost fallback
  */
 
-import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
+import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 import { isFreeModel } from "../lib/registry.ts";
 

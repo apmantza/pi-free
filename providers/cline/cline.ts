@@ -14,8 +14,8 @@
  *   # Models appear immediately; run /login cline to start chatting
  */
 
-import type { OAuthCredentials } from "@mariozechner/pi-ai";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { OAuthCredentials } from "@earendil-works/pi-ai";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getClineShowPaid } from "../../config.ts";
 import { BASE_URL_CLINE, PROVIDER_CLINE } from "../../constants.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";

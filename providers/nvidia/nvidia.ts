@@ -16,7 +16,7 @@
 import type {
 	ExtensionAPI,
 	ProviderModelConfig,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import {
 	applyHidden,
 	getNvidiaApiKey,

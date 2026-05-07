@@ -19,7 +19,7 @@
 import type {
 	ExtensionAPI,
 	ProviderModelConfig,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import { getZenmuxApiKey, getZenmuxShowPaid } from "../../config.ts";
 import {
 	BASE_URL_ZENMUX,

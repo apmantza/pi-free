@@ -35,7 +35,7 @@
 import type {
 	ExtensionAPI,
 	ProviderModelConfig,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import { getLlm7ApiKey, getLlm7ShowPaid } from "../../config.ts";
 import { BASE_URL_LLM7, PROVIDER_LLM7 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";

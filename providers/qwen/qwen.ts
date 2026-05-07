@@ -10,8 +10,8 @@
  * 1,000 free API calls/day — run /login qwen to authenticate.~~
  */
 
-import type { Api, Model, OAuthCredentials } from "@mariozechner/pi-ai";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { Api, Model, OAuthCredentials } from "@earendil-works/pi-ai";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { PROVIDER_QWEN, URL_QWEN_TOS } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { logWarning } from "../../lib/util.ts";

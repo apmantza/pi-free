@@ -3,7 +3,7 @@ import {
 	getProxyModelCompat,
 	isLikelyReasoningModel,
 } from "./provider-compat.ts";
-import type { ProviderModelConfig as PiProviderModelConfig } from "@mariozechner/pi-coding-agent";
+import type { ProviderModelConfig as PiProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import type { ProviderModelConfig } from "./types.ts";
 
 const _logger = createLogger("util");

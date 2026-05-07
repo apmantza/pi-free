@@ -11,11 +11,11 @@
  * Usage: /toggle-opencode
  */
 
-import type { Api, Model } from "@mariozechner/pi-ai";
+import type { Api, Model } from "@earendil-works/pi-ai";
 import type {
 	ExtensionAPI,
 	ProviderModelConfig,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import { getOpencodeShowPaid, getOpenrouterShowPaid } from "../config.ts";
 import { createLogger } from "./logger.ts";
 import { isFreeModel, registerWithGlobalToggle } from "./registry.ts";

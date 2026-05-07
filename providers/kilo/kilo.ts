@@ -12,11 +12,11 @@
  *   # Free models visible immediately; /login kilo for paid access
  */
 
-import type { Api, Model, OAuthCredentials } from "@mariozechner/pi-ai";
+import type { Api, Model, OAuthCredentials } from "@earendil-works/pi-ai";
 import type {
 	ExtensionAPI,
 	ProviderModelConfig,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import {
 	getKiloFreeOnly,
 	getKiloShowPaid,

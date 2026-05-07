@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Package scope migration** — Updated all peer dependency imports from `@mariozechner/*` to `@earendil-works/*` (`pi-ai`, `pi-coding-agent`, `pi-tui`) to match the upstream scope rename in `@earendil-works/pi` v0.74.0.
+
 ## [2.0.8] - 2026-05-07
 
 ### Added

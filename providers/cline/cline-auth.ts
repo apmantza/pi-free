@@ -14,7 +14,7 @@ import { URL as NodeURL } from "node:url";
 import type {
 	OAuthCredentials,
 	OAuthLoginCallbacks,
-} from "@mariozechner/pi-ai";
+} from "@earendil-works/pi-ai";
 import { BASE_URL_CLINE, CLINE_AUTH_TIMEOUT_MS } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 
