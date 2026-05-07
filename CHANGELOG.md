@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.8] - 2026-05-07
+
 ### Added
 
 - **Codestral provider** — Mistral's code-focused model via codestral.mistral.ai.
@@ -56,6 +58,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`agents.md`** — Codebase guide for AI agents covering architecture, patterns,
   conventions, testing, and the Pi extension API.
+
+### Added
+
+- **Passive quota monitoring** — Extracts rate-limit headers from every
+  provider response via `after_provider_response` event (no extra API calls).
+  Tries 6 header format variants (`x-ratelimit-remaining`,
+  `ratelimit-remaining-requests-day`, etc.). Shows remaining quota in the
+  status bar with warning icons when ≤25% or ≤10%. Fixes #147.
+
+### Fixed
+
+- **Missing `g` flag on `replaceAll` regexps broke model filtering** —
+  `String.prototype.replaceAll()` requires a global RegExp; 20+ patterns in
+  `benchmark-lookup.ts` were missing it, causing a `TypeError` that prevented
+  models from appearing for providers like cline and kilo. Added `/g` flag to
+  all affected patterns. Fixes #151.
+
+### Changed
+
+- **Resolved ~280 SonarCloud issues across 21 files** — Bulk code-quality
+  cleanup including: stripping trailing zeros from `toFixed()` (S7748),
+  `global` → `globalThis` (S7764), `parseFloat` → `Number.parseFloat` (S7773),
+  naming unnamed async exports (S7726), `String.raw` for path strings (S7780),
+  top-level await over promise chains (S7785), re-export from source (S7763),
+  `.at(-1)` over `[length-1]` (S7755), `node:fs` protocol imports (S7772),
+  and logging user-controlled data sanitization (S5145). Fixes #148.
+
+### Security
+
+- **Bump `basic-ftp` 5.3.0 → 5.3.1** — Patches GHSA-rpmf-866q-6p89 (high
+  severity): malicious FTP server could cause client-side DoS via unbounded
+  multiline control response buffering. Fixes `npm audit` finding.
 
 ### Refactored
 
