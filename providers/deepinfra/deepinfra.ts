@@ -29,7 +29,7 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@mariozechner/pi-coding-agent";
-import { getDeepinfraApiKey, getDeepinfraShowPaid } from "../../config.ts";
+import { getDeepinfraApiKey } from "../../config.ts";
 import { BASE_URL_DEEPINFRA, PROVIDER_DEEPINFRA } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
@@ -90,7 +90,7 @@ export default async function deepinfraProvider(pi: ExtensionAPI) {
 		pi,
 		{
 			providerId: PROVIDER_DEEPINFRA,
-			initialShowPaid: getDeepinfraShowPaid(),
+			initialShowPaid: true, // trial credit: default to showing all models
 			tosUrl: "https://deepinfra.com/pricing",
 			reRegister: (models, _stored) => {
 				if (_stored) {
@@ -103,10 +103,7 @@ export default async function deepinfraProvider(pi: ExtensionAPI) {
 		stored,
 	);
 
-	// Initial registration — respect persisted toggle state.
-	// DeepInfra is a trial-credit provider: default to showing ALL models
-	// so new users see something useful immediately.
-	const showPaid = getDeepinfraShowPaid();
-	const initialModels = showPaid ? allModels : allModels;
-	reRegister(initialModels);
+	// Initial registration — DeepInfra is a trial-credit provider,
+	// so always show all models. Users see them immediately on setup.
+	reRegister(allModels);
 }
