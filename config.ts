@@ -28,15 +28,10 @@ interface PiFreeConfig {
 	zenmux_api_key?: string;
 	crofai_api_key?: string;
 	codestral_api_key?: string;
-	mistral_api_key?: string;
 	llm7_api_key?: string;
 	deepinfra_api_key?: string;
 	sambanova_api_key?: string;
 	together_api_key?: string;
-	groq_api_key?: string;
-	cerebras_api_key?: string;
-	xai_api_key?: string;
-	hf_token?: string;
 	kilo_free_only?: boolean;
 	hidden_models?: string[];
 	free_only?: boolean;
@@ -60,15 +55,10 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	zenmux_api_key: "",
 	crofai_api_key: "",
 	codestral_api_key: "",
-	mistral_api_key: "",
 	llm7_api_key: "",
 	deepinfra_api_key: "",
 	sambanova_api_key: "",
 	together_api_key: "",
-	groq_api_key: "",
-	cerebras_api_key: "",
-	xai_api_key: "",
-	hf_token: "",
 
 	kilo_free_only: false,
 	hidden_models: [],
@@ -94,9 +84,21 @@ function ensureConfigFile(): void {
 	try {
 		mkdirSync(PI_DIR, { recursive: true });
 		if (existsSync(CONFIG_PATH)) {
-			const existing = JSON.parse(
-				readFileSync(CONFIG_PATH, "utf8"),
-			) as PiFreeConfig;
+			let existing: PiFreeConfig;
+			try {
+				existing = JSON.parse(
+					readFileSync(CONFIG_PATH, "utf8"),
+				) as PiFreeConfig;
+			} catch (_parseErr) {
+				// File exists but is corrupt — DO NOT overwrite it.
+				// The user needs to fix or delete it manually.
+				_logger.error(
+					"Config file exists but is corrupt — refusing to overwrite. Fix or delete ~/.pi/free.json.",
+					{ path: CONFIG_PATH },
+				);
+				return;
+			}
+			// Merge with template to add any missing keys, preserving existing values
 			const merged = { ...CONFIG_TEMPLATE, ...existing };
 			if (JSON.stringify(merged) !== JSON.stringify(existing)) {
 				writeFileSync(
@@ -124,11 +126,23 @@ export function loadConfigFile(): PiFreeConfig {
 	try {
 		return JSON.parse(readFileSync(CONFIG_PATH, "utf8")) as PiFreeConfig;
 	} catch (err) {
-		_logger.warn("Could not parse config file — returning empty config", {
+		_logger.error("Could not parse config file — returning empty config", {
 			path: CONFIG_PATH,
 			error: err instanceof Error ? err.message : String(err),
 		});
 		return {};
+	}
+}
+
+/**
+ * Read the raw config file content without merging with template.
+ * Returns the file content as string, or undefined if unreadable.
+ */
+function readRawConfigFile(): string | undefined {
+	try {
+		return readFileSync(CONFIG_PATH, "utf8");
+	} catch {
+		return undefined;
 	}
 }
 
@@ -263,24 +277,29 @@ export function getOllamaApiKey(): string | undefined {
 	return resolve("OLLAMA_API_KEY", loadConfigFile().ollama_api_key);
 }
 
+/** Mistral is pi's built-in provider — key comes from env var only. */
 export function getMistralApiKey(): string | undefined {
-	return resolve("MISTRAL_API_KEY", loadConfigFile().mistral_api_key);
+	return process.env.MISTRAL_API_KEY;
 }
 
+/** Groq is pi's built-in provider — key comes from env var only. */
 export function getGroqApiKey(): string | undefined {
-	return resolve("GROQ_API_KEY", loadConfigFile().groq_api_key);
+	return process.env.GROQ_API_KEY;
 }
 
+/** Cerebras is pi's built-in provider — key comes from env var only. */
 export function getCerebrasApiKey(): string | undefined {
-	return resolve("CEREBRAS_API_KEY", loadConfigFile().cerebras_api_key);
+	return process.env.CEREBRAS_API_KEY;
 }
 
+/** xAI is pi's built-in provider — key comes from env var only. */
 export function getXaiApiKey(): string | undefined {
-	return resolve("XAI_API_KEY", loadConfigFile().xai_api_key);
+	return process.env.XAI_API_KEY;
 }
 
+/** HuggingFace is pi's built-in provider — token comes from env var only. */
 export function getHfToken(): string | undefined {
-	return resolve("HF_TOKEN", loadConfigFile().hf_token);
+	return process.env.HF_TOKEN;
 }
 
 /**
@@ -327,7 +346,42 @@ export function applyHidden<T extends { id: string }>(
 
 export function saveConfig(updates: Partial<PiFreeConfig>): void {
 	try {
-		const existing = loadConfigFile();
+		// Read the raw file content — never use loadConfigFile() here because
+		// if the file is unparseable, loadConfigFile() returns {} which would
+		// cause us to write a partial config and WIPE all existing keys.
+		const raw = readRawConfigFile();
+		if (raw === undefined) {
+			// File doesn't exist or can't be read — start from template
+			const merged = { ...CONFIG_TEMPLATE, ...updates };
+			writeFileSync(
+				CONFIG_PATH,
+				`${JSON.stringify(merged, null, 2)}\n`,
+				"utf8",
+			);
+			_logger.info("Config saved (new file)", {
+				path: CONFIG_PATH,
+				keys: Object.keys(updates),
+			});
+			return;
+		}
+
+		let existing: PiFreeConfig;
+		try {
+			existing = JSON.parse(raw) as PiFreeConfig;
+		} catch (parseErr) {
+			// File exists but is corrupt. REFUSE to overwrite it with a partial
+			// config — that would permanently destroy the user's keys.
+			_logger.error(
+				"REFUSING to save config — existing file is corrupt. Fix or delete ~/.pi/free.json manually.",
+				{
+					path: CONFIG_PATH,
+					error:
+						parseErr instanceof Error ? parseErr.message : String(parseErr),
+				},
+			);
+			return;
+		}
+
 		const merged = { ...existing, ...updates };
 		writeFileSync(CONFIG_PATH, `${JSON.stringify(merged, null, 2)}\n`, "utf8");
 		_logger.info("Config saved", {
