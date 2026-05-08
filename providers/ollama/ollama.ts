@@ -248,29 +248,63 @@ function getContextLength(modelInfo: Record<string, unknown>): number {
 	return 128000; // fallback
 }
 
+/**
+ * Build a human-readable display name from model ID and details.
+ * Enriches with parameter size and quantization when available.
+ */
+function buildModelName(
+	id: string,
+	details: OllamaShowResponse["details"],
+): string {
+	// Convert dashes/colons to spaces for readability
+	const base = id.replace(/[:-]/g, " ");
+	const parts: string[] = [base];
+
+	const params = details?.parameter_size;
+	const quant = details?.quantization_level;
+
+	if (params && quant) {
+		parts.push(`(${params}, ${quant})`);
+	} else if (params) {
+		parts.push(`(${params})`);
+	}
+
+	return parts.join(" ");
+}
+
 function assembleModels(
 	raw: Record<string, OllamaShowResponse>,
 ): ProviderModelConfig[] {
 	return Object.entries(raw)
 		.filter(([, data]) => data.capabilities?.includes("tools"))
-		.map(([id, data]) => ({
-			id,
-			name: id,
-			reasoning: data.capabilities?.includes("thinking") ?? false,
-			thinkingLevelMap: resolveThinkingMap(id, data.capabilities ?? []),
-			input: (data.capabilities?.includes("vision")
-				? ["text", "image"]
-				: ["text"]) as ("text" | "image")[],
-			cost: {
-				input: 0,
-				output: 0,
-				cacheRead: 0,
-				cacheWrite: 0,
-			},
-			contextWindow: getContextLength(data.model_info ?? {}),
-			maxTokens: 32768,
-			compat: { supportsDeveloperRole: false },
-		}));
+		.map(([id, data]) => {
+			const reasoning = data.capabilities?.includes("thinking") ?? false;
+			const thinkingMap = resolveThinkingMap(id, data.capabilities ?? []);
+
+			return {
+				id,
+				name: buildModelName(id, data.details),
+				reasoning,
+				thinkingLevelMap: thinkingMap,
+				input: (data.capabilities?.includes("vision")
+					? ["text", "image"]
+					: ["text"]) as ("text" | "image")[],
+				cost: {
+					input: 0,
+					output: 0,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				contextWindow: getContextLength(data.model_info ?? {}),
+				maxTokens: 32768,
+				compat: {
+					supportsDeveloperRole: false,
+					// When we provide a thinkingLevelMap, tell Pi not to use its own
+					// reasoning_effort logic — we handle it ourselves.
+					supportsReasoningEffort: thinkingMap != null,
+				},
+			};
+		});
 }
 
 // =============================================================================
