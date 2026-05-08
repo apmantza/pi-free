@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.10] - 2026-05-08
+
+### Fixed
+
+- **Config wipe on JSON parse failure** — `saveConfig` used `loadConfigFile()` which returns `{}` on any parse error, causing `{ ...{}, ...updates }` to write a partial config that permanently destroyed all API keys. Now reads the raw file directly and refuses to save if corrupt. `ensureConfigFile` also refuses to overwrite corrupt files.
+
+- **Built-in provider keys removed from pi-free config** — `mistral_api_key`, `groq_api_key`, `cerebras_api_key`, `xai_api_key`, and `hf_token` are no longer in `~/.pi/free.json`. These are pi's own built-in providers; their keys come from environment variables only.
+
 ## [2.0.9] - 2026-05-08
 
 ### Added
