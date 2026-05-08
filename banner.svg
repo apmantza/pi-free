@@ -106,10 +106,11 @@
     <rect x="0" y="0" width="250" height="170" rx="12" fill="url(#card1)" stroke="#7c3aed" stroke-width="0.5" stroke-opacity="0.2" filter="url(#shadow)"/>
     <rect x="0" y="0" width="250" height="170" rx="12" fill="none" stroke="url(#accent)" stroke-width="0.5" opacity="0.1"/>
     <text x="20" y="28" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#c4b5fd">Custom Providers</text>
-    <text x="20" y="55" font-family="system-ui, sans-serif" font-size="12" fill="#8b9aaa">Kilo · Cline</text>
-    <text x="20" y="78" font-family="system-ui, sans-serif" font-size="12" fill="#8b9aaa">NVIDIA</text>
-    <text x="20" y="101" font-family="system-ui, sans-serif" font-size="12" fill="#8b9aaa">Ollama Cloud · ZenMux</text>
-    <text x="20" y="124" font-family="system-ui, sans-serif" font-size="12" fill="#8b9aaa">CrofAI</text>
+    <text x="20" y="50" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Kilo · Cline · NVIDIA</text>
+    <text x="20" y="70" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Ollama Cloud · ZenMux</text>
+    <text x="20" y="90" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">CrofAI · Codestral · LLM7</text>
+    <text x="20" y="110" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">DeepInfra · SambaNova</text>
+    <text x="20" y="130" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Together</text>
   </g>
 
   <g transform="translate(970, 55)">
@@ -117,12 +118,13 @@
     <rect x="0" y="0" width="250" height="170" rx="12" fill="url(#card2)" stroke="#06b6d4" stroke-width="0.5" stroke-opacity="0.2" filter="url(#shadow)"/>
     <rect x="0" y="0" width="250" height="170" rx="12" fill="none" stroke="url(#accent2)" stroke-width="0.5" opacity="0.1"/>
     <text x="20" y="28" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#67e8f9">Features</text>
-    <text x="20" y="52" font-family="system-ui, sans-serif" font-size="12" fill="#8b9aaa">✦ Free model auto-detection</text>
-    <text x="20" y="72" font-family="system-ui, sans-serif" font-size="12" fill="#8b9aaa">✦ Per-provider toggles</text>
-    <text x="20" y="92" font-family="system-ui, sans-serif" font-size="12" fill="#8b9aaa">✦ OAuth flows (Kilo, Cline)</text>
-    <text x="20" y="112" font-family="system-ui, sans-serif" font-size="12" fill="#8b9aaa">✦ Coding Index (CI) scores</text>
-    <text x="20" y="132" font-family="system-ui, sans-serif" font-size="12" fill="#8b9aaa">✦ Model health probes</text>
-    <text x="20" y="152" font-family="system-ui, sans-serif" font-size="12" fill="#8b9aaa">✦ 404/403 auto-hide on probes</text>
+    <text x="20" y="50" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">✦ Free model auto-detection</text>
+    <text x="20" y="68" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">✦ Per-provider toggles</text>
+    <text x="20" y="86" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">✦ OAuth flows (Kilo, Cline)</text>
+    <text x="20" y="104" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">✦ Coding Index (CI) scores</text>
+    <text x="20" y="122" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">✦ Model health probes</text>
+    <text x="20" y="140" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">✦ Thinking level maps</text>
+    <text x="20" y="158" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">✦ 404/403 auto-hide on probe</text>
   </g>
 
   <!-- Bottom tagline -->
