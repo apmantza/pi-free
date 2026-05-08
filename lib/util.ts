@@ -485,13 +485,13 @@ export async function fetchOpenAICompatibleModels(
 
 				// Use per-model pricing if the API provides it, otherwise use defaults
 				const inputCost =
-					(m.pricing?.prompt !== undefined
+					(typeof m.pricing?.prompt === "number" || typeof m.pricing?.prompt === "string"
 						? Number(m.pricing.prompt)
 						: undefined) ??
 					defaults.cost?.input ??
 					0;
 				const outputCost =
-					(m.pricing?.completion !== undefined
+					(typeof m.pricing?.completion === "number" || typeof m.pricing?.completion === "string"
 						? Number(m.pricing.completion)
 						: undefined) ??
 					defaults.cost?.output ??

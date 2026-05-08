@@ -193,8 +193,5 @@ export default async function togetherProvider(pi: ExtensionAPI) {
 	);
 
 	// Initial registration — show all models (trial credit provider)
-	const showPaid = getTogetherShowPaid();
-	const initialModels =
-		showPaid && stored.all.length > 0 ? stored.all : stored.all;
-	reRegister(initialModels);
+	reRegister(stored.all);
 }

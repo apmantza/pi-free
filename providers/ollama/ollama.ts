@@ -340,7 +340,7 @@ async function fetchAllModels(apiKey: string): Promise<ProviderModelConfig[]> {
 				return [id, result] as const;
 			} catch {
 				failed++;
-				throw undefined; // collected below
+				throw new Error(`detail fetch failed for ${id}`);
 			} finally {
 				if (
 					(succeeded + failed) % 10 === 0 ||
@@ -439,9 +439,9 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 	// ── Background refresh ─────────────────────────────────────────
 	async function refreshModels(): Promise<ProviderModelConfig[]> {
 		try {
-			const fresh = await fetchAllModels(apiKey!);
-			saveProviderCache(PROVIDER_OLLAMA, fresh);
-			return fresh;
+			const freshModels = await fetchAllModels(apiKey!);
+			saveProviderCache(PROVIDER_OLLAMA, freshModels);
+			return freshModels;
 		} catch (error) {
 			_logger.error("[ollama-cloud] Background refresh failed", {
 				error: error instanceof Error ? error.message : String(error),
@@ -462,7 +462,7 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 				saveProviderCache(PROVIDER_OLLAMA, fresh);
 				allModels = fresh;
 				stored = { free: fresh, all: fresh };
-				reRegister(getOllamaShowPaid() ? fresh : fresh);
+				reRegister(fresh);
 				ctx.ui.notify(
 					`Registered ${fresh.length} Ollama Cloud models (refresh complete)`,
 					"info",
@@ -523,10 +523,10 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 				saveProviderCache(PROVIDER_OLLAMA, fresh);
 				allModels = fresh;
 				stored = { free: fresh, all: fresh };
-				reRegister(getOllamaShowPaid() ? fresh : fresh);
+				reRegister(fresh);
 			} catch {
 				// If refresh fails, just re-register current models
-				reRegister(getOllamaShowPaid() ? allModels : allModels);
+				reRegister(allModels);
 			}
 
 			ctx.ui.notify(
@@ -541,33 +541,33 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	pi.on("model_select" as any, (_event: any, ctx: any) => {
 		if (_event.model?.provider !== PROVIDER_OLLAMA) {
-				ctx.ui.setStatus(`${PROVIDER_OLLAMA}-status`, undefined);
-				return;
-			}
+			ctx.ui.setStatus(`${PROVIDER_OLLAMA}-status`, undefined);
+			return;
+		}
 
-			const count = allModels.length;
-			ctx.ui.setStatus(`${PROVIDER_OLLAMA}-status`, `ollama: ${count} models`);
-		},
-	);
+		const count = allModels.length;
+		ctx.ui.setStatus(`${PROVIDER_OLLAMA}-status`, `ollama: ${count} models`);
+	});
 
 	// ── Background refresh on session_start ─────────────────────────
 	let bgRefreshed = false;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	pi.on("session_start" as any, async (_event: any, ctx: any) => {
-		if (bgRefreshed) return;
-			bgRefreshed = true;
+		if (bgRefreshed) {
+			return;
+		}
+		bgRefreshed = true;
 
-			try {
-				const fresh = await refreshModels();
-				allModels = fresh;
-				stored = { free: fresh, all: fresh };
-				reRegister(getOllamaShowPaid() ? fresh : fresh);
-				ctx.ui.notify(`Ollama Cloud: ${fresh.length} models ready`, "info");
-			} catch {
-				// Already logged in refreshModels()
-			}
-		},
-	);
+		try {
+			const fresh = await refreshModels();
+			allModels = fresh;
+			stored = { free: fresh, all: fresh };
+			reRegister(fresh);
+			ctx.ui.notify(`Ollama Cloud: ${fresh.length} models ready`, "info");
+		} catch {
+			// Already logged in refreshModels()
+		}
+	});
 }
 
 // =============================================================================

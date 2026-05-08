@@ -225,7 +225,7 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 		);
 
 		expect(models[0].cost.input).toBe(1.5); // API wins over defaults
-		expect(models[0].cost.output).toBe(4.0);
+		expect(models[0].cost.output).toBe(4);
 	});
 
 	// ── Per-model reasoning ────────────────────────────────────
