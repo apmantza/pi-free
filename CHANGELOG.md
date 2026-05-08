@@ -5,7 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.9] - 2026-05-08
+
+### Added
+
+- **Together AI provider** — Fast inference on 200+ open-source models (Llama, DeepSeek, Qwen, etc.) through an OpenAI-compatible API. $1 trial credit on signup, no credit card required. Set `TOGETHER_AI_API_KEY`.
+
+- **Per-model metadata for Ollama Cloud** — Fetches `/api/show` details for every Ollama Cloud model to detect real capabilities: thinking/vision support, actual context windows (up to 1M tokens), and thinking level maps (`reasoning_effort`). Models now show parameter size and quantization in display names.
+
+- **Thinking level maps** — Four curated maps (`DEFAULT`, `GPT_OSS`, `QWEN3`, `NO_OFF`) for Ollama Cloud models that map Pi's thinking levels to Ollama's `reasoning_effort` values, based on per-model API testing.
+
+- **`/ollama-cloud-refresh` command** — Re-fetch Ollama Cloud models from the API and update the provider live, no restart needed.
+
+- **Persistent Ollama Cloud cache** — Models cached via `provider-cache.ts` for fast startup. Stale cache auto-refreshes on `session_start`. Fallback models used when cache is unavailable.
+
+### Fixed
+
+- **ZenMux pricing** — Fixed `pricings` key (was reading `pricing`, always returned $0). Now correctly extracts per-model pricing (per-million-tokens ÷ 1M). Also uses `display_name`, `input_modalities` (vision detection), and `capabilities.reasoning` from API.
+
+- **CrofAI model metadata** — Custom fetch now reads per-model `name`, `custom_reasoning`, `context_length`, `max_completion_tokens`, and per-million-token `pricing` from the API.
+
+- **DeepInfra model metadata** — Extracts real model data from the `metadata` sub-object (context_length, max_tokens, pricing, reasoning tags). Filters non-chat models (embedding, rerank, whisper).
+
+- **Ollama Cloud model names** — Enriched with parameter size and quantization (e.g., `deepseek-v4-pro (671B, Q4_0)`). Set `supportsDeveloperRole: false` (fixes GLM models silently ignoring prompts). Bumped `maxTokens` from 4096 to 32768.
+
+- **SambaNova model accuracy** — `fetchOpenAICompatibleModels` now reads per-model `context_length`, `max_completion_tokens`, and `pricing` from SambaNova's extended API response. Also reads `reasoning`, `input_modalities`, and accepts plain array responses.
 
 ### Changed
 

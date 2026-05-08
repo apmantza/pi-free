@@ -97,6 +97,7 @@ Want to see paid models too? Run the toggle command for your provider:
 /toggle-crofai    # Toggle CrofAI (💳 paid - needs API key with credits)
 /toggle-codestral # Toggle Codestral (💳 paid - free Experiment plan)
 /toggle-deepinfra # Toggle DeepInfra (💳 trial credit provider)
+/toggle-together  # Toggle Together AI (💳 trial credit provider)
 /toggle-sambanova # Toggle SambaNova (🔄 freemium)
 /toggle-llm7      # Toggle LLM7 (✅ free gateway)
 ```
@@ -412,6 +413,18 @@ AI inference cloud with 100+ open-source models:
 export DEEPINFRA_TOKEN="..."
 ```
 
+### Together AI ($1 trial credit)
+
+Fast inference on 200+ open-source models:
+
+- $1 one-time credit on signup (no credit card)
+- 138 chat models (Llama, DeepSeek, Qwen, Mixtral, etc.)
+- 60 RPM, 600 RPD (varies by model)
+
+```bash
+export TOGETHER_AI_API_KEY="..."
+```
+
 ### SambaNova Cloud (free tier)
 
 Fast inference on custom RDU hardware:
@@ -444,10 +457,13 @@ Each provider has toggle commands to switch between free and all models:
 | `/toggle-huggingface` | Toggle between free/all Hugging Face models (🔧 dynamic) |
 | `/toggle-codestral`   | Toggle Codestral (💳 paid)                               |
 | `/toggle-deepinfra`   | Toggle DeepInfra (💳 trial credit)                       |
+| `/toggle-together`    | Toggle Together AI (💳 trial credit)                     |
 | `/toggle-sambanova`   | Toggle SambaNova (🔄 freemium)                           |
 | `/toggle-llm7`        | Toggle LLM7 (✅ free gateway)                            |
 | `/toggle-zenmux`      | Toggle ZenMux (💳 paid)                                  |
 | `/toggle-crofai`      | Toggle CrofAI (💳 paid)                                  |
+| `/ollama-cloud-refresh` | Re-fetch Ollama Cloud models live (no restart needed)  |
+| `/probe-ollama`       | Test Ollama Cloud models for 403 errors (auto-hide)      |
 
 **The toggle command:**
 
