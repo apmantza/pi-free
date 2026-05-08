@@ -2,26 +2,24 @@
  * Ollama Cloud Provider Extension
  *
  * Provides access to Ollama's cloud-hosted models via ollama.com API.
- * All models use Ollama's usage-based pricing system:
- *   - Free tier: Unlimited public models (session limits reset every 5 hours,
- *     weekly limits reset every 7 days)
- *   - Pro tier: 50x more cloud usage than Free
- *   - Max tier: 5x more usage than Pro
+ * Fetches per-model capabilities via /api/show for accurate reasoning,
+ * vision, and context window detection.
  *
  * Requires OLLAMA_API_KEY with cloud access.
  * Get a free key at: https://ollama.com/settings/keys
- *
- * Responds to global free-only filter (shows models but warns they're freemium).
  *
  * Usage:
  *   pi install git:github.com/apmantza/pi-free
  *   # Set OLLAMA_API_KEY env var
  *   # Models appear in /model selector
  *   # Use /toggle-ollama to show all vs limited set
+ *   # Use /probe-ollama to detect and hide 403 models
+ *   # Use /ollama-cloud-refresh to re-fetch models live
  */
 
 import type {
 	ExtensionAPI,
+	ExtensionCommandContext,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
 import {
@@ -37,11 +35,25 @@ import {
 	PROVIDER_OLLAMA,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
+import {
+	loadProviderCache,
+	saveProviderCache,
+} from "../../lib/provider-cache.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import { fetchWithRetry, fetchWithTimeout } from "../../lib/util.ts";
 import { createReRegister, enhanceWithCI } from "../../provider-helper.ts";
+import { resolveThinkingMap } from "./thinking-levels.ts";
 
 const _logger = createLogger("ollama-cloud");
+
+// =============================================================================
+// Constants
+// =============================================================================
+
+/** Base URL for non-OpenAI-compatible endpoints (e.g. /api/show). */
+const OLLAMA_API_BASE = BASE_URL_OLLAMA.replace(/\/v1\/?$/, "");
+const DETAIL_FETCH_TIMEOUT_MS = 10000;
+const DETAIL_CONCURRENCY = 8;
 
 // =============================================================================
 // Known 403 models (listed but return "access denied" on /v1/chat/completions)
@@ -54,14 +66,120 @@ const OLLAMA_KNOWN_403_MODELS: ReadonlySet<string> = new Set([
 ]);
 
 // =============================================================================
-// Fetch + map
+// Fallback models (used when API is unreachable and no cache exists)
+// =============================================================================
+const FALLBACK_MODELS: ProviderModelConfig[] = [
+	{
+		id: "glm-5.1",
+		name: "GLM 5.1",
+		reasoning: false,
+		input: ["text"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 202752,
+		maxTokens: 32768,
+		compat: { supportsDeveloperRole: false },
+	},
+	{
+		id: "gemma4:31b",
+		name: "Gemma 4 31B",
+		reasoning: false,
+		input: ["text"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 262144,
+		maxTokens: 32768,
+		compat: { supportsDeveloperRole: false },
+	},
+	{
+		id: "deepseek-v4-pro",
+		name: "DeepSeek V4 Pro",
+		reasoning: true,
+		thinkingLevelMap: resolveThinkingMap("deepseek-v4-pro", [
+			"thinking",
+			"tools",
+		]),
+		input: ["text"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 1000000,
+		maxTokens: 32768,
+		compat: { supportsDeveloperRole: false },
+	},
+	{
+		id: "qwen3.5",
+		name: "Qwen 3.5",
+		reasoning: true,
+		thinkingLevelMap: resolveThinkingMap("qwen3.5", ["thinking", "tools"]),
+		input: ["text"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 131072,
+		maxTokens: 32768,
+		compat: { supportsDeveloperRole: false },
+	},
+	{
+		id: "kimi-k2.6",
+		name: "Kimi K2.6",
+		reasoning: true,
+		thinkingLevelMap: resolveThinkingMap("kimi-k2.6", ["thinking", "tools"]),
+		input: ["text"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 131072,
+		maxTokens: 32768,
+		compat: { supportsDeveloperRole: false },
+	},
+];
+
+// =============================================================================
+// Types
 // =============================================================================
 
-async function fetchOllamaModels(
-	apiKey: string,
-): Promise<ProviderModelConfig[]> {
-	// Use OpenAI-compatible /v1/models endpoint for consistency
-	// The native /api/tags returns :cloud suffixes that may not work with /v1/chat/completions
+/** Response from POST /api/show */
+interface OllamaShowResponse {
+	details: {
+		parent_model: string;
+		format: string;
+		family: string;
+		families: string[] | null;
+		parameter_size: string;
+		quantization_level: string;
+	};
+	model_info: Record<string, unknown>;
+	capabilities: string[];
+	modified_at: string;
+}
+
+// =============================================================================
+// Utility: concurrent map with bounded parallelism
+// =============================================================================
+
+async function concurrentMap<T, R>(
+	items: T[],
+	workers: number,
+	fn: (item: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+	const results: PromiseSettledResult<R>[] = new Array(items.length);
+	let next = 0;
+	await Promise.all(
+		Array.from({ length: Math.max(1, workers) }, async () => {
+			while (next < items.length) {
+				const index = next++;
+				try {
+					results[index] = {
+						status: "fulfilled",
+						value: await fn(items[index]),
+					};
+				} catch (reason) {
+					results[index] = { status: "rejected", reason };
+				}
+			}
+		}),
+	);
+	return results;
+}
+
+// =============================================================================
+// Fetch: /v1/models → list of model IDs
+// =============================================================================
+
+async function fetchModelIds(apiKey: string): Promise<string[]> {
 	const response = await fetchWithRetry(
 		`${BASE_URL_OLLAMA}/models`,
 		{
@@ -77,63 +195,154 @@ async function fetchOllamaModels(
 
 	if (!response.ok) {
 		throw new Error(
-			`Failed to fetch Ollama models: ${response.status} ${response.statusText}`,
+			`Failed to fetch Ollama model list: ${response.status} ${response.statusText}`,
 		);
 	}
 
 	const json = (await response.json()) as {
 		data?: Array<{ id: string; owned_by?: string }>;
 	};
-	const models = json.data ?? [];
+	return (json.data ?? []).map((m) => m.id);
+}
+
+// =============================================================================
+// Fetch: /api/show → per-model capabilities
+// =============================================================================
+
+async function fetchModelDetails(
+	apiKey: string,
+	modelId: string,
+): Promise<OllamaShowResponse> {
+	const response = await fetchWithTimeout(
+		`${OLLAMA_API_BASE}/api/show`,
+		{
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${apiKey}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({ model: modelId }),
+		},
+		DETAIL_FETCH_TIMEOUT_MS,
+	);
+
+	if (!response.ok) {
+		throw new Error(
+			`/api/show failed for ${modelId}: ${response.status} ${response.statusText}`,
+		);
+	}
+
+	return (await response.json()) as OllamaShowResponse;
+}
+
+// =============================================================================
+// Assembly: raw /api/show data → ProviderModelConfig[]
+// =============================================================================
+
+function getContextLength(modelInfo: Record<string, unknown>): number {
+	for (const [key, value] of Object.entries(modelInfo)) {
+		if (key.endsWith(".context_length") && typeof value === "number") {
+			return value;
+		}
+	}
+	return 128000; // fallback
+}
+
+function assembleModels(
+	raw: Record<string, OllamaShowResponse>,
+): ProviderModelConfig[] {
+	return Object.entries(raw)
+		.filter(([, data]) => data.capabilities?.includes("tools"))
+		.map(([id, data]) => ({
+			id,
+			name: id,
+			reasoning: data.capabilities?.includes("thinking") ?? false,
+			thinkingLevelMap: resolveThinkingMap(id, data.capabilities ?? []),
+			input: (data.capabilities?.includes("vision")
+				? ["text", "image"]
+				: ["text"]) as ("text" | "image")[],
+			cost: {
+				input: 0,
+				output: 0,
+				cacheRead: 0,
+				cacheWrite: 0,
+			},
+			contextWindow: getContextLength(data.model_info ?? {}),
+			maxTokens: 32768,
+			compat: { supportsDeveloperRole: false },
+		}));
+}
+
+// =============================================================================
+// Fetch all models (orchestrates /v1/models + /api/show)
+// =============================================================================
+
+async function fetchAllModels(apiKey: string): Promise<ProviderModelConfig[]> {
+	// Step 1: Get model IDs
+	const modelIds = await fetchModelIds(apiKey);
+	_logger.info(
+		`[ollama-cloud] Found ${modelIds.length} model IDs, fetching details...`,
+	);
+
+	// Step 2: Filter out known-broken and embedding models early
+	const candidateIds = modelIds.filter((id) => {
+		if (OLLAMA_KNOWN_403_MODELS.has(id)) return false;
+		const name = id.toLowerCase();
+		if (name.includes("embed")) return false;
+		return true;
+	});
+
+	// Step 3: Fetch per-model details concurrently
+	let succeeded = 0;
+	let failed = 0;
+
+	const detailResults = await concurrentMap(
+		candidateIds,
+		DETAIL_CONCURRENCY,
+		async (id) => {
+			try {
+				const result = await fetchModelDetails(apiKey, id);
+				succeeded++;
+				return [id, result] as const;
+			} catch {
+				failed++;
+				throw undefined; // collected below
+			} finally {
+				if (
+					(succeeded + failed) % 10 === 0 ||
+					succeeded + failed === candidateIds.length
+				) {
+					_logger.debug(
+						`[ollama-cloud] Detail progress: ${succeeded + failed}/${candidateIds.length} (${failed} failed)`,
+					);
+				}
+			}
+		},
+	);
+
+	// Step 4: Collect successful results
+	const raw: Record<string, OllamaShowResponse> = {};
+	for (const result of detailResults) {
+		if (result.status === "fulfilled") {
+			const [id, data] = result.value;
+			raw[id] = data;
+		}
+	}
 
 	_logger.info(
-		`[ollama-cloud] Fetched ${models.length} models from Ollama Cloud`,
+		`[ollama-cloud] Fetched ${Object.keys(raw).length} model details` +
+			(failed ? ` (${failed} failed)` : ""),
 	);
 
-	// Filter to chat/text generation models only
-	const chatModels = models
-		.filter((m) => {
-			// Skip embedding-only models (typically have "embed" in name)
-			const name = m.id.toLowerCase();
-			if (name.includes("embed")) return false;
-			return true;
-		})
-		// Filter out known 403 models (listed but not provisioned for chat)
-		.filter((m) => {
-			if (OLLAMA_KNOWN_403_MODELS.has(m.id)) {
-				return false;
-			}
-			return true;
-		});
+	if (Object.keys(raw).length === 0) {
+		throw new Error("Failed to fetch any model details");
+	}
 
-	const result = applyHidden(
-		chatModels.map(
-			(m): ProviderModelConfig => ({
-				id: m.id,
-				name: m.id,
-				// Try to infer reasoning from model name
-				reasoning:
-					m.id.toLowerCase().includes("reasoning") ||
-					m.id.toLowerCase().includes("r1") ||
-					m.id.toLowerCase().includes("thinking"),
-				input: ["text"],
-				// Ollama Cloud uses usage-based pricing (GPU time), not per-token
-				// Free tier has limits but no direct cost per token
-				cost: {
-					input: 0, // Freemium: usage-based, not per-token
-					output: 0,
-					cacheRead: 0,
-					cacheWrite: 0,
-				},
-				// Default context window - Ollama doesn't expose this via /v1/models
-				contextWindow: 32768,
-				maxTokens: 4096, // Default, varies by model
-			}),
-		),
-		PROVIDER_OLLAMA,
-	);
+	// Step 5: Assemble into Pi model configs
+	const models = assembleModels(raw);
 
-	return result;
+	// Step 6: Apply user-configured hidden models
+	return applyHidden(models, PROVIDER_OLLAMA);
 }
 
 // =============================================================================
@@ -150,35 +359,35 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 		return;
 	}
 
-	// Fetch models
-	let allModels: ProviderModelConfig[] = [];
+	// ── Try cache first for fast startup ────────────────────────────
+	let allModels: ProviderModelConfig[];
+	let fromCache = false;
 
-	try {
-		allModels = await fetchOllamaModels(apiKey);
-	} catch (error) {
-		_logger.error("[ollama-cloud] Failed to fetch models at startup", {
-			error: error instanceof Error ? error.message : String(error),
-		});
-		return;
+	const cachedModels = loadProviderCache(PROVIDER_OLLAMA);
+	if (cachedModels && cachedModels.length > 0) {
+		allModels = cachedModels;
+		fromCache = true;
+		_logger.info(
+			`[ollama-cloud] Using ${cachedModels.length} cached models for fast startup`,
+		);
+	} else {
+		allModels = FALLBACK_MODELS;
+		_logger.info("[ollama-cloud] No cache available, using fallback models");
 	}
 
-	// For Ollama, all models share the same free tier
-	// So "free" and "all" are the same set
+	// ── Register immediately with cached/fallback models ────────────
 	const freeModels = allModels;
-	const stored = { free: freeModels, all: allModels };
+	let stored = { free: freeModels, all: allModels };
 	const hasKey = true;
 
-	// Create re-register function
 	const reRegister = createReRegister(pi, {
 		providerId: PROVIDER_OLLAMA,
 		baseUrl: BASE_URL_OLLAMA,
 		apiKey,
 	});
 
-	// Register with global toggle system
 	registerWithGlobalToggle(PROVIDER_OLLAMA, stored, reRegister, hasKey);
 
-	// Register initial models
 	const initialModels = getOllamaShowPaid() ? allModels : freeModels;
 	pi.registerProvider(PROVIDER_OLLAMA, {
 		baseUrl: BASE_URL_OLLAMA,
@@ -188,13 +397,55 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 	});
 
 	_logger.info(
-		`[ollama-cloud] Registered ${initialModels.length} models (usage-based free tier)`,
+		`[ollama-cloud] Registered ${initialModels.length} models` +
+			(fromCache ? " (from cache)" : " (fallback)") +
+			", fetching fresh in background...",
 	);
 
-	// ── Probe command: test all registered models for 403s ─────────────
+	// ── Background refresh ─────────────────────────────────────────
+	async function refreshModels(): Promise<ProviderModelConfig[]> {
+		try {
+			const fresh = await fetchAllModels(apiKey!);
+			saveProviderCache(PROVIDER_OLLAMA, fresh);
+			return fresh;
+		} catch (error) {
+			_logger.error("[ollama-cloud] Background refresh failed", {
+				error: error instanceof Error ? error.message : String(error),
+			});
+			// Return current models so we don't lose what we have
+			return allModels;
+		}
+	}
+
+	// ── /ollama-cloud-refresh command ───────────────────────────────
+	pi.registerCommand("ollama-cloud-refresh", {
+		description:
+			"Re-fetch Ollama Cloud models from the API and update the provider live",
+		handler: async (_args: string, ctx: ExtensionCommandContext) => {
+			ctx.ui.notify("Refreshing Ollama Cloud models…", "info");
+			try {
+				const fresh = await fetchAllModels(apiKey!);
+				saveProviderCache(PROVIDER_OLLAMA, fresh);
+				allModels = fresh;
+				stored = { free: fresh, all: fresh };
+				reRegister(getOllamaShowPaid() ? fresh : fresh);
+				ctx.ui.notify(
+					`Registered ${fresh.length} Ollama Cloud models (refresh complete)`,
+					"info",
+				);
+			} catch (error) {
+				ctx.ui.notify(
+					`Refresh failed: ${error instanceof Error ? error.message : String(error)}`,
+					"error",
+				);
+			}
+		},
+	});
+
+	// ── /probe-ollama command ───────────────────────────────────────
 	pi.registerCommand("probe-ollama", {
 		description: "Test all Ollama Cloud models for 403 'access denied' errors",
-		handler: async (_args, ctx) => {
+		handler: async (_args: string, ctx: ExtensionCommandContext) => {
 			if (!apiKey) {
 				ctx.ui.notify("OLLAMA_API_KEY not set", "error");
 				return;
@@ -228,13 +479,21 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 			const config = loadConfigFile();
 			const existingHidden = new Set(config.hidden_models ?? []);
 			for (const id of notFound) existingHidden.add(`${PROVIDER_OLLAMA}/${id}`);
-			saveConfig({ hidden_models: Array.from(existingHidden) });
+			saveConfig({
+				hidden_models: Array.from(existingHidden),
+			});
 
-			// Re-register so hidden models disappear immediately
-			const filtered = await fetchOllamaModels(apiKey);
-			stored.free = filtered;
-			stored.all = filtered;
-			reRegister(filtered);
+			// Re-fetch and re-register so hidden models disappear immediately
+			try {
+				const fresh = await fetchAllModels(apiKey!);
+				saveProviderCache(PROVIDER_OLLAMA, fresh);
+				allModels = fresh;
+				stored = { free: fresh, all: fresh };
+				reRegister(getOllamaShowPaid() ? fresh : fresh);
+			} catch {
+				// If refresh fails, just re-register current models
+				reRegister(getOllamaShowPaid() ? allModels : allModels);
+			}
 
 			ctx.ui.notify(
 				`Found ${notFound.length} broken models (auto-hidden):\n${notFound.join("\n")}`,
@@ -243,21 +502,48 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 		},
 	});
 
-	// ── Status bar for provider selection ─────────────────────────
+	// ── Status bar for provider selection ───────────────────────────
 
-	pi.on("model_select", (_event, ctx) => {
-		if (_event.model?.provider !== PROVIDER_OLLAMA) {
-			ctx.ui.setStatus(`${PROVIDER_OLLAMA}-status`, undefined);
-			return;
-		}
+	pi.on(
+		"model_select",
+		(
+			_event: { model?: { provider: string } },
+			ctx: ExtensionCommandContext,
+		) => {
+			if (_event.model?.provider !== PROVIDER_OLLAMA) {
+				ctx.ui.setStatus(`${PROVIDER_OLLAMA}-status`, undefined);
+				return;
+			}
 
-		const count = allModels.length;
-		ctx.ui.setStatus(
-			`${PROVIDER_OLLAMA}-status`,
-			`ollama: ${count} models (usage-based)`,
-		);
-	});
+			const count = allModels.length;
+			ctx.ui.setStatus(`${PROVIDER_OLLAMA}-status`, `ollama: ${count} models`);
+		},
+	);
+
+	// ── Background refresh on session_start ─────────────────────────
+	let bgRefreshed = false;
+	pi.on(
+		"session_start",
+		async (_event: unknown, ctx: ExtensionCommandContext) => {
+			if (bgRefreshed) return;
+			bgRefreshed = true;
+
+			try {
+				const fresh = await refreshModels();
+				allModels = fresh;
+				stored = { free: fresh, all: fresh };
+				reRegister(getOllamaShowPaid() ? fresh : fresh);
+				ctx.ui.notify(`Ollama Cloud: ${fresh.length} models ready`, "info");
+			} catch {
+				// Already logged in refreshModels()
+			}
+		},
+	);
 }
+
+// =============================================================================
+// Probe helper
+// =============================================================================
 
 /**
  * Probe a single Ollama model with a minimal chat request.
@@ -283,7 +569,7 @@ async function probeOllamaModel(
 					max_tokens: 1,
 				}),
 			},
-			10000, // 10 second timeout
+			10000,
 		);
 		// 403 = access denied (model not provisioned)
 		// 200/400/401/etc = at least accessible

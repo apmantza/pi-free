@@ -13,6 +13,7 @@
  * - Codestral: Mistral's code-focused model via codestral.mistral.ai (free tier)
  * - DeepInfra: AI inference cloud ($5 trial credit)
  * - SambaNova: Fast inference on RDU hardware (free tier, no credit card)
+ * - Together: Fast inference on 200+ open-source models ($1 trial credit)
  * - LLM7: AI gateway (free default/fast selectors)
  */
 
@@ -38,6 +39,7 @@ import kilo from "./providers/kilo/kilo.ts";
 import llm7 from "./providers/llm7/llm7.ts";
 import deepinfra from "./providers/deepinfra/deepinfra.ts";
 import sambanova from "./providers/sambanova/sambanova.ts";
+import together from "./providers/together/together.ts";
 import nvidia from "./providers/nvidia/nvidia.ts";
 import ollama from "./providers/ollama/ollama.ts";
 import zenmux from "./providers/zenmux/zenmux.ts";
@@ -207,6 +209,7 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 		llm7(pi),
 		deepinfra(pi),
 		sambanova(pi),
+		together(pi),
 	]);
 
 	// Setup dynamic built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face)

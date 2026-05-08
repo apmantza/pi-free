@@ -21,6 +21,7 @@ export const PROVIDER_CODESTRAL = "codestral";
 export const PROVIDER_LLM7 = "llm7";
 export const PROVIDER_DEEPINFRA = "deepinfra";
 export const PROVIDER_SAMBANOVA = "sambanova";
+export const PROVIDER_TOGETHER = "together";
 
 export const ALL_UNIQUE_PROVIDERS = [
 	PROVIDER_KILO,
@@ -36,6 +37,7 @@ export const ALL_UNIQUE_PROVIDERS = [
 	PROVIDER_LLM7,
 	PROVIDER_DEEPINFRA,
 	PROVIDER_SAMBANOVA,
+	PROVIDER_TOGETHER,
 ] as const;
 
 // =============================================================================
@@ -56,6 +58,7 @@ export const BASE_URL_CODESTRAL = "https://codestral.mistral.ai/v1";
 export const BASE_URL_LLM7 = "https://api.llm7.io/v1";
 export const BASE_URL_DEEPINFRA = "https://api.deepinfra.com/v1/openai";
 export const BASE_URL_SAMBANOVA = "https://api.sambanova.ai/v1";
+export const BASE_URL_TOGETHER = "https://api.together.xyz/v1";
 
 /** Cline fetches free models from OpenRouter */
 export const BASE_URL_OPENROUTER = "https://openrouter.ai/api/v1";

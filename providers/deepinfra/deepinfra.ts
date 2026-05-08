@@ -4,6 +4,10 @@
  * DeepInfra is an AI inference cloud with an OpenAI-compatible API for
  * 100+ open-source models (Llama, DeepSeek, Mistral, Qwen, Mixtral, etc.).
  *
+ * NOTE: DeepInfra's /v1/openai/models buries real model data in a "metadata"
+ * field (context_length, max_tokens, pricing, tags). We extract it here.
+ * Pricing is per-MILLION tokens.
+ *
  * Free tier:
  *   - $5 one-time credit on signup (no credit card)
  *   - ~5M tokens, expires after 90 days
@@ -30,13 +34,111 @@ import type {
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
 import { getDeepinfraApiKey } from "../../config.ts";
-import { BASE_URL_DEEPINFRA, PROVIDER_DEEPINFRA } from "../../constants.ts";
+import {
+	BASE_URL_DEEPINFRA,
+	DEFAULT_FETCH_TIMEOUT_MS,
+	PROVIDER_DEEPINFRA,
+} from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
+import {
+	getProxyModelCompat,
+	isLikelyReasoningModel,
+} from "../../lib/provider-compat.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
-import { fetchOpenAICompatibleModels } from "../../lib/util.ts";
+import { fetchWithRetry } from "../../lib/util.ts";
 import { createReRegister, setupProvider } from "../../provider-helper.ts";
 
 const _logger = createLogger("deepinfra");
+
+// =============================================================================
+// Types
+// =============================================================================
+
+interface DeepInfraModel {
+	id: string;
+	metadata?: {
+		context_length?: number;
+		max_tokens?: number;
+		description?: string;
+		pricing?: {
+			input_tokens?: number;
+			output_tokens?: number;
+		};
+		tags?: string[];
+	};
+}
+
+// =============================================================================
+// Fetch
+// =============================================================================
+
+async function fetchDeepinfraModels(
+	apiKey: string,
+): Promise<ProviderModelConfig[]> {
+	const response = await fetchWithRetry(
+		`${BASE_URL_DEEPINFRA}/models`,
+		{
+			headers: {
+				Authorization: `Bearer ${apiKey}`,
+				"Content-Type": "application/json",
+			},
+		},
+		3,
+		1000,
+		DEFAULT_FETCH_TIMEOUT_MS,
+	);
+
+	if (!response.ok) {
+		throw new Error(
+			`DeepInfra API error: ${response.status} ${response.statusText}`,
+		);
+	}
+
+	const json = (await response.json()) as { data?: DeepInfraModel[] };
+	const models = json.data ?? [];
+
+	_logger.info(`[deepinfra] Fetched ${models.length} models`);
+
+	return models
+		.filter((m) => {
+			const id = m.id.toLowerCase();
+			// Filter out non-chat models
+			if (id.includes("embed")) return false;
+			if (id.includes("rerank")) return false;
+			if (id.includes("whisper")) return false;
+			if (id.includes("speech")) return false;
+			return true;
+		})
+		.map((m): ProviderModelConfig => {
+			const meta = m.metadata;
+			const name = m.id.split("/").pop() || m.id;
+
+			// Reasoning: check tags first, fall back to name heuristic
+			const reasoning =
+				meta?.tags?.includes("reasoning") ??
+				isLikelyReasoningModel({ id: m.id, name });
+
+			// Pricing is per-MILLION tokens. Divide to get per-token (Pi convention).
+			const inputCost = (meta?.pricing?.input_tokens ?? 0.3) / 1_000_000;
+			const outputCost = (meta?.pricing?.output_tokens ?? 0.9) / 1_000_000;
+
+			return {
+				id: m.id,
+				name,
+				reasoning,
+				input: ["text"],
+				cost: {
+					input: inputCost,
+					output: outputCost,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				contextWindow: meta?.context_length ?? 128_000,
+				maxTokens: meta?.max_tokens ?? 16_384,
+				compat: getProxyModelCompat({ id: m.id, name }),
+			};
+		});
+}
 
 // =============================================================================
 // Extension Entry Point
@@ -52,16 +154,11 @@ export default async function deepinfraProvider(pi: ExtensionAPI) {
 		return;
 	}
 
-	// Fetch models via shared OpenAI-compatible helper
-	const allModels = await fetchOpenAICompatibleModels(
-		"deepinfra",
-		BASE_URL_DEEPINFRA,
-		apiKey,
-		{ cost: { input: 0.3, output: 0.9 } },
-	);
+	// Fetch models
+	const allModels = await fetchDeepinfraModels(apiKey);
 
 	if (allModels.length === 0) {
-		_logger.warn("[deepinfra] No models available");
+		_logger.warn("[deepinfra] No chat models available");
 		return;
 	}
 
@@ -72,7 +169,7 @@ export default async function deepinfraProvider(pi: ExtensionAPI) {
 	const stored = { free: freeModels, all: allModels };
 
 	_logger.info(
-		`[deepinfra] Registered ${allModels.length} models (trial credit, 0 free)`,
+		`[deepinfra] Registered ${allModels.length} chat models (trial credit, 0 free)`,
 	);
 
 	// Create re-register function

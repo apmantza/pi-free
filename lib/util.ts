@@ -384,12 +384,32 @@ export interface OpenAIModelDefaults {
 
 /**
  * Generic model shape returned by OpenAI-compatible /v1/models endpoints.
+ *
+ * Some providers (SambaNova, DeepInfra) return extended fields beyond
+ * the standard OpenAI format. We accept them loosely and use what's
+ * available, falling back to defaults otherwise.
  */
 export interface OpenAIModelEntry {
 	id: string;
 	object?: string;
 	created?: number;
 	owned_by?: string;
+	/** Extended: per-model reasoning capability (some providers expose this) */
+	reasoning?: boolean;
+	/** Extended: input modalities (some providers expose this) */
+	input_modalities?: string[];
+	/** Extended: per-model context length (SambaNova, etc.) */
+	context_length?: number;
+	/** Extended: alternate field name for context length */
+	max_context_length?: number;
+	/** Extended: alternate field name for context length (snake_case) */
+	context_window?: number;
+	/** Extended: per-model max completion tokens (SambaNova, etc.) */
+	max_completion_tokens?: number;
+	/** Extended: alternate field name for max tokens */
+	max_tokens?: number;
+	/** Extended: per-model pricing (SambaNova, etc.) */
+	pricing?: { prompt?: string | number; completion?: string | number };
 }
 
 /**
@@ -426,8 +446,10 @@ export async function fetchOpenAICompatibleModels(
 			throw new Error(`${providerId} API error: ${response.status}`);
 		}
 
-		const data = (await response.json()) as { data?: OpenAIModelEntry[] };
-		const models = data.data ?? [];
+		const body = (await response.json()) as
+			| OpenAIModelEntry[]
+			| { data?: OpenAIModelEntry[] };
+		const models = Array.isArray(body) ? body : (body.data ?? []);
 
 		logger.info(`[${providerId}] Fetched ${models.length} models`);
 
@@ -435,19 +457,59 @@ export async function fetchOpenAICompatibleModels(
 			.filter((m) => m.id)
 			.map((m): PiProviderModelConfig => {
 				const name = m.id.split("/").pop() || m.id;
+
+				// Use per-model context length if the API provides it (try multiple field names)
+				const contextWindow =
+					m.context_length ??
+					m.max_context_length ??
+					m.context_window ??
+					defaults.contextWindow ??
+					128_000;
+
+				// Use per-model max tokens if the API provides it (try multiple field names)
+				const maxTokens =
+					m.max_completion_tokens ??
+					m.max_tokens ??
+					defaults.maxTokens ??
+					4_096;
+
+				// Use per-model reasoning flag if the API provides it
+				const reasoning =
+					m.reasoning ?? isLikelyReasoningModel({ id: m.id, name });
+
+				// Use per-model input_modalities if the API provides it
+				const hasVision = m.input_modalities?.includes("image") ?? false;
+				const input =
+					(defaults.input as PiProviderModelConfig["input"]) ??
+					(hasVision ? ["text", "image"] : ["text"]);
+
+				// Use per-model pricing if the API provides it, otherwise use defaults
+				const inputCost =
+					(m.pricing?.prompt !== undefined
+						? Number(m.pricing.prompt)
+						: undefined) ??
+					defaults.cost?.input ??
+					0;
+				const outputCost =
+					(m.pricing?.completion !== undefined
+						? Number(m.pricing.completion)
+						: undefined) ??
+					defaults.cost?.output ??
+					0;
+
 				return {
 					id: m.id,
 					name,
-					reasoning: isLikelyReasoningModel({ id: m.id, name }),
-					input: (defaults.input as PiProviderModelConfig["input"]) ?? ["text"],
+					reasoning,
+					input,
 					cost: {
-						input: defaults.cost?.input ?? 0,
-						output: defaults.cost?.output ?? 0,
+						input: inputCost,
+						output: outputCost,
 						cacheRead: 0,
 						cacheWrite: 0,
 					},
-					contextWindow: defaults.contextWindow ?? 128_000,
-					maxTokens: defaults.maxTokens ?? 4_096,
+					contextWindow,
+					maxTokens,
 					compat: getProxyModelCompat({ id: m.id, name }),
 				};
 			});

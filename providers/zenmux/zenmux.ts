@@ -27,10 +27,7 @@ import {
 	PROVIDER_ZENMUX,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
-import {
-	getProxyModelCompat,
-	isLikelyReasoningModel,
-} from "../../lib/provider-compat.ts";
+import { getProxyModelCompat } from "../../lib/provider-compat.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
 import { createReRegister, setupProvider } from "../../provider-helper.ts";
@@ -43,17 +40,33 @@ const _logger = createLogger("zenmux");
 
 interface ZenMuxModel {
 	id: string;
-	name?: string;
+	display_name?: string;
 	context_length?: number;
-	pricing?: {
-		prompt?: number;
-		completion?: number;
+	input_modalities?: string[];
+	output_modalities?: string[];
+	capabilities?: {
+		reasoning?: boolean;
+	};
+	pricings?: {
+		prompt?: Array<{ value: number }>;
+		completion?: Array<{ value: number }>;
+		input_cache_read?: Array<{ value: number }>;
 	};
 }
 
-function isZenmuxReasoningModel(model: Pick<ZenMuxModel, "id" | "name">) {
-	const haystack = `${model.id} ${model.name ?? ""}`.toLowerCase();
-	return isLikelyReasoningModel(model) || haystack.includes("claude");
+/**
+ * Extract the first pricing value from a ZenMux pricings array.
+ * ZenMux uses a structured format: pricings.prompt[0].value (per-million-tokens).
+ * We divide by 1_000_000 to convert to per-token price (Pi's convention).
+ * Returns 0 if pricing is missing or empty.
+ */
+function extractZenmuxPrice(
+	pricings: ZenMuxModel["pricings"],
+	key: "prompt" | "completion" | "input_cache_read",
+): number {
+	const entries = pricings?.[key];
+	if (!entries || entries.length === 0) return 0;
+	return (entries[0].value ?? 0) / 1_000_000;
 }
 
 async function fetchZenmuxModels(
@@ -87,13 +100,15 @@ async function fetchZenmuxModels(
 		return models.map(
 			(m): ProviderModelConfig => ({
 				id: m.id,
-				name: m.name || m.id,
-				reasoning: isZenmuxReasoningModel(m),
-				input: ["text"],
+				name: m.display_name || m.id,
+				reasoning: m.capabilities?.reasoning ?? false,
+				input: m.input_modalities?.includes("image")
+					? ["text", "image"]
+					: ["text"],
 				cost: {
-					input: m.pricing?.prompt || 0,
-					output: m.pricing?.completion || 0,
-					cacheRead: 0,
+					input: extractZenmuxPrice(m.pricings, "prompt"),
+					output: extractZenmuxPrice(m.pricings, "completion"),
+					cacheRead: extractZenmuxPrice(m.pricings, "input_cache_read"),
 					cacheWrite: 0,
 				},
 				contextWindow: m.context_length || 128000,
