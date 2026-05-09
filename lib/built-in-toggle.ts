@@ -66,62 +66,73 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 
 	// Capture built-in models on session start and apply initial filter
 	pi.on("session_start", async (_event, ctx) => {
-		const available = ctx.modelRegistry.getAvailable();
-
 		for (const config of BUILT_IN_TOGGLE_PROVIDERS) {
 			if (providerStates.has(config.id)) {
-				// Already captured this session — skip to avoid re-registering
+				// Already captured — skip to avoid re-registering
 				continue;
 			}
 
-			const providerModels = available.filter(
-				(m: Model<Api>) => m.provider === config.id,
-			);
-			if (providerModels.length === 0) continue;
+			const state = tryCaptureProvider(pi, config, ctx);
+			if (!state) continue;
 
-			const allModels = providerModels.map(modelToProviderConfig);
-			const freeModels = allModels.filter((m) =>
-				isFreeModel({ ...m, provider: config.id }, allModels),
-			);
-
-			const baseUrl = providerModels[0].baseUrl;
-			const api = providerModels[0].api;
-			const apiKeyEnv = getApiKeyEnvForProvider(config.id);
-
-			const reRegister = (models: ProviderModelConfig[]) => {
-				pi.registerProvider(config.id, {
-					baseUrl,
-					apiKey: apiKeyEnv,
-					api,
-					models,
-				});
-			};
-
-			const stored = { free: freeModels, all: allModels };
-			const toggleState = createToggleState<ProviderModelConfig>({
-				providerId: config.id,
-				initialShowPaid: config.getShowPaid(),
-				initialModels: stored,
-			});
-
-			providerStates.set(config.id, {
-				stored,
-				reRegister,
-				toggleState,
-			});
-
-			registerWithGlobalToggle(config.id, stored, reRegister, true);
-
-			_logger.info(
-				`[built-in-toggle] ${config.id}: captured ${allModels.length} models (${freeModels.length} free)`,
-			);
-
-			const applied = toggleState.applyCurrent(reRegister);
+			const applied = state.toggleState.applyCurrent(state.reRegister);
 			_logger.info(
 				`[built-in-toggle] ${config.id}: applied ${applied.mode} mode with ${applied.models.length} models`,
 			);
 		}
 	});
+}
+
+// =============================================================================
+// On-demand model capture (called by toggle command when state is missing)
+// =============================================================================
+
+function tryCaptureProvider(
+	pi: ExtensionAPI,
+	config: BuiltInToggleConfig,
+	ctx: any,
+): BuiltInProviderState | undefined {
+	const available = ctx.modelRegistry.getAvailable();
+	const providerModels = available.filter(
+		(m: Model<Api>) => m.provider === config.id,
+	);
+	if (providerModels.length === 0) return undefined;
+
+	const allModels = providerModels.map(modelToProviderConfig);
+	const freeModels = allModels.filter((m: ProviderModelConfig) =>
+		isFreeModel({ ...m, provider: config.id }, allModels),
+	);
+
+	const baseUrl = providerModels[0].baseUrl;
+	const api = providerModels[0].api;
+	const apiKeyEnv = getApiKeyEnvForProvider(config.id);
+
+	const reRegister = (models: ProviderModelConfig[]) => {
+		pi.registerProvider(config.id, {
+			baseUrl,
+			apiKey: apiKeyEnv,
+			api,
+			models,
+		});
+	};
+
+	const stored = { free: freeModels, all: allModels };
+	const toggleState = createToggleState<ProviderModelConfig>({
+		providerId: config.id,
+		initialShowPaid: config.getShowPaid(),
+		initialModels: stored,
+	});
+
+	const state: BuiltInProviderState = { stored, reRegister, toggleState };
+	providerStates.set(config.id, state);
+
+	registerWithGlobalToggle(config.id, stored, reRegister, true);
+
+	_logger.info(
+		`[built-in-toggle] ${config.id}: captured ${allModels.length} models (${freeModels.length} free)`,
+	);
+
+	return state;
 }
 
 // =============================================================================
@@ -136,13 +147,17 @@ function registerToggleCommand(
 	pi.registerCommand(commandName, {
 		description: `Toggle free/paid ${config.id} models`,
 		handler: async (_args, ctx) => {
-			const state = providerStates.get(config.id);
+			let state = providerStates.get(config.id);
 			if (!state) {
-				ctx.ui.notify(
-					`${config.id}: models not loaded yet. Start a session first.`,
-					"warning",
-				);
-				return;
+				// Models may have loaded after session_start — try on-demand capture
+				state = tryCaptureProvider(pi, config, ctx);
+				if (!state) {
+					ctx.ui.notify(
+						`${config.id}: models not loaded yet. Start a session first.`,
+						"warning",
+					);
+					return;
+				}
 			}
 
 			const applied = state.toggleState.toggle(state.reRegister);
