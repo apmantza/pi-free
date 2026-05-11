@@ -394,7 +394,9 @@ describe("NVIDIA Provider", () => {
 		});
 		// NVIDIA treats all models as free-tier (like Codestral/Ollama).
 		// All models are accessible via free credits, no payment required.
-		expect(capturedToggleArgs[1].free.length).toBe(capturedToggleArgs[1].all.length);
+		expect(capturedToggleArgs[1].free.length).toBe(
+			capturedToggleArgs[1].all.length,
+		);
 		expect(capturedToggleArgs[1].all.length).toBeGreaterThan(0);
 	});
 

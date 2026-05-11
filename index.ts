@@ -40,6 +40,7 @@ import llm7 from "./providers/llm7/llm7.ts";
 import deepinfra from "./providers/deepinfra/deepinfra.ts";
 import sambanova from "./providers/sambanova/sambanova.ts";
 import together from "./providers/together/together.ts";
+import novita from "./providers/novita/novita.ts";
 import nvidia from "./providers/nvidia/nvidia.ts";
 import ollama from "./providers/ollama/ollama.ts";
 import zenmux from "./providers/zenmux/zenmux.ts";
@@ -210,6 +211,7 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 		deepinfra(pi),
 		sambanova(pi),
 		together(pi),
+		novita(pi),
 	]);
 
 	// Setup dynamic built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face)
