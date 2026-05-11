@@ -337,6 +337,7 @@ export function getFastrouterApiKey(): string | undefined {
 }
 
 
+
 export function getOllamaApiKey(): string | undefined {
 	return resolve("OLLAMA_API_KEY", loadConfigFile().ollama_api_key);
 }
