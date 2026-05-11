@@ -223,7 +223,10 @@ export function getNovitaShowPaid(): boolean {
 }
 
 export function getFastrouterShowPaid(): boolean {
-	return resolveBool("FASTROUTER_SHOW_PAID", loadConfigFile().fastrouter_show_paid);
+	return resolveBool(
+		"FASTROUTER_SHOW_PAID",
+		loadConfigFile().fastrouter_show_paid,
+	);
 }
 
 export function getOllamaShowPaid(): boolean {

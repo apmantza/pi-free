@@ -149,12 +149,12 @@ Debug logging writes to `~/.pi/modelmatch.log`.
 
 ## Provider Categories
 
-| Category    | Providers                                 | Auth              | Notes                            |
-| ----------- | ----------------------------------------- | ----------------- | -------------------------------- |
-| ✅ Free     | kilo, cline, openrouter, opencode         | OAuth or none     | Toggle between free/paid         |
-| 🔄 Freemium | nvidia, ollama-cloud, sambanova           | API key           | Free tier with limits            |
-| 💳 Paid     | zenmux, crofai                            | API key + credits | Always paid                      |
-| 🔧 Dynamic  | mistral, groq, cerebras, xai, huggingface | API key           | Fetched only when key configured |
+| Category    | Providers                                          | Auth              | Notes                            |
+| ----------- | -------------------------------------------------- | ----------------- | -------------------------------- |
+| ✅ Free     | kilo, cline, openrouter, opencode, llm7            | OAuth or none     | Toggle between free/paid         |
+| 🔄 Freemium | nvidia, ollama-cloud, sambanova, codestral         | API key           | Free tier with limits            |
+| 💳 Paid     | zenmux, crofai, deepinfra, together, novita        | API key + credits | Trial credits or pay-per-token   |
+| 🔧 Dynamic  | mistral, groq, cerebras, xai, huggingface, fastrouter | API key        | Fetched when key configured      |
 
 ---
 
