@@ -9,17 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Novita AI provider** — OpenAI-compatible API at `api.novita.ai/openai/v1` with 100+ open-source models. Non-standard but rich metadata: per-model pricing (`input_token_price_per_m`), context size, max output tokens, reasoning/vision features, and model descriptions. 3 free models, 99 paid.
+
 - **Dynamic model fetching for OpenCode and OpenRouter** — Pi's built-in providers now get their models fetched dynamically from the API (`opencode.ai/zen/v1/models` and `openrouter.ai/api/v1/models`), same as Mistral, Groq, Cerebras, and xAI. Overwrites Pi's defaults with the full model list. OpenCode uses name-based free detection (API returns no pricing); OpenRouter uses full cost-based detection.
 
 - **API key reading from `~/.pi/agent/auth.json`** — `getOpencodeApiKey()` and `getOpenrouterApiKey()` now fall back to Pi's auth.json when the env var isn't set, matching how Pi's built-in providers read their keys.
 
 ### Changed
 
-- **`_pricingKnown` guard in `isFreeModel`** — Providers can now signal whether pricing data is authoritative. When `_pricingKnown` is explicitly `false` (API returned no pricing), `isFreeModel` falls back to name-only detection (checks for "free" in the model name). This eliminates false positives where missing pricing data was treated as $0 cost. All 5 affected providers (ZenMux, Together, CrofAI, dynamic-built-in, fetchOpenAICompatibleModels) now set this flag correctly.
+- **`_pricingKnown` guard in `isFreeModel`** — Providers can now signal whether pricing data is authoritative. When `_pricingKnown` is explicitly `false` (API returned no pricing), `isFreeModel` falls back to name-only detection (checks for "free" in the model name). This eliminates false positives where missing pricing data was treated as $0 cost. All affected providers (ZenMux, Together, CrofAI, dynamic-built-in, fetchOpenAICompatibleModels, deepinfra, sambanova, novita) now set this flag correctly.
 
-- **DeepInfra and SambaNova now use `isFreeModel`** — DeepInfra previously hardcoded an empty free list; SambaNova previously treated all models as free. Both now use the standard `isFreeModel` detection with proper `_pricingKnown` metadata.
+- **All providers now use `isFreeModel` consistently** — Together switched from hardcoded `cost===0` check to `isFreeModel`. DeepInfra and SambaNova switched from manual free lists to `isFreeModel` with proper `_pricingKnown` metadata. NVIDIA, Codestral, and Ollama explicitly documented as free-tier providers (`freeModels = allModels`).
 
-- **Unified OpenRouter-based providers** — Kilo, OpenRouter, and Cline now share the same `fetchOpenRouterCompatibleModels` / OpenRouter API logic. DeepSeek proxy compat is auto-detected for all three.
+- **Unified OpenRouter-based providers** — Kilo, OpenRouter, and Cline now share the same `fetchOpenRouterCompatibleModels` / OpenRouter API logic.
 
 ### Removed
 

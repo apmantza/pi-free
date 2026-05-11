@@ -96,41 +96,37 @@ async function fetchNovitaModels(
 
 		_logger.info(`[novita] Fetched ${models.length} models`);
 
-		return models.map(
-			(m): ProviderModelConfig => {
-				const name = m.display_name || m.id.split("/").pop() || m.id;
-				const reasoning =
-					(m.features ?? []).includes("reasoning") ||
-					isLikelyReasoningModel({ id: m.id, name });
-				const hasVision =
-					m.input_modalities?.includes("image") ?? false;
+		return models.map((m): ProviderModelConfig => {
+			const name = m.display_name || m.id.split("/").pop() || m.id;
+			const reasoning =
+				(m.features ?? []).includes("reasoning") ||
+				isLikelyReasoningModel({ id: m.id, name });
+			const hasVision = m.input_modalities?.includes("image") ?? false;
 
-				// Novita pricing is per-MILLION tokens. Divide for per-token (Pi convention).
-				const inputCost = (m.input_token_price_per_m ?? 0) / 1_000_000;
-				const outputCost =
-					(m.output_token_price_per_m ?? 0) / 1_000_000;
-				const hasPricing =
-					m.input_token_price_per_m !== undefined ||
-					m.output_token_price_per_m !== undefined;
+			// Novita pricing is per-MILLION tokens. Divide for per-token (Pi convention).
+			const inputCost = (m.input_token_price_per_m ?? 0) / 1_000_000;
+			const outputCost = (m.output_token_price_per_m ?? 0) / 1_000_000;
+			const hasPricing =
+				m.input_token_price_per_m !== undefined ||
+				m.output_token_price_per_m !== undefined;
 
-				return {
-					id: m.id,
-					name,
-					reasoning,
-					input: hasVision ? ["text", "image"] : ["text"],
-					cost: {
-						input: inputCost,
-						output: outputCost,
-						cacheRead: 0,
-						cacheWrite: 0,
-					},
-					contextWindow: m.context_size ?? 128_000,
-					maxTokens: m.max_output_tokens ?? 16_384,
-					compat: getProxyModelCompat({ id: m.id, name }),
-					_pricingKnown: hasPricing,
-				} as ProviderModelConfig & { _pricingKnown?: boolean };
-			},
-		);
+			return {
+				id: m.id,
+				name,
+				reasoning,
+				input: hasVision ? ["text", "image"] : ["text"],
+				cost: {
+					input: inputCost,
+					output: outputCost,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				contextWindow: m.context_size ?? 128_000,
+				maxTokens: m.max_output_tokens ?? 16_384,
+				compat: getProxyModelCompat({ id: m.id, name }),
+				_pricingKnown: hasPricing,
+			} as ProviderModelConfig & { _pricingKnown?: boolean };
+		});
 	} catch (error) {
 		_logger.error("[novita] Failed to fetch models:", {
 			error: error instanceof Error ? error.message : String(error),
