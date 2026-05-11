@@ -303,11 +303,46 @@ export function getHfToken(): string | undefined {
 }
 
 /**
+ * Read an API key from ~/.pi/agent/auth.json.
+ * Pi stores built-in provider keys there (opencode, openrouter, etc.).
+ * Falls back to env var if auth.json is missing or key not found.
+ */
+function readAuthJsonKey(
+	providerId: string,
+	envVar: string,
+): string | undefined {
+	// Check env var first (fast path)
+	const envVal = process.env[envVar];
+	if (envVal) return envVal;
+
+	// Check auth.json
+	try {
+		const authPath = join(PI_DIR, "agent", "auth.json");
+		if (!existsSync(authPath)) return undefined;
+		const raw = readFileSync(authPath, "utf8");
+		const auth = JSON.parse(raw) as Record<
+			string,
+			{ type?: string; key?: string }
+		>;
+		const entry = auth[providerId];
+		if (entry?.key?.trim()) return entry.key;
+	} catch {
+		// auth.json missing or corrupt — silently skip
+	}
+	return undefined;
+}
+
+/**
  * OpenRouter key — pi's built-in provider reads from ~/.pi/agent/auth.json.
- * pi-free only checks the env var to avoid stale keys from free.json.
+ * pi-free checks env var first, then auth.json.
  */
 export function getOpenrouterApiKey(): string | undefined {
-	return process.env.OPENROUTER_API_KEY;
+	return readAuthJsonKey("openrouter", "OPENROUTER_API_KEY");
+}
+
+/** OpenCode key — pi's built-in provider. Read from env or auth.json. */
+export function getOpencodeApiKey(): string | undefined {
+	return readAuthJsonKey("opencode", "OPENCODE_API_KEY");
 }
 
 // =============================================================================

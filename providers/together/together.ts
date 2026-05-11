@@ -123,7 +123,8 @@ async function fetchTogetherModels(
 				contextWindow: m.context_length ?? 128_000,
 				maxTokens: 16_384,
 				compat: getProxyModelCompat({ id: m.id, name }),
-			};
+				_pricingKnown: m.pricing !== undefined,
+			} as ProviderModelConfig & { _pricingKnown?: boolean };
 		});
 }
 

@@ -97,8 +97,9 @@ async function fetchZenmuxModels(
 
 		_logger.info(`[zenmux] Fetched ${models.length} models`);
 
-		return models.map(
-			(m): ProviderModelConfig => ({
+		return models.map((m) => {
+			const hasPricings = m.pricings !== undefined;
+			return {
 				id: m.id,
 				name: m.display_name || m.id,
 				reasoning: m.capabilities?.reasoning ?? false,
@@ -114,8 +115,9 @@ async function fetchZenmuxModels(
 				contextWindow: m.context_length || 128000,
 				maxTokens: m.context_length ? Math.floor(m.context_length / 2) : 4096,
 				compat: getProxyModelCompat(m),
-			}),
-		);
+				_pricingKnown: hasPricings,
+			} as ProviderModelConfig & { _pricingKnown?: boolean };
+		});
 	} catch (error) {
 		_logger.error("[zenmux] Failed to fetch models:", {
 			error: error instanceof Error ? error.message : String(error),

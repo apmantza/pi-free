@@ -82,7 +82,7 @@ function detectPricingExposed(allModels: ProviderModelConfig[]): boolean {
  * @returns true if the model is definitively free per the provider's API
  */
 export function isFreeModel(
-	model: ProviderModelConfig & { provider?: string },
+	model: ProviderModelConfig & { provider?: string; _pricingKnown?: boolean },
 	allModels?: ProviderModelConfig[],
 ): boolean {
 	return isFreeModelInternal(model, allModels);
@@ -90,7 +90,7 @@ export function isFreeModel(
 
 // Internal implementation to work around TypeScript filter callback issues
 function isFreeModelInternal(
-	model: ProviderModelConfig & { provider?: string },
+	model: ProviderModelConfig & { provider?: string; _pricingKnown?: boolean },
 	allModels: ProviderModelConfig[] | undefined,
 ): boolean {
 	// Determine if pricing is exposed
@@ -106,12 +106,20 @@ function isFreeModelInternal(
 		pricingExposed = true;
 	}
 
-	// Route A: Pricing-exposed providers - use OR logic
-	// Model is free if EITHER cost is zero OR name contains "free"
+	// Route A: Pricing-exposed providers
+	// Model is free if EITHER cost is zero OR name contains "free".
+	// BUT: when _pricingKnown is explicitly false (API returned no pricing data),
+	// cost values are untrustworthy defaults — fall back to name-only detection.
 	if (pricingExposed) {
 		const isZeroCost =
 			(model.cost?.input ?? 0) === 0 && (model.cost?.output ?? 0) === 0;
 		const hasFreeInName = model.name.toLowerCase().includes("free");
+
+		// Pricing missing for this specific model — only trust name-based signal
+		if (model._pricingKnown === false) {
+			return hasFreeInName;
+		}
+
 		return isZeroCost || hasFreeInName;
 	}
 

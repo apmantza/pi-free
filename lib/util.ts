@@ -361,7 +361,8 @@ export function mapOpenRouterModel(m: {
 		contextWindow: m.context_length ?? 4096,
 		maxTokens:
 			m.max_completion_tokens ?? m.top_provider?.max_completion_tokens ?? 4096,
-	};
+		_pricingKnown: true,
+	} as ProviderModelConfig & { _pricingKnown?: boolean };
 }
 
 // =============================================================================
@@ -484,20 +485,19 @@ export async function fetchOpenAICompatibleModels(
 					(hasVision ? ["text", "image"] : ["text"]);
 
 				// Use per-model pricing if the API provides it, otherwise use defaults
-				const inputCost =
-					(typeof m.pricing?.prompt === "number" ||
+				const hasApiPricing = m.pricing !== undefined;
+				const apiInput =
+					typeof m.pricing?.prompt === "number" ||
 					typeof m.pricing?.prompt === "string"
 						? Number(m.pricing.prompt)
-						: undefined) ??
-					defaults.cost?.input ??
-					0;
-				const outputCost =
-					(typeof m.pricing?.completion === "number" ||
+						: undefined;
+				const apiOutput =
+					typeof m.pricing?.completion === "number" ||
 					typeof m.pricing?.completion === "string"
 						? Number(m.pricing.completion)
-						: undefined) ??
-					defaults.cost?.output ??
-					0;
+						: undefined;
+				const inputCost = apiInput ?? defaults.cost?.input ?? 0;
+				const outputCost = apiOutput ?? defaults.cost?.output ?? 0;
 
 				return {
 					id: m.id,
@@ -513,7 +513,8 @@ export async function fetchOpenAICompatibleModels(
 					contextWindow,
 					maxTokens,
 					compat: getProxyModelCompat({ id: m.id, name }),
-				};
+					_pricingKnown: hasApiPricing,
+				} as PiProviderModelConfig & { _pricingKnown?: boolean };
 			});
 	} catch (error) {
 		logger.error(`[${providerId}] Failed to fetch models:`, {

@@ -84,7 +84,6 @@ export const CLINE_AUTH_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 // =============================================================================
 
 export const NVIDIA_MIN_SIZE_B = 70; // Minimum model size for NVIDIA NIM
-export const DEFAULT_MIN_SIZE_B = 30; // Default minimum model size for filtering
 
 // =============================================================================
 // Timeouts (milliseconds)

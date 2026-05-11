@@ -31,7 +31,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getSambanovaApiKey, getSambanovaShowPaid } from "../../config.ts";
 import { BASE_URL_SAMBANOVA, PROVIDER_SAMBANOVA } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
-import { registerWithGlobalToggle } from "../../lib/registry.ts";
+import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { fetchOpenAICompatibleModels } from "../../lib/util.ts";
 import { createReRegister, setupProvider } from "../../provider-helper.ts";
 
@@ -66,7 +66,13 @@ export default async function sambanovaProvider(pi: ExtensionAPI) {
 
 	// All SambaNova models are free-tier (no payment method required).
 	// Rate limits are lower on free tier but all models are accessible.
-	const freeModels = allModels;
+	// Override _pricingKnown so isFreeModel trusts the zero costs.
+	for (const m of allModels) {
+		(m as unknown as { _pricingKnown?: boolean })._pricingKnown = true;
+	}
+	const freeModels = allModels.filter((m) =>
+		isFreeModel({ ...m, provider: PROVIDER_SAMBANOVA }, allModels),
+	);
 	const stored = { free: freeModels, all: allModels };
 
 	_logger.info(

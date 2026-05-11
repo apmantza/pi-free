@@ -119,7 +119,11 @@ async function fetchCrofaiModels(
 				contextWindow: m.context_length ?? 128_000,
 				maxTokens: m.max_completion_tokens ?? 16_384,
 				compat: getProxyModelCompat({ id: m.id, name }),
-			};
+				_pricingKnown:
+					m.pricing?.prompt !== undefined ||
+					m.pricing?.completion !== undefined ||
+					m.pricing?.cache_prompt !== undefined,
+			} as ProviderModelConfig & { _pricingKnown?: boolean };
 		});
 }
 

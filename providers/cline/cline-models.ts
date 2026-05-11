@@ -9,15 +9,10 @@ import { applyHidden } from "../../config.ts";
 import {
 	BASE_URL_OPENROUTER,
 	DEFAULT_FETCH_TIMEOUT_MS,
-	DEFAULT_MIN_SIZE_B,
 	PROVIDER_CLINE,
 } from "../../constants.ts";
 import type { ProviderModelConfig } from "../../lib/types.ts";
-import {
-	cleanModelName,
-	fetchWithRetry,
-	isUsableModel,
-} from "../../lib/util.ts";
+import { cleanModelName, fetchWithRetry } from "../../lib/util.ts";
 
 interface OpenRouterRaw {
 	id: string;
@@ -74,10 +69,8 @@ export async function fetchClineModels(
 
 	const json = (await response.json()) as { data?: OpenRouterRaw[] };
 
-	// Filter to usable models (chat-capable, size threshold)
-	let usableModels = (json.data ?? []).filter((m) =>
-		isUsableModel(m.id, DEFAULT_MIN_SIZE_B),
-	);
+	// Filter to usable models (chat-capable)
+	let usableModels = json.data ?? [];
 
 	// If freeOnly, filter to free models
 	if (freeOnly) {

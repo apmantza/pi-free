@@ -44,7 +44,7 @@ import {
 	getProxyModelCompat,
 	isLikelyReasoningModel,
 } from "../../lib/provider-compat.ts";
-import { registerWithGlobalToggle } from "../../lib/registry.ts";
+import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
 import { createReRegister, setupProvider } from "../../provider-helper.ts";
 
@@ -136,7 +136,8 @@ async function fetchDeepinfraModels(
 				contextWindow: meta?.context_length ?? 128_000,
 				maxTokens: meta?.max_tokens ?? 16_384,
 				compat: getProxyModelCompat({ id: m.id, name }),
-			};
+				_pricingKnown: meta?.pricing !== undefined,
+			} as ProviderModelConfig & { _pricingKnown?: boolean };
 		});
 }
 
@@ -163,9 +164,10 @@ export default async function deepinfraProvider(pi: ExtensionAPI) {
 	}
 
 	// DeepInfra is a trial credit provider — $5 one-time credit, no truly free models.
-	// All models are marked as paid. When free-only mode is ON, no models are shown.
-	// Toggle free-only OFF to see all models.
-	const freeModels: ProviderModelConfig[] = [];
+	// Use isFreeModel for consistent detection across all providers.
+	const freeModels = allModels.filter((m) =>
+		isFreeModel({ ...m, provider: PROVIDER_DEEPINFRA }, allModels),
+	);
 	const stored = { free: freeModels, all: allModels };
 
 	_logger.info(

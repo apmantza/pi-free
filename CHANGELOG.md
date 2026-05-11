@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Dynamic model fetching for OpenCode and OpenRouter** — Pi's built-in providers now get their models fetched dynamically from the API (`opencode.ai/zen/v1/models` and `openrouter.ai/api/v1/models`), same as Mistral, Groq, Cerebras, and xAI. Overwrites Pi's defaults with the full model list. OpenCode uses name-based free detection (API returns no pricing); OpenRouter uses full cost-based detection.
+
+- **API key reading from `~/.pi/agent/auth.json`** — `getOpencodeApiKey()` and `getOpenrouterApiKey()` now fall back to Pi's auth.json when the env var isn't set, matching how Pi's built-in providers read their keys.
+
+### Changed
+
+- **`_pricingKnown` guard in `isFreeModel`** — Providers can now signal whether pricing data is authoritative. When `_pricingKnown` is explicitly `false` (API returned no pricing), `isFreeModel` falls back to name-only detection (checks for "free" in the model name). This eliminates false positives where missing pricing data was treated as $0 cost. All 5 affected providers (ZenMux, Together, CrofAI, dynamic-built-in, fetchOpenAICompatibleModels) now set this flag correctly.
+
+- **DeepInfra and SambaNova now use `isFreeModel`** — DeepInfra previously hardcoded an empty free list; SambaNova previously treated all models as free. Both now use the standard `isFreeModel` detection with proper `_pricingKnown` metadata.
+
+- **Unified OpenRouter-based providers** — Kilo, OpenRouter, and Cline now share the same `fetchOpenRouterCompatibleModels` / OpenRouter API logic. DeepSeek proxy compat is auto-detected for all three.
+
+### Removed
+
+- **`DEFAULT_MIN_SIZE_B` (30B minimum model size filter)** — Removed from `model-fetcher.ts` and `cline-models.ts`. All models are now shown regardless of parameter count. NVIDIA still uses its own 70B threshold (`NVIDIA_MIN_SIZE_B`).
+
+### Fixed
+
+- **ZenMux false free classifications** — Models without `pricings` data (DeepSeek Chat V3.1, Kimi K2 0711, Claude 3.7 Sonnet) were incorrectly classified as free because missing pricing defaulted to $0. Fixed to 3 genuinely free models (down from 6 false positives).
+
+- **Together AI, CrofAI, dynamic-built-in missing-pricing false positives** — Same `?? 0` pattern across multiple providers could mark unpriced models as free. All now set `_pricingKnown: false` when pricing is absent from the API response.
+
 ## [2.0.10] - 2026-05-08
 
 ### Fixed

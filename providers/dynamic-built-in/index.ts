@@ -14,6 +14,8 @@
  * - groq (GROQ_API_KEY)
  * - cerebras (CEREBRAS_API_KEY)
  * - xai (XAI_API_KEY)
+ * - opencode (OPENCODE_API_KEY from auth.json)
+ * - openrouter (OPENROUTER_API_KEY from auth.json)
  * - huggingface (HF_TOKEN - optional, special-cased API shape)
  *
  * OpenAI is intentionally skipped per user request.
@@ -28,11 +30,14 @@ import {
 	getGroqApiKey,
 	getHfToken,
 	getMistralApiKey,
+	getOpencodeApiKey,
+	getOpenrouterApiKey,
 	getXaiApiKey,
 } from "../../config.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { getProxyModelCompat } from "../../lib/provider-compat.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
+import { fetchOpenRouterCompatibleModels } from "../model-fetcher.ts";
 import { createToggleState } from "../../lib/toggle-state.ts";
 import { enhanceWithCI } from "../../provider-helper.ts";
 
@@ -101,9 +106,10 @@ async function fetchModelsFromEndpoint(
 				((m.max_tokens ?? m.max_completion_tokens) as number) ??
 				opts.modelDefaults?.maxTokens ??
 				16_384,
+			_pricingKnown: false as boolean | undefined,
 			...opts.modelDefaults,
 			...(opts.compat ? { compat: opts.compat } : {}),
-		} satisfies ProviderModelConfig;
+		} satisfies ProviderModelConfig & { _pricingKnown?: boolean };
 	});
 }
 
@@ -164,6 +170,11 @@ interface DynamicProviderDef {
 	compat?: ProviderModelConfig["compat"];
 	/** Per-model field defaults when the API doesn't expose them. */
 	modelDefaults?: Partial<ProviderModelConfig>;
+	/**
+	 * Custom model fetcher (e.g., OpenRouter uses its own pricing-aware fetcher).
+	 * When not provided, fetchModelsFromEndpoint is used (no pricing, _pricingKnown=false).
+	 */
+	fetchModels?: (apiKey: string) => Promise<ProviderModelConfig[]>;
 }
 
 const DYNAMIC_PROVIDERS: DynamicProviderDef[] = [
@@ -196,6 +207,28 @@ const DYNAMIC_PROVIDERS: DynamicProviderDef[] = [
 		api: "openai-completions",
 		defaultShowPaid: false,
 	},
+	{
+		providerId: "opencode",
+		getApiKey: getOpencodeApiKey,
+		baseUrl: "https://opencode.ai/zen/v1",
+		api: "openai-completions",
+		defaultShowPaid: false,
+		// OpenCode API returns no pricing — _pricingKnown=false, name-based detection
+	},
+	{
+		providerId: "openrouter",
+		getApiKey: getOpenrouterApiKey,
+		baseUrl: "https://openrouter.ai/api/v1",
+		api: "openai-completions",
+		defaultShowPaid: false,
+		// OpenRouter returns full pricing — use its dedicated fetcher
+		fetchModels: (apiKey) =>
+			fetchOpenRouterCompatibleModels({
+				baseUrl: "https://openrouter.ai/api/v1",
+				apiKey,
+				freeOnly: false,
+			}),
+	},
 ];
 
 // =============================================================================
@@ -210,13 +243,17 @@ async function discoverAndRegister(
 	let allModels: ProviderModelConfig[];
 
 	try {
-		allModels = await fetchModelsFromEndpoint({
-			baseUrl: config.baseUrl,
-			apiKey,
-			compat: config.compat,
-			modelDefaults: config.modelDefaults,
-			timeoutMs: 1_000,
-		});
+		if (config.fetchModels) {
+			allModels = await config.fetchModels(apiKey);
+		} else {
+			allModels = await fetchModelsFromEndpoint({
+				baseUrl: config.baseUrl,
+				apiKey,
+				compat: config.compat,
+				modelDefaults: config.modelDefaults,
+				timeoutMs: 1_000,
+			});
+		}
 
 		// Apply DeepSeek proxy compat to matching models
 		allModels = allModels.map((m) => ({
