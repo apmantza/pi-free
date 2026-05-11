@@ -27,6 +27,23 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npx vitest run
+
   install-test:
     name: Install test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

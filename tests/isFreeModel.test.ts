@@ -252,3 +252,76 @@ describe("isFreeModel - edge cases", () => {
 		expect(isFreeModel({ ...model, provider: "nvidia" })).toBe(true);
 	});
 });
+
+describe("isFreeModel - _pricingKnown guard (Route A)", () => {
+	it("_pricingKnown=false + cost=0 + no 'free' in name = NOT free (missing pricing guarded)", () => {
+		const model = createModel("GPT-4", { input: 0, output: 0 });
+		// Simulate ZenMux models with missing pricing (e.g. deepseek-chat-v3.1)
+		const allModels = [
+			{ ...createModel("GPT-4o-mini", { input: 0.15, output: 0.6 }) },
+		];
+		expect(
+			isFreeModel({ ...model, provider: "zenmux", _pricingKnown: false }, allModels),
+		).toBe(false);
+	});
+
+	it("_pricingKnown=false + cost=0 + 'free' in name = free (name-based escape)", () => {
+		const model = createModel("Model Free Edition", { input: 0, output: 0 });
+		const allModels = [
+			{ ...createModel("GPT-4o-mini", { input: 0.15, output: 0.6 }) },
+		];
+		expect(
+			isFreeModel({ ...model, provider: "zenmux", _pricingKnown: false }, allModels),
+		).toBe(true);
+	});
+
+	it("_pricingKnown=false + cost>0 + 'free' in name = free (name beats unknown pricing)", () => {
+		const model = createModel("Free Tier Model", { input: 1, output: 1 });
+		const allModels = [
+			{ ...createModel("GPT-4o-mini", { input: 0.15, output: 0.6 }) },
+		];
+		expect(
+			isFreeModel({ ...model, provider: "opencode", _pricingKnown: false }, allModels),
+		).toBe(true);
+	});
+
+	it("_pricingKnown=true + cost=0 = free (same as old OR logic)", () => {
+		const model = createModel("Some Model", { input: 0, output: 0 });
+		const allModels = [
+			{ ...createModel("GPT-4o-mini", { input: 0.15, output: 0.6 }) },
+		];
+		expect(
+			isFreeModel({ ...model, provider: "openrouter", _pricingKnown: true }, allModels),
+		).toBe(true);
+	});
+
+	it("_pricingKnown=true + cost>0 = NOT free (pricing authoritative)", () => {
+		const model = createModel("Paid Model", { input: 1, output: 1 });
+		const allModels = [
+			{ ...createModel("GPT-4o-mini", { input: 0.15, output: 0.6 }) },
+		];
+		expect(
+			isFreeModel({ ...model, provider: "openrouter", _pricingKnown: true }, allModels),
+		).toBe(false);
+	});
+
+	it("_pricingKnown=undefined + cost=0 = free (backward compatible — defaults to old OR)", () => {
+		const model = createModel("GPT-4", { input: 0, output: 0 });
+		const allModels = [
+			{ ...createModel("GPT-4o-mini", { input: 0.15, output: 0.6 }) },
+		];
+		expect(
+			isFreeModel({ ...model, provider: "kilo", _pricingKnown: undefined }, allModels),
+		).toBe(true);
+	});
+
+	it("_pricingKnown=undefined + cost>0 + 'free' in name = free (backward compatible OR)", () => {
+		const model = createModel("Free Plan", { input: 5, output: 30 });
+		const allModels = [
+			{ ...createModel("GPT-4o-mini", { input: 0.15, output: 0.6 }) },
+		];
+		expect(
+			isFreeModel({ ...model, provider: "kilo", _pricingKnown: undefined }, allModels),
+		).toBe(true);
+	});
+});
