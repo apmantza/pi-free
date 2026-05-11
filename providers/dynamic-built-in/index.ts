@@ -16,6 +16,7 @@
  * - xai (XAI_API_KEY)
  * - opencode (OPENCODE_API_KEY from auth.json)
  * - openrouter (OPENROUTER_API_KEY from auth.json)
+ * - fastrouter (always discovered, FASTROUTER_API_KEY)
  * - huggingface (HF_TOKEN - optional, special-cased API shape)
  *
  * OpenAI is intentionally skipped per user request.
@@ -404,6 +405,23 @@ export async function setupDynamicBuiltInProviders(
 	if (hfKey) {
 		fetchers.push(discoverAndRegisterHF(pi, hfKey));
 	}
+
+	// FastRouter: always discovered (model listing needs no auth)
+	// Uses OpenRouter-compatible format with full pricing
+	fetchers.push(
+		discoverAndRegister(pi, {
+			providerId: "fastrouter",
+			getApiKey: () => process.env.FASTROUTER_API_KEY,
+			baseUrl: "https://api.fastrouter.ai/api/v1",
+			api: "openai-completions",
+			defaultShowPaid: false,
+			fetchModels: () =>
+				fetchOpenRouterCompatibleModels({
+					baseUrl: "https://api.fastrouter.ai/api/v1",
+					freeOnly: false,
+				}),
+		}, "" /* no key needed for listing */),
+	);
 
 	if (fetchers.length === 0) return;
 

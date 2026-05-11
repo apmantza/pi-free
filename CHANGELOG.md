@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Novita AI provider** — OpenAI-compatible API at `api.novita.ai/openai/v1` with 100+ open-source models. Non-standard but rich metadata: per-model pricing (`input_token_price_per_m`), context size, max output tokens, reasoning/vision features, and model descriptions. 3 free models, 99 paid.
 
+- **FastRouter provider** — OpenRouter-compatible API at `api.fastrouter.ai/api/v1` with 170+ models. Always discovered (no auth needed for model listing). Full pricing, context lengths, and feature metadata. 129 text models (6 free, 123 paid) after filtering image/video. Set `FASTROUTER_API_KEY` for chat completions.
+
 - **Dynamic model fetching for OpenCode and OpenRouter** — Pi's built-in providers now get their models fetched dynamically from the API (`opencode.ai/zen/v1/models` and `openrouter.ai/api/v1/models`), same as Mistral, Groq, Cerebras, and xAI. Overwrites Pi's defaults with the full model list. OpenCode uses name-based free detection (API returns no pricing); OpenRouter uses full cost-based detection.
 
 - **API key reading from `~/.pi/agent/auth.json`** — `getOpencodeApiKey()` and `getOpenrouterApiKey()` now fall back to Pi's auth.json when the env var isn't set, matching how Pi's built-in providers read their keys.
