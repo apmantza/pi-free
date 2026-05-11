@@ -392,13 +392,13 @@ describe("NVIDIA Provider", () => {
 			free: expect.any(Array),
 			all: expect.any(Array),
 		});
-		// NVIDIA uses Route B (name-based): free only if name contains "free"
-		// Since test models don't have "free" in name, free should be empty
-		expect(capturedToggleArgs[1].free.length).toBe(0);
+		// NVIDIA treats all models as free-tier (like Codestral/Ollama).
+		// All models are accessible via free credits, no payment required.
+		expect(capturedToggleArgs[1].free.length).toBe(capturedToggleArgs[1].all.length);
 		expect(capturedToggleArgs[1].all.length).toBeGreaterThan(0);
 	});
 
-	it("should mark models with 'free' in name as free (Route B behavior)", async () => {
+	it("should treat all models as free-tier (matching Codestral/Ollama approach)", async () => {
 		vi.mocked(fetchWithRetry).mockImplementation(async (url: string) => {
 			if (url.includes("integrate.api.nvidia.com/v1/models")) {
 				return mockNvidiaApiResponse([
@@ -438,9 +438,8 @@ describe("NVIDIA Provider", () => {
 		await nvidiaProvider(mockPi);
 
 		expect(capturedToggleArgs).toBeDefined();
-		// Only the model with "free" in name should be marked as free
-		expect(capturedToggleArgs[1].free.length).toBe(1);
-		expect(capturedToggleArgs[1].free[0].name).toBe("Llama 3.1 Free Edition");
+		// All NVIDIA models are free-tier — both models should be in the free list.
+		expect(capturedToggleArgs[1].free.length).toBe(2);
 		expect(capturedToggleArgs[1].all.length).toBe(2);
 	});
 });

@@ -261,7 +261,10 @@ describe("isFreeModel - _pricingKnown guard (Route A)", () => {
 			{ ...createModel("GPT-4o-mini", { input: 0.15, output: 0.6 }) },
 		];
 		expect(
-			isFreeModel({ ...model, provider: "zenmux", _pricingKnown: false }, allModels),
+			isFreeModel(
+				{ ...model, provider: "zenmux", _pricingKnown: false },
+				allModels,
+			),
 		).toBe(false);
 	});
 
@@ -271,7 +274,10 @@ describe("isFreeModel - _pricingKnown guard (Route A)", () => {
 			{ ...createModel("GPT-4o-mini", { input: 0.15, output: 0.6 }) },
 		];
 		expect(
-			isFreeModel({ ...model, provider: "zenmux", _pricingKnown: false }, allModels),
+			isFreeModel(
+				{ ...model, provider: "zenmux", _pricingKnown: false },
+				allModels,
+			),
 		).toBe(true);
 	});
 
@@ -281,7 +287,10 @@ describe("isFreeModel - _pricingKnown guard (Route A)", () => {
 			{ ...createModel("GPT-4o-mini", { input: 0.15, output: 0.6 }) },
 		];
 		expect(
-			isFreeModel({ ...model, provider: "opencode", _pricingKnown: false }, allModels),
+			isFreeModel(
+				{ ...model, provider: "opencode", _pricingKnown: false },
+				allModels,
+			),
 		).toBe(true);
 	});
 
@@ -291,7 +300,10 @@ describe("isFreeModel - _pricingKnown guard (Route A)", () => {
 			{ ...createModel("GPT-4o-mini", { input: 0.15, output: 0.6 }) },
 		];
 		expect(
-			isFreeModel({ ...model, provider: "openrouter", _pricingKnown: true }, allModels),
+			isFreeModel(
+				{ ...model, provider: "openrouter", _pricingKnown: true },
+				allModels,
+			),
 		).toBe(true);
 	});
 
@@ -301,7 +313,10 @@ describe("isFreeModel - _pricingKnown guard (Route A)", () => {
 			{ ...createModel("GPT-4o-mini", { input: 0.15, output: 0.6 }) },
 		];
 		expect(
-			isFreeModel({ ...model, provider: "openrouter", _pricingKnown: true }, allModels),
+			isFreeModel(
+				{ ...model, provider: "openrouter", _pricingKnown: true },
+				allModels,
+			),
 		).toBe(false);
 	});
 
@@ -311,7 +326,10 @@ describe("isFreeModel - _pricingKnown guard (Route A)", () => {
 			{ ...createModel("GPT-4o-mini", { input: 0.15, output: 0.6 }) },
 		];
 		expect(
-			isFreeModel({ ...model, provider: "kilo", _pricingKnown: undefined }, allModels),
+			isFreeModel(
+				{ ...model, provider: "kilo", _pricingKnown: undefined },
+				allModels,
+			),
 		).toBe(true);
 	});
 
@@ -321,7 +339,10 @@ describe("isFreeModel - _pricingKnown guard (Route A)", () => {
 			{ ...createModel("GPT-4o-mini", { input: 0.15, output: 0.6 }) },
 		];
 		expect(
-			isFreeModel({ ...model, provider: "kilo", _pricingKnown: undefined }, allModels),
+			isFreeModel(
+				{ ...model, provider: "kilo", _pricingKnown: undefined },
+				allModels,
+			),
 		).toBe(true);
 	});
 });

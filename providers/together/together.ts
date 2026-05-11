@@ -45,7 +45,7 @@ import {
 	getProxyModelCompat,
 	isLikelyReasoningModel,
 } from "../../lib/provider-compat.ts";
-import { registerWithGlobalToggle } from "../../lib/registry.ts";
+import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
 import { createReRegister, setupProvider } from "../../provider-helper.ts";
 
@@ -151,13 +151,9 @@ export default async function togetherProvider(pi: ExtensionAPI) {
 	}
 
 	// Together AI is a pay-per-token provider with $1 trial credit.
-	// Zero-cost models (if any) are marked free; all others are paid.
-	const freeModels = allModels.filter(
-		(m) =>
-			m.cost.input === 0 &&
-			m.cost.output === 0 &&
-			m.cost.cacheRead === 0 &&
-			m.cost.cacheWrite === 0,
+	// Use isFreeModel for consistent detection across all providers.
+	const freeModels = allModels.filter((m) =>
+		isFreeModel({ ...m, provider: PROVIDER_TOGETHER }, allModels),
 	);
 	const stored = { free: freeModels, all: allModels };
 
