@@ -409,18 +409,22 @@ export async function setupDynamicBuiltInProviders(
 	// FastRouter: always discovered (model listing needs no auth)
 	// Uses OpenRouter-compatible format with full pricing
 	fetchers.push(
-		discoverAndRegister(pi, {
-			providerId: "fastrouter",
-			getApiKey: () => process.env.FASTROUTER_API_KEY,
-			baseUrl: "https://api.fastrouter.ai/api/v1",
-			api: "openai-completions",
-			defaultShowPaid: false,
-			fetchModels: () =>
-				fetchOpenRouterCompatibleModels({
-					baseUrl: "https://api.fastrouter.ai/api/v1",
-					freeOnly: false,
-				}),
-		}, "" /* no key needed for listing */),
+		discoverAndRegister(
+			pi,
+			{
+				providerId: "fastrouter",
+				getApiKey: () => process.env.FASTROUTER_API_KEY,
+				baseUrl: "https://api.fastrouter.ai/api/v1",
+				api: "openai-completions",
+				defaultShowPaid: false,
+				fetchModels: () =>
+					fetchOpenRouterCompatibleModels({
+						baseUrl: "https://api.fastrouter.ai/api/v1",
+						freeOnly: false,
+					}),
+			},
+			"" /* no key needed for listing */,
+		),
 	);
 
 	if (fetchers.length === 0) return;
