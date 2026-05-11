@@ -28,6 +28,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import {
 	getCerebrasApiKey,
+	getFastrouterApiKey,
 	getGroqApiKey,
 	getHfToken,
 	getMistralApiKey,
@@ -413,7 +414,7 @@ export async function setupDynamicBuiltInProviders(
 			pi,
 			{
 				providerId: "fastrouter",
-				getApiKey: () => process.env.FASTROUTER_API_KEY,
+				getApiKey: getFastrouterApiKey,
 				baseUrl: "https://api.fastrouter.ai/api/v1",
 				api: "openai-completions",
 				defaultShowPaid: false,
