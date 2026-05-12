@@ -6,6 +6,7 @@ const mockGetOpencodeShowPaid = vi.fn();
 const mockGetOpenrouterShowPaid = vi.fn();
 const mockSaveConfig = vi.fn();
 const mockRegisterWithGlobalToggle = vi.fn();
+const mockProviderRegistry = new Map<string, unknown>();
 
 vi.mock("../config.ts", () => ({
 	getOpencodeShowPaid: () => mockGetOpencodeShowPaid(),
@@ -15,6 +16,7 @@ vi.mock("../config.ts", () => ({
 
 vi.mock("../lib/registry.ts", () => ({
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
+	getProviderRegistry: () => mockProviderRegistry,
 	isFreeModel: (model: { cost?: { input?: number; output?: number } }) =>
 		(model.cost?.input ?? 0) === 0 && (model.cost?.output ?? 0) === 0,
 	registerWithGlobalToggle: (...args: unknown[]) =>
@@ -34,6 +36,7 @@ describe("built-in provider toggles", () => {
 		handlers = {};
 		commands = {};
 		mockRegisterProvider = vi.fn();
+		mockProviderRegistry.clear();
 		mockGetGlobalFreeOnly.mockReturnValue(true);
 		mockGetOpencodeShowPaid.mockReturnValue(false);
 		mockGetOpenrouterShowPaid.mockReturnValue(false);
@@ -102,6 +105,16 @@ describe("built-in provider toggles", () => {
 				]),
 			}),
 		);
+	});
+
+	it("skips fallback capture for providers already registered dynamically", () => {
+		mockProviderRegistry.set("opencode", {});
+		mockProviderRegistry.set("openrouter", {});
+
+		setupBuiltInProviderToggles(mockPi);
+
+		expect(mockPi.registerCommand).not.toHaveBeenCalled();
+		expect(mockPi.on).not.toHaveBeenCalled();
 	});
 
 	it("toggles from the actual current mode instead of an assumed boolean", async () => {

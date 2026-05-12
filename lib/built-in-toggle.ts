@@ -18,7 +18,11 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { getOpencodeShowPaid, getOpenrouterShowPaid } from "../config.ts";
 import { createLogger } from "./logger.ts";
-import { isFreeModel, registerWithGlobalToggle } from "./registry.ts";
+import {
+	getProviderRegistry,
+	isFreeModel,
+	registerWithGlobalToggle,
+} from "./registry.ts";
 import { createToggleState } from "./toggle-state.ts";
 
 const _logger = createLogger("built-in-toggle");
@@ -55,18 +59,29 @@ let commandsRegistered = false;
 // =============================================================================
 
 export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
+	const activeConfigs = BUILT_IN_TOGGLE_PROVIDERS.filter(
+		(config) => !getProviderRegistry().has(config.id),
+	);
+
+	if (activeConfigs.length === 0) {
+		_logger.info(
+			"[built-in-toggle] OpenCode/OpenRouter already registered dynamically; skipping fallback capture",
+		);
+		return;
+	}
+
 	// Register toggle commands once (available even before models load)
 	if (!commandsRegistered) {
-		for (const config of BUILT_IN_TOGGLE_PROVIDERS) {
+		for (const config of activeConfigs) {
 			registerToggleCommand(pi, config);
 		}
-		setupStatusBar(pi);
+		setupStatusBar(pi, activeConfigs);
 		commandsRegistered = true;
 	}
 
 	// Capture built-in models on session start and apply initial filter
 	pi.on("session_start", async (_event, ctx) => {
-		for (const config of BUILT_IN_TOGGLE_PROVIDERS) {
+		for (const config of activeConfigs) {
 			if (providerStates.has(config.id)) {
 				// Already captured — skip to avoid re-registering
 				continue;
@@ -200,12 +215,15 @@ function modelToProviderConfig(m: Model<Api>): ProviderModelConfig {
 // Status bar for provider selection
 // =============================================================================
 
-function setupStatusBar(pi: ExtensionAPI): void {
+function setupStatusBar(
+	pi: ExtensionAPI,
+	configs: BuiltInToggleConfig[],
+): void {
 	pi.on("model_select", (_event, ctx) => {
 		const selected = _event.model?.provider;
 
-		// Clear status for all built-in toggle providers
-		for (const config of BUILT_IN_TOGGLE_PROVIDERS) {
+		// Clear status for all fallback-captured built-in providers
+		for (const config of configs) {
 			if (selected !== config.id) {
 				ctx.ui.setStatus(`${config.id}-status`, undefined);
 			}
