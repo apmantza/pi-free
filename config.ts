@@ -229,7 +229,6 @@ export function getFastrouterShowPaid(): boolean {
 	);
 }
 
-
 export function getOllamaShowPaid(): boolean {
 	return resolveBool("OLLAMA_SHOW_PAID", loadConfigFile().ollama_show_paid);
 }
@@ -335,8 +334,6 @@ export function getNovitaApiKey(): string | undefined {
 export function getFastrouterApiKey(): string | undefined {
 	return resolve("FASTROUTER_API_KEY", loadConfigFile().fastrouter_api_key);
 }
-
-
 
 export function getOllamaApiKey(): string | undefined {
 	return resolve("OLLAMA_API_KEY", loadConfigFile().ollama_api_key);
