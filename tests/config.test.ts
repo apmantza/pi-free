@@ -168,6 +168,17 @@ describe("show-paid getters", () => {
 		const { getOpenrouterShowPaid } = await import("../config.ts");
 		expect(getOpenrouterShowPaid()).toBe(false);
 	});
+
+	it("getProviderShowPaid maps provider ids to persisted flags", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(configPath(), JSON.stringify({ zenmux_show_paid: true }));
+
+		const { getProviderShowPaid } = await import("../config.ts");
+		expect(getProviderShowPaid("zenmux")).toBe(true);
+		expect(getProviderShowPaid("unknown-provider")).toBe(false);
+	});
 });
 
 // =============================================================================
@@ -289,6 +300,7 @@ describe("config re-exports", () => {
 			"getOllamaShowPaid",
 			"getOpenrouterShowPaid",
 			"getOpencodeShowPaid",
+			"getProviderShowPaid",
 			"getMistralApiKey",
 			"getGroqApiKey",
 			"getCerebrasApiKey",

@@ -29,11 +29,14 @@ import type {
 import {
 	getCerebrasApiKey,
 	getFastrouterApiKey,
+	getFastrouterShowPaid,
 	getGroqApiKey,
 	getHfToken,
 	getMistralApiKey,
 	getOpencodeApiKey,
+	getOpencodeShowPaid,
 	getOpenrouterApiKey,
+	getOpenrouterShowPaid,
 	getXaiApiKey,
 } from "../../config.ts";
 import { DEFAULT_FETCH_TIMEOUT_MS } from "../../constants.ts";
@@ -168,7 +171,7 @@ interface DynamicProviderDef {
 	getApiKey: () => string | undefined;
 	baseUrl: string;
 	api: "openai-completions" | "mistral-conversations" | "anthropic-messages";
-	defaultShowPaid: boolean;
+	defaultShowPaid: boolean | (() => boolean);
 	/** Optional per-provider compat overrides (e.g., DeepSeek proxy). */
 	compat?: ProviderModelConfig["compat"];
 	/** Per-model field defaults when the API doesn't expose them. */
@@ -215,7 +218,7 @@ const DYNAMIC_PROVIDERS: DynamicProviderDef[] = [
 		getApiKey: getOpencodeApiKey,
 		baseUrl: "https://opencode.ai/zen/v1",
 		api: "openai-completions",
-		defaultShowPaid: false,
+		defaultShowPaid: getOpencodeShowPaid,
 		// OpenCode API returns no pricing — _pricingKnown=false, name-based detection
 	},
 	{
@@ -223,7 +226,7 @@ const DYNAMIC_PROVIDERS: DynamicProviderDef[] = [
 		getApiKey: getOpenrouterApiKey,
 		baseUrl: "https://openrouter.ai/api/v1",
 		api: "openai-completions",
-		defaultShowPaid: false,
+		defaultShowPaid: getOpenrouterShowPaid,
 		// OpenRouter returns full pricing — use its dedicated fetcher
 		fetchModels: (apiKey) =>
 			fetchOpenRouterCompatibleModels({
@@ -331,7 +334,10 @@ async function registerProvider(
 	// Toggle state
 	const toggleState = createToggleState({
 		providerId: config.providerId,
-		initialShowPaid: config.defaultShowPaid,
+		initialShowPaid:
+			typeof config.defaultShowPaid === "function"
+				? config.defaultShowPaid()
+				: config.defaultShowPaid,
 		initialModels: { free: freeModels, all: allModels },
 	});
 
@@ -422,7 +428,7 @@ export async function setupDynamicBuiltInProviders(
 				getApiKey: getFastrouterApiKey,
 				baseUrl: "https://api.fastrouter.ai/api/v1",
 				api: "openai-completions",
-				defaultShowPaid: false,
+				defaultShowPaid: getFastrouterShowPaid,
 				fetchModels: () =>
 					fetchOpenRouterCompatibleModels({
 						baseUrl: "https://api.fastrouter.ai/api/v1",

@@ -58,7 +58,7 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 		handler: async (_args, ctx) => {
 			const current = getGlobalFreeOnly();
 			const next = !current;
-			applyGlobalFilter(pi, next);
+			applyGlobalFilter(pi, next, { force: true });
 
 			const registry = getProviderRegistry();
 			const providerCount = registry.size;

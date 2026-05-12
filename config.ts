@@ -229,7 +229,6 @@ export function getFastrouterShowPaid(): boolean {
 	);
 }
 
-
 export function getOllamaShowPaid(): boolean {
 	return resolveBool("OLLAMA_SHOW_PAID", loadConfigFile().ollama_show_paid);
 }
@@ -243,6 +242,41 @@ export function getOpenrouterShowPaid(): boolean {
 
 export function getOpencodeShowPaid(): boolean {
 	return resolveBool("OPENCODE_SHOW_PAID", loadConfigFile().opencode_show_paid);
+}
+
+export function getProviderShowPaid(providerId: string): boolean {
+	switch (providerId) {
+		case "kilo":
+			return getKiloShowPaid();
+		case "cline":
+			return getClineShowPaid();
+		case "zenmux":
+			return getZenmuxShowPaid();
+		case "crofai":
+			return getCrofaiShowPaid();
+		case "codestral":
+			return getCodestralShowPaid();
+		case "llm7":
+			return getLlm7ShowPaid();
+		case "deepinfra":
+			return getDeepinfraShowPaid();
+		case "sambanova":
+			return getSambanovaShowPaid();
+		case "together":
+			return getTogetherShowPaid();
+		case "novita":
+			return getNovitaShowPaid();
+		case "fastrouter":
+			return getFastrouterShowPaid();
+		case "ollama-cloud":
+			return getOllamaShowPaid();
+		case "openrouter":
+			return getOpenrouterShowPaid();
+		case "opencode":
+			return getOpencodeShowPaid();
+		default:
+			return false;
+	}
 }
 
 // =============================================================================
@@ -300,8 +334,6 @@ export function getNovitaApiKey(): string | undefined {
 export function getFastrouterApiKey(): string | undefined {
 	return resolve("FASTROUTER_API_KEY", loadConfigFile().fastrouter_api_key);
 }
-
-
 
 export function getOllamaApiKey(): string | undefined {
 	return resolve("OLLAMA_API_KEY", loadConfigFile().ollama_api_key);

@@ -9,11 +9,14 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../config.ts", () => ({
 	getCerebrasApiKey: () => undefined,
 	getFastrouterApiKey: () => undefined,
+	getFastrouterShowPaid: () => false,
 	getGroqApiKey: () => undefined,
 	getHfToken: () => undefined,
 	getMistralApiKey: () => undefined,
 	getOpencodeApiKey: () => undefined,
+	getOpencodeShowPaid: () => false,
 	getOpenrouterApiKey: () => undefined,
+	getOpenrouterShowPaid: () => false,
 	getXaiApiKey: () => undefined,
 	saveConfig: vi.fn(),
 }));

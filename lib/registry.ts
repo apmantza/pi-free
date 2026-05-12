@@ -9,7 +9,7 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import { getFreeOnly, saveConfig } from "../config.ts";
+import { getFreeOnly, getProviderShowPaid, saveConfig } from "../config.ts";
 import { createLogger } from "./logger.ts";
 
 const _logger = createLogger("pi-free");
@@ -164,12 +164,32 @@ export function getProviderRegistry(): ReadonlyMap<string, ProviderEntry> {
 // Global filter application
 // =============================================================================
 
+function showAllForProvider(providerId: string, entry: ProviderEntry): void {
+	const allModels =
+		entry.stored.all.length > 0 ? entry.stored.all : entry.stored.free;
+	if (allModels.length > 0) {
+		entry.reRegister(allModels);
+		_logger.info(
+			`[pi-free] ${providerId}: showing all ${allModels.length} models`,
+		);
+	}
+}
+
 function applyFilterToProvider(
 	providerId: string,
 	entry: ProviderEntry,
 	freeOnly: boolean,
+	force: boolean,
 ): void {
 	if (freeOnly) {
+		if (!force && getProviderShowPaid(providerId)) {
+			showAllForProvider(providerId, entry);
+			_logger.info(
+				`[pi-free] ${providerId}: preserved persisted all-models toggle`,
+			);
+			return;
+		}
+
 		if (entry.stored.free.length > 0) {
 			entry.reRegister(entry.stored.free);
 			_logger.info(
@@ -179,25 +199,21 @@ function applyFilterToProvider(
 			_logger.warn(`[pi-free] ${providerId}: no free models available`);
 		}
 	} else {
-		// Show all models (paid + free)
-		const allModels =
-			entry.stored.all.length > 0 ? entry.stored.all : entry.stored.free;
-		if (allModels.length > 0) {
-			entry.reRegister(allModels);
-			_logger.info(
-				`[pi-free] ${providerId}: showing all ${allModels.length} models`,
-			);
-		}
+		showAllForProvider(providerId, entry);
 	}
 }
 
-export function applyGlobalFilter(_pi: ExtensionAPI, freeOnly: boolean): void {
+export function applyGlobalFilter(
+	_pi: ExtensionAPI,
+	freeOnly: boolean,
+	options: { force?: boolean } = {},
+): void {
 	globalFreeOnly = freeOnly;
 	saveConfig({ free_only: freeOnly });
 
 	for (const [providerId, entry] of providerRegistry) {
 		try {
-			applyFilterToProvider(providerId, entry, freeOnly);
+			applyFilterToProvider(providerId, entry, freeOnly, options.force === true);
 		} catch (err) {
 			_logger.error(
 				`[pi-free] Failed to apply filter to ${providerId}`,
