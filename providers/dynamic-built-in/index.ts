@@ -418,8 +418,11 @@ export async function setupDynamicBuiltInProviders(
 		fetchers.push(discoverAndRegisterHF(pi, hfKey));
 	}
 
-	// FastRouter: always discovered (model listing needs no auth)
-	// Uses OpenRouter-compatible format with full pricing
+	// FastRouter: always discovered (model listing needs no auth), but Pi
+	// requires a non-empty apiKey/env-var name when replacing a provider's models.
+	// Use the real configured key when present; otherwise register with the env
+	// var name so startup does not fail for users who have not configured it yet.
+	const fastrouterApiKey = getFastrouterApiKey();
 	fetchers.push(
 		discoverAndRegister(
 			pi,
@@ -432,10 +435,11 @@ export async function setupDynamicBuiltInProviders(
 				fetchModels: () =>
 					fetchOpenRouterCompatibleModels({
 						baseUrl: "https://api.fastrouter.ai/api/v1",
+						apiKey: fastrouterApiKey,
 						freeOnly: false,
 					}),
 			},
-			"" /* no key needed for listing */,
+			fastrouterApiKey ?? "FASTROUTER_API_KEY",
 		),
 	);
 

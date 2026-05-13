@@ -89,6 +89,7 @@ describe("dynamic built-in providers", () => {
 		expect(registerProvider).toHaveBeenCalledWith(
 			"fastrouter",
 			expect.objectContaining({
+				apiKey: "FASTROUTER_API_KEY",
 				models: [expect.objectContaining({ id: "free-model" })],
 			}),
 		);
