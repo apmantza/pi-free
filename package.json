@@ -1,8 +1,8 @@
 {
 	"name": "pi-free",
-	"version": "2.0.10",
+	"version": "2.0.12",
 	"type": "module",
-	"description": "AI model providers for Pi with free model filtering. Shows only $0 cost models by default. Supports Kilo (free OAuth), Cline (free), NVIDIA (freemium), ZenMux, CrofAI, Ollama Cloud, and more.",
+	"description": "AI model providers for Pi with free model filtering and dynamic model fetching",
 	"keywords": [
 		"pi-package",
 		"pi-extension",
