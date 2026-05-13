@@ -133,9 +133,11 @@ Add your API keys to this file:
 {
   "nvidia_api_key": "nvapi-...",
   "ollama_api_key": "...",
-  "mistral_api_key": "...",
+  "together_ai_api_key": "...",
+  "novita_api_key": "...",
+  "fastrouter_api_key": "...",
   "codestral_api_key": "...",
-  "deepinfra_api_key": "...",
+  "deepinfra_token": "...",
   "sambanova_api_key": "...",
   "llm7_api_key": "...",
   "zenmux_api_key": "...",
@@ -143,7 +145,7 @@ Add your API keys to this file:
 }
 ```
 
-Or set environment variables instead (same names, uppercase: `OPENROUTER_API_KEY`, `NVIDIA_API_KEY`, etc.)
+Or set environment variables instead (same names, uppercase: `NVIDIA_API_KEY`, `TOGETHER_AI_API_KEY`, `FASTROUTER_API_KEY`, etc.)
 
 If `~/.pi/free.json` contains invalid JSON, pi-free now logs the parse error to `~/.pi/free.log` so you can fix the file quickly.
 
@@ -507,9 +509,17 @@ Create `~/.pi/free.json` in your home directory:
 ```json
 {
   "nvidia_api_key": "YOUR_NVIDIA_KEY",
-  "mistral_api_key": "YOUR_MISTRAL_KEY",
   "ollama_api_key": "YOUR_OLLAMA_KEY",
   "ollama_show_paid": true,
+  "together_ai_api_key": "YOUR_TOGETHER_KEY",
+  "novita_api_key": "YOUR_NOVITA_KEY",
+  "fastrouter_api_key": "YOUR_FASTROUTER_KEY",
+  "deepinfra_token": "YOUR_DEEPINFRA_TOKEN",
+  "sambanova_api_key": "YOUR_SAMBANOVA_KEY",
+  "codestral_api_key": "YOUR_CODESTRAL_KEY",
+  "llm7_api_key": "YOUR_LLM7_KEY",
+  "zenmux_api_key": "YOUR_ZENMUX_KEY",
+  "crofai_api_key": "YOUR_CROFAI_KEY",
   "hidden_models": ["model-id-to-hide"]
 }
 ```

@@ -7,13 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.12] - 2026-05-13
+
 ### Added
 
 - **Novita AI provider** — OpenAI-compatible API at `api.novita.ai/openai/v1` with 100+ open-source models. Non-standard but rich metadata: per-model pricing (`input_token_price_per_m`), context size, max output tokens, reasoning/vision features, and model descriptions. 3 free models, 99 paid.
 
 - **FastRouter provider** — OpenRouter-compatible API at `api.fastrouter.ai/api/v1` with 170+ models. Always discovered (no auth needed for model listing). Full pricing, context lengths, and feature metadata. 129 text models (6 free, 123 paid) after filtering image/video. Set `FASTROUTER_API_KEY` for chat completions.
-
-
 
 - **Dynamic model fetching for OpenCode and OpenRouter** — Pi's built-in providers now get their models fetched dynamically from the API (`opencode.ai/zen/v1/models` and `openrouter.ai/api/v1/models`), same as Mistral, Groq, Cerebras, and xAI. Overwrites Pi's defaults with the full model list. OpenCode uses name-based free detection (API returns no pricing); OpenRouter uses full cost-based detection.
 
@@ -33,11 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **FastRouter startup auth validation** — Pi requires a non-empty `apiKey` when replacing a provider's models during registration. FastRouter now passes the configured API key (or `FASTROUTER_API_KEY` env var name as a placeholder) instead of an empty string, preventing startup auth validation errors.
+
 - **ZenMux false free classifications** — Models without `pricings` data (DeepSeek Chat V3.1, Kimi K2 0711, Claude 3.7 Sonnet) were incorrectly classified as free because missing pricing defaulted to $0. Fixed to 3 genuinely free models (down from 6 false positives).
 
 - **Together AI, CrofAI, dynamic-built-in missing-pricing false positives** — Same `?? 0` pattern across multiple providers could mark unpriced models as free. All now set `_pricingKnown: false` when pricing is absent from the API response.
 
-## [2.0.10] - 2026-05-08
+## [2.0.11] - 2026-05-08
 
 ### Fixed
 
