@@ -22,6 +22,7 @@
  * OpenAI is intentionally skipped per user request.
  */
 
+import type { Api } from "@earendil-works/pi-ai";
 import type {
 	ExtensionAPI,
 	ProviderModelConfig,
@@ -47,14 +48,15 @@ import { fetchOpenRouterCompatibleModels } from "../model-fetcher.ts";
 import { createToggleState } from "../../lib/toggle-state.ts";
 import { enhanceWithCI } from "../../provider-helper.ts";
 import {
-	createOpenCodeHeaders,
+	OPENCODE_DYNAMIC_API,
 	createOpenCodeSessionTracker,
+	createOpenCodeStreamSimple,
+	isOpenCodeProvider,
 } from "../opencode-session.ts";
 
 const _logger = createLogger("dynamic-built-in");
 
-// OpenCode required headers (pi issue #4680). Dynamic OpenCode registration
-// bypasses built-in-toggle.ts, so inject them here as well.
+// OpenCode headers must be regenerated for every LLM request.
 const _opencodeSession = createOpenCodeSessionTracker();
 
 // =============================================================================
@@ -178,7 +180,7 @@ interface DynamicProviderDef {
 	providerId: string;
 	getApiKey: () => string | undefined;
 	baseUrl: string;
-	api: "openai-completions" | "mistral-conversations" | "anthropic-messages";
+	api: Api;
 	defaultShowPaid: boolean | (() => boolean);
 	/** Optional per-provider compat overrides (e.g., DeepSeek proxy). */
 	compat?: ProviderModelConfig["compat"];
@@ -225,9 +227,17 @@ const DYNAMIC_PROVIDERS: DynamicProviderDef[] = [
 		providerId: "opencode",
 		getApiKey: getOpencodeApiKey,
 		baseUrl: "https://opencode.ai/zen/v1",
-		api: "openai-completions",
+		api: OPENCODE_DYNAMIC_API,
 		defaultShowPaid: getOpencodeShowPaid,
 		// OpenCode API returns no pricing — _pricingKnown=false, name-based detection
+	},
+	{
+		providerId: "opencode-go",
+		getApiKey: getOpencodeApiKey,
+		baseUrl: "https://opencode.ai/zen/go/v1",
+		api: OPENCODE_DYNAMIC_API,
+		defaultShowPaid: getOpencodeShowPaid,
+		// OpenCode Go uses the same OPENCODE_API_KEY and per-request headers
 	},
 	{
 		providerId: "openrouter",
@@ -269,15 +279,12 @@ async function discoverAndRegister(
 			});
 		}
 
-		// Apply DeepSeek proxy compat to matching models and OpenCode headers when
-		// dynamically replacing Pi's built-in OpenCode provider.
+		// Apply DeepSeek proxy compat to matching models. OpenCode headers are
+		// injected per request by createOpenCodeStreamSimple(), not stored here.
 		allModels = allModels.map((m) => ({
 			...m,
+			api: isOpenCodeProvider(config.providerId) ? OPENCODE_DYNAMIC_API : m.api,
 			compat: getProxyModelCompat(m) ?? m.compat,
-			headers:
-				config.providerId === "opencode"
-					? createOpenCodeHeaders(_opencodeSession, m.headers)
-					: m.headers,
 		}));
 	} catch (error) {
 		_logger.info(
@@ -340,6 +347,9 @@ async function registerProvider(
 			baseUrl: config.baseUrl,
 			apiKey,
 			api: config.api,
+			...(isOpenCodeProvider(config.providerId)
+				? { streamSimple: createOpenCodeStreamSimple(_opencodeSession) }
+				: {}),
 			models: enhanceWithCI(models, config.providerId),
 		});
 	};

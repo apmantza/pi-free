@@ -25,13 +25,15 @@ import {
 } from "./registry.ts";
 import { createToggleState } from "./toggle-state.ts";
 import {
-	createOpenCodeHeaders,
+	OPENCODE_DYNAMIC_API,
 	createOpenCodeSessionTracker,
+	createOpenCodeStreamSimple,
+	isOpenCodeProvider,
 } from "../providers/opencode-session.ts";
 
 const _logger = createLogger("built-in-toggle");
 
-// OpenCode required headers (pi issue #4680). Without these, requests hang.
+// OpenCode requires per-request ids; see createOpenCodeStreamSimple().
 const _opencodeSession = createOpenCodeSessionTracker();
 
 // =============================================================================
@@ -45,6 +47,7 @@ interface BuiltInToggleConfig {
 
 const BUILT_IN_TOGGLE_PROVIDERS: BuiltInToggleConfig[] = [
 	{ id: "opencode", getShowPaid: getOpencodeShowPaid },
+	{ id: "opencode-go", getShowPaid: getOpencodeShowPaid },
 	{ id: "openrouter", getShowPaid: getOpenrouterShowPaid },
 ];
 
@@ -135,7 +138,10 @@ function tryCaptureProvider(
 		pi.registerProvider(config.id, {
 			baseUrl,
 			apiKey: apiKeyEnv,
-			api,
+			api: isOpenCodeProvider(config.id) ? OPENCODE_DYNAMIC_API : api,
+			...(isOpenCodeProvider(config.id)
+				? { streamSimple: createOpenCodeStreamSimple(_opencodeSession) }
+				: {}),
 			models,
 		});
 	};
@@ -222,9 +228,10 @@ function modelToProviderConfig(
 		compat: (m as any).compat,
 	};
 
-	// Inject OpenCode required headers for opencode / opencode-go models (pi #4680)
-	if (providerId === "opencode") {
-		base.headers = createOpenCodeHeaders(_opencodeSession, m.headers);
+	// Use a custom OpenCode API wrapper so per-request headers are regenerated
+	// for every LLM call instead of being frozen at registration time.
+	if (providerId && isOpenCodeProvider(providerId)) {
+		base.api = OPENCODE_DYNAMIC_API;
 	}
 
 	return base;
@@ -272,6 +279,7 @@ function setupStatusBar(
 function getApiKeyEnvForProvider(providerId: string): string {
 	const envMap: Record<string, string> = {
 		opencode: "OPENCODE_API_KEY",
+		"opencode-go": "OPENCODE_API_KEY",
 		openrouter: "OPENROUTER_API_KEY",
 	};
 	return envMap[providerId] || `${providerId.toUpperCase()}_API_KEY`;

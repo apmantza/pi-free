@@ -99,9 +99,17 @@ describe("built-in provider toggles", () => {
 		expect(mockRegisterProvider).toHaveBeenCalledWith(
 			"opencode",
 			expect.objectContaining({
+				api: "opencode-dynamic",
+				streamSimple: expect.any(Function),
 				models: expect.arrayContaining([
-					expect.objectContaining({ id: "free-model" }),
-					expect.objectContaining({ id: "paid-model" }),
+					expect.objectContaining({
+						id: "free-model",
+						api: "opencode-dynamic",
+					}),
+					expect.objectContaining({
+						id: "paid-model",
+						api: "opencode-dynamic",
+					}),
 				]),
 			}),
 		);
@@ -109,6 +117,7 @@ describe("built-in provider toggles", () => {
 
 	it("skips fallback capture for providers already registered dynamically", () => {
 		mockProviderRegistry.set("opencode", {});
+		mockProviderRegistry.set("opencode-go", {});
 		mockProviderRegistry.set("openrouter", {});
 
 		setupBuiltInProviderToggles(mockPi);
