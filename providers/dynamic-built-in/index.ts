@@ -46,8 +46,16 @@ import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { fetchOpenRouterCompatibleModels } from "../model-fetcher.ts";
 import { createToggleState } from "../../lib/toggle-state.ts";
 import { enhanceWithCI } from "../../provider-helper.ts";
+import {
+	createOpenCodeHeaders,
+	createOpenCodeSessionTracker,
+} from "../opencode-session.ts";
 
 const _logger = createLogger("dynamic-built-in");
+
+// OpenCode required headers (pi issue #4680). Dynamic OpenCode registration
+// bypasses built-in-toggle.ts, so inject them here as well.
+const _opencodeSession = createOpenCodeSessionTracker();
 
 // =============================================================================
 // Generic Model Fetcher
@@ -261,10 +269,15 @@ async function discoverAndRegister(
 			});
 		}
 
-		// Apply DeepSeek proxy compat to matching models
+		// Apply DeepSeek proxy compat to matching models and OpenCode headers when
+		// dynamically replacing Pi's built-in OpenCode provider.
 		allModels = allModels.map((m) => ({
 			...m,
 			compat: getProxyModelCompat(m) ?? m.compat,
+			headers:
+				config.providerId === "opencode"
+					? createOpenCodeHeaders(_opencodeSession, m.headers)
+					: m.headers,
 		}));
 	} catch (error) {
 		_logger.info(

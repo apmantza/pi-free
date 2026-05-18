@@ -1,5 +1,11 @@
 import { randomUUID } from "node:crypto";
 
+export const OPENCODE_STATIC_HEADERS = {
+	"User-Agent": "opencode/1.15.3",
+	"x-opencode-client": "cli",
+	"x-opencode-project": "global",
+} as const;
+
 /**
  * Shared OpenCode session/request tracking.
  *
@@ -29,5 +35,19 @@ export function createOpenCodeSessionTracker() {
 	return {
 		getSessionId,
 		nextRequestId,
+	};
+}
+
+export type OpenCodeSessionTracker = ReturnType<typeof createOpenCodeSessionTracker>;
+
+export function createOpenCodeHeaders(
+	tracker: OpenCodeSessionTracker,
+	existingHeaders?: Record<string, string>,
+): Record<string, string> {
+	return {
+		...existingHeaders,
+		...OPENCODE_STATIC_HEADERS,
+		"x-opencode-session": tracker.getSessionId(),
+		"x-opencode-request": tracker.nextRequestId(),
 	};
 }

@@ -24,21 +24,14 @@ import {
 	registerWithGlobalToggle,
 } from "./registry.ts";
 import { createToggleState } from "./toggle-state.ts";
-import { createOpenCodeSessionTracker } from "../providers/opencode-session.ts";
+import {
+	createOpenCodeHeaders,
+	createOpenCodeSessionTracker,
+} from "../providers/opencode-session.ts";
 
 const _logger = createLogger("built-in-toggle");
 
-// =============================================================================
-// OpenCode required headers (pi issue #4680)
-// Without these, requests to OpenCode models hang forever.
-// =============================================================================
-
-const OPENCODE_STATIC_HEADERS = {
-	"User-Agent": "opencode/1.15.3",
-	"x-opencode-client": "cli",
-	"x-opencode-project": "global",
-} as const;
-
+// OpenCode required headers (pi issue #4680). Without these, requests hang.
 const _opencodeSession = createOpenCodeSessionTracker();
 
 // =============================================================================
@@ -231,12 +224,7 @@ function modelToProviderConfig(
 
 	// Inject OpenCode required headers for opencode / opencode-go models (pi #4680)
 	if (providerId === "opencode") {
-		base.headers = {
-			...m.headers,
-			...OPENCODE_STATIC_HEADERS,
-			"x-opencode-session": _opencodeSession.getSessionId(),
-			"x-opencode-request": _opencodeSession.nextRequestId(),
-		};
+		base.headers = createOpenCodeHeaders(_opencodeSession, m.headers);
 	}
 
 	return base;
