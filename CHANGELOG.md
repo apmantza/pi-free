@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **OpenCode static headers injection** — pi-free now injects required OpenCode headers (`x-opencode-client`, `x-opencode-session`, `x-opencode-request`, `x-opencode-project`, `User-Agent`) when capturing and re-registering pi's built-in OpenCode models. Prevents requests from hanging indefinitely when pi's model generation omits these headers ([pi#4680](https://github.com/earendil-works/pi/issues/4680)). Uses the existing (formerly unused) `createOpenCodeSessionTracker` for dynamic per-session UUIDs and per-model request IDs.
+
 ## [2.0.12] - 2026-05-13
 
 ### Added
