@@ -155,13 +155,17 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 
 	// /telemetry — Show model telemetry data
 	pi.registerCommand("free-telemetry", {
-		description: "Show real-world performance data for free models (tokens/s, latency, success rate)",
+		description:
+			"Show real-world performance data for free models (tokens/s, latency, success rate)",
 		handler: async (_args, ctx) => {
 			const allTelemetry = getAllTelemetry();
 			const entries = Object.entries(allTelemetry);
 
 			if (entries.length === 0) {
-				ctx.ui.notify("No telemetry data yet. Use some free models first!", "info");
+				ctx.ui.notify(
+					"No telemetry data yet. Use some free models first!",
+					"info",
+				);
 				return;
 			}
 
@@ -169,16 +173,27 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 			entries.sort((a, b) => b[1].totalCalls - a[1].totalCalls);
 
 			const lines = ["📊 Model Telemetry:", ""];
-			lines.push(`${`Model`.padEnd(40)} ${`Calls`.padEnd(6)} ${`OK%`.padEnd(6)} ${`Lat`.padEnd(7)} ${`tok/s`.padEnd(7)} ${`Cost`}`);
+			lines.push(
+				`${`Model`.padEnd(40)} ${`Calls`.padEnd(6)} ${`OK%`.padEnd(6)} ${`Lat`.padEnd(7)} ${`tok/s`.padEnd(7)} ${`Cost`}`,
+			);
 			lines.push(`─`.repeat(75));
 
 			for (const [key, t] of entries.slice(0, 20)) {
 				const name = key.length > 38 ? key.slice(0, 35) + "..." : key;
 				const calls = String(t.totalCalls).padStart(5);
 				const ok = `${t.successRate}%`.padStart(5);
-				const lat = t.avgLatencyMs > 0 ? `${t.avgLatencyMs}ms`.padStart(6) : "—".padStart(6);
-				const tps = t.avgTokensPerSecond > 0 ? `${t.avgTokensPerSecond}`.padStart(6) : "—".padStart(6);
-				const cost = t.totalCost > 0 ? `$${t.totalCost.toFixed(4)}`.padStart(8) : "free".padStart(8);
+				const lat =
+					t.avgLatencyMs > 0
+						? `${t.avgLatencyMs}ms`.padStart(6)
+						: "—".padStart(6);
+				const tps =
+					t.avgTokensPerSecond > 0
+						? `${t.avgTokensPerSecond}`.padStart(6)
+						: "—".padStart(6);
+				const cost =
+					t.totalCost > 0
+						? `$${t.totalCost.toFixed(4)}`.padStart(8)
+						: "free".padStart(8);
 				lines.push(`${name.padEnd(40)} ${calls} ${ok} ${lat} ${tps} ${cost}`);
 			}
 
@@ -238,14 +253,11 @@ function setupQuotaMonitoring(pi: ExtensionAPI) {
 // =============================================================================
 
 function setupTelemetry(pi: ExtensionAPI) {
-	// Only track FREE models (input + output cost === 0)
-	const isFreeModel = (m: { cost?: { input?: number; output?: number } } | undefined): boolean =>
-		!!m && (m.cost?.input ?? 0) === 0 && (m.cost?.output ?? 0) === 0;
-
-	// Start timing when the agent begins processing
+	// Only track telemetry for FREE models (uses same isFreeModel logic as model filtering)
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	(pi as any).on("before_agent_start", (_event: any, ctx: any) => {
-		if (!isFreeModel(ctx.model)) return;
+		if (!ctx.model) return;
+		if (!isFreeModel(ctx.model as any)) return;
 		const provider = ctx.model?.provider;
 		const model = ctx.model?.id;
 		if (provider && model) {
@@ -255,10 +267,24 @@ function setupTelemetry(pi: ExtensionAPI) {
 
 	// Record telemetry when a turn completes
 	pi.on("turn_end", (event, ctx) => {
-		if (!isFreeModel(ctx.model)) return;
+		if (!ctx.model) return;
+		if (!isFreeModel(ctx.model as any)) return;
 
 		const msg = (
-			event as { message?: { role?: string; model?: string; usage?: { input?: number; output?: number; totalTokens?: number; cost?: { total?: number } }; stopReason?: string; errorMessage?: string } }
+			event as {
+				message?: {
+					role?: string;
+					model?: string;
+					usage?: {
+						input?: number;
+						output?: number;
+						totalTokens?: number;
+						cost?: { total?: number };
+					};
+					stopReason?: string;
+					errorMessage?: string;
+				};
+			}
 		).message;
 
 		if (msg?.role !== "assistant") return;
