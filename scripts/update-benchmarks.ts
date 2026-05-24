@@ -239,7 +239,7 @@ function generateBenchmarksChunks(models: AAModel[]): void {
 
 		// Replace spread block (inside HARDCODED_BENCHMARKS object)
 		const spreadRegex =
-			/([\t ]+\.\.\.BENCHMARKS_CHUNK_\d+,)[\s\S]*?([\t ]+\};\n\})/;
+			/([\t ]+\.\.\.BENCHMARKS_CHUNK_\d+,)[\s\S]*?([\t ]+\};)/;
 		const finalContent = updatedContent.replace(
 			spreadRegex,
 			`${newSpreadSection}\n$2`,
