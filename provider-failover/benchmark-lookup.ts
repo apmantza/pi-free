@@ -248,8 +248,21 @@ function applyProviderNormalization(
 
 	if (provider === "nvidia") normalizeNvidia(ctx);
 	if (provider === "cloudflare") normalizeCloudflare(ctx);
+	// Strip generic org/ prefix (e.g., "google/", "mistralai/") before everything
+	const stripped = ctx.normalized.replace(/^[^/]+\//, "");
+	if (stripped !== ctx.normalized) {
+		ctx.normalized = stripped;
+		ctx.strategies.push("strip-org-prefix");
+	}
+
 	normalizeFreeSuffix(ctx);
-	if (provider === "ollama") normalizeOllama(ctx);
+	// Also strip -free suffix (used by ZenMux, etc.)
+	if (ctx.normalized.endsWith("-free")) {
+		ctx.normalized = ctx.normalized.replaceAll(/-free$/g, "");
+		ctx.strategies.push("strip-free-suffix");
+	}
+
+	if (provider === "ollama" || provider === "ollama-cloud") normalizeOllama(ctx);
 	if (provider === "groq") normalizeGroq(ctx);
 	if (provider === "cerebras") normalizeCerebras(ctx);
 	if (provider === "mistral") normalizeMistral(ctx);
@@ -281,6 +294,8 @@ const VARIANT_QUALIFIER_SEGMENTS = new Set([
 	"preview",
 	"adaptive",
 	"fast",
+	"instruct",
+	"chat",
 ]);
 
 /**
@@ -301,7 +316,7 @@ function isVariantQualifier(segment: string): boolean {
 	// Two-digit year like "25", "24"
 	if (/^\d{2}$/.test(segment)) return true;
 	// Special variant suffixes
-	if (segment === "speciale" || segment === "chatgpt" || segment === "latest")
+	if (segment === "speciale" || segment === "chatgpt" || segment === "latest" || segment === "instruct" || segment === "chat")
 		return true;
 	return false;
 }
@@ -450,6 +465,32 @@ const MODEL_VARIANTS: Record<string, string[]> = {
 		"nemotron-3-super-free",
 		"nemotron-super",
 		"nemotron-3",
+	],
+	"glm-4.6v-non-reasoning": [
+		"glm-4.6v",
+		"glm-4.6v-flash",
+		"glm-4.6v-flash-free",
+	],
+	"glm-4.7-flash-non-reasoning": [
+		"glm-4.7-flash",
+		"glm-4.7-flash-free",
+	],
+	"mistral-small-4-non-reasoning": [
+		"mistral-small-24b",
+		"mistral-small-24b-instruct",
+		"mistral-small-24b-2501",
+	],
+	"qwen2.5-coder-instruct-7b": [
+		"qwen2.5-7b",
+		"qwen2.5-7b-instruct",
+	],
+	"llama-3.2-instruct-3b": [
+		"llama-3.2-3b",
+		"llama-3.2-3b-instruct",
+	],
+	"llama-3.2-instruct-1b": [
+		"llama-3.2-1b",
+		"llama-3.2-1b-instruct",
 	],
 };
 
