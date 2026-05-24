@@ -397,12 +397,10 @@ function findBestVariantByPrefix(
 	if (candidates.length === 0) return null;
 
 	// Pick the candidate with the highest codingIndex
-	// If tied or no CI, use normalizedScore as tiebreaker
 	candidates.sort((a, b) => {
 		const ciA = a.data.codingIndex ?? -1;
 		const ciB = b.data.codingIndex ?? -1;
-		if (ciB !== ciA) return ciB - ciA;
-		return (b.data.normalizedScore ?? 0) - (a.data.normalizedScore ?? 0);
+		return ciB - ciA;
 	});
 
 	// Only return if the best candidate has a codingIndex
@@ -640,7 +638,7 @@ export function getHardcodedScore(
 	provider?: string,
 ): number | null {
 	const benchmark = findHardcodedBenchmark(modelName, modelId, provider);
-	return benchmark?.normalizedScore ?? null;
+	return benchmark?.codingIndex ?? null;
 }
 
 /**

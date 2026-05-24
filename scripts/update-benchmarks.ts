@@ -138,10 +138,8 @@ function generateBenchmarksChunks(models: AAModel[]): void {
 		// Include original name for debugging name collisions
 		const originalName = model.name.replaceAll(/[\n\r]/g, "_");
 		const e = model.evaluations;
-		const score = e.artificial_analysis_intelligence_index!;
-		const normalized = Math.round((score / 70) * 100);
 
-		// Helper to format optional number fields (strips trailing zeros to avoid S7748)
+				// Helper to format optional number fields (strips trailing zeros to avoid S7748)
 		const fmt = (v: number | null | undefined): string => {
 			if (v === null || v === undefined) return "undefined";
 			// parseFloat strips trailing zeros (avoids S7748 + S5852 regex backtracking)
@@ -149,10 +147,6 @@ function generateBenchmarksChunks(models: AAModel[]): void {
 		};
 
 		return `	"${key}": {
-		// AA Intelligence Index (composite score)
-		intelligenceIndex: ${Number(score.toFixed(1))},
-		normalizedScore: ${normalized},
-
 		// AA specific benchmarks
 		codingIndex: ${fmt(e.artificial_analysis_coding_index)},
 		mathIndex: ${fmt(e.artificial_analysis_math_index)},
