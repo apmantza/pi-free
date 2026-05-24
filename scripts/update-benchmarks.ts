@@ -229,18 +229,27 @@ function generateBenchmarksChunks(models: AAModel[]): void {
 		}
 		const newSpreadSection = chunkSpreads.join("\n");
 
-		// Replace import block (everything between first import and the blank line before export interface)
-		const importRegex =
-			/import\s+\{[^}]+\}\s+from\s+"[^"]+";[\s\S]*?(?=\nexport interface)/;
-		const updatedContent = mainContent.replace(importRegex, newImportSection);
+		// Replace import block (string-based, no ReDoS-prone regex)
+		const importStart = mainContent.indexOf("import { BENCHMARKS_CHUNK_0");
+		const importEnd = mainContent.indexOf("\nexport interface");
+		let updatedContent = mainContent;
+		if (importStart !== -1 && importEnd !== -1) {
+			updatedContent =
+				mainContent.slice(0, importStart) +
+				newImportSection +
+				mainContent.slice(importEnd);
+		}
 
-		// Replace spread block (inside HARDCODED_BENCHMARKS object)
-		const spreadRegex =
-			/([\t ]+\.\.\.BENCHMARKS_CHUNK_\d+,)[\s\S]*?([\t ]*\};)/;
-		const finalContent = updatedContent.replace(
-			spreadRegex,
-			`${newSpreadSection}\n$2`,
-		);
+		// Replace spread block (string-based, no ReDoS-prone regex)
+		const spreadStart = updatedContent.indexOf("\t...BENCHMARKS_CHUNK_0,");
+		const spreadEnd = updatedContent.indexOf("\t};");
+		const finalContent =
+			spreadStart !== -1 && spreadEnd !== -1
+				? updatedContent.slice(0, spreadStart) +
+					newSpreadSection +
+					"\n" +
+					updatedContent.slice(spreadEnd)
+				: updatedContent;
 
 		writeFileSync(mainFile, finalContent, "utf-8");
 		console.log(
