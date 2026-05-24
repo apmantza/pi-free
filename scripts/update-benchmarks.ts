@@ -93,7 +93,7 @@ function sanitizeString(s: string): string {
 
 function normalizeModelName(name: string): string {
 	name = sanitizeString(name);
-	name = name.toLowerCase().replace(/[^-a-z0-9.]+/g, "-");
+	name = name.toLowerCase().replace(/[^-a-z0-9.+]+/g, "-");
 	// Strip leading/trailing dashes (no regex — avoids backtracking flags)
 	while (name.startsWith("-")) name = name.slice(1);
 	while (name.endsWith("-")) name = name.slice(0, -1);
