@@ -225,6 +225,8 @@ function stripCommonSuffixes(ctx: {
 		/-bf\d+$/g, // -bf16
 		/-preview$/g, // -preview
 		/-exp$/g, // -exp (experimental)
+		/-turbo$/g, // -turbo (Together AI suffix)
+		/-instant$/g, // -instant (Groq suffix for fast-response models)
 		/-instruct-0\.\d+$/g, // HuggingFace revision tags
 	];
 	for (const pattern of suffixesToStrip) {
@@ -260,6 +262,12 @@ function applyProviderNormalization(
 	if (ctx.normalized.endsWith("-free")) {
 		ctx.normalized = ctx.normalized.replaceAll(/-free$/g, "");
 		ctx.strategies.push("strip-free-suffix");
+	}
+
+	// General normalization: convert llamaN → llama-N (e.g., llama3-70b → llama-3-70b)
+	if (/^llama\d/.test(ctx.normalized)) {
+		ctx.normalized = ctx.normalized.replaceAll(/^llama(\d)/g, "llama-$1");
+		ctx.strategies.push("llama-dash-general");
 	}
 
 	if (provider === "ollama" || provider === "ollama-cloud")
@@ -458,7 +466,12 @@ const MODEL_VARIANTS: Record<string, string[]> = {
 	],
 	"claude-3-opus": ["claude-3-opus", "opus-3"],
 	"llama-3.1-instruct-405b": ["llama-3.1-405b", "llama3.1-405b", "llama-405b"],
-	"llama-3.1-instruct-70b": ["llama-3.1-70b", "llama3.1-70b", "llama-70b"],
+	"llama-3.1-instruct-70b": [
+		"llama-3.1-70b",
+		"llama3.1-70b",
+		"llama-70b",
+		"llama-3.1-70b-versatile",
+	],
 	"gemini-1.5-pro": ["gemini-1.5-pro", "gemini1.5-pro", "gemini-pro-1.5"],
 	"qwen2.5-instruct-72b": ["qwen2.5-72b", "qwen-2.5-72b"],
 	"deepseek-v3.2-non-reasoning": ["deepseek-v3", "deepseekv3", "deepseek-chat"],
@@ -486,7 +499,45 @@ const MODEL_VARIANTS: Record<string, string[]> = {
 	],
 	"qwen2.5-coder-instruct-7b": ["qwen2.5-7b", "qwen2.5-7b-instruct"],
 	"llama-3.2-instruct-3b": ["llama-3.2-3b", "llama-3.2-3b-instruct"],
-	"llama-3.2-instruct-1b": ["llama-3.2-1b", "llama-3.2-1b-instruct"],
+	"llama-3.2-instruct-1b": [
+		"llama-3.2-1b",
+		"llama-3.2-1b-instruct",
+		"llama3.2-1b",
+	],
+
+	// --- Claude 4 series (providers use date-stamped IDs like claude-sonnet-4-20250514) ---
+	// Order matters: more specific aliases first to avoid false prefix matches
+	"claude-4.5-sonnet-reasoning": [
+		"claude-sonnet-4.5",
+		"claude-sonnet-4.5-20250601",
+	],
+	"claude-4-sonnet-reasoning": ["claude-sonnet-4", "claude-sonnet-4-20250514"],
+	"claude-4-opus-reasoning": ["claude-opus-4", "claude-opus-4-20250514"],
+
+	// --- Qwen Max → Qwen3 Max ---
+	"qwen3-max": ["qwen-max", "qwen/qwen-max"],
+
+	// --- Mistral Large 2411 → Mistral Large 2 (Nov '24) ---
+	"mistral-large-2-nov-24": [
+		"mistral-large-2411",
+		"mistralai/mistral-large-2411",
+	],
+
+	// --- Groq-specific variants (versatile suffix, numeric context suffixes) ---
+	"llama-3.3-instruct-70b": [
+		"llama-3.3-70b-versatile",
+		"llama3.3-70b",
+		"llama-3.3-70b",
+	],
+	"llama-3-instruct-70b": ["llama3-70b-8192", "llama3-70b"],
+	"llama-3-instruct-8b": ["llama3-8b-8192", "llama3-8b"],
+	"llama-3.1-instruct-8b": [
+		"llama3.1-8b",
+		"llama-3.1-8b",
+		"llama-3.1-8b-instant",
+		"llama3.1-8b-instruct",
+	],
+	"mistral-small-3.1": ["mistral-small-2501", "mistral-small-24b-2501"],
 };
 
 // =============================================================================
@@ -627,7 +678,8 @@ export function findHardcodedBenchmark(
 	modelId: string,
 	provider?: string,
 ): HardcodedBenchmark | null {
-	const search = `${modelName} ${modelId}`.toLowerCase();
+	// Normalize: convert colons to dashes (Ollama model:tag format)
+	const search = `${modelName} ${modelId}`.toLowerCase().replaceAll(":", "-");
 
 	logDebug({ provider, modelId, modelName, action: "attempt" });
 
