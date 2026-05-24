@@ -1,12 +1,12 @@
 /**
  * Script to update hardcoded benchmark data
- * Run: ARTIFICIAL_ANALYSIS_API_KEY=xxx npx tsx scripts/update-benchmarks.ts
+ * Run: ARTIFICIAL_ANALYSIS_API_KEY=xxx node --import tsx scripts/update-benchmarks.ts
  *
  * This fetches fresh data from Artificial Analysis API and updates
  * provider-failover/benchmarks-chunk-*.ts files.
  *
- * The main hardcoded-benchmarks.ts is a hand-maintained aggregator that
- * imports and merges all chunks — this script does NOT overwrite it.
+ * Also auto-updates provider-failover/hardcoded-benchmarks.ts to import
+ * the correct number of chunk files.
  */
 
 import { readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
@@ -205,18 +205,48 @@ function generateBenchmarksChunks(models: AAModel[]): void {
 		chunkIndex++;
 	}
 
-	// Check if hardcoded-benchmarks.ts needs updating (new chunk count)
+	// Auto-update hardcoded-benchmarks.ts to match the new chunk count
 	const mainFile = join(OUTPUT_DIR, "hardcoded-benchmarks.ts");
 	const mainContent = readFileSync(mainFile, "utf-8");
 	const currentChunks = (mainContent.match(/BENCHMARKS_CHUNK_\d+/g) || [])
 		.length;
 	if (currentChunks !== chunkIndex) {
 		console.log(
-			`\n⚠️  hardcoded-benchmarks.ts references ${currentChunks} chunks but ${chunkIndex} were generated.`,
+			`\n🔄 Updating hardcoded-benchmarks.ts: ${currentChunks} chunks → ${chunkIndex} chunks`,
 		);
-		console.log(
-			"   Update the imports and spread in hardcoded-benchmarks.ts to match.",
+
+		// Generate new import lines
+		const chunkImports: string[] = [];
+		for (let i = 0; i < chunkIndex; i++) {
+			chunkImports.push(
+				`import { BENCHMARKS_CHUNK_${i} } from "./benchmarks-chunk-${i}.ts";`,
+			);
+		}
+		const newImportSection = chunkImports.join("\n");
+
+		// Generate new spread lines for the export
+		const chunkSpreads: string[] = [];
+		for (let i = 0; i < chunkIndex; i++) {
+			chunkSpreads.push(`\t...BENCHMARKS_CHUNK_${i},`);
+		}
+		const newSpreadSection = chunkSpreads.join("\n");
+
+		// Replace import block (everything between first import and the blank line before export interface)
+		const importRegex = /import\s+\{[^}]+\}\s+from\s+"[^"]+";[\s\S]*?(?=\nexport interface)/;
+		const updatedContent = mainContent.replace(
+			importRegex,
+			newImportSection,
 		);
+
+		// Replace spread block (inside HARDCODED_BENCHMARKS object)
+		const spreadRegex = /([\t ]+\.\.\.BENCHMARKS_CHUNK_\d+,)[\s\S]*?([\t ]+\};\n\})/;
+		const finalContent = updatedContent.replace(
+			spreadRegex,
+			`${newSpreadSection}\n$2`,
+		);
+
+		writeFileSync(mainFile, finalContent, "utf-8");
+		console.log(`  ✅ Updated hardcoded-benchmarks.ts with ${chunkIndex} chunk imports`);
 	}
 
 	console.log(`\n✅ Generated ${chunkIndex} chunk files in ${OUTPUT_DIR}/`);
@@ -232,7 +262,7 @@ async function main() {
 		console.log("\n📝 Next steps:");
 		console.log("  1. Review the chunk file changes");
 		console.log(
-			"  2. If chunk count changed, update hardcoded-benchmarks.ts imports",
+			"  2. Verify hardcoded-benchmarks.ts imports — auto-updated if chunk count changed",
 		);
 		console.log("  3. Run tests: npm run test:run");
 		console.log("  4. Commit and push");

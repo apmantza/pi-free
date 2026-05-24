@@ -11,6 +11,7 @@
  * under the 3000-line limit. This file re-exports the merged result.
  *
  * To update: Run scripts/update-benchmarks.ts with ARTIFICIAL_ANALYSIS_API_KEY
+ * The script auto-updates this file's imports and spread when chunk count changes.
  */
 
 import { BENCHMARKS_CHUNK_0 } from "./benchmarks-chunk-0.ts";

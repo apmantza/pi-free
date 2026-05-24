@@ -30,7 +30,7 @@ jobs:
       - name: Update benchmark data
         env:
           ARTIFICIAL_ANALYSIS_API_KEY: ${{ secrets.ARTIFICIAL_ANALYSIS_API_KEY }}
-        run: npx tsx scripts/update-benchmarks.ts
+        run: node --import tsx scripts/update-benchmarks.ts
 
       - name: Check for changes
         id: check-changes
