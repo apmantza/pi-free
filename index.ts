@@ -238,9 +238,14 @@ function setupQuotaMonitoring(pi: ExtensionAPI) {
 // =============================================================================
 
 function setupTelemetry(pi: ExtensionAPI) {
+	// Only track FREE models (input + output cost === 0)
+	const isFreeModel = (m: { cost?: { input?: number; output?: number } } | undefined): boolean =>
+		!!m && (m.cost?.input ?? 0) === 0 && (m.cost?.output ?? 0) === 0;
+
 	// Start timing when the agent begins processing
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	(pi as any).on("before_agent_start", (_event: any, ctx: any) => {
+		if (!isFreeModel(ctx.model)) return;
 		const provider = ctx.model?.provider;
 		const model = ctx.model?.id;
 		if (provider && model) {
@@ -250,6 +255,8 @@ function setupTelemetry(pi: ExtensionAPI) {
 
 	// Record telemetry when a turn completes
 	pi.on("turn_end", (event, ctx) => {
+		if (!isFreeModel(ctx.model)) return;
+
 		const msg = (
 			event as { message?: { role?: string; model?: string; usage?: { input?: number; output?: number; totalTokens?: number; cost?: { total?: number } }; stopReason?: string; errorMessage?: string } }
 		).message;
