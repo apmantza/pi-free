@@ -135,6 +135,8 @@ function generateBenchmarksChunks(models: AAModel[]): void {
 	// Generate entries
 	const allEntries = scoredModels.map((model) => {
 		const key = normalizeModelName(model.name);
+		// Include original name for debugging name collisions
+		const originalName = model.name.replaceAll(/[\n\r]/g, "_");
 		const e = model.evaluations;
 		const score = e.artificial_analysis_intelligence_index!;
 		const normalized = Math.round((score / 70) * 100);
@@ -167,6 +169,7 @@ function generateBenchmarksChunks(models: AAModel[]): void {
 
 		// Metadata
 		lastUpdated: "${today}",
+		originalModel: "${originalName}",
 	},`;
 	});
 

@@ -34,6 +34,12 @@ export interface HardcodedBenchmark {
 	supportsReasoning: boolean;
 	supportsVision: boolean;
 	lastUpdated: string;
+
+	/**
+	 * Original model name from the source API (for debugging name collisions).
+	 * Only present when regenerated; absent in shipped data.
+	 */
+	originalModel?: string;
 }
 
 /**
