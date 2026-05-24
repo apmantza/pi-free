@@ -25,6 +25,13 @@ import {
 	formatQuotaStatus,
 } from "./lib/quota-monitor.ts";
 import {
+	startModelCall,
+	recordModelCall,
+	getAllTelemetry,
+	getTelemetryPath,
+	clearTelemetry,
+} from "./lib/telemetry.ts";
+import {
 	applyGlobalFilter,
 	getGlobalFreeOnly,
 	getProviderRegistry,
@@ -145,6 +152,49 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 			ctx.ui.notify(lines.join("\n"), "info");
 		},
 	});
+
+	// /telemetry — Show model telemetry data
+	pi.registerCommand("free-telemetry", {
+		description: "Show real-world performance data for free models (tokens/s, latency, success rate)",
+		handler: async (_args, ctx) => {
+			const allTelemetry = getAllTelemetry();
+			const entries = Object.entries(allTelemetry);
+
+			if (entries.length === 0) {
+				ctx.ui.notify("No telemetry data yet. Use some free models first!", "info");
+				return;
+			}
+
+			// Sort by total calls descending
+			entries.sort((a, b) => b[1].totalCalls - a[1].totalCalls);
+
+			const lines = ["📊 Model Telemetry:", ""];
+			lines.push(`${`Model`.padEnd(40)} ${`Calls`.padEnd(6)} ${`OK%`.padEnd(6)} ${`Lat`.padEnd(7)} ${`tok/s`.padEnd(7)} ${`Cost`}`);
+			lines.push(`─`.repeat(75));
+
+			for (const [key, t] of entries.slice(0, 20)) {
+				const name = key.length > 38 ? key.slice(0, 35) + "..." : key;
+				const calls = String(t.totalCalls).padStart(5);
+				const ok = `${t.successRate}%`.padStart(5);
+				const lat = t.avgLatencyMs > 0 ? `${t.avgLatencyMs}ms`.padStart(6) : "—".padStart(6);
+				const tps = t.avgTokensPerSecond > 0 ? `${t.avgTokensPerSecond}`.padStart(6) : "—".padStart(6);
+				const cost = t.totalCost > 0 ? `$${t.totalCost.toFixed(4)}`.padStart(8) : "free".padStart(8);
+				lines.push(`${name.padEnd(40)} ${calls} ${ok} ${lat} ${tps} ${cost}`);
+			}
+
+			lines.push("", `File: ${getTelemetryPath()}`);
+			ctx.ui.notify(lines.join("\n"), "info");
+		},
+	});
+
+	// /clear-free-telemetry — Clear all telemetry data
+	pi.registerCommand("clear-free-telemetry", {
+		description: "Clear all model telemetry data",
+		handler: async (_args, ctx) => {
+			clearTelemetry();
+			ctx.ui.notify("Telemetry data cleared", "info");
+		},
+	});
 }
 
 // =============================================================================
@@ -184,6 +234,52 @@ function setupQuotaMonitoring(pi: ExtensionAPI) {
 }
 
 // =============================================================================
+// Model Telemetry
+// =============================================================================
+
+function setupTelemetry(pi: ExtensionAPI) {
+	// Start timing when the agent begins processing
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	(pi as any).on("before_agent_start", (_event: any, ctx: any) => {
+		const provider = ctx.model?.provider;
+		const model = ctx.model?.id;
+		if (provider && model) {
+			startModelCall(provider, model);
+		}
+	});
+
+	// Record telemetry when a turn completes
+	pi.on("turn_end", (event, ctx) => {
+		const msg = (
+			event as { message?: { role?: string; model?: string; usage?: { input?: number; output?: number; totalTokens?: number; cost?: { total?: number } }; stopReason?: string; errorMessage?: string } }
+		).message;
+
+		if (msg?.role !== "assistant") return;
+
+		const provider = ctx.model?.provider;
+		const model = msg.model || ctx.model?.id;
+		if (!provider || !model) return;
+
+		const usage = msg.usage;
+		const inputTokens = usage?.input ?? 0;
+		const outputTokens = usage?.output ?? 0;
+		const totalTokens = usage?.totalTokens ?? inputTokens + outputTokens;
+		const cost = usage?.cost?.total ?? 0;
+		const isError = msg.stopReason === "error" || !!msg.errorMessage;
+
+		recordModelCall(
+			provider,
+			model,
+			{ input: inputTokens, output: outputTokens, totalTokens },
+			cost,
+			!isError,
+			msg.stopReason,
+			msg.errorMessage,
+		);
+	});
+}
+
+// =============================================================================
 // Main Entry Point
 // =============================================================================
 
@@ -196,6 +292,9 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 
 	// Setup quota monitoring (passive, no extra API calls)
 	setupQuotaMonitoring(pi);
+
+	// Setup model telemetry (tracks real-world performance)
+	setupTelemetry(pi);
 
 	// Load all unique providers
 	// Each provider will register itself with the global toggle system
