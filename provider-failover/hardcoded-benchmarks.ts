@@ -19,7 +19,7 @@ import { BENCHMARKS_CHUNK_1 } from "./benchmarks-chunk-1.ts";
 import { BENCHMARKS_CHUNK_2 } from "./benchmarks-chunk-2.ts";
 import { BENCHMARKS_CHUNK_3 } from "./benchmarks-chunk-3.ts";
 import { BENCHMARKS_CHUNK_4 } from "./benchmarks-chunk-4.ts";
-
+import { BENCHMARKS_CHUNK_5 } from "./benchmarks-chunk-5.ts";
 export interface HardcodedBenchmark {
 	codingIndex?: number;
 	mathIndex?: number;
@@ -50,4 +50,5 @@ export const HARDCODED_BENCHMARKS: Record<string, HardcodedBenchmark> = {
 	...BENCHMARKS_CHUNK_2,
 	...BENCHMARKS_CHUNK_3,
 	...BENCHMARKS_CHUNK_4,
+	...BENCHMARKS_CHUNK_5,
 };
