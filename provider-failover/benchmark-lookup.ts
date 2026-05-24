@@ -262,7 +262,8 @@ function applyProviderNormalization(
 		ctx.strategies.push("strip-free-suffix");
 	}
 
-	if (provider === "ollama" || provider === "ollama-cloud") normalizeOllama(ctx);
+	if (provider === "ollama" || provider === "ollama-cloud")
+		normalizeOllama(ctx);
 	if (provider === "groq") normalizeGroq(ctx);
 	if (provider === "cerebras") normalizeCerebras(ctx);
 	if (provider === "mistral") normalizeMistral(ctx);
@@ -316,7 +317,13 @@ function isVariantQualifier(segment: string): boolean {
 	// Two-digit year like "25", "24"
 	if (/^\d{2}$/.test(segment)) return true;
 	// Special variant suffixes
-	if (segment === "speciale" || segment === "chatgpt" || segment === "latest" || segment === "instruct" || segment === "chat")
+	if (
+		segment === "speciale" ||
+		segment === "chatgpt" ||
+		segment === "latest" ||
+		segment === "instruct" ||
+		segment === "chat"
+	)
 		return true;
 	return false;
 }
@@ -471,27 +478,15 @@ const MODEL_VARIANTS: Record<string, string[]> = {
 		"glm-4.6v-flash",
 		"glm-4.6v-flash-free",
 	],
-	"glm-4.7-flash-non-reasoning": [
-		"glm-4.7-flash",
-		"glm-4.7-flash-free",
-	],
+	"glm-4.7-flash-non-reasoning": ["glm-4.7-flash", "glm-4.7-flash-free"],
 	"mistral-small-4-non-reasoning": [
 		"mistral-small-24b",
 		"mistral-small-24b-instruct",
 		"mistral-small-24b-2501",
 	],
-	"qwen2.5-coder-instruct-7b": [
-		"qwen2.5-7b",
-		"qwen2.5-7b-instruct",
-	],
-	"llama-3.2-instruct-3b": [
-		"llama-3.2-3b",
-		"llama-3.2-3b-instruct",
-	],
-	"llama-3.2-instruct-1b": [
-		"llama-3.2-1b",
-		"llama-3.2-1b-instruct",
-	],
+	"qwen2.5-coder-instruct-7b": ["qwen2.5-7b", "qwen2.5-7b-instruct"],
+	"llama-3.2-instruct-3b": ["llama-3.2-3b", "llama-3.2-3b-instruct"],
+	"llama-3.2-instruct-1b": ["llama-3.2-1b", "llama-3.2-1b-instruct"],
 };
 
 // =============================================================================
