@@ -208,8 +208,9 @@ function generateBenchmarksChunks(models: AAModel[]): void {
 	// Auto-update hardcoded-benchmarks.ts to match the new chunk count
 	const mainFile = join(OUTPUT_DIR, "hardcoded-benchmarks.ts");
 	const mainContent = readFileSync(mainFile, "utf-8");
-	const currentChunks = (mainContent.match(/BENCHMARKS_CHUNK_\d+/g) || [])
-		.length;
+	const currentChunks = new Set(
+		Array.from(mainContent.matchAll(/BENCHMARKS_CHUNK_(\d+)/g), (m) => m[1]),
+	).size;
 	if (currentChunks !== chunkIndex) {
 		console.log(
 			`\n🔄 Updating hardcoded-benchmarks.ts: ${currentChunks} chunks → ${chunkIndex} chunks`,
@@ -232,21 +233,22 @@ function generateBenchmarksChunks(models: AAModel[]): void {
 		const newSpreadSection = chunkSpreads.join("\n");
 
 		// Replace import block (everything between first import and the blank line before export interface)
-		const importRegex = /import\s+\{[^}]+\}\s+from\s+"[^"]+";[\s\S]*?(?=\nexport interface)/;
-		const updatedContent = mainContent.replace(
-			importRegex,
-			newImportSection,
-		);
+		const importRegex =
+			/import\s+\{[^}]+\}\s+from\s+"[^"]+";[\s\S]*?(?=\nexport interface)/;
+		const updatedContent = mainContent.replace(importRegex, newImportSection);
 
 		// Replace spread block (inside HARDCODED_BENCHMARKS object)
-		const spreadRegex = /([\t ]+\.\.\.BENCHMARKS_CHUNK_\d+,)[\s\S]*?([\t ]+\};\n\})/;
+		const spreadRegex =
+			/([\t ]+\.\.\.BENCHMARKS_CHUNK_\d+,)[\s\S]*?([\t ]+\};\n\})/;
 		const finalContent = updatedContent.replace(
 			spreadRegex,
 			`${newSpreadSection}\n$2`,
 		);
 
 		writeFileSync(mainFile, finalContent, "utf-8");
-		console.log(`  ✅ Updated hardcoded-benchmarks.ts with ${chunkIndex} chunk imports`);
+		console.log(
+			`  ✅ Updated hardcoded-benchmarks.ts with ${chunkIndex} chunk imports`,
+		);
 	}
 
 	console.log(`\n✅ Generated ${chunkIndex} chunk files in ${OUTPUT_DIR}/`);
