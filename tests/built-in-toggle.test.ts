@@ -100,6 +100,7 @@ describe("built-in provider toggles", () => {
 			"opencode",
 			expect.objectContaining({
 				api: "opencode-dynamic",
+				apiKey: "$OPENCODE_API_KEY",
 				streamSimple: expect.any(Function),
 				models: expect.arrayContaining([
 					expect.objectContaining({

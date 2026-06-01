@@ -108,7 +108,7 @@ export default async function qwenProvider(pi: ExtensionAPI) {
 	function registerProvider(m = models) {
 		pi.registerProvider(PROVIDER_QWEN, {
 			baseUrl: DEFAULT_BASE_URL,
-			apiKey: "QWEN_API_KEY",
+			apiKey: "$QWEN_API_KEY",
 			api: "openai-completions" as const,
 			headers: {
 				"User-Agent": "pi-free",
@@ -125,7 +125,7 @@ export default async function qwenProvider(pi: ExtensionAPI) {
 	const reRegister = createReRegister(pi, {
 		providerId: PROVIDER_QWEN,
 		baseUrl: DEFAULT_BASE_URL,
-		apiKey: "QWEN_API_KEY",
+		apiKey: "$QWEN_API_KEY",
 		oauth: oauthConfig as any,
 	});
 

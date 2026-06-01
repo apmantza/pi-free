@@ -85,7 +85,7 @@ describe("Kilo Provider", () => {
 				"kilo",
 				expect.objectContaining({
 					baseUrl: "https://api.kilo.ai/api/gateway",
-					apiKey: "KILO_API_KEY",
+					apiKey: "$KILO_API_KEY",
 					api: "openai-completions",
 					models: mockModels,
 					oauth: expect.any(Object),

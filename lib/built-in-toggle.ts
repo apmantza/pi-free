@@ -278,9 +278,9 @@ function setupStatusBar(
 
 function getApiKeyEnvForProvider(providerId: string): string {
 	const envMap: Record<string, string> = {
-		opencode: "OPENCODE_API_KEY",
-		"opencode-go": "OPENCODE_API_KEY",
-		openrouter: "OPENROUTER_API_KEY",
+		opencode: "$OPENCODE_API_KEY",
+		"opencode-go": "$OPENCODE_API_KEY",
+		openrouter: "$OPENROUTER_API_KEY",
 	};
-	return envMap[providerId] || `${providerId.toUpperCase()}_API_KEY`;
+	return envMap[providerId] || `$${providerId.toUpperCase()}_API_KEY`;
 }
