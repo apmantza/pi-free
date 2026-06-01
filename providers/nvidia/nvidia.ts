@@ -31,6 +31,10 @@ import {
 	URL_MODELS_DEV,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
+import {
+	getModelsDueForProbe,
+	recordModelProbeResults,
+} from "../../lib/probe-cache.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import type { ModelsDevModel, ModelsDevProvider } from "../../lib/types.ts";
 import {
@@ -287,12 +291,12 @@ async function fetchNvidiaModels(
 
 /**
  * Probe a single NVIDIA model with a minimal chat request.
- * Returns true if the model is routable (not 404), false if it 404s.
+ * Returns "broken" only for deterministic 404s; network errors are unknown.
  */
 async function probeNvidiaModel(
 	apiKey: string,
 	modelId: string,
-): Promise<boolean> {
+): Promise<"ok" | "broken" | "unknown"> {
 	try {
 		const response = await fetchWithTimeout(
 			`${BASE_URL_NVIDIA}/chat/completions`,
@@ -313,9 +317,9 @@ async function probeNvidiaModel(
 		);
 		// 404 = function not found (model not provisioned)
 		// 200/400/401/etc = at least routable
-		return response.status !== 404;
+		return response.status === 404 ? "broken" : "ok";
 	} catch {
-		return true; // Network errors / timeouts are not "model not found"
+		return "unknown"; // Network errors / timeouts are not "model not found"
 	}
 }
 
@@ -330,26 +334,51 @@ async function runNvidiaProbe(
 	modelsToTest: ProviderModelConfig[],
 	stored: { free: ProviderModelConfig[]; all: ProviderModelConfig[] },
 	reRegister: (models: ProviderModelConfig[]) => void,
-): Promise<void> {
+	options: { useCache?: boolean } = {},
+): Promise<string[]> {
+	const modelIdsToProbe = options.useCache
+		? new Set(
+				getModelsDueForProbe(
+					PROVIDER_NVIDIA,
+					modelsToTest.map((m) => m.id),
+				),
+			)
+		: undefined;
+	const probeCandidates = modelIdsToProbe
+		? modelsToTest.filter((m) => modelIdsToProbe.has(m.id))
+		: modelsToTest;
+
+	if (probeCandidates.length === 0) {
+		_nvidiaLogger.info("Auto-probe: NVIDIA probe cache is fresh");
+		return [];
+	}
+
 	const notFound: string[] = [];
+	const cacheableResults: Array<{ modelId: string; status: "ok" | "broken" }> =
+		[];
 	const batchSize = 5;
 
-	for (let i = 0; i < modelsToTest.length; i += batchSize) {
-		const batch = modelsToTest.slice(i, i + batchSize);
+	for (let i = 0; i < probeCandidates.length; i += batchSize) {
+		const batch = probeCandidates.slice(i, i + batchSize);
 		const results = await Promise.all(
 			batch.map(async (m) => {
-				const ok = await probeNvidiaModel(apiKey, m.id);
-				return { id: m.id, ok };
+				const status = await probeNvidiaModel(apiKey, m.id);
+				return { id: m.id, status };
 			}),
 		);
 		for (const r of results) {
-			if (!r.ok) notFound.push(r.id);
+			if (r.status === "broken") notFound.push(r.id);
+			if (r.status !== "unknown") {
+				cacheableResults.push({ modelId: r.id, status: r.status });
+			}
 		}
 	}
 
+	recordModelProbeResults(PROVIDER_NVIDIA, cacheableResults);
+
 	if (notFound.length === 0) {
-		_nvidiaLogger.info("Auto-probe: all NVIDIA models are routable");
-		return;
+		_nvidiaLogger.info("Auto-probe: all checked NVIDIA models are routable");
+		return [];
 	}
 
 	// Auto-hide 404 models in config (provider-scoped)
@@ -367,6 +396,7 @@ async function runNvidiaProbe(
 	_nvidiaLogger.info(
 		`Auto-probe: found ${notFound.length} broken models (auto-hidden)`,
 	);
+	return notFound;
 }
 
 export default async function nvidiaProvider(pi: ExtensionAPI) {
@@ -416,7 +446,9 @@ export default async function nvidiaProvider(pi: ExtensionAPI) {
 		if (_autoProbeDone || !apiKey) return;
 		_autoProbeDone = true;
 		_nvidiaLogger.info("Starting lazy auto-probe of NVIDIA models...");
-		runNvidiaProbe(apiKey, allModels, stored, reRegister).catch((err) => {
+		runNvidiaProbe(apiKey, allModels, stored, reRegister, {
+			useCache: true,
+		}).catch((err) => {
 			_nvidiaLogger.warn("Auto-probe failed", {
 				error: err instanceof Error ? err.message : String(err),
 			});

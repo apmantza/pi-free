@@ -39,6 +39,10 @@ import {
 	loadProviderCache,
 	saveProviderCache,
 } from "../../lib/provider-cache.ts";
+import {
+	getModelsDueForProbe,
+	recordModelProbeResults,
+} from "../../lib/probe-cache.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import { fetchWithRetry, fetchWithTimeout } from "../../lib/util.ts";
 import { createReRegister, enhanceWithCI } from "../../provider-helper.ts";
@@ -379,6 +383,80 @@ async function fetchAllModels(apiKey: string): Promise<ProviderModelConfig[]> {
 	return applyHidden(models, PROVIDER_OLLAMA);
 }
 
+async function runOllamaProbe(
+	apiKey: string,
+	modelsToTest: ProviderModelConfig[],
+	applyModels: (models: ProviderModelConfig[]) => void,
+	options: { useCache?: boolean } = {},
+): Promise<string[]> {
+	const modelIdsToProbe = options.useCache
+		? new Set(
+				getModelsDueForProbe(
+					PROVIDER_OLLAMA,
+					modelsToTest.map((m) => m.id),
+				),
+			)
+		: undefined;
+	const probeCandidates = modelIdsToProbe
+		? modelsToTest.filter((m) => modelIdsToProbe.has(m.id))
+		: modelsToTest;
+
+	if (probeCandidates.length === 0) {
+		_logger.info("Auto-probe: Ollama probe cache is fresh");
+		return [];
+	}
+
+	const notFound: string[] = [];
+	const cacheableResults: Array<{ modelId: string; status: "ok" | "broken" }> =
+		[];
+	const batchSize = 5;
+
+	for (let i = 0; i < probeCandidates.length; i += batchSize) {
+		const batch = probeCandidates.slice(i, i + batchSize);
+		const results = await Promise.all(
+			batch.map(async (m) => {
+				const status = await probeOllamaModel(apiKey, m.id);
+				return { id: m.id, status };
+			}),
+		);
+		for (const r of results) {
+			if (r.status === "broken") notFound.push(r.id);
+			if (r.status !== "unknown") {
+				cacheableResults.push({ modelId: r.id, status: r.status });
+			}
+		}
+	}
+
+	recordModelProbeResults(PROVIDER_OLLAMA, cacheableResults);
+
+	if (notFound.length === 0) {
+		_logger.info("Auto-probe: all checked Ollama models are accessible");
+		return [];
+	}
+
+	// Auto-hide 403 models in config (provider-scoped)
+	const config = loadConfigFile();
+	const existingHidden = new Set(config.hidden_models ?? []);
+	for (const id of notFound) existingHidden.add(`${PROVIDER_OLLAMA}/${id}`);
+	saveConfig({
+		hidden_models: Array.from(existingHidden),
+	});
+
+	// Re-fetch and re-register so hidden models disappear immediately
+	try {
+		const fresh = await fetchAllModels(apiKey);
+		saveProviderCache(PROVIDER_OLLAMA, fresh);
+		applyModels(fresh);
+	} catch {
+		// If refresh fails, keep current models. The next refresh/probe will retry.
+	}
+
+	_logger.info(
+		`Auto-probe: found ${notFound.length} broken Ollama models (auto-hidden)`,
+	);
+	return notFound;
+}
+
 // =============================================================================
 // Extension Entry Point
 // =============================================================================
@@ -411,7 +489,7 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 
 	// ── Register immediately with cached/fallback models ────────────
 	const freeModels = allModels;
-	let stored = { free: freeModels, all: allModels };
+	const stored = { free: freeModels, all: allModels };
 	const hasKey = true;
 
 	const reRegister = createReRegister(pi, {
@@ -419,6 +497,12 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 		baseUrl: BASE_URL_OLLAMA,
 		apiKey,
 	});
+	const applyModelList = (models: ProviderModelConfig[]) => {
+		allModels = models;
+		stored.free = models;
+		stored.all = models;
+		reRegister(models);
+	};
 
 	registerWithGlobalToggle(PROVIDER_OLLAMA, stored, reRegister, hasKey);
 
@@ -460,9 +544,7 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 			try {
 				const fresh = await fetchAllModels(apiKey!);
 				saveProviderCache(PROVIDER_OLLAMA, fresh);
-				allModels = fresh;
-				stored = { free: fresh, all: fresh };
-				reRegister(fresh);
+				applyModelList(fresh);
 				ctx.ui.notify(
 					`Registered ${fresh.length} Ollama Cloud models (refresh complete)`,
 					"info",
@@ -488,45 +570,15 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 			const modelsToTest = allModels;
 			ctx.ui.notify(`Probing ${modelsToTest.length} Ollama models…`, "info");
 
-			const notFound: string[] = [];
-			const batchSize = 5;
-
-			for (let i = 0; i < modelsToTest.length; i += batchSize) {
-				const batch = modelsToTest.slice(i, i + batchSize);
-				const results = await Promise.all(
-					batch.map(async (m) => {
-						const ok = await probeOllamaModel(apiKey, m.id);
-						return { id: m.id, ok };
-					}),
-				);
-				for (const r of results) {
-					if (!r.ok) notFound.push(r.id);
-				}
-			}
+			const notFound = await runOllamaProbe(
+				apiKey,
+				modelsToTest,
+				applyModelList,
+			);
 
 			if (notFound.length === 0) {
 				ctx.ui.notify("All Ollama models are accessible ✅", "info");
 				return;
-			}
-
-			// Auto-hide 403 models in config (provider-scoped)
-			const config = loadConfigFile();
-			const existingHidden = new Set(config.hidden_models ?? []);
-			for (const id of notFound) existingHidden.add(`${PROVIDER_OLLAMA}/${id}`);
-			saveConfig({
-				hidden_models: Array.from(existingHidden),
-			});
-
-			// Re-fetch and re-register so hidden models disappear immediately
-			try {
-				const fresh = await fetchAllModels(apiKey!);
-				saveProviderCache(PROVIDER_OLLAMA, fresh);
-				allModels = fresh;
-				stored = { free: fresh, all: fresh };
-				reRegister(fresh);
-			} catch {
-				// If refresh fails, just re-register current models
-				reRegister(allModels);
 			}
 
 			ctx.ui.notify(
@@ -560,10 +612,15 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 
 		try {
 			const fresh = await refreshModels();
-			allModels = fresh;
-			stored = { free: fresh, all: fresh };
-			reRegister(fresh);
+			applyModelList(fresh);
 			ctx.ui.notify(`Ollama Cloud: ${fresh.length} models ready`, "info");
+			runOllamaProbe(apiKey, fresh, applyModelList, { useCache: true }).catch(
+				(error) => {
+					_logger.warn("Auto-probe failed", {
+						error: error instanceof Error ? error.message : String(error),
+					});
+				},
+			);
 		} catch {
 			// Already logged in refreshModels()
 		}
@@ -576,12 +633,12 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 
 /**
  * Probe a single Ollama model with a minimal chat request.
- * Returns true if the model is accessible (not 403), false if it 403s.
+ * Returns "broken" only for deterministic 403s; network errors are unknown.
  */
 async function probeOllamaModel(
 	apiKey: string,
 	modelId: string,
-): Promise<boolean> {
+): Promise<"ok" | "broken" | "unknown"> {
 	try {
 		const response = await fetchWithTimeout(
 			`${BASE_URL_OLLAMA}/chat/completions`,
@@ -602,9 +659,9 @@ async function probeOllamaModel(
 		);
 		// 403 = access denied (model not provisioned)
 		// 200/400/401/etc = at least accessible
-		return response.status !== 403;
+		return response.status === 403 ? "broken" : "ok";
 	} catch {
 		// Network errors / timeouts are not "access denied"
-		return true;
+		return "unknown";
 	}
 }
