@@ -462,7 +462,7 @@ export async function setupDynamicBuiltInProviders(
 						freeOnly: false,
 					}),
 			},
-			fastrouterApiKey ?? "FASTROUTER_API_KEY",
+			fastrouterApiKey ?? "$FASTROUTER_API_KEY",
 		),
 	);
 

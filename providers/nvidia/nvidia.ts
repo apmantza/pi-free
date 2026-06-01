@@ -391,7 +391,7 @@ export default async function nvidiaProvider(pi: ExtensionAPI) {
 	const reRegister = createReRegister(pi, {
 		providerId: PROVIDER_NVIDIA,
 		baseUrl: BASE_URL_NVIDIA,
-		apiKey: apiKey || "NVIDIA_API_KEY",
+		apiKey: apiKey || "$NVIDIA_API_KEY",
 	});
 
 	// Register with global toggle system
@@ -401,7 +401,7 @@ export default async function nvidiaProvider(pi: ExtensionAPI) {
 	const initialModels = allModels;
 	pi.registerProvider(PROVIDER_NVIDIA, {
 		baseUrl: BASE_URL_NVIDIA,
-		apiKey: apiKey || "NVIDIA_API_KEY",
+		apiKey: apiKey || "$NVIDIA_API_KEY",
 		api: "openai-completions" as const,
 		authHeader: true,
 		headers: {

@@ -38,7 +38,7 @@ import { fetchKiloModels, KILO_GATEWAY_BASE } from "./kilo-models.ts";
 const KILO_PROVIDER_CONFIG = {
 	providerId: PROVIDER_KILO,
 	baseUrl: KILO_GATEWAY_BASE,
-	apiKey: "KILO_API_KEY",
+	apiKey: "$KILO_API_KEY",
 	headers: {
 		"X-KILOCODE-EDITORNAME": "Pi",
 	},
@@ -149,7 +149,7 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 	// Register initial provider (default to free models)
 	pi.registerProvider(PROVIDER_KILO, {
 		baseUrl: KILO_GATEWAY_BASE,
-		apiKey: "KILO_API_KEY",
+		apiKey: "$KILO_API_KEY",
 		api: "openai-completions" as const,
 		headers: {
 			"X-KILOCODE-EDITORNAME": "Pi",
