@@ -139,6 +139,9 @@ async function importPiAiSubpathUncached<T>(specifier: string): Promise<T> {
 	try {
 		return (await import(specifier)) as T;
 	} catch (directError) {
+		const rootFallback = await importPiAiRootFallback<T>(specifier);
+		if (rootFallback) return rootFallback;
+
 		const resolved = resolvePiAiSubpathFromPackage(specifier);
 		if (!resolved) throw directError;
 		try {
@@ -146,6 +149,30 @@ async function importPiAiSubpathUncached<T>(specifier: string): Promise<T> {
 		} catch {
 			throw directError;
 		}
+	}
+}
+
+async function importPiAiRootFallback<T>(
+	specifier: string,
+): Promise<T | undefined> {
+	const subpath = specifier.replace("@earendil-works/pi-ai/", "");
+	const requiredExport: Record<string, string> = {
+		anthropic: "streamSimpleAnthropic",
+		"openai-completions": "streamSimpleOpenAICompletions",
+	};
+	const exportName = requiredExport[subpath];
+	if (!exportName) return undefined;
+
+	try {
+		const rootModule = (await import("@earendil-works/pi-ai")) as Record<
+			string,
+			unknown
+		>;
+		return typeof rootModule[exportName] === "function"
+			? (rootModule as T)
+			: undefined;
+	} catch {
+		return undefined;
 	}
 }
 

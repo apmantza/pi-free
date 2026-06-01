@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRequire } from "node:module";
@@ -149,6 +149,85 @@ ${testScript}
 			expect(r.resolved).toMatch(/pi-ai[\\/]dist[\\/]providers[\\/]/);
 			expect(r.fallbackOk).toBe(true);
 		}
+	});
+
+	it("falls back to pi-ai root exports when subpath imports are unavailable", () => {
+		const tempDir = mkdtempSync(join(tmpdir(), "pi-free-test-"));
+		const packageDir = join(
+			tempDir,
+			"node_modules",
+			"@earendil-works",
+			"pi-ai",
+		);
+		mkdirSync(packageDir, { recursive: true });
+		writeFileSync(
+			join(packageDir, "package.json"),
+			JSON.stringify({
+				name: "@earendil-works/pi-ai",
+				type: "module",
+				exports: { ".": "./index.mjs" },
+			}),
+		);
+		writeFileSync(
+			join(packageDir, "index.mjs"),
+			`export function streamSimpleOpenAICompletions() {}
+export function streamSimpleAnthropic() {}
+`,
+		);
+
+		const testScript = `
+async function importPiAiRootFallback(specifier) {
+	const subpath = specifier.replace("@earendil-works/pi-ai/", "");
+	const requiredExport = {
+		anthropic: "streamSimpleAnthropic",
+		"openai-completions": "streamSimpleOpenAICompletions",
+	};
+	const exportName = requiredExport[subpath];
+	if (!exportName) return undefined;
+
+	try {
+		const rootModule = await import("@earendil-works/pi-ai");
+		return typeof rootModule[exportName] === "function" ? rootModule : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+async function importPiAiSubpathUncached(specifier) {
+	try {
+		return await import(specifier);
+	} catch (directError) {
+		const rootFallback = await importPiAiRootFallback(specifier);
+		if (rootFallback) return rootFallback;
+		throw directError;
+	}
+}
+
+const direct = { ok: false, message: "" };
+try {
+	await import("@earendil-works/pi-ai/openai-completions");
+	direct.ok = true;
+} catch (error) {
+	direct.message = error instanceof Error ? error.message : String(error);
+}
+
+const fallback = await importPiAiSubpathUncached(
+	"@earendil-works/pi-ai/openai-completions",
+);
+console.log(JSON.stringify({
+	direct,
+	fallbackOk: typeof fallback.streamSimpleOpenAICompletions === "function",
+}));
+`;
+		writeFileSync(join(tempDir, "test.mjs"), testScript);
+
+		const output = execFileSync(process.execPath, ["test.mjs"], {
+			cwd: tempDir,
+			encoding: "utf-8",
+		});
+		const result = JSON.parse(output.trim());
+		expect(result.direct.ok).toBe(false);
+		expect(result.fallbackOk).toBe(true);
 	});
 
 	it("createOpenCodeStreamSimple resolves anthropic endpoint from isolated context", async () => {
