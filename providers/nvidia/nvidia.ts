@@ -35,6 +35,10 @@ import {
 	getModelsDueForProbe,
 	recordModelProbeResults,
 } from "../../lib/probe-cache.ts";
+import {
+	getProxyModelCompat,
+	isLikelyReasoningModel,
+} from "../../lib/provider-compat.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import type { ModelsDevModel, ModelsDevProvider } from "../../lib/types.ts";
 import {
@@ -155,7 +159,8 @@ function inferModelFromId(id: string): ModelsDevModel | null {
 		.replaceAll(/\b(\d+(?:\.\d+)?)b\b/gi, "$1B");
 
 	const hasVision = /vision|multimodal|vl/i.test(id);
-	const hasReasoning = /reason|r1|thinking/i.test(id);
+	const hasReasoning =
+		/reason|r1|thinking/i.test(id) || isLikelyReasoningModel({ id, name });
 
 	return {
 		id,
@@ -277,6 +282,7 @@ async function fetchNvidiaModels(
 					},
 					contextWindow: m.limit.context,
 					maxTokens: m.limit.output,
+					compat: getProxyModelCompat({ id: m.id, name: m.name }),
 				}),
 			),
 		PROVIDER_NVIDIA,

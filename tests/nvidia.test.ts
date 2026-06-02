@@ -198,7 +198,7 @@ describe("NVIDIA Provider", () => {
 
 		expect(model).toBeDefined();
 		expect(model.name).toBe("Deepseek V4 Flash");
-		expect(model.reasoning).toBe(false);
+		expect(model.reasoning).toBe(true); // DeepSeek models detected as reasoning
 		expect(model.contextWindow).toBe(128000);
 		expect(model.maxTokens).toBe(4096);
 		expect(model.input).toEqual(["text"]);

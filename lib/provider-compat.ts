@@ -24,6 +24,7 @@ export function isLikelyReasoningModel(model: ProviderModelIdentity): boolean {
 	return (
 		isDeepSeekModel(model) ||
 		haystack.includes("minimax") ||
+		haystack.includes("kimi") ||
 		haystack.includes("qwen3.7") ||
 		haystack.includes("qwen3-7") ||
 		haystack.includes("thinking") ||
@@ -60,6 +61,16 @@ export function getProxyModelCompat(
 		model.id.toLowerCase().includes("qwen3-7")
 	) {
 		return DEEPSEEK_PROXY_COMPAT;
+	}
+
+	// Kimi K2.6 needs reasoning_content on assistant messages (OpenRouter issue #5309)
+	if (model.id.toLowerCase().includes("kimi")) {
+		return {
+			supportsStore: false,
+			supportsDeveloperRole: false,
+			supportsReasoningEffort: true,
+			requiresReasoningContentOnAssistantMessages: true,
+		};
 	}
 
 	return undefined;
