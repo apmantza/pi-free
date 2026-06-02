@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`_pricingKnown` / `_freeKnown` authoritatve flag** — Providers can now signal whether pricing data is authoritative via `_pricingKnown`. When `false`, `isFreeModel` falls back to name-based detection. Kilo's `isFree` API flag now flows through as `_freeKnown` ([#209](https://github.com/apmantza/pi-free/pull/209)).
 
+- **MiniMax reasoning compat** — MiniMax M3 and other MiniMax models now have `supportsReasoningEffort: true` compat settings. Previously, models marked `reasoning: true` without compat caused Pi to enter plan mode without knowing the thinking format, resulting in hangs.
+
 ## [2.0.13] - 2026-05-21
 
 ### Added
