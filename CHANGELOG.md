@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.14] - 2026-06-02
+
+### Added
+
+- **Routeway provider** — OpenAI-compatible gateway (`api.routeway.ai/v1`) with 219 models, 16 free (`:free` suffix). Set `ROUTEWAY_API_KEY` or add `routeway_api_key` to `~/.pi/free.json`. Toggle with `/toggle-routeway` ([#209](https://github.com/apmantza/pi-free/pull/209)).
+
+### Fixed
+
+- **Cline free model merging** — Free-to-try models (e.g. `qwen3.7-plus`) from Cline's recommended list now appear in the free model picker even when absent from the main catalog ([#209](https://github.com/apmantza/pi-free/pull/209)).
+
+- **`_pricingKnown` / `_freeKnown` authoritatve flag** — Providers can now signal whether pricing data is authoritative via `_pricingKnown`. When `false`, `isFreeModel` falls back to name-based detection. Kilo's `isFree` API flag now flows through as `_freeKnown` ([#209](https://github.com/apmantza/pi-free/pull/209)).
+
 ## [2.0.13] - 2026-05-21
 
 ### Added
