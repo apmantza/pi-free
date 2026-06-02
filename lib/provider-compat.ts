@@ -23,6 +23,7 @@ export function isLikelyReasoningModel(model: ProviderModelIdentity): boolean {
 	const haystack = `${model.id} ${model.name ?? ""}`.toLowerCase();
 	return (
 		isDeepSeekModel(model) ||
+		haystack.includes("minimax") ||
 		haystack.includes("thinking") ||
 		haystack.includes("reasoning") ||
 		haystack.includes("reasoner") ||
@@ -40,6 +41,15 @@ export function getProxyModelCompat(
 ): ProviderModelConfig["compat"] | undefined {
 	if (isDeepSeekModel(model)) {
 		return DEEPSEEK_PROXY_COMPAT;
+	}
+
+	// MiniMax uses OpenAI-compatible reasoning_effort param
+	if (model.id.toLowerCase().includes("minimax")) {
+		return {
+			supportsStore: false,
+			supportsDeveloperRole: false,
+			supportsReasoningEffort: true,
+		};
 	}
 
 	return undefined;

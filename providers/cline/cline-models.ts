@@ -14,6 +14,7 @@ import {
 	PROVIDER_CLINE,
 } from "../../constants.ts";
 import type { ProviderModelConfig } from "../../lib/types.ts";
+import { getProxyModelCompat } from "../../lib/provider-compat.ts";
 import { cleanModelName, fetchWithRetry } from "../../lib/util.ts";
 
 interface ClineRaw {
@@ -164,8 +165,11 @@ function modelFromCatalog(
 		contextWindow:
 			info.context_length ?? info.top_provider?.context_length ?? 128_000,
 		maxTokens: info.top_provider?.max_completion_tokens ?? 8_192,
+		...(getProxyModelCompat({ id: info.id, name: info.name })
+			? { compat: getProxyModelCompat({ id: info.id, name: info.name }) }
+			: {}),
 		_pricingKnown: info.pricing !== null && info.pricing !== undefined,
-	};
+	} as ProviderModelConfig & { _pricingKnown?: boolean; compat?: any };
 }
 
 async function fetchClineRecommendedFreeModels(): Promise<
