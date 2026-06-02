@@ -23,6 +23,7 @@ export const PROVIDER_DEEPINFRA = "deepinfra";
 export const PROVIDER_SAMBANOVA = "sambanova";
 export const PROVIDER_TOGETHER = "together";
 export const PROVIDER_NOVITA = "novita";
+export const PROVIDER_ROUTEWAY = "routeway";
 
 export const ALL_UNIQUE_PROVIDERS = [
 	PROVIDER_KILO,
@@ -40,6 +41,7 @@ export const ALL_UNIQUE_PROVIDERS = [
 	PROVIDER_SAMBANOVA,
 	PROVIDER_TOGETHER,
 	PROVIDER_NOVITA,
+	PROVIDER_ROUTEWAY,
 ] as const;
 
 // =============================================================================
@@ -62,6 +64,7 @@ export const BASE_URL_DEEPINFRA = "https://api.deepinfra.com/v1/openai";
 export const BASE_URL_SAMBANOVA = "https://api.sambanova.ai/v1";
 export const BASE_URL_TOGETHER = "https://api.together.xyz/v1";
 export const BASE_URL_NOVITA = "https://api.novita.ai/openai/v1";
+export const BASE_URL_ROUTEWAY = "https://api.routeway.ai/v1";
 
 /** Cline fetches free models from OpenRouter */
 export const BASE_URL_OPENROUTER = "https://openrouter.ai/api/v1";

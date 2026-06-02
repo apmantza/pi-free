@@ -82,7 +82,12 @@ function detectPricingExposed(allModels: ProviderModelConfig[]): boolean {
  * @returns true if the model is definitively free per the provider's API
  */
 export function isFreeModel(
-	model: ProviderModelConfig & { provider?: string; _pricingKnown?: boolean },
+	model: ProviderModelConfig & {
+		provider?: string;
+		_pricingKnown?: boolean;
+		_freeKnown?: boolean;
+		_isFree?: boolean;
+	},
 	allModels?: ProviderModelConfig[],
 ): boolean {
 	return isFreeModelInternal(model, allModels);
@@ -90,9 +95,21 @@ export function isFreeModel(
 
 // Internal implementation to work around TypeScript filter callback issues
 function isFreeModelInternal(
-	model: ProviderModelConfig & { provider?: string; _pricingKnown?: boolean },
+	model: ProviderModelConfig & {
+		provider?: string;
+		_pricingKnown?: boolean;
+		_freeKnown?: boolean;
+		_isFree?: boolean;
+	},
 	allModels: ProviderModelConfig[] | undefined,
 ): boolean {
+	// Some gateways expose an authoritative free/paid flag. Prefer it over
+	// pricing because a few non-chat or preview models can report zero token
+	// prices while still not being offered as free chat models.
+	if (model._freeKnown === true) {
+		return model._isFree === true;
+	}
+
 	// Determine if pricing is exposed
 	let pricingExposed: boolean;
 
@@ -213,7 +230,12 @@ export function applyGlobalFilter(
 
 	for (const [providerId, entry] of providerRegistry) {
 		try {
-			applyFilterToProvider(providerId, entry, freeOnly, options.force === true);
+			applyFilterToProvider(
+				providerId,
+				entry,
+				freeOnly,
+				options.force === true,
+			);
 		} catch (err) {
 			_logger.error(
 				`[pi-free] Failed to apply filter to ${providerId}`,

@@ -346,3 +346,32 @@ describe("isFreeModel - _pricingKnown guard (Route A)", () => {
 		).toBe(true);
 	});
 });
+
+describe("isFreeModel - authoritative free flag", () => {
+	it("uses _isFree=true when a provider exposes an explicit flag", () => {
+		const model = createModel("Paid-list-price free trial", {
+			input: 5,
+			output: 30,
+		});
+		expect(
+			isFreeModel({
+				...model,
+				provider: "kilo",
+				_freeKnown: true,
+				_isFree: true,
+			}),
+		).toBe(true);
+	});
+
+	it("uses _isFree=false over zero pricing and free-looking names", () => {
+		const model = createModel("Free-looking Preview", { input: 0, output: 0 });
+		expect(
+			isFreeModel({
+				...model,
+				provider: "kilo",
+				_freeKnown: true,
+				_isFree: false,
+			}),
+		).toBe(false);
+	});
+});

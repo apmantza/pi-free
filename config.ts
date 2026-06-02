@@ -17,6 +17,7 @@ export {
 	PROVIDER_MODAL,
 	PROVIDER_NVIDIA,
 	PROVIDER_QWEN,
+	PROVIDER_ROUTEWAY,
 } from "./constants.ts";
 import { createLogger } from "./lib/logger.ts";
 
@@ -33,6 +34,7 @@ interface PiFreeConfig {
 	sambanova_api_key?: string;
 	together_api_key?: string;
 	novita_api_key?: string;
+	routeway_api_key?: string;
 	fastrouter_api_key?: string;
 	kilo_free_only?: boolean;
 	hidden_models?: string[];
@@ -48,6 +50,7 @@ interface PiFreeConfig {
 	sambanova_show_paid?: boolean;
 	together_show_paid?: boolean;
 	novita_show_paid?: boolean;
+	routeway_show_paid?: boolean;
 	fastrouter_show_paid?: boolean;
 	openrouter_show_paid?: boolean;
 	opencode_show_paid?: boolean;
@@ -64,6 +67,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	sambanova_api_key: "",
 	together_api_key: "",
 	novita_api_key: "",
+	routeway_api_key: "",
 	fastrouter_api_key: "",
 
 	kilo_free_only: false,
@@ -80,6 +84,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	sambanova_show_paid: false,
 	together_show_paid: false,
 	novita_show_paid: false,
+	routeway_show_paid: false,
 	fastrouter_show_paid: false,
 	openrouter_show_paid: false,
 	opencode_show_paid: false,
@@ -222,6 +227,10 @@ export function getNovitaShowPaid(): boolean {
 	return resolveBool("NOVITA_SHOW_PAID", loadConfigFile().novita_show_paid);
 }
 
+export function getRoutewayShowPaid(): boolean {
+	return resolveBool("ROUTEWAY_SHOW_PAID", loadConfigFile().routeway_show_paid);
+}
+
 export function getFastrouterShowPaid(): boolean {
 	return resolveBool(
 		"FASTROUTER_SHOW_PAID",
@@ -266,6 +275,8 @@ export function getProviderShowPaid(providerId: string): boolean {
 			return getTogetherShowPaid();
 		case "novita":
 			return getNovitaShowPaid();
+		case "routeway":
+			return getRoutewayShowPaid();
 		case "fastrouter":
 			return getFastrouterShowPaid();
 		case "ollama-cloud":
@@ -329,6 +340,10 @@ export function getTogetherApiKey(): string | undefined {
 
 export function getNovitaApiKey(): string | undefined {
 	return resolve("NOVITA_API_KEY", loadConfigFile().novita_api_key);
+}
+
+export function getRoutewayApiKey(): string | undefined {
+	return resolve("ROUTEWAY_API_KEY", loadConfigFile().routeway_api_key);
 }
 
 export function getFastrouterApiKey(): string | undefined {

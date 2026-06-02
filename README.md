@@ -64,6 +64,7 @@ Free models are shown by default — look for the provider prefixes:
 - `codestral/` — Codestral via Mistral (free Experiment plan: 2 req/min, 1B tokens/month)
 - `deepinfra/` — DeepInfra inference cloud ($5 one-time trial credit, no credit card)
 - `novita/` — Novita AI (100+ open-source models, OpenAI-compatible, 3 free models)
+- `routeway/` — Routeway AI gateway (OpenAI-compatible, `:free` models)
 
 > **Note:** Paid providers may occasionally offer free models or promotional credits. The `isFreeModel` helper automatically detects free models based on provider pricing data or model names containing "free". For providers that don't expose pricing (like CrofAI), only models with "free" in their names are marked as free.
 
@@ -102,6 +103,7 @@ Want to see paid models too? Run the toggle command for your provider:
 /toggle-sambanova # Toggle SambaNova (🔄 freemium)
 /toggle-llm7      # Toggle LLM7 (✅ free gateway)
 /toggle-novita    # Toggle Novita AI (💳 paid — 3 free models)
+/toggle-routeway  # Toggle Routeway AI (💳 paid — has :free models)
 /toggle-fastrouter # Toggle FastRouter (🔧 dynamic — always discovered)
 ```
 
@@ -132,7 +134,8 @@ Add your API keys to this file:
   "sambanova_api_key": "...",
   "llm7_api_key": "...",
   "zenmux_api_key": "...",
-  "crofai_api_key": "..."
+  "crofai_api_key": "...",
+  "routeway_api_key": "sk-..."
 }
 ```
 

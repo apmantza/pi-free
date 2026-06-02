@@ -341,6 +341,7 @@ export function mapOpenRouterModel(m: {
 		input_modalities?: string[] | null;
 		output_modalities?: string[] | null;
 	};
+	isFree?: boolean;
 }): ProviderModelConfig {
 	const promptPrice = Number.parseFloat(m.pricing?.prompt ?? "0");
 	const completionPrice = Number.parseFloat(m.pricing?.completion ?? "0");
@@ -362,7 +363,15 @@ export function mapOpenRouterModel(m: {
 		maxTokens:
 			m.max_completion_tokens ?? m.top_provider?.max_completion_tokens ?? 4096,
 		_pricingKnown: true,
-	} as ProviderModelConfig & { _pricingKnown?: boolean };
+		...(typeof m.isFree === "boolean" && {
+			_freeKnown: true,
+			_isFree: m.isFree,
+		}),
+	} as ProviderModelConfig & {
+		_pricingKnown?: boolean;
+		_freeKnown?: boolean;
+		_isFree?: boolean;
+	};
 }
 
 // =============================================================================

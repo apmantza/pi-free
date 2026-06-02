@@ -24,6 +24,7 @@ interface OpenRouterCompatibleModel {
 	};
 	top_provider?: { max_completion_tokens?: number | null };
 	supported_parameters?: string[];
+	isFree?: boolean;
 }
 
 interface FetchModelsOptions {
@@ -98,8 +99,9 @@ export async function fetchOpenRouterCompatibleModels(
 			const outputMods = m.architecture?.output_modalities ?? [];
 			if (outputMods.includes("image")) return false;
 
-			// Filter by pricing if freeOnly
+			// Filter by provider flag when available, otherwise pricing.
 			if (freeOnly) {
+				if (typeof m.isFree === "boolean") return m.isFree;
 				const prompt = Number.parseFloat(m.pricing?.prompt ?? "1");
 				const completion = Number.parseFloat(m.pricing?.completion ?? "1");
 				if (prompt !== 0 || completion !== 0) return false;

@@ -14,6 +14,7 @@
  * - DeepInfra: AI inference cloud ($5 trial credit)
  * - SambaNova: Fast inference on RDU hardware (free tier, no credit card)
  * - Together: Fast inference on 200+ open-source models ($1 trial credit)
+ * - Routeway: OpenAI-compatible gateway with free `:free` models
  * - LLM7: AI gateway (free default/fast selectors)
  */
 
@@ -48,6 +49,7 @@ import deepinfra from "./providers/deepinfra/deepinfra.ts";
 import sambanova from "./providers/sambanova/sambanova.ts";
 import together from "./providers/together/together.ts";
 import novita from "./providers/novita/novita.ts";
+import routeway from "./providers/routeway/routeway.ts";
 import nvidia from "./providers/nvidia/nvidia.ts";
 import ollama from "./providers/ollama/ollama.ts";
 import zenmux from "./providers/zenmux/zenmux.ts";
@@ -344,6 +346,7 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 		sambanova(pi),
 		together(pi),
 		novita(pi),
+		routeway(pi),
 	]);
 
 	// Setup dynamic built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face,

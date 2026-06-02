@@ -179,6 +179,19 @@ describe("show-paid getters", () => {
 		expect(getProviderShowPaid("zenmux")).toBe(true);
 		expect(getProviderShowPaid("unknown-provider")).toBe(false);
 	});
+
+	it("getRoutewayShowPaid reads from file", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(configPath(), JSON.stringify({ routeway_show_paid: true }));
+
+		const { getProviderShowPaid, getRoutewayShowPaid } = await import(
+			"../config.ts"
+		);
+		expect(getRoutewayShowPaid()).toBe(true);
+		expect(getProviderShowPaid("routeway")).toBe(true);
+	});
 });
 
 // =============================================================================

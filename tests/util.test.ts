@@ -197,6 +197,22 @@ describe("Utility Functions", () => {
 			expect(result.cost.output).toBe(0);
 		});
 
+		it("should preserve provider free flags when present", () => {
+			const result = mapOpenRouterModel({
+				id: "kilo-auto/free",
+				name: "Auto Free",
+				pricing: { prompt: "0", completion: "0" },
+				isFree: true,
+			});
+
+			expect(
+				(result as typeof result & { _freeKnown?: boolean })._freeKnown,
+			).toBe(true);
+			expect((result as typeof result & { _isFree?: boolean })._isFree).toBe(
+				true,
+			);
+		});
+
 		it("should use default values when fields are missing", () => {
 			const input = {
 				id: "unknown/model",
