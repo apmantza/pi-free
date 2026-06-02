@@ -465,12 +465,13 @@ Each provider has toggle commands to switch between free and all models:
 
 ### Probe Commands (Health Check)
 
-Test models for 404/403 errors and auto-hide broken ones:
+Test models for 404/403/5xx errors and auto-hide broken ones:
 
-| Command         | What it does                                                |
-| --------------- | ----------------------------------------------------------- |
-| `/probe-nvidia` | Test all NVIDIA models, auto-hide 404s in `~/.pi/free.json` |
-| `/probe-ollama` | Test all Ollama models, auto-hide 403s in `~/.pi/free.json` |
+| Command           | What it doess                                               |
+| ----------------- | ----------------------------------------------------------- |
+| `/probe-nvidia`   | Test all NVIDIA models, auto-hide 404s in `~/.pi/free.json` |
+| `/probe-ollama`   | Test all Ollama models, auto-hide 403s in `~/.pi/free.json` |
+| `/probe-routeway` | Test all Routeway models, auto-hide 5xx/404s               |
 
 **How it works:**
 
