@@ -18,7 +18,12 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import { getRoutewayApiKey, getRoutewayShowPaid } from "../../config.ts";
+import {
+	getRoutewayApiKey,
+	getRoutewayShowPaid,
+	loadConfigFile,
+	saveConfig,
+} from "../../config.ts";
 import {
 	BASE_URL_ROUTEWAY,
 	DEFAULT_FETCH_TIMEOUT_MS,
@@ -30,8 +35,13 @@ import {
 	getProxyModelCompat,
 	isLikelyReasoningModel,
 } from "../../lib/provider-compat.ts";
+import {
+	getModelsDueForProbe,
+	recordModelProbeResults,
+} from "../../lib/probe-cache.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { cleanModelName, fetchWithRetry } from "../../lib/util.ts";
+import { fetchWithTimeout } from "../../lib/util.ts";
 import { createReRegister, setupProvider } from "../../provider-helper.ts";
 
 const _logger = createLogger("routeway");
@@ -155,6 +165,125 @@ async function fetchRoutewayModels(
 	}
 }
 
+// =============================================================================
+// Probe
+// =============================================================================
+
+async function probeRoutewayModel(
+	apiKey: string,
+	modelId: string,
+): Promise<"ok" | "broken" | "unknown"> {
+	try {
+		const response = await fetchWithTimeout(
+			`${BASE_URL_ROUTEWAY}/chat/completions`,
+			{
+				method: "POST",
+				headers: {
+					Authorization: `Bearer ${apiKey}`,
+					"Content-Type": "application/json",
+					"User-Agent": "pi-free-providers",
+				},
+				body: JSON.stringify({
+					model: modelId,
+					messages: [{ role: "user", content: "hi" }],
+					max_tokens: 1,
+				}),
+			},
+			10000, // 10 second timeout
+		);
+
+		// 5xx = upstream server error (model unavailable)
+		if (response.status >= 500) return "broken";
+		// 404 = model not found / not provisioned
+		if (response.status === 404) return "broken";
+		// 429 = rate limited (model works)
+		if (response.status === 429) return "ok";
+		// 401 = auth issue (model exists, key issue)
+		if (response.status === 401) return "ok";
+		// 400 = bad request (model exists, param issue)
+		if (response.status === 400) return "ok";
+		// 200 = success
+		if (response.ok) return "ok";
+		return "ok";
+	} catch {
+		return "unknown";
+	}
+}
+
+async function runRoutewayProbe(
+	apiKey: string,
+	modelsToTest: ProviderModelConfig[],
+	stored: { free: ProviderModelConfig[]; all: ProviderModelConfig[] },
+	reRegister: (models: ProviderModelConfig[]) => void,
+	options: { useCache?: boolean } = {},
+): Promise<string[]> {
+	const modelIdsToProbe = options.useCache
+		? new Set(
+				getModelsDueForProbe(
+					PROVIDER_ROUTEWAY,
+					modelsToTest.map((m) => m.id),
+				),
+			)
+		: undefined;
+	const probeCandidates = modelIdsToProbe
+		? modelsToTest.filter((m) => modelIdsToProbe.has(m.id))
+		: modelsToTest;
+
+	if (probeCandidates.length === 0) {
+		_logger.info("Auto-probe: Routeway probe cache is fresh");
+		return [];
+	}
+
+	const broken: string[] = [];
+	const cacheableResults: Array<{ modelId: string; status: "ok" | "broken" }> =
+		[];
+	const batchSize = 5;
+
+	for (let i = 0; i < probeCandidates.length; i += batchSize) {
+		const batch = probeCandidates.slice(i, i + batchSize);
+		const results = await Promise.all(
+			batch.map(async (m) => {
+				const status = await probeRoutewayModel(apiKey, m.id);
+				return { id: m.id, status };
+			}),
+		);
+		for (const r of results) {
+			if (r.status === "broken") broken.push(r.id);
+			if (r.status !== "unknown") {
+				cacheableResults.push({ modelId: r.id, status: r.status });
+			}
+		}
+	}
+
+	recordModelProbeResults(PROVIDER_ROUTEWAY, cacheableResults);
+
+	if (broken.length === 0) {
+		_logger.info("Auto-probe: all checked Routeway models are routable");
+		return [];
+	}
+
+	// Auto-hide broken models in config (provider-scoped)
+	const cfg = loadConfigFile();
+	const existingHidden = new Set(cfg.hidden_models ?? []);
+	for (const id of broken) existingHidden.add(`${PROVIDER_ROUTEWAY}/${id}`);
+	saveConfig({ hidden_models: Array.from(existingHidden) });
+
+	// Re-register so hidden models disappear immediately
+	const filtered = await fetchRoutewayModels(apiKey);
+	stored.free = filtered;
+	stored.all = filtered;
+	reRegister(filtered);
+
+	_logger.info(
+		`Auto-probe: found ${broken.length} broken models (auto-hidden)`,
+	);
+	return broken;
+}
+
+// =============================================================================
+// Extension Entry Point
+// =============================================================================
+
 export default async function routewayProvider(pi: ExtensionAPI) {
 	const apiKey = getRoutewayApiKey();
 
@@ -205,6 +334,55 @@ export default async function routewayProvider(pi: ExtensionAPI) {
 		},
 		stored,
 	);
+
+	// ── Lazy auto-probe on first session_start ──────────────────────
+	let _autoProbeDone = false;
+	pi.on("session_start", async () => {
+		if (_autoProbeDone || !apiKey) return;
+		_autoProbeDone = true;
+		_logger.info("Starting lazy auto-probe of Routeway models...");
+		runRoutewayProbe(apiKey, allModels, stored, reRegister, {
+			useCache: true,
+		}).catch((err) => {
+			_logger.warn("Auto-probe failed", {
+				error: err instanceof Error ? err.message : String(err),
+			});
+		});
+	});
+
+	// ── Probe command: test all registered models for 5xx ─────────────
+	pi.registerCommand("probe-routeway", {
+		description:
+			"Test all Routeway models for server errors and auto-hide broken ones",
+		handler: async (_args, ctx) => {
+			if (!apiKey) {
+				ctx.ui.notify("ROUTEWAY_API_KEY not set", "error");
+				return;
+			}
+
+			const modelsToTest = allModels;
+			ctx.ui.notify(
+				`Probing ${modelsToTest.length} Routeway models…`,
+				"info",
+			);
+
+			await runRoutewayProbe(apiKey, modelsToTest, stored, reRegister);
+
+			// Check if any were hidden (re-read config)
+			const cfgAfter = loadConfigFile();
+			const newHidden = (cfgAfter.hidden_models ?? []).filter((h) =>
+				h.startsWith(`${PROVIDER_ROUTEWAY}/`),
+			);
+			if (newHidden.length > 0) {
+				ctx.ui.notify(
+					`Found ${newHidden.length} broken models (auto-hidden):\n${newHidden.join("\n")}`,
+					"warning",
+				);
+			} else {
+				ctx.ui.notify("All Routeway models are routable ✅", "info");
+			}
+		},
+	});
 
 	const showPaid = getRoutewayShowPaid();
 	const initialModels =
