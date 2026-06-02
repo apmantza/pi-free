@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.15] - 2026-06-02
+
+### Fixed
+
+- **Qwen 3.7 reasoning compat** — `qwen/qwen3.7-max` on Cline/OpenRouter uses DeepSeek-style `reasoning_content` format. Added `DEEPSEEK_PROXY_COMPAT` so Pi preserves and replays reasoning tokens correctly, preventing plan-mode hangs ([#213](https://github.com/apmantza/pi-free/pull/213)).
+
+- **Kimi K2.6 reasoning compat** — Kimi models on NVIDIA/OpenRouter need `requiresReasoningContentOnAssistantMessages: true` to correctly replay reasoning tokens in assistant messages. Without it, the model gets stuck when trying to call tools or produce output after thinking. Refs [earendil-works/pi#5309](https://github.com/earendil-works/pi/issues/5309) ([#213](https://github.com/apmantza/pi-free/pull/213)).
+
+- **MiniMax reasoning compat** — MiniMax M3 and other MiniMax models now have full DeepSeek-style compat (`thinkingFormat: "deepseek"`, `requiresReasoningContentOnAssistantMessages: true`). Previously, models marked `reasoning: true` without `thinkingFormat` caused Pi to enter plan mode but couldn't parse the reasoning tokens, resulting in hangs ([#212](https://github.com/apmantza/pi-free/pull/212), [#213](https://github.com/apmantza/pi-free/pull/213)).
+
+### Added
+
+- **`/probe-routeway` command** — Tests each Routeway model with a minimal chat request and auto-hides models that return 5xx or 404 errors. Runs lazily on first `session_start` with 24h probe cache TTL. Follows the same pattern as `/probe-nvidia` ([#213](https://github.com/apmantza/pi-free/pull/213)).
+
 ## [2.0.14] - 2026-06-02
 
 ### Added
