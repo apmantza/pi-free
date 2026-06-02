@@ -24,6 +24,8 @@ export function isLikelyReasoningModel(model: ProviderModelIdentity): boolean {
 	return (
 		isDeepSeekModel(model) ||
 		haystack.includes("minimax") ||
+		haystack.includes("qwen3.7") ||
+		haystack.includes("qwen3-7") ||
 		haystack.includes("thinking") ||
 		haystack.includes("reasoning") ||
 		haystack.includes("reasoner") ||
@@ -50,6 +52,14 @@ export function getProxyModelCompat(
 			supportsDeveloperRole: false,
 			supportsReasoningEffort: true,
 		};
+	}
+
+	// Qwen 3.7+ on OpenRouter/Cline uses reasoning_content (DeepSeek format)
+	if (
+		model.id.toLowerCase().includes("qwen3.7") ||
+		model.id.toLowerCase().includes("qwen3-7")
+	) {
+		return DEEPSEEK_PROXY_COMPAT;
 	}
 
 	return undefined;
