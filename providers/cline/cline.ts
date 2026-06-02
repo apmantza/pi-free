@@ -73,9 +73,9 @@ function toApiKey(credentials: OAuthCredentials): string {
 // =============================================================================
 
 const TASK_PROGRESS_BLOCK = `
-# task_progress List (Optional - Plan Mode)
+# task_progress List (Optional)
 
-While in PLAN MODE, if you've outlined concrete steps or requirements for the user, you may include a preliminary todo list using the task_progress parameter.
+You may include a todo list using the task_progress parameter to track progress on multi-step tasks.
 
 1. To create or update a todo list, include the task_progress parameter in the next tool call
 2. Review each item and update its status:
@@ -100,7 +100,7 @@ function buildEnvironmentDetails(): string {
 0 / 204.8K tokens used (0%)
 
 # Current Mode
-PLAN MODE
+ACT MODE
 </environmentDetails>`;
 }
 
