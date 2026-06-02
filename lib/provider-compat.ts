@@ -46,12 +46,14 @@ export function getProxyModelCompat(
 		return DEEPSEEK_PROXY_COMPAT;
 	}
 
-	// MiniMax uses OpenAI-compatible reasoning_effort param
+	// MiniMax on OpenRouter/Cline uses reasoning_content (DeepSeek format)
 	if (model.id.toLowerCase().includes("minimax")) {
 		return {
 			supportsStore: false,
 			supportsDeveloperRole: false,
 			supportsReasoningEffort: true,
+			requiresReasoningContentOnAssistantMessages: true,
+			thinkingFormat: "deepseek",
 		};
 	}
 
