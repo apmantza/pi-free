@@ -22,10 +22,11 @@ describe("telemetry", () => {
 			"../lib/telemetry.ts"
 		);
 		const usage = { input: 1, output: 2, totalTokens: 3 };
+		const opts = { success: true };
 		await Promise.all([
-			recordModelCall("p", "m", usage, 0, true),
-			recordModelCall("p", "m", usage, 0, true),
-			recordModelCall("p", "m", usage, 0, true),
+			recordModelCall("p", "m", usage, 0, opts),
+			recordModelCall("p", "m", usage, 0, opts),
+			recordModelCall("p", "m", usage, 0, opts),
 		]);
 		const t = getModelTelemetry("p", "m");
 		expect(t?.totalCalls).toBe(3);

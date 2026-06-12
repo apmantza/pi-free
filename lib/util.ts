@@ -12,6 +12,11 @@ const _logger = createLogger("util");
 // Shared Utilities
 // =============================================================================
 
+/** Async sleep helper — avoids creating anonymous functions in loops */
+export function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * Log a warning message for provider operations
  */
@@ -74,7 +79,7 @@ export async function fetchWithRetry(
 			if (response.status >= 500) {
 				lastError = new Error(`Server error ${response.status}`);
 				if (i < retries - 1) {
-					await new Promise((r) => setTimeout(r, delayMs * (i + 1)));
+					await sleep(delayMs * (i + 1));
 					continue;
 				}
 				// Last retry exhausted - throw the error
@@ -85,7 +90,7 @@ export async function fetchWithRetry(
 		} catch (error) {
 			lastError = error;
 			if (i < retries - 1) {
-				await new Promise((r) => setTimeout(r, delayMs * (i + 1)));
+				await sleep(delayMs * (i + 1));
 			}
 		}
 	}
@@ -310,16 +315,22 @@ export function cleanModelName(name: string): string {
 	// Handle patterns like "Provider : Model Name" or "Provider / Model Name"
 	const colonIdx = name.indexOf(":");
 	const slashIdx = name.indexOf("/");
-	const idx =
-		colonIdx === -1
-			? slashIdx
-			: slashIdx === -1
-				? colonIdx
-				: Math.min(colonIdx, slashIdx);
-	if (idx > 0) {
-		return name.slice(idx + 1).trim();
+	let idx = -1;
+	if (colonIdx === -1 && slashIdx === -1) {
+		// Neither found — return trimmed name as-is
+		return name.trim();
 	}
-	return name.trim();
+	if (colonIdx === -1) {
+		// Only slash found
+		idx = slashIdx;
+	} else if (slashIdx === -1) {
+		// Only colon found
+		idx = colonIdx;
+	} else {
+		// Both found — use the earliest
+		idx = Math.min(colonIdx, slashIdx);
+	}
+	return name.slice(idx + 1).trim();
 }
 
 // =============================================================================

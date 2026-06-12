@@ -302,9 +302,7 @@ function setupTelemetry(pi: ExtensionAPI) {
 			model,
 			{ input: inputTokens, output: outputTokens, totalTokens },
 			cost,
-			!isError,
-			msg.stopReason,
-			msg.errorMessage,
+			{ success: !isError, stopReason: msg.stopReason, errorMessage: msg.errorMessage },
 		);
 	});
 }

@@ -309,6 +309,13 @@ export function startModelCall(provider: string, model: string): void {
 	_inFlight.set(key, Date.now());
 }
 
+/** Options for {@link recordModelCall} */
+export interface RecordModelCallOptions {
+	success: boolean;
+	stopReason?: string;
+	errorMessage?: string;
+}
+
 /**
  * Record a completed model call with its usage data.
  * Call this from turn_end when the message is an AssistantMessage.
@@ -317,19 +324,16 @@ export function startModelCall(provider: string, model: string): void {
  * @param model - The model ID
  * @param usage - Token usage { input, output, totalTokens }
  * @param cost - Cost in USD
- * @param success - Whether the call succeeded
- * @param stopReason - The stop reason (e.g. "stop", "error")
- * @param errorMessage - Error message if failed
+ * @param options - Options object ({@link RecordModelCallOptions})
  */
 export async function recordModelCall(
 	provider: string,
 	model: string,
 	usage: { input: number; output: number; totalTokens: number },
 	cost: number,
-	success: boolean,
-	stopReason?: string,
-	errorMessage?: string,
+	options: RecordModelCallOptions,
 ): Promise<void> {
+	const { success, stopReason, errorMessage } = options;
 	const key = `${provider}/${model}`;
 	const startTime = _inFlight.get(key) ?? Date.now();
 	const latencyMs = Date.now() - startTime;
