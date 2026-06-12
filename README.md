@@ -14,9 +14,9 @@ Free and paid AI model providers for [Pi](https://pi.dev). Access **free and pai
 
 When you install pi-free, it:
 
-1. **Registers free-tier providers** with Pi's model picker — Kilo (free), Cline (free), NVIDIA (freemium), ZenMux (paid), CrofAI (paid), Ollama Cloud (freemium), and more
+1. **Registers free-tier providers** with Pi's model picker — Kilo (free), Cline (free), ZenMux (paid), CrofAI (paid), Ollama Cloud (freemium), and more
 
-2. **Fetches models dynamically** from provider APIs — NVIDIA NIM, ZenMux, CrofAI, and Pi's built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face, OpenRouter) when API keys are configured
+2. **Fetches models dynamically** from provider APIs — ZenMux, CrofAI, and Pi's built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face, OpenRouter) when API keys are configured
 
 3. **Filters to show only free models by default** for providers that expose pricing — You see only the models that cost $0 to use. Paid models are hidden until you explicitly toggle them on.
 
@@ -53,7 +53,6 @@ Free models are shown by default — look for the provider prefixes:
 
 **🔄 Freemium (free tier with limits, then paid):**
 
-- `nvidia/` — NVIDIA NIM models (1,000 free requests/month, then credits)
 - `ollama-cloud/` — Ollama Cloud models (usage-based free tier, resets every 5 hours + 7 days)
 - `sambanova/` — SambaNova Cloud models (20-480 RPM free, no credit card required)
 
@@ -78,7 +77,7 @@ Free models are shown by default — look for the provider prefixes:
 - `openrouter/` — OpenRouter models (fetched from openrouter.ai, when `OPENROUTER_API_KEY` set)
 - `fastrouter/` — FastRouter models (always discovered, 170+ models, no auth for listing)
 
-**Note:** Fireworks is now a [built-in Pi provider](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/CHANGELOG.md#0681---2026-04-22) — no extension needed. Set `FIREWORKS_API_KEY` to use it directly.
+**Note:** Fireworks and NVIDIA NIM are now [built-in Pi providers](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/CHANGELOG.md#0681---2026-04-22) — no extension needed. Set `FIREWORKS_API_KEY` or `NVIDIA_API_KEY` to use them directly.
 
 ### 3. Toggle between free and paid models
 
@@ -88,7 +87,6 @@ Want to see paid models too? Run the toggle command for your provider:
 /toggle-kilo       # Toggle Kilo (✅ offers free models)
 /toggle-openrouter # Toggle OpenRouter (✅ offers free models)
 /toggle-cline      # Toggle Cline (✅ offers free models)
-/toggle-nvidia     # Toggle NVIDIA (🔄 freemium)
 /toggle-ollama     # Toggle Ollama Cloud (🔄 freemium)
 /toggle-mistral    # Toggle Mistral (🔧 dynamic - needs API key)
 /toggle-groq       # Toggle Groq (🔧 dynamic - needs API key)
@@ -126,7 +124,6 @@ Add your API keys to this file:
 
 ```json
 {
-  "nvidia_api_key": "nvapi-...",
   "ollama_api_key": "...",
   "mistral_api_key": "...",
   "codestral_api_key": "...",
@@ -139,7 +136,7 @@ Add your API keys to this file:
 }
 ```
 
-Or set environment variables instead (same names, uppercase: `OPENROUTER_API_KEY`, `NVIDIA_API_KEY`, etc.)
+Or set environment variables instead (same names, uppercase: `OPENROUTER_API_KEY`, `OLLAMA_API_KEY`, etc.)
 
 If `~/.pi/free.json` contains invalid JSON, pi-free now logs the parse error to `~/.pi/free.log` so you can fix the file quickly.
 
@@ -161,13 +158,19 @@ See the [Providers That Need Authentication](#providers-that-need-authentication
 
 ## Features
 
-### 🔍 NVIDIA: Pre-Filtering + 404 Detection
+### 🔍 Model Availability Probing
 
-NVIDIA's API lists 130+ models, but 57+ return 404 "Function not found" when you try to use them. pi-free solves this:
+Some provider APIs list models that return errors when you try to use them (expired free promotions, decommissioned models, server spin-down). pi-free automatically detects and hides broken models:
 
-- **57 known 404s hard-filtered** — Discontinued models (`dbrx-instruct`, `codellama-70b`), embedding models mislabeled as chat-capable (`nv-embed-*`), and stale catalog entries are silently excluded
-- **Auto-discovery from NVIDIA's API** — Queries `integrate.api.nvidia.com/v1/models` directly for the ground-truth list
-- **`/probe-nvidia` command** — On-demand health check: tests every model with a minimal request, auto-hides new 404s, and re-registers immediately
+- **Ollama Cloud**: `/probe-ollama` — probes for 403 errors, auto-hides inaccessible models
+- **Routeway**: `/probe-routeway` — probes for 5xx/404 errors, auto-hides broken models
+- **OpenCode**: `/probe-opencode`, `/probe-opencode-go` — probes for expired free promotions (reports only, no auto-hide)
+- **DeepInfra**: `/probe-deepinfra` — probes for 404/5xx errors, auto-hides broken models
+- **SambaNova**: `/probe-sambanova` — probes for 404/5xx errors, auto-hides broken models
+- **Together AI**: `/probe-together` — probes for 404/5xx errors, auto-hides broken models
+- **Novita AI**: `/probe-novita` — probes for 404/5xx errors, auto-hides broken models
+
+All probes use a **24-hour probe cache** to avoid re-checking recently-verified models. Run any probe command manually to force a full re-check, or let the lazy auto-probe on first `session_start` handle it.
 
 ### 🎯 Coding Index (CI) Scores
 
@@ -175,13 +178,13 @@ Every model shows a **Coding Index score** (e.g., `CI: 52.3`) in the model picke
 
 - **Benchmark-based** — Scores derived from Artificial Analysis coding benchmarks (HumanEval, MBPP, etc.)
 - **Quality indicator** — Higher scores = better coding performance
-- **All providers** — Applied to every model from every provider (NVIDIA, Mistral, Groq, etc.)
+- **All providers** — Applied to every model from every provider (Mistral, Groq, Cerebras, etc.)
 
 **Missing CI scores?** Provider model IDs often don't match benchmark database keys exactly. pi-free applies provider-specific normalization to improve matching:
 
 | Provider     | Normalization Applied                                              |
 | ------------ | ------------------------------------------------------------------ |
-| **NVIDIA**   | Strips vendor prefixes (`meta/`, `mistralai/`, `microsoft/`, etc.) |
+| **Fireworks**   | Strips vendor prefixes (`meta/`, `mistralai/`, `microsoft/`, etc.) |
 | **Groq**     | Removes `-versatile` and numeric suffixes (`-32768`)               |
 | **Cerebras** | Normalizes `llama3.1` → `llama-3.1`, adds `instruct` suffix        |
 | **Mistral**  | Strips `-latest` suffix                                            |
@@ -194,6 +197,7 @@ Every model shows a **Coding Index score** (e.g., `CI: 52.3`) in the model picke
 Providers have different pricing models. pi-free handles them all:
 
 - **Free-only by default** — Shows only zero-cost models initially
+- **Auto-probe on session_start** — Lazy background probes detect broken models automatically on your first session; no manual command needed
 - **Per-provider toggles** — Run `/toggle-{provider}` to switch between "free only" vs "all models"
 - **Persists across sessions** — Your preference is saved to `~/.pi/free.json`
 - **Instant updates** — Changes apply immediately; no Pi restart needed
@@ -201,7 +205,7 @@ Providers have different pricing models. pi-free handles them all:
 **Provider types:**
 
 - ✅ **Free providers** (Kilo, Cline) — Toggle between free-only vs paid models
-- 🔄 **Freemium** (NVIDIA, Ollama) — Free tier with limits, toggle shows all
+- 🔄 **Freemium** (Ollama, SambaNova) — Free tier with limits, toggle shows all
 - 🔧 **Dynamic API** (Mistral, Groq, Cerebras, xAI) — Fetched when API key configured, toggle filters the list
 
 ### 🔐 OAuth + API Key Handling
@@ -283,44 +287,9 @@ Then use `/toggle-openrouter` to switch between free-only and all models.
 
 **Note:** `openrouter_api_key` in `~/.pi/free.json` is ignored. OpenRouter always reads from Pi's auth system to avoid stale keys.
 
-### NVIDIA NIM (Free Credits System)
+### NVIDIA NIM (now built-in)
 
-NVIDIA provides **free monthly credits** (1000 requests/month) at [build.nvidia.com](https://build.nvidia.com).
-
-**Important:** Models have different "costs" per token:
-
-- **Zero-cost models**: Don't consume your credit balance (shown by default)
-- **Credit-costing models**: Consume credits faster (hidden by default)
-
-Get your API key and optionally enable all models:
-
-**Option A: Show only free models (default)**
-
-```bash
-export NVIDIA_API_KEY="nvapi-..."
-```
-
-Uses only zero-cost models → your 1000 credits last the full month
-
-**Option B: Show all models (uses credits faster)**
-
-```bash
-export NVIDIA_API_KEY="nvapi-..."
-export NVIDIA_SHOW_PAID=true
-```
-
-Or in `~/.pi/free.json`:
-
-```json
-{
-  "nvidia_api_key": "nvapi-...",
-  "nvidia_show_paid": true
-}
-```
-
-Toggle anytime with `/toggle-nvidia`
-
-**Models available:** Llama 4/3.x, Mistral Small 3.1, DeepSeek R1, Gemma 4, Kimi K2.5/2.6, Qwen 3/2.5, OpenAI GPT-OSS, and more.
+NVIDIA NIM is now a **built-in Pi provider** — no extension needed. Set `NVIDIA_API_KEY` to use it directly with Pi's built-in model picker.
 
 ### Ollama Cloud
 
@@ -438,13 +407,12 @@ Each provider has toggle commands to switch between free and all models:
 | `/toggle-kilo`          | Toggle between free/all Kilo models                      |
 | `/toggle-openrouter`    | Toggle between free/all OpenRouter models                |
 | `/toggle-cline`         | Toggle between free/all Cline models                     |
-| `/toggle-nvidia`        | Toggle between free/all NVIDIA models                    |
 | `/toggle-ollama`        | Toggle between free/all Ollama Cloud models              |
 | `/toggle-mistral`       | Toggle between free/all Mistral models (🔧 dynamic)      |
 | `/toggle-groq`          | Toggle between free/all Groq models (🔧 dynamic)         |
 | `/toggle-cerebras`      | Toggle between free/all Cerebras models (🔧 dynamic)     |
 | `/toggle-xai`           | Toggle between free/all xAI models (🔧 dynamic)          |
-| `/toggle-huggingface`   | Toggle between free/all Hugging Face models (🔧 dynamic) |
+| `/toggle-huggingface`   | Toggle between free/all Hugging Face models (🔧 dynamic)  |
 | `/toggle-codestral`     | Toggle Codestral (💳 paid)                               |
 | `/toggle-deepinfra`     | Toggle DeepInfra (💳 trial credit)                       |
 | `/toggle-together`      | Toggle Together AI (💳 trial credit)                     |
@@ -452,6 +420,9 @@ Each provider has toggle commands to switch between free and all models:
 | `/toggle-llm7`          | Toggle LLM7 (✅ free gateway)                            |
 | `/toggle-zenmux`        | Toggle ZenMux (💳 paid)                                  |
 | `/toggle-crofai`        | Toggle CrofAI (💳 paid)                                  |
+| `/toggle-novita`        | Toggle Novita AI (💳 paid)                               |
+| `/toggle-routeway`      | Toggle Routeway AI (💳 paid)                             |
+| `/toggle-fastrouter`    | Toggle FastRouter (🔧 dynamic)                           |
 | `/ollama-cloud-refresh` | Re-fetch Ollama Cloud models live (no restart needed)    |
 | `/probe-ollama`         | Test Ollama Cloud models for 403 errors (auto-hide)      |
 
@@ -465,13 +436,18 @@ Each provider has toggle commands to switch between free and all models:
 
 ### Probe Commands (Health Check)
 
-Test models for 404/403 errors and auto-hide broken ones:
+Test models for errors and auto-hide broken ones:
 
-| Command           | What it does                                                |
-| ----------------- | ----------------------------------------------------------- |
-| `/probe-nvidia`   | Test all NVIDIA models, auto-hide 404s in `~/.pi/free.json` |
-| `/probe-ollama`   | Test all Ollama models, auto-hide 403s in `~/.pi/free.json` |
-| `/probe-routeway` | Test all Routeway models, auto-hide 5xx/404s               |
+| Command                | What it does                                                |
+| ---------------------- | ----------------------------------------------------------- |
+| `/probe-ollama`        | Test all Ollama Cloud models, auto-hide 403s                 |
+| `/probe-routeway`      | Test all Routeway models, auto-hide 5xx/404s                |
+| `/probe-opencode`      | Test all OpenCode free models for expired promotions        |
+| `/probe-opencode-go`   | Test all OpenCode Go free models for expired promotions     |
+| `/probe-deepinfra`     | Test all DeepInfra models for availability, auto-hide broken|
+| `/probe-sambanova`     | Test all SambaNova models for availability, auto-hide broken|
+| `/probe-together`      | Test all Together AI models for availability, auto-hide broken|
+| `/probe-novita`        | Test all Novita AI models for availability, auto-hide broken|
 
 **How it works:**
 
@@ -491,7 +467,6 @@ Create `~/.pi/free.json` in your home directory:
 
 ```json
 {
-  "nvidia_api_key": "YOUR_NVIDIA_KEY",
   "mistral_api_key": "YOUR_MISTRAL_KEY",
   "ollama_api_key": "YOUR_OLLAMA_KEY",
   "ollama_show_paid": true,
@@ -502,8 +477,8 @@ Create `~/.pi/free.json` in your home directory:
 Or use environment variables (same names, uppercase):
 
 ```bash
-export NVIDIA_API_KEY="..."
 export MISTRAL_API_KEY="..."
+export OLLAMA_API_KEY="..."
 ```
 
 ---
