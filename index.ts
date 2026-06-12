@@ -346,7 +346,7 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 		novita(pi),
 		routeway(pi),
 		tokenRouter(pi),
-]);
+	]);
 
 	// Setup dynamic built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face,
 	// OpenRouter/OpenCode from Pi auth, and FastRouter public model discovery)

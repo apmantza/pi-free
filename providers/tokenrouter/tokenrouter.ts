@@ -38,6 +38,14 @@ import { createReRegister, setupProvider } from "../../provider-helper.ts";
 const _logger = createLogger("tokenrouter");
 
 // =============================================================================
+// Known Free Models
+// TokenRouter doesn't expose pricing via /v1/models, so known-free models
+// are hardcoded. Detected via name suffix also catches `:free`-tagged models.
+// =============================================================================
+
+const KNOWN_FREE_MODELS = new Set(["MiniMax-M3"]);
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -76,21 +84,23 @@ function isTextChatModel(model: TokenRouterModel): boolean {
 	return model.supported_endpoint_types.some((t) => CHAT_ENDPOINT_TYPES.has(t));
 }
 
-function mapTokenRouterModel(
-	model: TokenRouterModel,
-): ProviderModelConfig & { _pricingKnown?: boolean } {
+function mapTokenRouterModel(model: TokenRouterModel): ProviderModelConfig & {
+	_pricingKnown?: boolean;
+	_freeKnown?: boolean;
+	_isFree?: boolean;
+} {
 	const name = cleanModelName(model.id);
 	const reasoning = isLikelyReasoningModel({ id: model.id, name });
-	const isResponseApi = model.supported_endpoint_types.includes(
-		"openai-response",
-	);
+	const isResponseApi =
+		model.supported_endpoint_types.includes("openai-response");
+	const isKnownFree = KNOWN_FREE_MODELS.has(model.id);
 
 	return {
 		id: model.id,
 		name,
 		reasoning,
 		input: ["text"],
-		cost: { input: 0, output: 0 },
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 128_000,
 		maxTokens: 16_384,
 		compat: {
@@ -98,6 +108,10 @@ function mapTokenRouterModel(
 			// openai-response models use a different API shape
 			...(isResponseApi ? { apiType: "openai-response" as const } : {}),
 		},
+		// Known-free models bypass pricing detection entirely
+		_freeKnown: isKnownFree,
+		_isFree: isKnownFree,
+		// Non-free models signal no pricing data (name-based detection only)
 		_pricingKnown: false,
 	} as ProviderModelConfig & { _pricingKnown?: boolean };
 }
@@ -134,10 +148,7 @@ async function fetchTokenRouterModels(
 		const models = (json.data ?? []).filter(isTextChatModel);
 
 		_logger.info(`[tokenrouter] Fetched ${models.length} text chat models`);
-		return applyHidden(
-			models.map(mapTokenRouterModel),
-			PROVIDER_TOKENROUTER,
-		);
+		return applyHidden(models.map(mapTokenRouterModel), PROVIDER_TOKENROUTER);
 	} catch (error) {
 		_logger.error("[tokenrouter] Failed to fetch models", {
 			error: error instanceof Error ? error.message : String(error),
@@ -154,9 +165,7 @@ export default async function tokenRouterProvider(pi: ExtensionAPI) {
 	const apiKey = getTokenrouterApiKey();
 
 	if (!apiKey) {
-		_logger.info(
-			"[tokenrouter] Skipping — TOKENROUTER_API_KEY not set.",
-		);
+		_logger.info("[tokenrouter] Skipping — TOKENROUTER_API_KEY not set.");
 		return;
 	}
 
