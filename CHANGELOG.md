@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Generic probe system** — New `lib/provider-probe.ts` factory `createProviderProbe()` handles batching, probe-cache integration, auto-hiding, and re-registration. Enables consistent probe commands across providers ([#218](https://github.com/apmantza/pi-free/pull/218)).
+
+- **Probe commands** — New `/probe-deepinfra`, `/probe-sambanova`, `/probe-together`, `/probe-novita` commands test model availability and auto-hide broken models ([#218](https://github.com/apmantza/pi-free/pull/218)).
+
+- **OpenCode probe commands** — `/probe-opencode` and `/probe-opencode-go` detect expired free promotions (reports only, no auto-hide) ([#218](https://github.com/apmantza/pi-free/pull/218)).
+
+- **Session timing metrics** — `wrapSessionStartHandler()` logs wall-clock time per handler in `session-start-metrics.ts`. Wrapped: cline, kilo, routeway, built-in-toggle, dynamic-built-in auto-probe ([#218](https://github.com/apmantza/pi-free/pull/218)).
+
+### Removed
+
+- **NVIDIA NIM provider** — Now a built-in Pi provider. Set `NVIDIA_API_KEY` to use directly. Removed `providers/nvidia/`, constants, config re-exports, and tests ([#218](https://github.com/apmantza/pi-free/pull/218)).
+
+### Security
+
+- **open-browser: command injection fix** — Replaced PowerShell command-string argument with single-quoted `-FilePath` to prevent `$()`, backtick, and other metacharacter injection ([#218](https://github.com/apmantza/pi-free/pull/218)).
+
+- **json-persistence: atomic writes** — JSONL `load()` now parses line-by-line and skips malformed lines; new `Lock` class and `update(updater)` method for atomic read-modify-write safety ([#218](https://github.com/apmantza/pi-free/pull/218)).
+
+- **telemetry: concurrent-write safety** — `Lock` mutex around telemetry writes; `recordModelCall` and `clearTelemetry` are now async and serialized. File path overridable via `PI_FREE_TELEMETRY_FILE` ([#218](https://github.com/apmantza/pi-free/pull/218)).
+
+- **provider-cache: isolated copies** — `loadProviderCache` returns `structuredClone(cached.models)`; `saveProviderCache` uses `update()` for atomic RMW ([#218](https://github.com/apmantza/pi-free/pull/218)).
+
+- **Log sanitization** — `scripts/update-benchmarks.ts` now sanitizes external API data before passing to `console.log`/error, preventing log injection (SonarCloud S5693) ([#219](https://github.com/apmantza/pi-free/pull/219)).
+
 ## [2.0.15] - 2026-06-02
 
 ### Fixed

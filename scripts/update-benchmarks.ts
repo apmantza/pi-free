@@ -91,6 +91,16 @@ function sanitizeString(s: string): string {
 	return s.replaceAll(/[\n\r]/g, "_");
 }
 
+/**
+ * Sanitize a value for safe console.log output.
+ * Prevents log injection from external/untrusted data (SonarCloud S5693).
+ */
+function sanitizeForLog(value: unknown): string {
+	const s = String(value);
+	// Replace CR, LF, and tab characters that could forge log entries
+	return s.replaceAll(/[\n\r\t]/g, " ");
+}
+
 function normalizeModelName(name: string): string {
 	name = sanitizeString(name);
 	name = name.toLowerCase().replace(/[^-a-z0-9.+]+/g, "-");
@@ -129,7 +139,7 @@ function generateBenchmarksChunks(models: AAModel[]): void {
 	);
 
 	console.log(
-		`✅ Found ${scoredModels.length}/${models.length} models with benchmark scores`,
+		`✅ Found ${sanitizeForLog(scoredModels.length)}/${sanitizeForLog(models.length)} models with benchmark scores`,
 	);
 
 	// Generate entries
@@ -139,7 +149,7 @@ function generateBenchmarksChunks(models: AAModel[]): void {
 		const originalName = model.name.replaceAll(/[\n\r]/g, "_");
 		const e = model.evaluations;
 
-				// Helper to format optional number fields (strips trailing zeros to avoid S7748)
+		// Helper to format optional number fields (strips trailing zeros to avoid S7748)
 		const fmt = (v: number | null | undefined): string => {
 			if (v === null || v === undefined) return "undefined";
 			// parseFloat strips trailing zeros (avoids S7748 + S5852 regex backtracking)
@@ -173,7 +183,7 @@ function generateBenchmarksChunks(models: AAModel[]): void {
 	);
 	for (const f of existingChunks) {
 		unlinkSync(join(OUTPUT_DIR, f));
-		console.log(`  🗑️  Deleted old chunk: ${f}`);
+		console.log(`  🗑️  Deleted old chunk: ${sanitizeForLog(f)}`);
 	}
 
 	// Write new chunk files
@@ -197,7 +207,7 @@ function generateBenchmarksChunks(models: AAModel[]): void {
 		const entryCount: number = chunk.length;
 		writeFileSync(join(OUTPUT_DIR, filename), content, "utf-8");
 		console.log(
-			`  ✅ Wrote ${filename} (${entryCount} models: ${firstModel} .. ${lastModel})`,
+			`  ✅ Wrote ${filename} (${sanitizeForLog(entryCount)} models: ${sanitizeForLog(firstModel)} .. ${sanitizeForLog(lastModel)})`,
 		);
 		chunkIndex++;
 	}
@@ -278,7 +288,7 @@ async function main() {
 	} catch (error) {
 		const message =
 			error instanceof Error ? error.message : "An unknown error occurred";
-		console.error("\n❌ Error:", message);
+		console.error("\n❌ Error:", sanitizeForLog(message));
 		process.exit(1);
 	}
 }
@@ -287,6 +297,6 @@ async function main() {
 main().catch((err: unknown) => {
 	const message =
 		err instanceof Error ? err.message : "An unknown error occurred";
-	console.error("Fatal:", message);
+	console.error("Fatal:", sanitizeForLog(message));
 	process.exit(1);
 });
