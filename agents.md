@@ -42,14 +42,17 @@ index.ts                          ← Extension entry point (piFreeEntry)
   └─ providers/                   ← Per-provider extensions (each exports default async fn)
       ├─ kilo/kilo.ts             ← Kilo Gateway (OAuth, free + paid)
       ├─ cline/cline.ts           ← Cline bot (OAuth, message reshaping for Cline API)
-      ├─ nvidia/nvidia.ts         ← NVIDIA NIM (free credits, 404 probing)
+      ├─ novita/novita.ts         ← Novita AI (paid credits)
       ├─ ollama/ollama.ts         ← Ollama Cloud (usage-based free tier, 403 probing)
+      ├─ routeway/routeway.ts     ← RouteWay AI (paid)
+      ├─ sambanova/sambanova.ts   ← SambaNova (free tier)
       ├─ zenmux/zenmux.ts         ← ZenMux AI gateway (paid)
       ├─ crofai/crofai.ts         ← CrofAI (paid)
       ├─ codestral/codestral.ts   ← Codestral (free tier)
       ├─ llm7/llm7.ts             ← LLM7 (free default/fast selectors)
       ├─ deepinfra/deepinfra.ts   ← DeepInfra ($5 trial credit)
-      ├─ sambanova/sambanova.ts   ← SambaNova (free tier)
+      ├─ together/together.ts     ← Together AI (paid credits)
+      ├─ tokenrouter/tokenrouter.ts ← TokenRouter API gateway (paid + free models)
       ├─ qwen/qwen.ts             ← Qwen (deprecated, free tier removed)
       ├─ model-fetcher.ts         ← Shared OpenRouter-compatible model fetching
       ├─ opencode-session.ts      ← OpenCode session handling
@@ -152,8 +155,8 @@ Debug logging writes to `~/.pi/modelmatch.log`.
 | Category    | Providers                                          | Auth              | Notes                            |
 | ----------- | -------------------------------------------------- | ----------------- | -------------------------------- |
 | ✅ Free     | kilo, cline, openrouter, opencode, llm7            | OAuth or none     | Toggle between free/paid         |
-| 🔄 Freemium | nvidia, ollama-cloud, sambanova, codestral         | API key           | Free tier with limits            |
-| 💳 Paid     | zenmux, crofai, deepinfra, together, novita        | API key + credits | Trial credits or pay-per-token   |
+| 🔄 Freemium | ollama-cloud, sambanova, codestral, tokenrouter    | API key           | Free tier with limits            |
+| 💳 Paid     | zenmux, crofai, deepinfra, together, novita, routeway | API key + credits | Trial credits or pay-per-token   |
 | 🔧 Dynamic  | mistral, groq, cerebras, xai, huggingface, fastrouter | API key        | Fetched when key configured      |
 
 ---
@@ -189,8 +192,14 @@ Debug logging writes to `~/.pi/modelmatch.log`.
 | `/toggle-free`       | Global       | Toggle free-only mode for ALL providers   |
 | `/free-providers`    | Global       | Show free/paid counts for all providers   |
 | `/toggle-{provider}` | Per-provider | Toggle between free and all models        |
-| `/probe-nvidia`      | NVIDIA       | Test all models for 404 errors, auto-hide |
+| `/probe-deepinfra`   | DeepInfra    | Test all models, auto-hide broken       |
+| `/probe-novita`      | Novita       | Test all models, auto-hide broken        |
 | `/probe-ollama`      | Ollama       | Test all models for 403 errors, auto-hide |
+| `/probe-opencode`    | OpenCode     | Test all models, report expired free     |
+| `/probe-opencode-go` | OpenCode (Go)| Test all models, report expired free    |
+| `/probe-routeway`    | RouteWay     | Test all models, auto-hide broken        |
+| `/probe-sambanova`   | SambaNova    | Test all models, auto-hide broken        |
+| `/probe-together`    | Together     | Test all models, auto-hide broken        |
 | `/login kilo`        | Kilo         | Start OAuth flow                          |
 | `/login cline`       | Cline        | Start OAuth flow                          |
 | `/logout kilo`       | Kilo         | Clear OAuth credentials                   |
