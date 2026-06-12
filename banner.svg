@@ -23,14 +23,6 @@
       <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.15"/>
       <stop offset="100%" stop-color="#06b6d4" stop-opacity="0.05"/>
     </linearGradient>
-    <linearGradient id="card3" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#10b981" stop-opacity="0.15"/>
-      <stop offset="100%" stop-color="#10b981" stop-opacity="0.05"/>
-    </linearGradient>
-    <linearGradient id="card4" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.15"/>
-      <stop offset="100%" stop-color="#f59e0b" stop-opacity="0.05"/>
-    </linearGradient>
     <filter id="glow">
       <feGaussianBlur stdDeviation="3" result="blur"/>
       <feMerge>
@@ -74,61 +66,54 @@
     Free &amp; Paid AI Model Providers for Pi
   </text>
 
-  <!-- Subtitle -->
-  <text x="160" y="178" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="#7c8a9a" letter-spacing="0.02em">
-    </text>
-
-  <!-- Provider badges -->
+  <!-- Provider category badges -->
   <g transform="translate(160, 200)">
-    <!-- Free -->
     <rect x="0" y="0" width="90" height="28" rx="6" fill="#10b981" opacity="0.15" stroke="#10b981" stroke-width="0.5" stroke-opacity="0.3"/>
-    <text x="45" y="18" font-family="system-ui, sans-serif" font-size="11" fill="#6ee7b7" text-anchor="middle" font-weight="600">✅ Free</text>
+    <text x="45" y="18" font-family="system-ui, sans-serif" font-size="11" fill="#6ee7b7" text-anchor="middle" font-weight="600">Free</text>
   </g>
 
   <g transform="translate(260, 200)">
     <rect x="0" y="0" width="100" height="28" rx="6" fill="#f59e0b" opacity="0.15" stroke="#f59e0b" stroke-width="0.5" stroke-opacity="0.3"/>
-    <text x="50" y="18" font-family="system-ui, sans-serif" font-size="11" fill="#fcd34d" text-anchor="middle" font-weight="600">🔄 Freemium</text>
+    <text x="50" y="18" font-family="system-ui, sans-serif" font-size="11" fill="#fcd34d" text-anchor="middle" font-weight="600">Freemium</text>
   </g>
 
   <g transform="translate(370, 200)">
-    <rect x="0" y="0" width="90" height="28" rx="6" fill="#7c3aed" opacity="0.15" stroke="#7c3aed" stroke-width="0.5" stroke-opacity="0.3"/>
-    <text x="45" y="18" font-family="system-ui, sans-serif" font-size="11" fill="#a78bfa" text-anchor="middle" font-weight="600">🔧 Dynamic</text>
+    <rect x="0" y="0" width="100" height="28" rx="6" fill="#7c3aed" opacity="0.15" stroke="#7c3aed" stroke-width="0.5" stroke-opacity="0.3"/>
+    <text x="50" y="18" font-family="system-ui, sans-serif" font-size="11" fill="#a78bfa" text-anchor="middle" font-weight="600">Dynamic</text>
   </g>
 
-  <g transform="translate(470, 200)">
+  <g transform="translate(480, 200)">
     <rect x="0" y="0" width="90" height="28" rx="6" fill="#ef4444" opacity="0.15" stroke="#ef4444" stroke-width="0.5" stroke-opacity="0.3"/>
-    <text x="45" y="18" font-family="system-ui, sans-serif" font-size="11" fill="#fca5a5" text-anchor="middle" font-weight="600">💳 Paid</text>
+    <text x="45" y="18" font-family="system-ui, sans-serif" font-size="11" fill="#fca5a5" text-anchor="middle" font-weight="600">Paid</text>
   </g>
 
   <!-- Provider cards (right side) -->
   <g transform="translate(700, 55)">
-    <!-- Card 1: Custom Providers -->
     <rect x="0" y="0" width="250" height="170" rx="12" fill="url(#card1)" stroke="#7c3aed" stroke-width="0.5" stroke-opacity="0.2" filter="url(#shadow)"/>
     <rect x="0" y="0" width="250" height="170" rx="12" fill="none" stroke="url(#accent)" stroke-width="0.5" opacity="0.1"/>
-    <text x="20" y="28" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#c4b5fd">Custom Providers</text>
-    <text x="20" y="50" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Kilo · Cline · NVIDIA</text>
-    <text x="20" y="70" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Ollama Cloud · ZenMux</text>
-    <text x="20" y="90" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">CrofAI · Codestral · LLM7</text>
-    <text x="20" y="110" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">DeepInfra · SambaNova</text>
-    <text x="20" y="130" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Together · Novita · FastRouter</text>
+    <text x="20" y="28" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#c4b5fd">Providers</text>
+    <text x="20" y="50" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Kilo · Cline · OpenCode</text>
+    <text x="20" y="70" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Ollama Cloud · SambaNova</text>
+    <text x="20" y="90" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Codestral · LLM7 · Novita</text>
+    <text x="20" y="110" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">ZenMux · CrofAI · DeepInfra</text>
+    <text x="20" y="130" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Together · TokenRouter · FastRouter</text>
   </g>
 
   <g transform="translate(970, 55)">
-    <!-- Card 2: Features -->
     <rect x="0" y="0" width="250" height="170" rx="12" fill="url(#card2)" stroke="#06b6d4" stroke-width="0.5" stroke-opacity="0.2" filter="url(#shadow)"/>
     <rect x="0" y="0" width="250" height="170" rx="12" fill="none" stroke="url(#accent2)" stroke-width="0.5" opacity="0.1"/>
     <text x="20" y="28" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#67e8f9">Features</text>
-    <text x="20" y="50" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">✦ Free model auto-detection</text>
-    <text x="20" y="68" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">✦ Per-provider toggles</text>
-    <text x="20" y="86" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">✦ OAuth flows (Kilo, Cline)</text>
-    <text x="20" y="104" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">✦ Coding Index (CI) scores</text>
-    <text x="20" y="122" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">✦ Model health probes</text>
-    <text x="20" y="140" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">✦ Thinking level maps</text>
-    <text x="20" y="158" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">✦ 404/403 auto-hide on probe</text>
+    <text x="20" y="50" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Free model auto-detection</text>
+    <text x="20" y="68" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Per-provider toggles</text>
+    <text x="20" y="86" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">OAuth flows (Kilo, Cline)</text>
+    <text x="20" y="104" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Coding Index (CI) scores</text>
+    <text x="20" y="122" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Model health probes</text>
+    <text x="20" y="140" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Thinking level maps</text>
+    <text x="20" y="158" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">404/403 auto-hide on probe</text>
   </g>
 
   <!-- Bottom tagline -->
   <text x="640" y="305" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#5a6a7a" text-anchor="middle" letter-spacing="0.04em">
-    npx pi install git:github.com/apmantza/pi-free
+    pi install git:github.com/apmantza/pi-free
   </text>
 </svg>

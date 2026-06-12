@@ -14,19 +14,21 @@ Free and paid AI model providers for [Pi](https://pi.dev). Access **free and pai
 
 When you install pi-free, it:
 
-1. **Registers free-tier providers** with Pi's model picker — Kilo (free), Cline (free), ZenMux (paid), CrofAI (paid), Ollama Cloud (freemium), and more
+1. **Registers free-tier providers** with Pi's model picker — Kilo (free), Cline (free), LLM7 (free), TokenRouter (1 free model), ZenMux (paid), CrofAI (paid), Ollama Cloud (freemium), SambaNova (freemium), Codestral (freemium), DeepInfra (trial credit), Together AI (trial credit), Novita (paid), Routeway (paid), and more
 
-2. **Fetches models dynamically** from provider APIs — ZenMux, CrofAI, and Pi's built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face, OpenRouter) when API keys are configured
+2. **Captures Pi's built-in OpenCode and OpenRouter providers** with a free/paid toggle — OpenCode and OpenRouter are now built into Pi; pi-free adds `/toggle-opencode` and `/toggle-openrouter` so you can switch between free-only and all models without restart
 
-3. **Filters to show only free models by default** for providers that expose pricing — You see only the models that cost $0 to use. Paid models are hidden until you explicitly toggle them on.
+3. **Fetches models dynamically** from provider APIs — ZenMux, CrofAI, and Pi's built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face, OpenRouter) when API keys are configured
 
-4. **Provides per-provider toggle commands** — Run `/toggle-{provider}` (e.g., `/toggle-kilo`) to switch between free-only mode and showing all models including paid ones. Changes apply immediately and your preference is saved for the next Pi restart.
+4. **Filters to show only free models by default** for providers that expose pricing — You see only the models that cost $0 to use. Paid models are hidden until you explicitly toggle them on.
 
-5. **Handles authentication for you** — OAuth flows (Kilo, Cline) open your browser automatically; API keys are read from `~/.pi/free.json` or environment variables
+5. **Provides per-provider toggle commands** — Run `/toggle-{provider}` (e.g., `/toggle-kilo`) to switch between free-only mode and showing all models including paid ones. Changes apply immediately and your preference is saved for the next Pi restart.
 
-6. **Adds Coding Index scores** — Model names include a coding benchmark score (CI: 45.2) to help you pick capable coding models at a glance
+6. **Handles authentication for you** — OAuth flows (Kilo, Cline) open your browser automatically; API keys are read from `~/.pi/free.json` or environment variables
 
-7. **Persists your preferences** — Your toggle choices (free vs all models) are saved to `~/.pi/free.json` and remembered across Pi restarts
+7. **Adds Coding Index scores** — Model names include a coding benchmark score (CI: 45.2) to help you pick capable coding models at a glance
+
+8. **Persists your preferences** — Your toggle choices (free vs all models) are saved to `~/.pi/free.json` and remembered across Pi restarts
 
 ---
 
@@ -50,20 +52,22 @@ Free models are shown by default — look for the provider prefixes:
 - `openrouter/` — OpenRouter models (free account required)
 - `cline/` — Cline models (run `/login cline` to use)
 - `llm7/` — LLM7 gateway models (free tier: default/fast selectors, 100 req/hr)
+- `tokenrouter/` — TokenRouter gateway (1 free model: `MiniMax-M3`; requires API key with credits for the rest)
 
 **🔄 Freemium (free tier with limits, then paid):**
 
 - `ollama-cloud/` — Ollama Cloud models (usage-based free tier, resets every 5 hours + 7 days)
 - `sambanova/` — SambaNova Cloud models (20-480 RPM free, no credit card required)
+- `codestral/` — Codestral via Mistral (free Experiment plan: 2 req/min, 1B tokens/month)
 
 **💳 Paid Providers (API key with credits required):**
 
 - `zenmux/` — ZenMux AI gateway (200+ models from OpenAI, Anthropic, Google, etc.)
 - `crofai/` — CrofAI OpenAI-compatible API (streaming, reasoning models)
-- `codestral/` — Codestral via Mistral (free Experiment plan: 2 req/min, 1B tokens/month)
 - `deepinfra/` — DeepInfra inference cloud ($5 one-time trial credit, no credit card)
 - `novita/` — Novita AI (100+ open-source models, OpenAI-compatible, 3 free models)
 - `routeway/` — Routeway AI gateway (OpenAI-compatible, `:free` models)
+- `together/` — Together AI ($1 one-time trial credit, 200+ open-source models)
 
 > **Note:** Paid providers may occasionally offer free models or promotional credits. The `isFreeModel` helper automatically detects free models based on provider pricing data or model names containing "free". For providers that don't expose pricing (like CrofAI), only models with "free" in their names are marked as free.
 
@@ -86,6 +90,7 @@ Want to see paid models too? Run the toggle command for your provider:
 ```
 /toggle-kilo       # Toggle Kilo (✅ offers free models)
 /toggle-openrouter # Toggle OpenRouter (✅ offers free models)
+/toggle-opencode   # Toggle OpenCode (✅ offers free models)
 /toggle-cline      # Toggle Cline (✅ offers free models)
 /toggle-ollama     # Toggle Ollama Cloud (🔄 freemium)
 /toggle-mistral    # Toggle Mistral (🔧 dynamic - needs API key)
@@ -95,7 +100,7 @@ Want to see paid models too? Run the toggle command for your provider:
 /toggle-huggingface # Toggle Hugging Face (🔧 dynamic - needs HF_TOKEN)
 /toggle-zenmux    # Toggle ZenMux (💳 paid - needs API key with credits)
 /toggle-crofai    # Toggle CrofAI (💳 paid - needs API key with credits)
-/toggle-codestral # Toggle Codestral (💳 paid - free Experiment plan)
+/toggle-codestral # Toggle Codestral (🔄 free Experiment plan)
 /toggle-deepinfra # Toggle DeepInfra (💳 trial credit provider)
 /toggle-together  # Toggle Together AI (💳 trial credit provider)
 /toggle-sambanova # Toggle SambaNova (🔄 freemium)
@@ -103,6 +108,7 @@ Want to see paid models too? Run the toggle command for your provider:
 /toggle-novita    # Toggle Novita AI (💳 paid — 3 free models)
 /toggle-routeway  # Toggle Routeway AI (💳 paid — has :free models)
 /toggle-fastrouter # Toggle FastRouter (🔧 dynamic — always discovered)
+/toggle-tokenrouter # Toggle TokenRouter (💳 paid — 1 free model)
 ```
 
 **Notes:**
@@ -144,15 +150,17 @@ See the [Providers That Need Authentication](#providers-that-need-authentication
 
 ### 5. Quick commands reference
 
-| Command              | What it does                                              |
-| -------------------- | --------------------------------------------------------- |
-| `/toggle-{provider}` | Switch between free-only and all models for that provider |
-| `/toggle-free`       | Toggle global free-only mode for ALL providers            |
-| `/free-providers`    | Show free/paid model counts for all providers             |
-| `/login kilo`        | Start OAuth flow for Kilo                                 |
-| `/login cline`       | Start OAuth flow for Cline                                |
-| `/logout kilo`       | Clear Kilo OAuth credentials                              |
-| `/logout cline`      | Clear Cline OAuth credentials                             |
+| Command                    | What it does                                              |
+| -------------------------- | --------------------------------------------------------- |
+| `/toggle-{provider}`       | Switch between free-only and all models for that provider |
+| `/toggle-free`             | Toggle global free-only mode for ALL providers            |
+| `/free-providers`          | Show free/paid model counts for all providers             |
+| `/free-telemetry`          | Show real-world performance data (tokens/s, latency, success rate) for free models |
+| `/clear-free-telemetry`    | Clear all stored telemetry data                           |
+| `/login kilo`              | Start OAuth flow for Kilo                                 |
+| `/login cline`             | Start OAuth flow for Cline                                |
+| `/logout kilo`             | Clear Kilo OAuth credentials                              |
+| `/logout cline`            | Clear Cline OAuth credentials                             |
 
 ---
 
@@ -406,6 +414,7 @@ Each provider has toggle commands to switch between free and all models:
 | ----------------------- | -------------------------------------------------------- |
 | `/toggle-kilo`          | Toggle between free/all Kilo models                      |
 | `/toggle-openrouter`    | Toggle between free/all OpenRouter models                |
+| `/toggle-opencode`      | Toggle between free/all OpenCode models                  |
 | `/toggle-cline`         | Toggle between free/all Cline models                     |
 | `/toggle-ollama`        | Toggle between free/all Ollama Cloud models              |
 | `/toggle-mistral`       | Toggle between free/all Mistral models (🔧 dynamic)      |
@@ -413,7 +422,7 @@ Each provider has toggle commands to switch between free and all models:
 | `/toggle-cerebras`      | Toggle between free/all Cerebras models (🔧 dynamic)     |
 | `/toggle-xai`           | Toggle between free/all xAI models (🔧 dynamic)          |
 | `/toggle-huggingface`   | Toggle between free/all Hugging Face models (🔧 dynamic)  |
-| `/toggle-codestral`     | Toggle Codestral (💳 paid)                               |
+| `/toggle-codestral`     | Toggle Codestral (🔄 freemium)                           |
 | `/toggle-deepinfra`     | Toggle DeepInfra (💳 trial credit)                       |
 | `/toggle-together`      | Toggle Together AI (💳 trial credit)                     |
 | `/toggle-sambanova`     | Toggle SambaNova (🔄 freemium)                           |
@@ -423,6 +432,7 @@ Each provider has toggle commands to switch between free and all models:
 | `/toggle-novita`        | Toggle Novita AI (💳 paid)                               |
 | `/toggle-routeway`      | Toggle Routeway AI (💳 paid)                             |
 | `/toggle-fastrouter`    | Toggle FastRouter (🔧 dynamic)                           |
+| `/toggle-tokenrouter`   | Toggle TokenRouter (💳 paid — 1 free model)              |
 | `/ollama-cloud-refresh` | Re-fetch Ollama Cloud models live (no restart needed)    |
 | `/probe-ollama`         | Test Ollama Cloud models for 403 errors (auto-hide)      |
 

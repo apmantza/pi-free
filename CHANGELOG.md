@@ -9,13 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **TokenRouter provider** — OpenAI-compatible API gateway at `api.tokenrouter.com/v1` with 88 text chat models. 1 free via hardcoded `KNOWN_FREE_MODELS` + 1 `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` model. Set `TOKENROUTER_API_KEY` or add `tokenrouter_api_key` to `~/.pi/free.json` ([#222](https://github.com/apmantza/pi-free/pull/222)).
+
 - **Generic probe system** — New `lib/provider-probe.ts` factory `createProviderProbe()` handles batching, probe-cache integration, auto-hiding, and re-registration. Enables consistent probe commands across providers ([#218](https://github.com/apmantza/pi-free/pull/218)).
 
 - **Probe commands** — New `/probe-deepinfra`, `/probe-sambanova`, `/probe-together`, `/probe-novita` commands test model availability and auto-hide broken models ([#218](https://github.com/apmantza/pi-free/pull/218)).
 
 - **OpenCode probe commands** — `/probe-opencode` and `/probe-opencode-go` detect expired free promotions (reports only, no auto-hide) ([#218](https://github.com/apmantza/pi-free/pull/218)).
 
-- **Session timing metrics** — `wrapSessionStartHandler()` logs wall-clock time per handler in `session-start-metrics.ts`. Wrapped: cline, kilo, routeway, built-in-toggle, dynamic-built-in auto-probe ([#218](https://github.com/apmantza/pi-free/pull/218)).
+- **Session timing metrics** — `wrapSessionStartHandler()` logs wall-clock time per handler in `lib/session-start-metrics.ts`. Wrapped: cline, kilo, routeway, built-in-toggle, dynamic-built-in auto-probe ([#218](https://github.com/apmantza/pi-free/pull/218)).
+
+### Changed
+
+- **Refactored `recordModelCall` signature** — Replaced 5 positional args with an options object (`RecordModelCallOptions`) for `success`, `stopReason`, and `errorMessage` ([#221](https://github.com/apmantza/pi-free/pull/221)).
+
+- **Extracted `sleep` helper and simplified `cleanModelName`** — Shared utilities in `lib/util.ts` ([#221](https://github.com/apmantza/pi-free/pull/221)).
+
+- **Cleanup pass on `lib/` utilities (Sprint B)** — 8 categories of code-quality refactors in [#224](https://github.com/apmantza/pi-free/pull/224):
+  - `open-browser.ts`: `rundll32 url.dll,FileProtocolHandler` replaces `cmd /c start` (CodeQL fix) + strict URL validation (`isSafeUrl`)
+  - `logger.ts`: `parseLogLevel()` validates `LOG_LEVEL` / `PI_FREE_LOG_LEVEL` env vars
+  - `telemetry.ts`: 1h TTL cleanup for `_inFlight` map; migrated to `createJSONStore` (drops ~80 LOC of `load`/`save`/`Lock` boilerplate)
+  - `util.ts`: `OpenAIModelCallbacks` parameter decouples `fetchOpenAICompatibleModels` from `lib/provider-compat.ts` (DIP fix)
+  - `provider-compat.ts`: extracted `isDeepSeekStyleModel()` and `isKimiModel()` predicates + new `KIMI_PROXY_COMPAT` constant
+  - `model-detection.ts`: removed duplicate `isModelFree` (canonical `isFreeModel` in `registry.ts` already exists)
+  - `registry.ts`: removed dead `_pi` parameter from `applyGlobalFilter`
+  - `built-in-toggle.ts`: lazy `_opencodeSession` initialisation (only created when an OpenCode provider is actually captured)
 
 ### Removed
 
@@ -23,13 +41,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-- **open-browser: command injection fix** — Replaced PowerShell command-string argument with single-quoted `-FilePath` to prevent `$()`, backtick, and other metacharacter injection ([#218](https://github.com/apmantza/pi-free/pull/218)).
+- **open-browser: `rundll32` + strict URL validation** — Replaced `cmd /c start "" <url>` with `rundll32 url.dll,FileProtocolHandler <url>` to fix GitHub Advanced Security CodeQL `js/uncontrolled-command-line` (Critical). rundll32 does NOT parse the command line, so the URL is handed to ShellExecute as a literal. Defense-in-depth: `isSafeUrl()` allows only `http`/`https`, rejects control characters, malformed URLs, and overlong URLs (>2048 chars) ([#223](https://github.com/apmantza/pi-free/pull/223), [#224](https://github.com/apmantza/pi-free/pull/224)).
 
-- **json-persistence: atomic writes** — JSONL `load()` now parses line-by-line and skips malformed lines; new `Lock` class and `update(updater)` method for atomic read-modify-write safety ([#218](https://github.com/apmantza/pi-free/pull/218)).
+- **Path-validate env-var file overrides** — New `lib/paths.ts` centralises `PI_DATA_DIR`, `ensureDir()`, and `resolveSafeDataFile()` (rejects path separators, null bytes, dot-only, >128-char). Applied to `PI_FREE_LOG_PATH`, `PI_FREE_PROVIDER_CACHE`, `PI_FREE_TELEMETRY_FILE` ([#223](https://github.com/apmantza/pi-free/pull/223)).
+
+- **json-persistence: lock `save`/`load` + atomic `update()`** — `Lock` mutex serialises RMW operations. `clearProviderCache` / `clearAllProviderCaches` now async, use `_cache.update()` ([#218](https://github.com/apmantza/pi-free/pull/218), [#223](https://github.com/apmantza/pi-free/pull/223)).
+
+- **JSONL `append`/`clear` lock** — `createJSONLStore` operations are now async and lock-serialised, preventing `clear` from truncating mid-`append` ([#223](https://github.com/apmantza/pi-free/pull/223)).
 
 - **telemetry: concurrent-write safety** — `Lock` mutex around telemetry writes; `recordModelCall` and `clearTelemetry` are now async and serialized. File path overridable via `PI_FREE_TELEMETRY_FILE` ([#218](https://github.com/apmantza/pi-free/pull/218)).
 
 - **provider-cache: isolated copies** — `loadProviderCache` returns `structuredClone(cached.models)`; `saveProviderCache` uses `update()` for atomic RMW ([#218](https://github.com/apmantza/pi-free/pull/218)).
+
+- **provider-probe: config RMW lock** — `config.ts` `updateConfig()` uses internal `ConfigLock` (promise-chained mutex); provider-probe auto-hide now uses it ([#223](https://github.com/apmantza/pi-free/pull/223)).
+
+- **Prototype pollution reviver** — `safeJsonReviver()` strips `__proto__` / `constructor` keys at every `JSON.parse` level. Applied in `lib/json-persistence.ts`, `config.ts`, `lib/telemetry.ts` ([#223](https://github.com/apmantza/pi-free/pull/223)).
 
 - **Log sanitization** — `scripts/update-benchmarks.ts` now sanitizes external API data before passing to `console.log`/error, preventing log injection (SonarCloud S5693) ([#219](https://github.com/apmantza/pi-free/pull/219)).
 
