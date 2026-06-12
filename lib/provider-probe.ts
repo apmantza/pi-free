@@ -21,7 +21,7 @@
  */
 
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
-import { loadConfigFile, saveConfig } from "../config.ts";
+import { updateConfig } from "../config.ts";
 import { createLogger } from "./logger.ts";
 import {
 	getModelsDueForProbe,
@@ -149,12 +149,14 @@ export function createProviderProbe(
 			return [];
 		}
 
-		// Optional auto-hide
+		// Optional auto-hide — use updateConfig for atomic RMW to prevent
+		// concurrent probes from clobbering each other's hidden_models.
 		if (autoHide) {
-			const cfg = loadConfigFile();
-			const existingHidden = new Set(cfg.hidden_models ?? []);
-			for (const id of broken) existingHidden.add(`${providerId}/${id}`);
-			saveConfig({ hidden_models: Array.from(existingHidden) });
+			await updateConfig((cfg) => {
+				const existingHidden = new Set(cfg.hidden_models ?? []);
+				for (const id of broken) existingHidden.add(`${providerId}/${id}`);
+				return { hidden_models: Array.from(existingHidden) };
+			});
 			_logger.info(
 				`[probe] ${providerId}: auto-hidden ${broken.length} broken models`,
 			);

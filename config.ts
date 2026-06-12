@@ -9,7 +9,7 @@
  * (e.g. after toggle-{provider}) are visible immediately.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 export {
 	PROVIDER_CLINE,
@@ -20,6 +20,17 @@ export {
 	PROVIDER_TOKENROUTER,
 } from "./constants.ts";
 import { createLogger } from "./lib/logger.ts";
+import { ensureDir, PI_DATA_DIR } from "./lib/paths.ts";
+
+/**
+ * JSON.parse reviver that strips prototype-pollution payloads.
+ */
+function safeJsonReviver(_key: string, value: unknown): unknown {
+	if (_key === "__proto__" || _key === "constructor") {
+		return undefined;
+	}
+	return value;
+}
 
 const _logger = createLogger("config");
 
@@ -94,12 +105,11 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	opencode_show_paid: false,
 };
 
-const PI_DIR = join(process.env.HOME || process.env.USERPROFILE || "", ".pi");
-const CONFIG_PATH = join(PI_DIR, "free.json");
+const CONFIG_PATH = join(PI_DATA_DIR, "free.json");
 
 function ensureConfigFile(): void {
 	try {
-		mkdirSync(PI_DIR, { recursive: true });
+		ensureDir(PI_DATA_DIR);
 		if (existsSync(CONFIG_PATH)) {
 			let existing: PiFreeConfig;
 			try {
@@ -141,7 +151,10 @@ function ensureConfigFile(): void {
 
 export function loadConfigFile(): PiFreeConfig {
 	try {
-		return JSON.parse(readFileSync(CONFIG_PATH, "utf8")) as PiFreeConfig;
+		return JSON.parse(
+			readFileSync(CONFIG_PATH, "utf8"),
+			safeJsonReviver,
+		) as PiFreeConfig;
 	} catch (err) {
 		_logger.error("Could not parse config file — returning empty config", {
 			path: CONFIG_PATH,
@@ -411,10 +424,10 @@ function readAuthJsonKey(
 
 	// Check auth.json
 	try {
-		const authPath = join(PI_DIR, "agent", "auth.json");
+		const authPath = join(PI_DATA_DIR, "agent", "auth.json");
 		if (!existsSync(authPath)) return undefined;
 		const raw = readFileSync(authPath, "utf8");
-		const auth = JSON.parse(raw) as Record<
+		const auth = JSON.parse(raw, safeJsonReviver) as Record<
 			string,
 			{ type?: string; key?: string }
 		>;
@@ -496,7 +509,7 @@ export function saveConfig(updates: Partial<PiFreeConfig>): void {
 
 		let existing: PiFreeConfig;
 		try {
-			existing = JSON.parse(raw) as PiFreeConfig;
+			existing = JSON.parse(raw, safeJsonReviver) as PiFreeConfig;
 		} catch (parseErr) {
 			// File exists but is corrupt. REFUSE to overwrite it with a partial
 			// config — that would permanently destroy the user's keys.
@@ -522,6 +535,90 @@ export function saveConfig(updates: Partial<PiFreeConfig>): void {
 			path: CONFIG_PATH,
 			error: err instanceof Error ? err.message : String(err),
 		});
+	}
+}
+
+/**
+ * Serialise all config RMW operations to prevent concurrent updates
+ * from clobbering each other (e.g. two provider probes finishing at the
+ * same time both writing hidden_models and losing the other's update).
+ */
+class ConfigLock {
+	private promise: Promise<void> = Promise.resolve();
+
+	async acquire(): Promise<() => void> {
+		let release: () => void;
+		const newPromise = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const previous = this.promise;
+		this.promise = previous.then(() => newPromise);
+		await previous;
+		return release!;
+	}
+}
+
+const _configLock = new ConfigLock();
+
+/**
+ * Atomically read-modify-write the config file. The updater function
+ * receives the current parsed config and returns the partial updates to
+ * merge. Concurrent calls are serialised by an internal lock.
+ *
+ * If the config file is corrupt, the updater is NOT called and the file
+ * is left untouched (matches saveConfig's safety behaviour).
+ */
+export async function updateConfig(
+	updater: (current: PiFreeConfig) => Partial<PiFreeConfig>,
+): Promise<void> {
+	const release = await _configLock.acquire();
+	try {
+		const raw = readRawConfigFile();
+		if (raw === undefined) {
+			// File doesn't exist — start from template, apply updater once
+			const updated = updater({ ...CONFIG_TEMPLATE });
+			const merged = { ...CONFIG_TEMPLATE, ...updated };
+			writeFileSync(
+				CONFIG_PATH,
+				`${JSON.stringify(merged, null, 2)}\n`,
+				"utf8",
+			);
+			_logger.info("Config updated (new file)", {
+				path: CONFIG_PATH,
+				keys: Object.keys(updated),
+			});
+			return;
+		}
+
+		let existing: PiFreeConfig;
+		try {
+			existing = JSON.parse(raw, safeJsonReviver) as PiFreeConfig;
+		} catch (parseErr) {
+			_logger.error(
+				"REFUSING to update config — existing file is corrupt. Fix or delete ~/.pi/free.json manually.",
+				{
+					path: CONFIG_PATH,
+					error:
+						parseErr instanceof Error ? parseErr.message : String(parseErr),
+				},
+			);
+			return;
+		}
+
+		const updated = updater(existing);
+		const merged = { ...existing, ...updated };
+		writeFileSync(CONFIG_PATH, `${JSON.stringify(merged, null, 2)}\n`, "utf8");
+		_logger.info("Config updated", {
+			path: CONFIG_PATH,
+			keys: Object.keys(updated),
+		});
+	} catch (err) {
+		_logger.error("Failed to update config", {
+			path: CONFIG_PATH,
+			error: err instanceof Error ? err.message : String(err),
+		});
+	} finally {
+		release();
 	}
 }
 

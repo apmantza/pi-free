@@ -8,8 +8,9 @@
  * - Disable file logging: PI_FREE_FILE_LOG=false
  */
 
-import { appendFileSync, existsSync, mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { appendFileSync } from "node:fs";
+import { join } from "node:path";
+import { ensureDir, resolveSafeDataFile } from "./paths.ts";
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
@@ -50,18 +51,13 @@ function formatMessage(entry: LogEntry): string {
 	return `[${entry.timestamp}] [${entry.level.toUpperCase()}] [${entry.namespace}] ${entry.message}${data}`;
 }
 
-const HOME_DIR = process.env.HOME || process.env.USERPROFILE || "";
-const DEFAULT_LOG_PATH = join(HOME_DIR, ".pi", "free.log");
-const LOG_PATH = process.env.PI_FREE_LOG_PATH || DEFAULT_LOG_PATH;
+const LOG_PATH = resolveSafeDataFile(process.env.PI_FREE_LOG_PATH, "free.log");
 const FILE_LOG_ENABLED = process.env.PI_FREE_FILE_LOG !== "false";
 
 function appendToFile(line: string): void {
 	if (!FILE_LOG_ENABLED) return;
 	try {
-		const dir = dirname(LOG_PATH);
-		if (!existsSync(dir)) {
-			mkdirSync(dir, { recursive: true });
-		}
+		ensureDir(join(LOG_PATH, ".."));
 		appendFileSync(LOG_PATH, `${line}\n`, "utf8");
 	} catch (err) {
 		console.error("Failed to write to log file:", err);

@@ -1,8 +1,16 @@
 /**
  * Cross-platform browser opener
  *
- * Opens a URL in the user's default browser. Handles URL-unsafe characters
- * on Windows by using PowerShell's Start-Process instead of cmd.exe.
+ * Opens a URL in the user's default browser. Avoids shell metacharacter
+ * injection by passing the URL as a discrete argument (never interpolated
+ * into a command string).
+ *
+ * - Windows: uses `cmd /c start "" <url>` — the first quoted arg is the
+ *   window title (always empty), the second is the URL/file to open.
+ *   Because the URL is a single arg to `start`, cmd's own argument parser
+ *   treats it as a literal path, not as a shell command.
+ * - macOS: uses `open`
+ * - Linux/BSD: uses `xdg-open`
  */
 
 import { execFileSync, spawn } from "node:child_process";
@@ -34,31 +42,22 @@ function resolveExe(name: string, absolutePath: string): string {
 /**
  * Open a URL in the user's default browser.
  *
- * - Windows: uses PowerShell Start-Process with a single-quoted -FilePath
- *   argument so PowerShell metacharacters ($, `, etc.) are treated literally.
- * - macOS: uses `open`
- * - Linux/BSD: uses `xdg-open`
+ * The URL is always passed as a single argument to the underlying
+ * launcher — never interpolated into a command string. This prevents
+ * shell-metacharacter injection (e.g. `; calc.exe` or `$(...)`).
  */
 export function openBrowser(url: string): void {
 	try {
 		if (process.platform === "win32") {
-			const powershell = resolveExe(
-				"powershell.exe",
-				"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-			);
-			// Single quotes in PowerShell prevent variable expansion. Escape
-			// embedded single quotes by doubling them.
-			const safeUrl = url.replace(/'/g, "''");
-			spawn(
-				powershell,
-				[
-					"-NoProfile",
-					"-NonInteractive",
-					"-Command",
-					`Start-Process -FilePath '${safeUrl}'`,
-				],
-				{ detached: true, shell: false, windowsHide: true },
-			).unref();
+			const cmd = resolveExe("cmd.exe", "C:\\Windows\\System32\\cmd.exe");
+			// `start "" <url>` — the empty quoted string is the window title
+			// (mandatory when the URL is also quoted). cmd passes <url> to
+			// ShellExecute, which treats it as a literal path/URL.
+			spawn(cmd, ["/c", "start", "", url], {
+				detached: true,
+				shell: false,
+				windowsHide: true,
+			}).unref();
 		} else if (process.platform === "darwin") {
 			const open = resolveExe("open", "/usr/bin/open");
 			spawn(open, [url], { detached: true }).unref();

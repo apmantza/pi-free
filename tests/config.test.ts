@@ -288,6 +288,76 @@ describe("config persistence", () => {
 	});
 });
 
+describe("updateConfig", () => {
+	it("applies the updater to the current config and writes the merge", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData, writeFileSync } = fs as any;
+		__mockData.set(
+			configPath(),
+			JSON.stringify({ hidden_models: ["a/b"], nvidia_api_key: "keep" }),
+		);
+
+		const { updateConfig } = await import("../config.ts");
+		await updateConfig((cfg) => ({
+			hidden_models: [...(cfg.hidden_models ?? []), "c/d"],
+		}));
+
+		const lastCall =
+			writeFileSync.mock.calls[writeFileSync.mock.calls.length - 1];
+		const written = JSON.parse(lastCall[1]);
+		expect(written.hidden_models).toEqual(["a/b", "c/d"]);
+		expect(written.nvidia_api_key).toBe("keep");
+	});
+
+	it("serialises concurrent updates so they don't clobber each other", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(
+			configPath(),
+			JSON.stringify({ hidden_models: ["initial"] }),
+		);
+
+		const { updateConfig } = await import("../config.ts");
+		// Simulate two providers' probes updating hidden_models concurrently
+		await Promise.all([
+			updateConfig((cfg) => ({
+				hidden_models: [...(cfg.hidden_models ?? []), "deepinfra/x"],
+			})),
+			updateConfig((cfg) => ({
+				hidden_models: [...(cfg.hidden_models ?? []), "novita/y"],
+			})),
+		]);
+
+		// Read the final state of the file
+		const finalRaw = __mockData.get(configPath());
+		const final = JSON.parse(finalRaw);
+		// Both updates must be present, in some order
+		expect(final.hidden_models).toContain("initial");
+		expect(final.hidden_models).toContain("deepinfra/x");
+		expect(final.hidden_models).toContain("novita/y");
+		expect(final.hidden_models).toHaveLength(3);
+	});
+
+	it("refuses to update a corrupt config file", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData, writeFileSync } = fs as any;
+		__mockData.set(configPath(), "not json {{{");
+
+		const { updateConfig } = await import("../config.ts");
+		await updateConfig(() => ({ nvidia_api_key: "should-not-write" }));
+
+		// writeFileSync should not have been called (file is corrupt)
+		const lastCall = writeFileSync.mock.calls.at(-1);
+		if (lastCall) {
+			const written = JSON.parse(lastCall[1]);
+			expect(written.nvidia_api_key).not.toBe("should-not-write");
+		}
+	});
+});
+
 // =============================================================================
 // Re-exports
 // =============================================================================
@@ -321,6 +391,7 @@ describe("config re-exports", () => {
 			"getCrofaiApiKey",
 			"getOllamaApiKey",
 			"saveConfig",
+			"updateConfig",
 			"getConfig",
 			"applyHidden",
 		];

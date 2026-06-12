@@ -5,10 +5,9 @@
  * background cleanup can avoid spending quota on the same checks every session.
  */
 
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { createJSONStore } from "./json-persistence.ts";
 import { createLogger } from "./logger.ts";
+import { PI_DATA_DIR } from "./paths.ts";
 
 const _logger = createLogger("probe-cache");
 
@@ -35,7 +34,7 @@ interface ProbeCacheData {
 	providers: Record<string, ProviderProbeCache>;
 }
 
-const CACHE_FILE = join(homedir(), ".pi", "probe-cache.json");
+const CACHE_FILE = `${PI_DATA_DIR}/probe-cache.json`;
 const _cache = createJSONStore<ProbeCacheData>(CACHE_FILE, { providers: {} });
 
 export function getModelsDueForProbe(

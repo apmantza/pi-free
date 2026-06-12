@@ -9,10 +9,9 @@
  * 3. If API fails: use cached models as fallback
  */
 
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { createJSONStore } from "./json-persistence.ts";
 import { createLogger } from "./logger.ts";
+import { resolveSafeDataFile } from "./paths.ts";
 import type { ProviderModelConfig } from "./types.ts";
 
 const _logger = createLogger("provider-cache");
@@ -38,9 +37,10 @@ interface CacheData {
 // Cache Store
 // =============================================================================
 
-const CACHE_FILE = process.env.PI_FREE_PROVIDER_CACHE
-	? process.env.PI_FREE_PROVIDER_CACHE
-	: join(homedir(), ".pi", "provider-cache.json");
+const CACHE_FILE = resolveSafeDataFile(
+	process.env.PI_FREE_PROVIDER_CACHE,
+	"provider-cache.json",
+);
 
 const _cache = createJSONStore<CacheData>(CACHE_FILE, { providers: {} });
 
@@ -88,20 +88,22 @@ export async function saveProviderCache(
 /**
  * Clear cached models for a provider.
  */
-export function clearProviderCache(providerId: string): void {
-	const data = _cache.load();
-
-	if (data.providers[providerId]) {
-		delete data.providers[providerId];
-		_cache.save(data);
-		_logger.debug(`Cleared cache for ${providerId}`);
-	}
+export async function clearProviderCache(providerId: string): Promise<void> {
+	await _cache.update((data) => {
+		if (data.providers[providerId]) {
+			delete data.providers[providerId];
+			_logger.debug(`Cleared cache for ${providerId}`);
+		}
+		return data;
+	});
 }
 
 /**
  * Clear all provider caches.
  */
-export function clearAllProviderCaches(): void {
-	_cache.save({ providers: {} });
-	_logger.debug("Cleared all provider caches");
+export async function clearAllProviderCaches(): Promise<void> {
+	await _cache.update(() => {
+		_logger.debug("Cleared all provider caches");
+		return { providers: {} };
+	});
 }

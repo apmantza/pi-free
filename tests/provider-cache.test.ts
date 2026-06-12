@@ -4,17 +4,22 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const tempDir = mkdtempSync(join(tmpdir(), "pi-free-provider-cache-test-"));
-const cacheFile = join(tempDir, "provider-cache.json");
 
 describe("provider cache", () => {
 	beforeEach(() => {
-		process.env.PI_FREE_PROVIDER_CACHE = cacheFile;
-		if (existsSync(cacheFile)) unlinkSync(cacheFile);
+		if (existsSync(join(tempDir, "provider-cache.json"))) {
+			unlinkSync(join(tempDir, "provider-cache.json"));
+		}
+		// Point HOME at the temp dir so PI_DATA_DIR resolves inside it.
+		process.env.HOME = tempDir;
+		process.env.USERPROFILE = tempDir;
+		delete process.env.PI_FREE_PROVIDER_CACHE;
 		vi.resetModules();
 	});
 
 	afterEach(() => {
-		delete process.env.PI_FREE_PROVIDER_CACHE;
+		delete process.env.HOME;
+		delete process.env.USERPROFILE;
 	});
 
 	it("returns a copy of cached models so callers cannot corrupt the cache", async () => {

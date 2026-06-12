@@ -103,10 +103,41 @@ describe("JSON Persistence", () => {
 			expect(data).toEqual([]);
 		});
 
-		it("should append entries", () => {
+		it("strips __proto__ payloads to prevent prototype pollution", () => {
+			// Simulate a poisoned cache file
+			const poisoned = JSON.stringify({
+				providers: {},
+				__proto__: { isAdmin: true },
+			});
+			writeFileSync(testFile, poisoned, "utf-8");
+
+			const store = createJSONStore<{
+				providers: Record<string, unknown>;
+			}>(testFile, { providers: {} });
+			const data = store.load();
+			expect(data).toBeDefined();
+			// ({} as any).isAdmin must not be true after parse
+			expect(({} as { isAdmin?: boolean }).isAdmin).toBeUndefined();
+		});
+
+		it("strips constructor payloads to prevent prototype pollution", () => {
+			const poisoned = JSON.stringify({
+				providers: {},
+				constructor: { prototype: { isAdmin: true } },
+			});
+			writeFileSync(testFile, poisoned, "utf-8");
+
+			const store = createJSONStore<{
+				providers: Record<string, unknown>;
+			}>(testFile, { providers: {} });
+			store.load();
+			expect(({} as { isAdmin?: boolean }).isAdmin).toBeUndefined();
+		});
+
+		it("should append entries", async () => {
 			const store = createJSONLStore<{ event: string }>(testFile);
-			store.append({ event: "first" });
-			store.append({ event: "second" });
+			await store.append({ event: "first" });
+			await store.append({ event: "second" });
 
 			const data = store.load();
 			expect(data).toHaveLength(2);

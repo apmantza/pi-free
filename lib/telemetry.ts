@@ -7,10 +7,20 @@
  * Provides a real-world performance signal alongside static CI benchmarks.
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { createLogger } from "./logger.ts";
+import { ensureDir, resolveSafeDataFile } from "./paths.ts";
+import { dirname } from "node:path";
+import { readFileSync, writeFileSync } from "node:fs";
+
+/**
+ * JSON.parse reviver that strips prototype-pollution payloads.
+ */
+function safeJsonReviver(_key: string, value: unknown): unknown {
+	if (_key === "__proto__" || _key === "constructor") {
+		return undefined;
+	}
+	return value;
+}
 
 const _logger = createLogger("telemetry");
 
@@ -71,10 +81,10 @@ export interface TelemetryStore {
 // Constants
 // =============================================================================
 
-const TELEMETRY_DIR = join(homedir(), ".pi");
-const TELEMETRY_FILE = process.env.PI_FREE_TELEMETRY_FILE
-	? process.env.PI_FREE_TELEMETRY_FILE
-	: join(TELEMETRY_DIR, "free-telemetry.json");
+const TELEMETRY_FILE = resolveSafeDataFile(
+	process.env.PI_FREE_TELEMETRY_FILE,
+	"free-telemetry.json",
+);
 const MAX_RECENT_CALLS = 50;
 
 // In-flight tracking: keyed by "provider/model", value is start timestamp
@@ -101,19 +111,10 @@ const _telemetryLock = new Lock();
 // Storage
 // =============================================================================
 
-function ensureDir(): void {
-	if (!existsSync(TELEMETRY_DIR)) {
-		mkdirSync(TELEMETRY_DIR, { recursive: true });
-	}
-}
-
 function loadStore(): TelemetryStore {
 	try {
-		if (!existsSync(TELEMETRY_FILE)) {
-			return { models: {}, lastUpdated: Date.now() };
-		}
 		const raw = readFileSync(TELEMETRY_FILE, "utf-8");
-		return JSON.parse(raw) as TelemetryStore;
+		return JSON.parse(raw, safeJsonReviver) as TelemetryStore;
 	} catch (err) {
 		_logger.warn("Failed to load telemetry store, resetting", {
 			error: String(err),
@@ -124,7 +125,7 @@ function loadStore(): TelemetryStore {
 
 function saveStore(store: TelemetryStore): void {
 	try {
-		ensureDir();
+		ensureDir(dirname(TELEMETRY_FILE));
 		store.lastUpdated = Date.now();
 		writeFileSync(TELEMETRY_FILE, JSON.stringify(store, null, 2), "utf-8");
 	} catch (err) {
