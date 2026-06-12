@@ -296,7 +296,6 @@ describe("config re-exports", () => {
 	it("exports PROVIDER constants", async () => {
 		const cfg = await import("../config.ts");
 		expect(cfg.PROVIDER_KILO).toBe("kilo");
-		expect(cfg.PROVIDER_NVIDIA).toBe("nvidia");
 		expect(cfg.PROVIDER_CLINE).toBe("cline");
 	});
 
@@ -304,7 +303,6 @@ describe("config re-exports", () => {
 		const cfg = await import("../config.ts");
 		const getters = [
 			"getFreeOnly",
-			"getNvidiaApiKey",
 			"getOpenrouterApiKey",
 			"getKiloShowPaid",
 			"getClineShowPaid",

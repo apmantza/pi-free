@@ -2,7 +2,13 @@
  * JSON Persistence Tests
  */
 
-import { existsSync, rmdirSync, unlinkSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	rmdirSync,
+	unlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createJSONLStore, createJSONStore } from "../lib/json-persistence.ts";
@@ -58,6 +64,20 @@ describe("JSON Persistence", () => {
 			const data2 = store.load();
 			expect(data2.value).toBe("updated");
 		});
+
+		it("should support atomic read-modify-write via update", async () => {
+			const store = createJSONStore<{ count: number }>(testFile, {
+				count: 0,
+			});
+			await store.update((data) => ({ ...data, count: data.count + 1 }));
+			await store.update((data) => ({ ...data, count: data.count + 1 }));
+			expect(store.load().count).toBe(2);
+
+			const store2 = createJSONStore<{ count: number }>(testFile, {
+				count: 0,
+			});
+			expect(store2.load().count).toBe(2);
+		});
 	});
 
 	describe("createJSONLStore", () => {
@@ -66,6 +86,7 @@ describe("JSON Persistence", () => {
 		beforeEach(() => {
 			try {
 				if (existsSync(testFile)) unlinkSync(testFile);
+				if (!existsSync(TEST_DIR)) mkdirSync(TEST_DIR, { recursive: true });
 			} catch {}
 		});
 
@@ -100,6 +121,20 @@ describe("JSON Persistence", () => {
 
 			const data = store.load();
 			expect(data).toEqual([]);
+		});
+
+		it("should skip malformed JSONL lines and keep valid ones", () => {
+			const store = createJSONLStore<{ event: string }>(testFile);
+			writeFileSync(
+				testFile,
+				'{"event":"first"}\nnot json\n{"event":"third"}\n',
+				"utf-8",
+			);
+
+			const data = store.load();
+			expect(data).toHaveLength(2);
+			expect(data[0].event).toBe("first");
+			expect(data[1].event).toBe("third");
 		});
 	});
 });

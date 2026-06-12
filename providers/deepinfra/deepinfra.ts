@@ -44,8 +44,10 @@ import {
 	getProxyModelCompat,
 	isLikelyReasoningModel,
 } from "../../lib/provider-compat.ts";
+import { createProviderProbe } from "../../lib/provider-probe.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
-import { fetchWithRetry } from "../../lib/util.ts";
+import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
+import { fetchWithRetry, fetchWithTimeout } from "../../lib/util.ts";
 import { createReRegister, setupProvider } from "../../provider-helper.ts";
 
 const _logger = createLogger("deepinfra");
@@ -205,4 +207,64 @@ export default async function deepinfraProvider(pi: ExtensionAPI) {
 	// Initial registration — DeepInfra is a trial-credit provider,
 	// so always show all models. Users see them immediately on setup.
 	reRegister(allModels);
+
+	// ── Probe support ──────────────────────────────────────────────
+	const probe = createProviderProbe({
+		providerId: PROVIDER_DEEPINFRA,
+		probeModel: async (_apiKey: string, modelId: string) => {
+			try {
+				const response = await fetchWithTimeout(
+					`${BASE_URL_DEEPINFRA}/chat/completions`,
+					{
+						method: "POST",
+						headers: {
+							Authorization: `Bearer ${apiKey}`,
+							"Content-Type": "application/json",
+							"User-Agent": "pi-free-providers",
+						},
+						body: JSON.stringify({
+							model: modelId,
+							messages: [{ role: "user", content: "hi" }],
+							max_tokens: 1,
+						}),
+					},
+					10_000,
+				);
+				if (response.status === 404 || response.status >= 500) return "broken";
+				if (response.status === 429) return "ok";
+				if (response.ok) return "ok";
+				return "ok";
+			} catch {
+				return "unknown";
+			}
+		},
+	});
+
+	// Probe command
+	pi.registerCommand(`probe-${PROVIDER_DEEPINFRA}`, {
+		description: "Test all DeepInfra models for availability",
+		handler: async (_args, ctx) => {
+			ctx.ui.notify(`Probing ${allModels.length} DeepInfra models…`, "info");
+			const broken = await probe.run(apiKey, allModels, {
+				onBroken: (ids) => {
+					ctx.ui.notify(
+						`Found ${ids.length} broken models (auto-hidden):\n${ids.join("\n")}`,
+						"warning",
+					);
+				},
+			});
+			if (broken.length === 0) {
+				ctx.ui.notify("All DeepInfra models are accessible ✅", "info");
+			}
+		},
+	});
+
+	// Lazy auto-probe on first session_start
+	pi.on(
+		"session_start",
+		wrapSessionStartHandler(
+			`${PROVIDER_DEEPINFRA}-auto-probe`,
+			probe.autoProbeHandler(apiKey, freeModels),
+		),
+	);
 }

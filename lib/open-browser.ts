@@ -7,6 +7,9 @@
 
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
+import { createLogger } from "./logger.ts";
+
+const _logger = createLogger("open-browser");
 
 /**
  * Resolve an executable path, preferring the known absolute path if it exists,
@@ -31,26 +34,28 @@ function resolveExe(name: string, absolutePath: string): string {
 /**
  * Open a URL in the user's default browser.
  *
- * - Windows: uses PowerShell Start-Process (cmd.exe interprets & as command separator)
+ * - Windows: uses PowerShell Start-Process with a single-quoted -FilePath
+ *   argument so PowerShell metacharacters ($, `, etc.) are treated literally.
  * - macOS: uses `open`
  * - Linux/BSD: uses `xdg-open`
  */
 export function openBrowser(url: string): void {
 	try {
 		if (process.platform === "win32") {
-			// PowerShell's Start-Process treats the URL as a literal string,
-			// unlike cmd.exe which interprets & as a command separator.
 			const powershell = resolveExe(
 				"powershell.exe",
 				"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
 			);
+			// Single quotes in PowerShell prevent variable expansion. Escape
+			// embedded single quotes by doubling them.
+			const safeUrl = url.replace(/'/g, "''");
 			spawn(
 				powershell,
 				[
 					"-NoProfile",
 					"-NonInteractive",
 					"-Command",
-					`Start-Process "${url.replaceAll(/[\\"]/g, "\\$&")}"`,
+					`Start-Process -FilePath '${safeUrl}'`,
 				],
 				{ detached: true, shell: false, windowsHide: true },
 			).unref();
@@ -63,6 +68,8 @@ export function openBrowser(url: string): void {
 		}
 	} catch (err) {
 		// Best-effort — browser opening is non-critical
-		console.debug("Failed to open browser:", err);
+		_logger.warn("Failed to open browser", {
+			error: err instanceof Error ? err.message : String(err),
+		});
 	}
 }

@@ -25,6 +25,7 @@ import {
 } from "../../config.ts";
 import { URL_KILO_TOS } from "../../constants.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
+import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
 import { cleanModelName, logWarning } from "../../lib/util.ts";
 import {
 	createCtxReRegister,
@@ -229,35 +230,42 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 	});
 
 	// Refresh models on session start if authenticated
-	pi.on("session_start", async (_event, ctx) => {
-		const cred = ctx.modelRegistry.authStorage.get(PROVIDER_KILO);
+	pi.on(
+		"session_start",
+		wrapSessionStartHandler("kilo", async (_event, ctx) => {
+			const cred = ctx.modelRegistry.authStorage.get(PROVIDER_KILO);
 
-		if (cred?.type === "oauth") {
-			try {
-				const newModels = await fetchKiloModels({
-					token: cred.access,
-					freeOnly: false,
-				});
-				allModels = newModels;
-				stored.all = allModels;
-				freeModels = allModels.filter((m) =>
-					isFreeModel({ ...m, provider: PROVIDER_KILO }, allModels),
-				);
-				stored.free = freeModels;
+			if (cred?.type === "oauth") {
+				try {
+					const newModels = await fetchKiloModels({
+						token: cred.access,
+						freeOnly: false,
+					});
+					allModels = newModels;
+					stored.all = allModels;
+					freeModels = allModels.filter((m) =>
+						isFreeModel({ ...m, provider: PROVIDER_KILO }, allModels),
+					);
+					stored.free = freeModels;
 
-				// Update global toggle registration
-				const ctxReRegister = createCtxReRegister(ctx as any, {
-					...KILO_PROVIDER_CONFIG,
-				});
-				registerWithGlobalToggle(PROVIDER_KILO, stored, ctxReRegister, true);
+					// Update global toggle registration
+					const ctxReRegister = createCtxReRegister(ctx as any, {
+						...KILO_PROVIDER_CONFIG,
+					});
+					registerWithGlobalToggle(PROVIDER_KILO, stored, ctxReRegister, true);
 
-				// Apply current view mode
-				if (showPaidModels && !getKiloFreeOnly()) {
-					ctxReRegister(allModels);
+					// Apply current view mode
+					if (showPaidModels && !getKiloFreeOnly()) {
+						ctxReRegister(allModels);
+					}
+				} catch (error) {
+					logWarning(
+						"kilo",
+						"Failed to refresh models at session start",
+						error,
+					);
 				}
-			} catch (error) {
-				logWarning("kilo", "Failed to refresh models at session start", error);
 			}
-		}
-	});
+		}),
+	);
 }

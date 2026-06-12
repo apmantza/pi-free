@@ -352,6 +352,18 @@ export function createOpenCodeStreamSimple(
 		const headers = createOpenCodeHeaders(tracker, options?.headers);
 		const stream = new DeferredAssistantMessageEventStream();
 
+		// Sanitize context messages for Anthropic/OpenAI compatibility.
+		// OpenCode proxies to Anthropic which strictly enforces alternating
+		// user/assistant turns. This fixes consecutive assistant messages,
+		// leading assistant messages, and trailing assistant messages.
+		const sanitizedMessages = sanitizeMessagesForOpenCode(
+			context.messages as unknown[],
+		);
+		const sanitizedContext: Context = {
+			...context,
+			messages: sanitizedMessages as Context["messages"],
+		};
+
 		void (async () => {
 			try {
 				if (isAnthropicOpenCodeEndpoint(model)) {
@@ -364,7 +376,7 @@ export function createOpenCodeStreamSimple(
 								...model,
 								api: "anthropic-messages",
 							} as Model<"anthropic-messages">,
-							context,
+							sanitizedContext,
 							{ ...options, headers },
 						),
 					);
@@ -382,7 +394,7 @@ export function createOpenCodeStreamSimple(
 							...model,
 							api: "openai-completions",
 						} as Model<"openai-completions">,
-						context,
+						sanitizedContext,
 						{ ...options, headers },
 					),
 				);
@@ -395,4 +407,57 @@ export function createOpenCodeStreamSimple(
 
 		return stream as unknown as AssistantMessageEventStream;
 	};
+}
+
+/**
+ * Sanitize message history for OpenCode's backends.
+ *
+ * OpenCode proxies to Anthropic and OpenAI. Anthropic strictly enforces
+ * alternating user/assistant turns and rejects:
+ *   - consecutive assistant messages
+ *   - conversations that start with assistant
+ *   - conversations that end with assistant
+ *
+ * This sanitizer fixes all three issues with minimal placeholder messages.
+ */
+export function sanitizeMessagesForOpenCode(messages: unknown[]): unknown[] {
+	if (!Array.isArray(messages)) return messages;
+
+	const sanitized: unknown[] = [];
+	let hasNonSystem = false;
+
+	for (const raw of messages) {
+		if (!raw || typeof raw !== "object") continue;
+		const msg = raw as { role?: string; content?: unknown };
+		const role = msg.role;
+		if (!role) continue;
+
+		if (role === "system") {
+			sanitized.push(raw);
+			continue;
+		}
+
+		// Skip leading assistant messages before any user/tool message
+		if (role === "assistant" && !hasNonSystem) continue;
+
+		hasNonSystem = true;
+
+		// Insert placeholder user message between consecutive assistant messages
+		const last = sanitized[sanitized.length - 1] as
+			| { role?: string }
+			| undefined;
+		if (role === "assistant" && last?.role === "assistant") {
+			sanitized.push({ role: "user", content: " " });
+		}
+
+		sanitized.push(raw);
+	}
+
+	// Ensure conversation ends with a user message
+	const last = sanitized[sanitized.length - 1] as { role?: string } | undefined;
+	if (last?.role === "assistant") {
+		sanitized.push({ role: "user", content: " " });
+	}
+
+	return sanitized;
 }

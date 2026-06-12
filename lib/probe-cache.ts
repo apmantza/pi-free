@@ -61,26 +61,27 @@ export function getModelsDueForProbe(
 	});
 }
 
-export function recordModelProbeResults(
+export async function recordModelProbeResults(
 	providerId: string,
 	results: ModelProbeResult[],
-): void {
+): Promise<void> {
 	if (results.length === 0) return;
 
-	const data = _cache.load();
-	const provider = (data.providers[providerId] ??= {
-		provider: providerId,
-		models: {},
+	await _cache.update((data) => {
+		const provider = (data.providers[providerId] ??= {
+			provider: providerId,
+			models: {},
+		});
+		const lastProbedAt = new Date().toISOString();
+
+		for (const result of results) {
+			provider.models[result.modelId] = {
+				lastProbedAt,
+				status: result.status,
+			};
+		}
+
+		return data;
 	});
-	const lastProbedAt = new Date().toISOString();
-
-	for (const result of results) {
-		provider.models[result.modelId] = {
-			lastProbedAt,
-			status: result.status,
-		};
-	}
-
-	_cache.save(data);
 	_logger.debug(`Recorded ${results.length} probe results for ${providerId}`);
 }

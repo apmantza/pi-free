@@ -19,6 +19,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getClineShowPaid } from "../../config.ts";
 import { BASE_URL_CLINE, PROVIDER_CLINE } from "../../constants.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
+import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
 import { createToggleState } from "../../lib/toggle-state.ts";
 import { logWarning } from "../../lib/util.ts";
 import { enhanceWithCI } from "../../provider-helper.ts";
@@ -72,37 +73,9 @@ function toApiKey(credentials: OAuthCredentials): string {
 // Context shaping — Cline's API requires a specific message envelope
 // =============================================================================
 
-const TASK_PROGRESS_BLOCK = `
-# task_progress List (Optional)
-
-You may include a todo list using the task_progress parameter to track progress on multi-step tasks.
-
-1. To create or update a todo list, include the task_progress parameter in the next tool call
-2. Review each item and update its status:
-   - Mark completed items with: - [x]
-   - Keep incomplete items as: - [ ]
-3. Modify the list as needed
-4. Ensure the list accurately reflects the current state`;
-
-function buildEnvironmentDetails(): string {
-	const cwd = process.cwd();
-	return `<environmentDetails>
-# Visual Studio Code Visible Files
-(No visible files)
-
-# Visual Studio Code Open Tabs
-(No open tabs)
-
-# Current Working Directory (${cwd}) Files
-(No files)
-
-# Context Window Usage
-0 / 204.8K tokens used (0%)
-
-# Current Mode
-ACT MODE
-</environmentDetails>`;
-}
+/* TASK_PROGRESS_BLOCK and buildEnvironmentDetails removed — they caused
+ * Cline-trained models to hallucinate calling Cline's VS Code tools (tasklist,
+ * execute_command, etc.) which don't exist in Pi. */
 
 function extractText(content: unknown): string {
 	if (typeof content === "string") return content.trim();
@@ -121,11 +94,7 @@ function isClineWrapped(content: unknown): boolean {
 	const texts = (content as any[])
 		.filter((p: any) => p?.type === "text" && typeof p?.text === "string")
 		.map((p: any) => p.text as string);
-	return (
-		texts.some((t) => /<task>[\s\S]*<\/task>/.test(t)) &&
-		texts.some((t) => t.includes("task_progress List")) &&
-		texts.some((t) => t.includes("<environmentDetails>"))
-	);
+	return texts.some((t) => /<task>[\s\S]*<\/task>/.test(t));
 }
 
 function extractTaskBody(content: unknown): string {
@@ -185,11 +154,7 @@ function buildCollapsedMessage(messages: any[], transcript: string): any[] {
 
 	collapsed.push({
 		role: "user",
-		content: [
-			{ type: "text", text: `<task>\n${transcript}\n</task>` },
-			{ type: "text", text: TASK_PROGRESS_BLOCK },
-			{ type: "text", text: buildEnvironmentDetails() },
-		],
+		content: [{ type: "text", text: `<task>\n${transcript}\n</task>` }],
 	});
 
 	return collapsed;
@@ -300,29 +265,32 @@ export default async function clineProvider(pi: ExtensionAPI) {
 		return { messages: shapeMessagesForCline(sourceMessages) };
 	});
 
-	pi.on("session_start", async (_event, ctx) => {
-		try {
-			const fresh = await fetchClineModels(false);
-			if (fresh.length > 0) {
-				allModels = fresh;
-				freeModels = allModels.filter((m) =>
-					isFreeModel({ ...m, provider: PROVIDER_CLINE }, allModels),
-				);
-				stored.all = allModels;
-				stored.free = freeModels;
-				toggleState.setModels(stored);
-				toggleState.applyCurrent(reRegister);
-				if (ctx.model?.provider === PROVIDER_CLINE) {
-					const freeCount = stored.free.length;
-					const paidCount = stored.all.length - freeCount;
-					ctx.ui.notify(
-						`Cline: ${freeCount} free, ${paidCount} paid models available`,
-						"info",
+	pi.on(
+		"session_start",
+		wrapSessionStartHandler("cline", async (_event, ctx) => {
+			try {
+				const fresh = await fetchClineModels(false);
+				if (fresh.length > 0) {
+					allModels = fresh;
+					freeModels = allModels.filter((m) =>
+						isFreeModel({ ...m, provider: PROVIDER_CLINE }, allModels),
 					);
+					stored.all = allModels;
+					stored.free = freeModels;
+					toggleState.setModels(stored);
+					toggleState.applyCurrent(reRegister);
+					if (ctx.model?.provider === PROVIDER_CLINE) {
+						const freeCount = stored.free.length;
+						const paidCount = stored.all.length - freeCount;
+						ctx.ui.notify(
+							`Cline: ${freeCount} free, ${paidCount} paid models available`,
+							"info",
+						);
+					}
 				}
+			} catch (err) {
+				logWarning("cline", "Failed to refresh models at session start", err);
 			}
-		} catch (err) {
-			logWarning("cline", "Failed to refresh models at session start", err);
-		}
-	});
+		}),
+	);
 }

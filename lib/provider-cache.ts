@@ -38,7 +38,9 @@ interface CacheData {
 // Cache Store
 // =============================================================================
 
-const CACHE_FILE = join(homedir(), ".pi", "provider-cache.json");
+const CACHE_FILE = process.env.PI_FREE_PROVIDER_CACHE
+	? process.env.PI_FREE_PROVIDER_CACHE
+	: join(homedir(), ".pi", "provider-cache.json");
 
 const _cache = createJSONStore<CacheData>(CACHE_FILE, { providers: {} });
 
@@ -61,25 +63,24 @@ export function loadProviderCache(
 		fetchedAt: cached.fetchedAt,
 	});
 
-	return cached.models;
+	return structuredClone(cached.models);
 }
 
 /**
  * Save models to cache for a provider.
  */
-export function saveProviderCache(
+export async function saveProviderCache(
 	providerId: string,
 	models: ProviderModelConfig[],
-): void {
-	const data = _cache.load();
-
-	data.providers[providerId] = {
-		provider: providerId,
-		models,
-		fetchedAt: new Date().toISOString(),
-	};
-
-	_cache.save(data);
+): Promise<void> {
+	await _cache.update((data) => {
+		data.providers[providerId] = {
+			provider: providerId,
+			models: structuredClone(models),
+			fetchedAt: new Date().toISOString(),
+		};
+		return data;
+	});
 
 	_logger.debug(`Saved ${models.length} models to cache for ${providerId}`);
 }

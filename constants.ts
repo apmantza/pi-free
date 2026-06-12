@@ -9,7 +9,6 @@
 
 export const PROVIDER_KILO = "kilo";
 export const PROVIDER_CLINE = "cline";
-export const PROVIDER_NVIDIA = "nvidia";
 export const PROVIDER_CLOUDFLARE = "cloudflare";
 export const PROVIDER_OLLAMA = "ollama-cloud";
 /** @deprecated Qwen provider is deprecated. The 1,000 req/day free tier is no longer available. */
@@ -28,7 +27,6 @@ export const PROVIDER_ROUTEWAY = "routeway";
 export const ALL_UNIQUE_PROVIDERS = [
 	PROVIDER_KILO,
 	PROVIDER_CLINE,
-	PROVIDER_NVIDIA,
 	/** @deprecated Qwen free tier no longer available */
 	PROVIDER_QWEN,
 	PROVIDER_MODAL,
@@ -49,7 +47,6 @@ export const ALL_UNIQUE_PROVIDERS = [
 // =============================================================================
 
 export const BASE_URL_KILO = "https://api.kilo.ai/api/gateway";
-export const BASE_URL_NVIDIA = "https://integrate.api.nvidia.com/v1";
 export const BASE_URL_CLOUDFLARE = "https://api.cloudflare.com/client/v4";
 export const BASE_URL_OLLAMA = "https://ollama.com/v1"; // OpenAI-compatible API endpoint
 export const BASE_URL_CLINE = "https://api.cline.bot/api/v1";
@@ -84,12 +81,6 @@ export const URL_MODAL_TOS = "https://modal.com/terms";
 // =============================================================================
 
 export const CLINE_AUTH_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
-
-// =============================================================================
-// Configuration thresholds
-// =============================================================================
-
-export const NVIDIA_MIN_SIZE_B = 70; // Minimum model size for NVIDIA NIM
 
 // =============================================================================
 // Timeouts (milliseconds)

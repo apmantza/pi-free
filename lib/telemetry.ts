@@ -72,11 +72,30 @@ export interface TelemetryStore {
 // =============================================================================
 
 const TELEMETRY_DIR = join(homedir(), ".pi");
-const TELEMETRY_FILE = join(TELEMETRY_DIR, "free-telemetry.json");
+const TELEMETRY_FILE = process.env.PI_FREE_TELEMETRY_FILE
+	? process.env.PI_FREE_TELEMETRY_FILE
+	: join(TELEMETRY_DIR, "free-telemetry.json");
 const MAX_RECENT_CALLS = 50;
 
 // In-flight tracking: keyed by "provider/model", value is start timestamp
 const _inFlight = new Map<string, number>();
+
+class Lock {
+	private promise: Promise<void> = Promise.resolve();
+
+	async acquire(): Promise<() => void> {
+		let release: () => void;
+		const newPromise = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const previous = this.promise;
+		this.promise = previous.then(() => newPromise);
+		await previous;
+		return release!;
+	}
+}
+
+const _telemetryLock = new Lock();
 
 // =============================================================================
 // Storage
@@ -119,7 +138,10 @@ function saveStore(store: TelemetryStore): void {
 // Entry management
 // =============================================================================
 
-function deriveModelTelemetry(modelKey: string, entries: TelemetryEntry[]): ModelTelemetry {
+function deriveModelTelemetry(
+	_modelKey: string,
+	entries: TelemetryEntry[],
+): ModelTelemetry {
 	const recent = entries.slice(-MAX_RECENT_CALLS);
 	const totalCalls = entries.length;
 	const successCalls = entries.filter((e) => e.success).length;
@@ -134,12 +156,24 @@ function deriveModelTelemetry(modelKey: string, entries: TelemetryEntry[]): Mode
 			acc.totalCost += e.cost;
 			return acc;
 		},
-		{ totalTokens: 0, totalPromptTokens: 0, totalCompletionTokens: 0, totalLatencyMs: 0, totalCost: 0 },
+		{
+			totalTokens: 0,
+			totalPromptTokens: 0,
+			totalCompletionTokens: 0,
+			totalLatencyMs: 0,
+			totalCost: 0,
+		},
 	);
 
 	const totalSuccessEntries = entries.filter((e) => e.success);
-	const totalTokensFromSuccessful = totalSuccessEntries.reduce((s, e) => s + e.totalTokens, 0);
-	const totalLatencyFromSuccessful = totalSuccessEntries.reduce((s, e) => s + e.latencyMs, 0);
+	const totalTokensFromSuccessful = totalSuccessEntries.reduce(
+		(s, e) => s + e.totalTokens,
+		0,
+	);
+	const totalLatencyFromSuccessful = totalSuccessEntries.reduce(
+		(s, e) => s + e.latencyMs,
+		0,
+	);
 
 	return {
 		totalCalls,
@@ -150,31 +184,45 @@ function deriveModelTelemetry(modelKey: string, entries: TelemetryEntry[]): Mode
 		totalCompletionTokens: stats.totalCompletionTokens,
 		totalLatencyMs: stats.totalLatencyMs,
 		totalCost: stats.totalCost,
-		avgLatencyMs: totalSuccessEntries.length > 0
-			? Math.round(totalLatencyFromSuccessful / totalSuccessEntries.length)
-			: 0,
-		avgTokensPerSecond: totalLatencyFromSuccessful > 0
-			? parseFloat((totalTokensFromSuccessful / (totalLatencyFromSuccessful / 1000)).toFixed(1))
-			: 0,
-		successRate: totalCalls > 0
-			? parseFloat((successCalls / totalCalls * 100).toFixed(1))
-			: 0,
+		avgLatencyMs:
+			totalSuccessEntries.length > 0
+				? Math.round(totalLatencyFromSuccessful / totalSuccessEntries.length)
+				: 0,
+		avgTokensPerSecond:
+			totalLatencyFromSuccessful > 0
+				? parseFloat(
+						(
+							totalTokensFromSuccessful /
+							(totalLatencyFromSuccessful / 1000)
+						).toFixed(1),
+					)
+				: 0,
+		successRate:
+			totalCalls > 0
+				? parseFloat(((successCalls / totalCalls) * 100).toFixed(1))
+				: 0,
 		recentCalls: recent,
 	};
 }
 
-function addEntry(entry: TelemetryEntry): void {
-	const store = loadStore();
-	const modelKey = `${entry.provider}/${entry.model}`;
+async function addEntry(entry: TelemetryEntry): Promise<void> {
+	const release = await _telemetryLock.acquire();
+	try {
+		const store = loadStore();
+		const modelKey = `${entry.provider}/${entry.model}`;
 
-	const existing: TelemetryEntry[] = store.models[modelKey]?.recentCalls ?? [];
-	existing.push(entry);
+		const existing: TelemetryEntry[] =
+			store.models[modelKey]?.recentCalls ?? [];
+		existing.push(entry);
 
-	// Keep only last MAX_RECENT_CALLS * 2 in raw storage (we derive stats from these)
-	const pruned = existing.slice(-MAX_RECENT_CALLS * 2);
+		// Keep only last MAX_RECENT_CALLS * 2 in raw storage (we derive stats from these)
+		const pruned = existing.slice(-MAX_RECENT_CALLS * 2);
 
-	store.models[modelKey] = deriveModelTelemetry(modelKey, pruned);
-	saveStore(store);
+		store.models[modelKey] = deriveModelTelemetry(modelKey, pruned);
+		saveStore(store);
+	} finally {
+		release();
+	}
 }
 
 // =============================================================================
@@ -192,7 +240,10 @@ export function getAllTelemetry(): Record<string, ModelTelemetry> {
 /**
  * Get telemetry for a specific provider/model combination.
  */
-export function getModelTelemetry(provider: string, model: string): ModelTelemetry | null {
+export function getModelTelemetry(
+	provider: string,
+	model: string,
+): ModelTelemetry | null {
 	const store = loadStore();
 	return store.models[`${provider}/${model}`] ?? null;
 }
@@ -201,7 +252,10 @@ export function getModelTelemetry(provider: string, model: string): ModelTelemet
  * Format a model's telemetry as a human-readable string (for status bar / /model list).
  * Returns undefined if no telemetry data is available.
  */
-export function formatModelTelemetry(provider: string, model: string): string | undefined {
+export function formatModelTelemetry(
+	provider: string,
+	model: string,
+): string | undefined {
 	const telemetry = getModelTelemetry(provider, model);
 	if (!telemetry || telemetry.totalCalls === 0) return undefined;
 
@@ -267,7 +321,7 @@ export function startModelCall(provider: string, model: string): void {
  * @param stopReason - The stop reason (e.g. "stop", "error")
  * @param errorMessage - Error message if failed
  */
-export function recordModelCall(
+export async function recordModelCall(
 	provider: string,
 	model: string,
 	usage: { input: number; output: number; totalTokens: number },
@@ -275,16 +329,17 @@ export function recordModelCall(
 	success: boolean,
 	stopReason?: string,
 	errorMessage?: string,
-): void {
+): Promise<void> {
 	const key = `${provider}/${model}`;
 	const startTime = _inFlight.get(key) ?? Date.now();
 	const latencyMs = Date.now() - startTime;
 	_inFlight.delete(key);
 
 	const totalTokens = usage.totalTokens || usage.input + usage.output;
-	const tokensPerSecond = latencyMs > 0
-		? parseFloat((totalTokens / (latencyMs / 1000)).toFixed(1))
-		: 0;
+	const tokensPerSecond =
+		latencyMs > 0
+			? parseFloat((totalTokens / (latencyMs / 1000)).toFixed(1))
+			: 0;
 
 	const entry: TelemetryEntry = {
 		timestamp: Date.now(),
@@ -301,7 +356,7 @@ export function recordModelCall(
 		...(errorMessage ? { error: errorMessage } : {}),
 	};
 
-	addEntry(entry);
+	await addEntry(entry);
 
 	_logger.info(`Telemetry: ${provider}/${model}`, {
 		latencyMs,
@@ -315,9 +370,14 @@ export function recordModelCall(
 /**
  * Clear all telemetry data.
  */
-export function clearTelemetry(): void {
-	const store: TelemetryStore = { models: {}, lastUpdated: Date.now() };
-	saveStore(store);
+export async function clearTelemetry(): Promise<void> {
+	const release = await _telemetryLock.acquire();
+	try {
+		const store: TelemetryStore = { models: {}, lastUpdated: Date.now() };
+		saveStore(store);
+	} finally {
+		release();
+	}
 }
 
 /**

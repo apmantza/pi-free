@@ -39,6 +39,7 @@ import {
 	loadProviderCache,
 	saveProviderCache,
 } from "../../lib/provider-cache.ts";
+import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
 import {
 	getModelsDueForProbe,
 	recordModelProbeResults,
@@ -427,7 +428,7 @@ async function runOllamaProbe(
 		}
 	}
 
-	recordModelProbeResults(PROVIDER_OLLAMA, cacheableResults);
+	await recordModelProbeResults(PROVIDER_OLLAMA, cacheableResults);
 
 	if (notFound.length === 0) {
 		_logger.info("Auto-probe: all checked Ollama models are accessible");
@@ -445,7 +446,7 @@ async function runOllamaProbe(
 	// Re-fetch and re-register so hidden models disappear immediately
 	try {
 		const fresh = await fetchAllModels(apiKey);
-		saveProviderCache(PROVIDER_OLLAMA, fresh);
+		await saveProviderCache(PROVIDER_OLLAMA, fresh);
 		applyModels(fresh);
 	} catch {
 		// If refresh fails, keep current models. The next refresh/probe will retry.
@@ -524,7 +525,7 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 	async function refreshModels(): Promise<ProviderModelConfig[]> {
 		try {
 			const freshModels = await fetchAllModels(apiKey!);
-			saveProviderCache(PROVIDER_OLLAMA, freshModels);
+			await saveProviderCache(PROVIDER_OLLAMA, freshModels);
 			return freshModels;
 		} catch (error) {
 			_logger.error("[ollama-cloud] Background refresh failed", {
@@ -543,7 +544,7 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 			ctx.ui.notify("Refreshing Ollama Cloud models…", "info");
 			try {
 				const fresh = await fetchAllModels(apiKey!);
-				saveProviderCache(PROVIDER_OLLAMA, fresh);
+				await saveProviderCache(PROVIDER_OLLAMA, fresh);
 				applyModelList(fresh);
 				ctx.ui.notify(
 					`Registered ${fresh.length} Ollama Cloud models (refresh complete)`,
@@ -604,27 +605,30 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 	// ── Background refresh on session_start ─────────────────────────
 	let bgRefreshed = false;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	pi.on("session_start" as any, async (_event: any, ctx: any) => {
-		if (bgRefreshed) {
-			return;
-		}
-		bgRefreshed = true;
+	pi.on(
+		"session_start" as any,
+		wrapSessionStartHandler("ollama-cloud", async (_event: any, ctx: any) => {
+			if (bgRefreshed) {
+				return;
+			}
+			bgRefreshed = true;
 
-		try {
-			const fresh = await refreshModels();
-			applyModelList(fresh);
-			ctx.ui.notify(`Ollama Cloud: ${fresh.length} models ready`, "info");
-			runOllamaProbe(apiKey, fresh, applyModelList, { useCache: true }).catch(
-				(error) => {
-					_logger.warn("Auto-probe failed", {
-						error: error instanceof Error ? error.message : String(error),
-					});
-				},
-			);
-		} catch {
-			// Already logged in refreshModels()
-		}
-	});
+			try {
+				const fresh = await refreshModels();
+				applyModelList(fresh);
+				ctx.ui.notify(`Ollama Cloud: ${fresh.length} models ready`, "info");
+				runOllamaProbe(apiKey, fresh, applyModelList, { useCache: true }).catch(
+					(error) => {
+						_logger.warn("Auto-probe failed", {
+							error: error instanceof Error ? error.message : String(error),
+						});
+					},
+				);
+			} catch {
+				// Already logged in refreshModels()
+			}
+		}),
+	);
 }
 
 // =============================================================================

@@ -50,7 +50,6 @@ import sambanova from "./providers/sambanova/sambanova.ts";
 import together from "./providers/together/together.ts";
 import novita from "./providers/novita/novita.ts";
 import routeway from "./providers/routeway/routeway.ts";
-import nvidia from "./providers/nvidia/nvidia.ts";
 import ollama from "./providers/ollama/ollama.ts";
 import zenmux from "./providers/zenmux/zenmux.ts";
 
@@ -111,11 +110,7 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 				"cerebras",
 			]);
 			// Freemium providers - all models share a free tier quota
-			const freemiumProviders = new Set([
-				"nvidia",
-				"sambanova",
-				"ollama-cloud",
-			]);
+			const freemiumProviders = new Set(["sambanova", "ollama-cloud"]);
 			// Trial credit providers - one-time credits, otherwise paid
 			const trialCreditProviders = new Set(["deepinfra"]);
 
@@ -208,7 +203,7 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 	pi.registerCommand("clear-free-telemetry", {
 		description: "Clear all model telemetry data",
 		handler: async (_args, ctx) => {
-			clearTelemetry();
+			await clearTelemetry();
 			ctx.ui.notify("Telemetry data cleared", "info");
 		},
 	});
@@ -268,7 +263,7 @@ function setupTelemetry(pi: ExtensionAPI) {
 	});
 
 	// Record telemetry when a turn completes
-	pi.on("turn_end", (event, ctx) => {
+	pi.on("turn_end", async (event, ctx) => {
 		if (!ctx.model) return;
 		if (!isFreeModel(ctx.model as any)) return;
 
@@ -302,7 +297,7 @@ function setupTelemetry(pi: ExtensionAPI) {
 		const cost = usage?.cost?.total ?? 0;
 		const isError = msg.stopReason === "error" || !!msg.errorMessage;
 
-		recordModelCall(
+		await recordModelCall(
 			provider,
 			model,
 			{ input: inputTokens, output: outputTokens, totalTokens },
@@ -334,7 +329,6 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 	// Load all unique providers
 	// Each provider will register itself with the global toggle system
 	await Promise.allSettled([
-		nvidia(pi),
 		kilo(pi),
 		ollama(pi),
 		cline(pi),

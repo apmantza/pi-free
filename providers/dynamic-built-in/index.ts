@@ -43,7 +43,13 @@ import {
 import { DEFAULT_FETCH_TIMEOUT_MS } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { getProxyModelCompat } from "../../lib/provider-compat.ts";
+import {
+	getModelsDueForProbe,
+	recordModelProbeResults,
+} from "../../lib/probe-cache.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
+import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
+import { fetchWithTimeout } from "../../lib/util.ts";
 import { fetchOpenRouterCompatibleModels } from "../model-fetcher.ts";
 import { createToggleState } from "../../lib/toggle-state.ts";
 import { enhanceWithCI } from "../../provider-helper.ts";
@@ -55,6 +61,8 @@ import {
 } from "../opencode-session.ts";
 
 const _logger = createLogger("dynamic-built-in");
+
+const OPENCODE_PROBE_TIMEOUT_MS = 15_000;
 
 // OpenCode headers must be regenerated for every LLM request.
 const _opencodeSession = createOpenCodeSessionTracker();
@@ -191,6 +199,16 @@ interface DynamicProviderDef {
 	 * When not provided, fetchModelsFromEndpoint is used (no pricing, _pricingKnown=false).
 	 */
 	fetchModels?: (apiKey: string) => Promise<ProviderModelConfig[]>;
+	/**
+	 * Optional probe support for providers whose free model status expires.
+	 */
+	probe?: {
+		run: (
+			apiKey: string,
+			models: ProviderModelConfig[],
+			options?: { useCache?: boolean },
+		) => Promise<string[]>;
+	};
 }
 
 const DYNAMIC_PROVIDERS: DynamicProviderDef[] = [
@@ -230,6 +248,15 @@ const DYNAMIC_PROVIDERS: DynamicProviderDef[] = [
 		api: OPENCODE_DYNAMIC_API,
 		defaultShowPaid: getOpencodeShowPaid,
 		// OpenCode API returns no pricing — _pricingKnown=false, name-based detection
+		probe: {
+			run: (apiKey, models) =>
+				runOpenCodeProbe(
+					"opencode",
+					apiKey,
+					"https://opencode.ai/zen/v1",
+					models,
+				),
+		},
 	},
 	{
 		providerId: "opencode-go",
@@ -238,6 +265,15 @@ const DYNAMIC_PROVIDERS: DynamicProviderDef[] = [
 		api: OPENCODE_DYNAMIC_API,
 		defaultShowPaid: getOpencodeShowPaid,
 		// OpenCode Go uses the same OPENCODE_API_KEY and per-request headers
+		probe: {
+			run: (apiKey, models) =>
+				runOpenCodeProbe(
+					"opencode-go",
+					apiKey,
+					"https://opencode.ai/zen/go/v1",
+					models,
+				),
+		},
 	},
 	{
 		providerId: "openrouter",
@@ -297,6 +333,107 @@ async function discoverAndRegister(
 	await registerProvider(pi, config, allModels, apiKey);
 }
 
+// =============================================================================
+// OpenCode Probe
+// =============================================================================
+
+/**
+ * Probe a single OpenCode model with a minimal chat request.
+ *
+ * OpenCode expired free promotions return 401 with a body like:
+ *   { error: { message: "Free promotion has ended" } }
+ *
+ * We treat 401 and 403 as "broken" for free models, since those codes mean
+ * the model is no longer accessible under the current credentials. 404 is
+ * also broken. 429 means the model is reachable but rate-limited (ok).
+ */
+async function probeOpenCodeModel(
+	apiKey: string,
+	baseUrl: string,
+	modelId: string,
+): Promise<"ok" | "broken" | "unknown"> {
+	try {
+		const response = await fetchWithTimeout(
+			`${baseUrl}/chat/completions`,
+			{
+				method: "POST",
+				headers: {
+					Authorization: `Bearer ${apiKey}`,
+					"Content-Type": "application/json",
+					"User-Agent": "opencode/1.15.5",
+					"x-opencode-client": "cli",
+				},
+				body: JSON.stringify({
+					model: modelId,
+					messages: [{ role: "user", content: "hi" }],
+					max_tokens: 1,
+				}),
+			},
+			OPENCODE_PROBE_TIMEOUT_MS,
+		);
+
+		if (response.status === 401 || response.status === 403) return "broken";
+		if (response.status === 404) return "broken";
+		if (response.status === 429) return "ok";
+		if (response.ok) return "ok";
+		return "ok";
+	} catch {
+		return "unknown";
+	}
+}
+
+async function runOpenCodeProbe(
+	providerId: string,
+	apiKey: string,
+	baseUrl: string,
+	models: ProviderModelConfig[],
+	options: { useCache?: boolean } = {},
+): Promise<string[]> {
+	const freeModels = models.filter((m) =>
+		isFreeModel({ ...m, provider: providerId }, models),
+	);
+	const modelIdsToProbe = options.useCache
+		? new Set(
+				getModelsDueForProbe(
+					providerId,
+					freeModels.map((m) => m.id),
+				),
+			)
+		: undefined;
+	const probeCandidates = modelIdsToProbe
+		? freeModels.filter((m) => modelIdsToProbe.has(m.id))
+		: freeModels;
+
+	if (probeCandidates.length === 0) {
+		_logger.info(`Auto-probe: ${providerId} probe cache is fresh`);
+		return [];
+	}
+
+	const broken: string[] = [];
+	const cacheableResults: Array<{ modelId: string; status: "ok" | "broken" }> =
+		[];
+	const batchSize = 5;
+
+	for (let i = 0; i < probeCandidates.length; i += batchSize) {
+		const batch = probeCandidates.slice(i, i + batchSize);
+		const results = await Promise.all(
+			batch.map(async (m) => {
+				const status = await probeOpenCodeModel(apiKey, baseUrl, m.id);
+				return { id: m.id, status };
+			}),
+		);
+		for (const r of results) {
+			if (r.status === "broken") broken.push(r.id);
+			if (r.status !== "unknown") {
+				cacheableResults.push({ modelId: r.id, status: r.status });
+			}
+		}
+	}
+
+	await recordModelProbeResults(providerId, cacheableResults);
+	return broken;
+}
+
 async function discoverAndRegisterHF(
 	pi: ExtensionAPI,
 	apiKey: string,
@@ -354,6 +491,11 @@ async function registerProvider(
 		});
 	};
 
+	const stored: { free: ProviderModelConfig[]; all: ProviderModelConfig[] } = {
+		free: freeModels,
+		all: allModels,
+	};
+
 	// Toggle state
 	const toggleState = createToggleState({
 		providerId: config.providerId,
@@ -408,6 +550,59 @@ async function registerProvider(
 
 	// Register models (this swaps in our discovered models over Pi's defaults)
 	toggleState.applyCurrent(reRegister);
+
+	// ── Probe command for providers whose free model status expires ─────
+	if (config.probe) {
+		pi.registerCommand(`probe-${config.providerId}`, {
+			description: `Test ${config.providerId} free models for expired promotions`,
+			handler: async (_args, ctx) => {
+				const modelsToTest =
+					toggleState.getCurrentMode() === "all" ? stored.all : stored.free;
+				ctx.ui.notify(
+					`Probing ${modelsToTest.length} ${config.providerId} models…`,
+					"info",
+				);
+
+				const broken = await config.probe!.run(apiKey, modelsToTest, {
+					useCache: false,
+				});
+
+				if (broken.length === 0) {
+					ctx.ui.notify(
+						`All ${config.providerId} models are accessible ✅`,
+						"info",
+					);
+					return;
+				}
+
+				ctx.ui.notify(
+					`Found ${broken.length} expired free models:\n${broken.join("\n")}`,
+					"warning",
+				);
+			},
+		});
+
+		// ── Lazy auto-probe on first session_start ───────────────────────
+		let _autoProbeDone = false;
+		pi.on(
+			"session_start",
+			wrapSessionStartHandler(`${config.providerId}-auto-probe`, async () => {
+				if (_autoProbeDone) return;
+				_autoProbeDone = true;
+				_logger.info(
+					`Starting lazy auto-probe of ${config.providerId} free models...`,
+				);
+				config
+					.probe!.run(apiKey, stored.free, { useCache: true })
+					.catch((err) => {
+						_logger.warn("Auto-probe failed", {
+							error: err instanceof Error ? err.message : String(err),
+						});
+					});
+			}),
+		);
+	}
+
 	_logger.info(`[dynamic] ${config.providerId}: registered`);
 }
 

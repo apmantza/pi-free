@@ -23,6 +23,7 @@ import {
 	isFreeModel,
 	registerWithGlobalToggle,
 } from "./registry.ts";
+import { wrapSessionStartHandler } from "./session-start-metrics.ts";
 import { createToggleState } from "./toggle-state.ts";
 import {
 	OPENCODE_DYNAMIC_API,
@@ -90,22 +91,25 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 	}
 
 	// Capture built-in models on session start and apply initial filter
-	pi.on("session_start", async (_event, ctx) => {
-		for (const config of activeConfigs) {
-			if (providerStates.has(config.id)) {
-				// Already captured — skip to avoid re-registering
-				continue;
+	pi.on(
+		"session_start",
+		wrapSessionStartHandler("built-in-toggle", async (_event, ctx) => {
+			for (const config of activeConfigs) {
+				if (providerStates.has(config.id)) {
+					// Already captured — skip to avoid re-registering
+					continue;
+				}
+
+				const state = tryCaptureProvider(pi, config, ctx);
+				if (!state) continue;
+
+				const applied = state.toggleState.applyCurrent(state.reRegister);
+				_logger.info(
+					`[built-in-toggle] ${config.id}: applied ${applied.mode} mode with ${applied.models.length} models`,
+				);
 			}
-
-			const state = tryCaptureProvider(pi, config, ctx);
-			if (!state) continue;
-
-			const applied = state.toggleState.applyCurrent(state.reRegister);
-			_logger.info(
-				`[built-in-toggle] ${config.id}: applied ${applied.mode} mode with ${applied.models.length} models`,
-			);
-		}
-	});
+		}),
+	);
 }
 
 // =============================================================================

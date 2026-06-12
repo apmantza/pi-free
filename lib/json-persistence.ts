@@ -1,6 +1,6 @@
 /**
  * Shared JSON persistence utilities.
- * Consolidates file I/O patterns from usage-store.ts and free-tier-limits.ts
+ * Consolidated file I/O patterns from usage-store.ts and free-tier-limits.ts
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -12,6 +12,22 @@ const _logger = createLogger("json-persistence");
 export interface JSONStore<T> {
 	load(): T;
 	save(data: T): void;
+	update(updater: (data: T) => T): Promise<T>;
+}
+
+class Lock {
+	private promise: Promise<void> = Promise.resolve();
+
+	async acquire(): Promise<() => void> {
+		let release: () => void;
+		const newPromise = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const previous = this.promise;
+		this.promise = previous.then(() => newPromise);
+		await previous;
+		return release!;
+	}
 }
 
 /**
@@ -22,6 +38,7 @@ export function createJSONStore<T extends object>(
 	defaultValue: T,
 ): JSONStore<T> {
 	let cached: T | null = null;
+	const lock = new Lock();
 
 	function load(): T {
 		if (cached) return cached;
@@ -31,7 +48,10 @@ export function createJSONStore<T extends object>(
 				return cached;
 			}
 		} catch (err) {
-			_logger.warn("Failed to load JSON store, using default", { filepath, error: err });
+			_logger.warn("Failed to load JSON store, using default", {
+				filepath,
+				error: err,
+			});
 		}
 		cached = defaultValue;
 		return cached;
@@ -50,7 +70,19 @@ export function createJSONStore<T extends object>(
 		}
 	}
 
-	return { load, save };
+	async function update(updater: (data: T) => T): Promise<T> {
+		const release = await lock.acquire();
+		try {
+			const data = load();
+			const updated = updater(data);
+			save(updated);
+			return updated;
+		} finally {
+			release();
+		}
+	}
+
+	return { load, save, update };
 }
 
 /**
@@ -67,13 +99,26 @@ export function createJSONLStore<T extends object>(
 		try {
 			if (existsSync(filepath)) {
 				const content = readFileSync(filepath, "utf-8");
-				return content
-					.split("\n")
-					.filter((line) => line.trim())
-					.map((line) => JSON.parse(line) as T);
+				const lines = content.split("\n").filter((line) => line.trim());
+				const entries: T[] = [];
+				for (const [index, line] of lines.entries()) {
+					try {
+						entries.push(JSON.parse(line) as T);
+					} catch (err) {
+						_logger.warn("Malformed JSONL line skipped", {
+							filepath,
+							line: index + 1,
+							error: err,
+						});
+					}
+				}
+				return entries;
 			}
 		} catch (err) {
-			_logger.warn("Failed to load JSONL store, using empty array", { filepath, error: err });
+			_logger.warn("Failed to load JSONL store, using empty array", {
+				filepath,
+				error: err,
+			});
 		}
 		return [];
 	}

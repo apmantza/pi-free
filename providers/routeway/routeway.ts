@@ -40,6 +40,7 @@ import {
 	recordModelProbeResults,
 } from "../../lib/probe-cache.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
+import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
 import { cleanModelName, fetchWithRetry } from "../../lib/util.ts";
 import { fetchWithTimeout } from "../../lib/util.ts";
 import { createReRegister, setupProvider } from "../../provider-helper.ts";
@@ -255,7 +256,7 @@ async function runRoutewayProbe(
 		}
 	}
 
-	recordModelProbeResults(PROVIDER_ROUTEWAY, cacheableResults);
+	await recordModelProbeResults(PROVIDER_ROUTEWAY, cacheableResults);
 
 	if (broken.length === 0) {
 		_logger.info("Auto-probe: all checked Routeway models are routable");
@@ -337,18 +338,21 @@ export default async function routewayProvider(pi: ExtensionAPI) {
 
 	// ── Lazy auto-probe on first session_start ──────────────────────
 	let _autoProbeDone = false;
-	pi.on("session_start", async () => {
-		if (_autoProbeDone || !apiKey) return;
-		_autoProbeDone = true;
-		_logger.info("Starting lazy auto-probe of Routeway models...");
-		runRoutewayProbe(apiKey, allModels, stored, reRegister, {
-			useCache: true,
-		}).catch((err) => {
-			_logger.warn("Auto-probe failed", {
-				error: err instanceof Error ? err.message : String(err),
+	pi.on(
+		"session_start",
+		wrapSessionStartHandler("routeway", async () => {
+			if (_autoProbeDone || !apiKey) return;
+			_autoProbeDone = true;
+			_logger.info("Starting lazy auto-probe of Routeway models...");
+			runRoutewayProbe(apiKey, allModels, stored, reRegister, {
+				useCache: true,
+			}).catch((err) => {
+				_logger.warn("Auto-probe failed", {
+					error: err instanceof Error ? err.message : String(err),
+				});
 			});
-		});
-	});
+		}),
+	);
 
 	// ── Probe command: test all registered models for 5xx ─────────────
 	pi.registerCommand("probe-routeway", {
@@ -361,10 +365,7 @@ export default async function routewayProvider(pi: ExtensionAPI) {
 			}
 
 			const modelsToTest = allModels;
-			ctx.ui.notify(
-				`Probing ${modelsToTest.length} Routeway models…`,
-				"info",
-			);
+			ctx.ui.notify(`Probing ${modelsToTest.length} Routeway models…`, "info");
 
 			await runRoutewayProbe(apiKey, modelsToTest, stored, reRegister);
 
