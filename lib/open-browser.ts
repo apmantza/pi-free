@@ -8,8 +8,9 @@
  *   bypasses cmd.exe's command parser entirely. cmd's `start` builtin
  *   interprets shell metacharacters (`&`, `|`, `^`, etc.) BEFORE the URL
  *   reaches its target, so `cmd /c start "" <url>` is exploitable even
- *   with `shell: false` and discrete args. rundll32 doesn't parse the
- *   command line, so the URL is handed to ShellExecute as a literal.
+ *   with `shell: false` and discrete args (CodeQL js/uncontrolled-command-line).
+ *   rundll32 doesn't parse the command line, so the URL is handed to
+ *   ShellExecute as a literal.
  * - On all platforms, URLs are strictly validated: only http/https, no
  *   control characters. This is defense-in-depth.
  * - The URL is always passed as a single argument to the underlying
@@ -88,7 +89,8 @@ export function openBrowser(url: string): boolean {
 			// with the URL, which opens it in the user's default browser.
 			// Unlike `cmd /c start "" <url>`, rundll32 does NOT parse the
 			// command line — the URL is handed to ShellExecute as a
-			// literal argument. This is the canonical safe pattern.
+			// literal argument. This is the canonical safe pattern and
+			// addresses the CodeQL "Uncontrolled command line" finding.
 			const rundll32 = resolveExe(
 				"rundll32.exe",
 				"C:\\Windows\\System32\\rundll32.exe",
