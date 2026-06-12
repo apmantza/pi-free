@@ -14,6 +14,15 @@ export const DEEPSEEK_PROXY_COMPAT: NonNullable<ProviderModelConfig["compat"]> =
 		thinkingFormat: "deepseek",
 	};
 
+/** Kimi K2.6 on OpenRouter needs reasoning_content on assistant messages
+ *  (OpenRouter issue #5309) but doesn't use the DeepSeek thinking format. */
+const KIMI_PROXY_COMPAT: NonNullable<ProviderModelConfig["compat"]> = {
+	supportsStore: false,
+	supportsDeveloperRole: false,
+	supportsReasoningEffort: true,
+	requiresReasoningContentOnAssistantMessages: true,
+};
+
 export function isDeepSeekModel(model: ProviderModelIdentity): boolean {
 	const haystack = `${model.id} ${model.name ?? ""}`.toLowerCase();
 	return haystack.includes("deepseek");
@@ -36,44 +45,40 @@ export function isLikelyReasoningModel(model: ProviderModelIdentity): boolean {
 }
 
 /**
+ * Models that the gateway/proxy exposes as a DeepSeek-style reasoning
+ * format — use the canonical DEEPSEEK_PROXY_COMPAT (full feature set +
+ * thinkingFormat).
+ */
+function isDeepSeekStyleModel(model: ProviderModelIdentity): boolean {
+	const id = model.id.toLowerCase();
+	return (
+		isDeepSeekModel(model) ||
+		id.includes("minimax") ||
+		id.includes("qwen3.7") ||
+		id.includes("qwen3-7")
+	);
+}
+
+/**
+ * Kimi variants need the same reasoning_content replay as DeepSeek-style
+ * models but without the thinkingFormat override.
+ */
+function isKimiModel(model: ProviderModelIdentity): boolean {
+	return model.id.toLowerCase().includes("kimi");
+}
+
+/**
  * For gateway/proxy providers that mask the upstream DeepSeek base URL,
  * add explicit compat so pi-ai preserves and replays reasoning_content.
  */
 export function getProxyModelCompat(
 	model: ProviderModelIdentity,
 ): ProviderModelConfig["compat"] | undefined {
-	if (isDeepSeekModel(model)) {
+	if (isDeepSeekStyleModel(model)) {
 		return DEEPSEEK_PROXY_COMPAT;
 	}
-
-	// MiniMax on OpenRouter/Cline uses reasoning_content (DeepSeek format)
-	if (model.id.toLowerCase().includes("minimax")) {
-		return {
-			supportsStore: false,
-			supportsDeveloperRole: false,
-			supportsReasoningEffort: true,
-			requiresReasoningContentOnAssistantMessages: true,
-			thinkingFormat: "deepseek",
-		};
+	if (isKimiModel(model)) {
+		return KIMI_PROXY_COMPAT;
 	}
-
-	// Qwen 3.7+ on OpenRouter/Cline uses reasoning_content (DeepSeek format)
-	if (
-		model.id.toLowerCase().includes("qwen3.7") ||
-		model.id.toLowerCase().includes("qwen3-7")
-	) {
-		return DEEPSEEK_PROXY_COMPAT;
-	}
-
-	// Kimi K2.6 needs reasoning_content on assistant messages (OpenRouter issue #5309)
-	if (model.id.toLowerCase().includes("kimi")) {
-		return {
-			supportsStore: false,
-			supportsDeveloperRole: false,
-			supportsReasoningEffort: true,
-			requiresReasoningContentOnAssistantMessages: true,
-		};
-	}
-
 	return undefined;
 }

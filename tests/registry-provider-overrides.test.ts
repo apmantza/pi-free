@@ -59,7 +59,7 @@ describe("global filter provider overrides", () => {
 			reRegister,
 			true,
 		);
-		applyGlobalFilter({} as ExtensionAPI, true);
+		applyGlobalFilter(true);
 
 		expect(reRegister).toHaveBeenCalledWith(allModels);
 	});
@@ -77,7 +77,7 @@ describe("global filter provider overrides", () => {
 			reRegister,
 			true,
 		);
-		applyGlobalFilter({} as ExtensionAPI, true, { force: true });
+		applyGlobalFilter(true, { force: true });
 
 		expect(reRegister).toHaveBeenCalledWith([freeModel]);
 	});

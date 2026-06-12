@@ -35,7 +35,16 @@ import {
 const _logger = createLogger("built-in-toggle");
 
 // OpenCode requires per-request ids; see createOpenCodeStreamSimple().
-const _opencodeSession = createOpenCodeSessionTracker();
+// Lazy-initialised because the OpenCode dynamic fetcher in
+// providers/dynamic-built-in/ usually wins the race for `opencode`,
+// leaving this fallback capture unused — no point allocating the
+// session tracker on every module import.
+let _opencodeSession: ReturnType<typeof createOpenCodeSessionTracker> | null =
+	null;
+function getOpenCodeSession() {
+	if (!_opencodeSession) _opencodeSession = createOpenCodeSessionTracker();
+	return _opencodeSession;
+}
 
 // =============================================================================
 // Configuration
@@ -144,7 +153,7 @@ function tryCaptureProvider(
 			apiKey: apiKeyEnv,
 			api: isOpenCodeProvider(config.id) ? OPENCODE_DYNAMIC_API : api,
 			...(isOpenCodeProvider(config.id)
-				? { streamSimple: createOpenCodeStreamSimple(_opencodeSession) }
+				? { streamSimple: createOpenCodeStreamSimple(getOpenCodeSession()) }
 				: {}),
 			models,
 		});

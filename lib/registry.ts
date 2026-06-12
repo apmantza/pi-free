@@ -5,10 +5,7 @@
  * without creating a circular dependency.
  */
 
-import type {
-	ExtensionAPI,
-	ProviderModelConfig,
-} from "@earendil-works/pi-coding-agent";
+import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { getFreeOnly, getProviderShowPaid, saveConfig } from "../config.ts";
 import { createLogger } from "./logger.ts";
 
@@ -221,7 +218,6 @@ function applyFilterToProvider(
 }
 
 export function applyGlobalFilter(
-	_pi: ExtensionAPI,
 	freeOnly: boolean,
 	options: { force?: boolean } = {},
 ): void {

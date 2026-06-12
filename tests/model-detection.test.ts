@@ -2,7 +2,7 @@
  * Model Detection Tests
  *
  * Covers normalizeModelName, detectModelFamily, getModelFamilies,
- * isModelFree, toModelInfo, and toProviderModelInfo.
+ * toModelInfo, and toProviderModelInfo.
  */
 
 import { describe, expect, it } from "vitest";
@@ -10,7 +10,6 @@ import type { ModelInfo } from "../lib/model-detection.ts";
 import {
 	detectModelFamily,
 	getModelFamilies,
-	isModelFree,
 	normalizeModelName,
 	toModelInfo,
 	toProviderModelInfo,
@@ -74,28 +73,6 @@ describe("normalizeModelName", () => {
 
 	it("handles only whitespace", () => {
 		expect(normalizeModelName("   ")).toBe("");
-	});
-});
-
-// =============================================================================
-// isModelFree
-// =============================================================================
-
-describe("isModelFree", () => {
-	it("returns true when cost is undefined", () => {
-		expect(isModelFree({})).toBe(true);
-	});
-
-	it("returns true when input and output are zero", () => {
-		expect(isModelFree({ cost: { input: 0, output: 0 } })).toBe(true);
-	});
-
-	it("returns false when input cost is non-zero", () => {
-		expect(isModelFree({ cost: { input: 1, output: 0 } })).toBe(false);
-	});
-
-	it("returns false when output cost is non-zero", () => {
-		expect(isModelFree({ cost: { input: 0, output: 0.5 } })).toBe(false);
 	});
 });
 

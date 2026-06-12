@@ -8,19 +8,8 @@
  */
 
 import { createLogger } from "./logger.ts";
-import { ensureDir, resolveSafeDataFile } from "./paths.ts";
-import { dirname } from "node:path";
-import { readFileSync, writeFileSync } from "node:fs";
-
-/**
- * JSON.parse reviver that strips prototype-pollution payloads.
- */
-function safeJsonReviver(_key: string, value: unknown): unknown {
-	if (_key === "__proto__" || _key === "constructor") {
-		return undefined;
-	}
-	return value;
-}
+import { resolveSafeDataFile } from "./paths.ts";
+import { createJSONStore } from "./json-persistence.ts";
 
 const _logger = createLogger("telemetry");
 
@@ -87,53 +76,29 @@ const TELEMETRY_FILE = resolveSafeDataFile(
 );
 const MAX_RECENT_CALLS = 50;
 
-// In-flight tracking: keyed by "provider/model", value is start timestamp
+// In-flight tracking: keyed by "provider/model", value is start timestamp.
+// TTL: 1 hour — anything older is stale (the matching recordModelCall
+// never fired, e.g. the agent was killed mid-call) and gets reaped
+// on the next startModelCall/recordModelCall.
 const _inFlight = new Map<string, number>();
+const _IN_FLIGHT_TTL_MS = 60 * 60 * 1000;
 
-class Lock {
-	private promise: Promise<void> = Promise.resolve();
-
-	async acquire(): Promise<() => void> {
-		let release: () => void;
-		const newPromise = new Promise<void>((resolve) => {
-			release = resolve;
-		});
-		const previous = this.promise;
-		this.promise = previous.then(() => newPromise);
-		await previous;
-		return release!;
+function reapStaleInFlight(now: number): void {
+	for (const [key, start] of _inFlight) {
+		if (now - start > _IN_FLIGHT_TTL_MS) {
+			_inFlight.delete(key);
+		}
 	}
 }
-
-const _telemetryLock = new Lock();
 
 // =============================================================================
 // Storage
 // =============================================================================
 
-function loadStore(): TelemetryStore {
-	try {
-		const raw = readFileSync(TELEMETRY_FILE, "utf-8");
-		return JSON.parse(raw, safeJsonReviver) as TelemetryStore;
-	} catch (err) {
-		_logger.warn("Failed to load telemetry store, resetting", {
-			error: String(err),
-		});
-		return { models: {}, lastUpdated: Date.now() };
-	}
-}
-
-function saveStore(store: TelemetryStore): void {
-	try {
-		ensureDir(dirname(TELEMETRY_FILE));
-		store.lastUpdated = Date.now();
-		writeFileSync(TELEMETRY_FILE, JSON.stringify(store, null, 2), "utf-8");
-	} catch (err) {
-		_logger.warn("Failed to save telemetry store", {
-			error: String(err),
-		});
-	}
-}
+const _store = createJSONStore<TelemetryStore>(TELEMETRY_FILE, {
+	models: {},
+	lastUpdated: Date.now(),
+});
 
 // =============================================================================
 // Entry management
@@ -207,9 +172,7 @@ function deriveModelTelemetry(
 }
 
 async function addEntry(entry: TelemetryEntry): Promise<void> {
-	const release = await _telemetryLock.acquire();
-	try {
-		const store = loadStore();
+	await _store.update((store) => {
 		const modelKey = `${entry.provider}/${entry.model}`;
 
 		const existing: TelemetryEntry[] =
@@ -219,11 +182,15 @@ async function addEntry(entry: TelemetryEntry): Promise<void> {
 		// Keep only last MAX_RECENT_CALLS * 2 in raw storage (we derive stats from these)
 		const pruned = existing.slice(-MAX_RECENT_CALLS * 2);
 
-		store.models[modelKey] = deriveModelTelemetry(modelKey, pruned);
-		saveStore(store);
-	} finally {
-		release();
-	}
+		return {
+			...store,
+			models: {
+				...store.models,
+				[modelKey]: deriveModelTelemetry(modelKey, pruned),
+			},
+			lastUpdated: Date.now(),
+		};
+	});
 }
 
 // =============================================================================
@@ -234,8 +201,7 @@ async function addEntry(entry: TelemetryEntry): Promise<void> {
  * Get telemetry for all tracked models.
  */
 export function getAllTelemetry(): Record<string, ModelTelemetry> {
-	const store = loadStore();
-	return store.models;
+	return _store.load().models;
 }
 
 /**
@@ -245,8 +211,7 @@ export function getModelTelemetry(
 	provider: string,
 	model: string,
 ): ModelTelemetry | null {
-	const store = loadStore();
-	return store.models[`${provider}/${model}`] ?? null;
+	return _store.load().models[`${provider}/${model}`] ?? null;
 }
 
 /**
@@ -285,7 +250,7 @@ export function getProviderTelemetry(provider: string): {
 	totalCost: number;
 	models: number;
 } {
-	const store = loadStore();
+	const store = _store.load();
 	let totalCalls = 0;
 	let totalCost = 0;
 	let models = 0;
@@ -307,7 +272,9 @@ export function getProviderTelemetry(provider: string): {
  */
 export function startModelCall(provider: string, model: string): void {
 	const key = `${provider}/${model}`;
-	_inFlight.set(key, Date.now());
+	const now = Date.now();
+	reapStaleInFlight(now);
+	_inFlight.set(key, now);
 }
 
 /** Options for {@link recordModelCall} */
@@ -376,13 +343,10 @@ export async function recordModelCall(
  * Clear all telemetry data.
  */
 export async function clearTelemetry(): Promise<void> {
-	const release = await _telemetryLock.acquire();
-	try {
-		const store: TelemetryStore = { models: {}, lastUpdated: Date.now() };
-		saveStore(store);
-	} finally {
-		release();
-	}
+	await _store.update(() => ({
+		models: {},
+		lastUpdated: Date.now(),
+	}));
 }
 
 /**

@@ -68,7 +68,7 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 		handler: async (_args, ctx) => {
 			const current = getGlobalFreeOnly();
 			const next = !current;
-			applyGlobalFilter(pi, next, { force: true });
+			applyGlobalFilter(next, { force: true });
 
 			const registry = getProviderRegistry();
 			const providerCount = registry.size;
@@ -361,7 +361,7 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 	// Apply initial global filter if free-only mode is enabled
 	if (globalFreeOnly) {
 		_logger.info("[pi-free] Applying initial free-only filter");
-		applyGlobalFilter(pi, true);
+		applyGlobalFilter(true);
 	}
 
 	const registry = getProviderRegistry();

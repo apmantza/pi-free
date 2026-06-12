@@ -30,10 +30,23 @@ const LOG_LEVELS: Record<LogLevel, number> = {
 };
 
 // Console default: error-only. Set LOG_LEVEL=debug or LOG_LEVEL=info to see more.
-const currentLevel: LogLevel = (process.env.LOG_LEVEL as LogLevel) || "error";
 // File default: debug (so we can inspect full behavior in ~/.pi/free.log).
-const fileLevel: LogLevel =
-	(process.env.PI_FREE_LOG_LEVEL as LogLevel) || "debug";
+const VALID_LEVELS = new Set<LogLevel>(["debug", "info", "warn", "error"]);
+
+function parseLogLevel(
+	envValue: string | undefined,
+	defaultLevel: LogLevel,
+): LogLevel {
+	if (!envValue) return defaultLevel;
+	const normalized = envValue.toLowerCase() as LogLevel;
+	return VALID_LEVELS.has(normalized) ? normalized : defaultLevel;
+}
+
+const currentLevel: LogLevel = parseLogLevel(process.env.LOG_LEVEL, "error");
+const fileLevel: LogLevel = parseLogLevel(
+	process.env.PI_FREE_LOG_LEVEL,
+	"debug",
+);
 
 function shouldLog(level: LogLevel, minLevel: LogLevel): boolean {
 	return LOG_LEVELS[level] >= LOG_LEVELS[minLevel];

@@ -6,6 +6,29 @@ import {
 import type { ProviderModelConfig as PiProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import type { ProviderModelConfig } from "./types.ts";
 
+/**
+ * Optional callbacks that providers can pass to
+ * `fetchOpenAICompatibleModels` to override default reasoning/compat
+ * detection logic. Keeping these as injected dependencies (rather
+ * than hard-coding `isLikelyReasoningModel` / `getProxyModelCompat`)
+ * lets `lib/util.ts` stay decoupled from `lib/provider-compat.ts`.
+ */
+export interface OpenAIModelCallbacks {
+	/**
+	 * Determine whether a model is a reasoning model.
+	 * If omitted, defaults to `isLikelyReasoningModel` from provider-compat.
+	 */
+	detectReasoning?: (model: { id: string; name?: string }) => boolean;
+	/**
+	 * Determine proxy-compat overrides for a model.
+	 * If omitted, defaults to `getProxyModelCompat` from provider-compat.
+	 */
+	getProxyCompat?: (model: {
+		id: string;
+		name?: string;
+	}) => PiProviderModelConfig["compat"] | undefined;
+}
+
 const _logger = createLogger("util");
 
 // =============================================================================
@@ -444,8 +467,12 @@ export async function fetchOpenAICompatibleModels(
 	baseUrl: string,
 	apiKey: string,
 	defaults: OpenAIModelDefaults = {},
+	callbacks: OpenAIModelCallbacks = {},
 ): Promise<PiProviderModelConfig[]> {
 	const logger = createLogger(providerId);
+	const detectReasoning =
+		callbacks.detectReasoning ?? isLikelyReasoningModel;
+	const getCompat = callbacks.getProxyCompat ?? getProxyModelCompat;
 
 	logger.info(`[${providerId}] Fetching models...`);
 
@@ -496,7 +523,7 @@ export async function fetchOpenAICompatibleModels(
 
 				// Use per-model reasoning flag if the API provides it
 				const reasoning =
-					m.reasoning ?? isLikelyReasoningModel({ id: m.id, name });
+					m.reasoning ?? detectReasoning({ id: m.id, name });
 
 				// Use per-model input_modalities if the API provides it
 				const hasVision = m.input_modalities?.includes("image") ?? false;
@@ -532,7 +559,7 @@ export async function fetchOpenAICompatibleModels(
 					},
 					contextWindow,
 					maxTokens,
-					compat: getProxyModelCompat({ id: m.id, name }),
+					compat: getCompat({ id: m.id, name }),
 					_pricingKnown: hasApiPricing,
 				} as PiProviderModelConfig & { _pricingKnown?: boolean };
 			});

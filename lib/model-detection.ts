@@ -23,16 +23,6 @@ export interface ModelFamily {
 }
 
 /**
- * Check if a model is free (zero input and output cost)
- */
-export function isModelFree(model: {
-	cost?: { input: number; output: number };
-}): boolean {
-	if (!model.cost) return true;
-	return model.cost.input === 0 && model.cost.output === 0;
-}
-
-/**
  * Convert Pi's Model type to ModelInfo for internal use
  */
 export function toModelInfo(model: Model<any>): ModelInfo {
@@ -40,7 +30,7 @@ export function toModelInfo(model: Model<any>): ModelInfo {
 		id: model.id,
 		name: model.name,
 		provider: model.provider,
-		isFree: isModelFree(model),
+		isFree: !model.cost || (model.cost.input === 0 && model.cost.output === 0),
 		inputCost: model.cost?.input ?? 0,
 		outputCost: model.cost?.output ?? 0,
 	};
@@ -54,7 +44,7 @@ export function toProviderModelInfo(model: ProviderModelConfig): ModelInfo {
 		id: model.id,
 		name: model.name,
 		provider: "", // Will be set by caller
-		isFree: isModelFree(model),
+		isFree: !model.cost || (model.cost.input === 0 && model.cost.output === 0),
 		inputCost: model.cost?.input ?? 0,
 		outputCost: model.cost?.output ?? 0,
 	};

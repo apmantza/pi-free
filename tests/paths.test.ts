@@ -31,9 +31,9 @@ describe("resolveSafeDataFile", () => {
 	});
 
 	it("rejects paths containing backslashes", () => {
-		expect(resolveSafeDataFile("..\\windows\\system32\\evil.exe", "free.log")).toBe(
-			join(PI_DATA_DIR, "free.log"),
-		);
+		expect(
+			resolveSafeDataFile("..\\windows\\system32\\evil.exe", "free.log"),
+		).toBe(join(PI_DATA_DIR, "free.log"));
 	});
 
 	it("rejects paths containing null bytes", () => {

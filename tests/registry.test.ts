@@ -124,9 +124,9 @@ describe("getGlobalFreeOnly", () => {
 
 	it("reflects changes after applyGlobalFilter", () => {
 		const before = getGlobalFreeOnly();
-		applyGlobalFilter(mockPi, !before);
+		applyGlobalFilter(!before);
 		expect(getGlobalFreeOnly()).toBe(!before);
-		applyGlobalFilter(mockPi, before);
+		applyGlobalFilter(before);
 	});
 });
 
@@ -156,7 +156,7 @@ describe("applyGlobalFilter", () => {
 		const reRegister = vi.fn();
 
 		registerWithGlobalToggle("af-test-1", { free, all }, reRegister, true);
-		applyGlobalFilter(mockPi, true);
+		applyGlobalFilter(true);
 
 		expect(reRegister).toHaveBeenCalledTimes(1);
 		expect(reRegister).toHaveBeenCalledWith(free);
@@ -168,7 +168,7 @@ describe("applyGlobalFilter", () => {
 		const reRegister = vi.fn();
 
 		registerWithGlobalToggle("af-test-2", { free, all }, reRegister, true);
-		applyGlobalFilter(mockPi, false);
+		applyGlobalFilter(false);
 
 		expect(reRegister).toHaveBeenCalledTimes(1);
 		expect(reRegister).toHaveBeenCalledWith(all);
@@ -179,7 +179,7 @@ describe("applyGlobalFilter", () => {
 		const reRegister = vi.fn();
 
 		registerWithGlobalToggle("af-test-3", { free, all: [] }, reRegister, true);
-		applyGlobalFilter(mockPi, false);
+		applyGlobalFilter(false);
 
 		expect(reRegister).toHaveBeenCalledWith(free);
 	});
@@ -191,7 +191,7 @@ describe("applyGlobalFilter", () => {
 
 		registerWithGlobalToggle("af-test-4", { free, all }, reRegister, true);
 
-		expect(() => applyGlobalFilter(mockPi, true)).not.toThrow();
+		expect(() => applyGlobalFilter(true)).not.toThrow();
 		expect(reRegister).not.toHaveBeenCalled();
 	});
 
@@ -210,7 +210,7 @@ describe("applyGlobalFilter", () => {
 			reRegB,
 		);
 
-		applyGlobalFilter(mockPi, true);
+		applyGlobalFilter(true);
 
 		expect(reRegA).toHaveBeenCalledTimes(1);
 		expect(reRegB).toHaveBeenCalledTimes(1);
@@ -233,7 +233,7 @@ describe("applyGlobalFilter", () => {
 			goodReRegister,
 		);
 
-		expect(() => applyGlobalFilter(mockPi, true)).not.toThrow();
+		expect(() => applyGlobalFilter(true)).not.toThrow();
 		expect(goodReRegister).toHaveBeenCalledTimes(1);
 	});
 });
