@@ -15,6 +15,7 @@
  * - SambaNova: Fast inference on RDU hardware (free tier, no credit card)
  * - Together: Fast inference on 200+ open-source models ($1 trial credit)
  * - Routeway: OpenAI-compatible gateway with free `:free` models
+ * - TokenRouter: OpenAI-compatible gateway routing to 90+ models
  * - LLM7: AI gateway (free default/fast selectors)
  */
 
@@ -50,6 +51,7 @@ import sambanova from "./providers/sambanova/sambanova.ts";
 import together from "./providers/together/together.ts";
 import novita from "./providers/novita/novita.ts";
 import routeway from "./providers/routeway/routeway.ts";
+import tokenRouter from "./providers/tokenrouter/tokenrouter.ts";
 import ollama from "./providers/ollama/ollama.ts";
 import zenmux from "./providers/zenmux/zenmux.ts";
 
@@ -302,7 +304,11 @@ function setupTelemetry(pi: ExtensionAPI) {
 			model,
 			{ input: inputTokens, output: outputTokens, totalTokens },
 			cost,
-			{ success: !isError, stopReason: msg.stopReason, errorMessage: msg.errorMessage },
+			{
+				success: !isError,
+				stopReason: msg.stopReason,
+				errorMessage: msg.errorMessage,
+			},
 		);
 	});
 }
@@ -339,7 +345,8 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 		together(pi),
 		novita(pi),
 		routeway(pi),
-	]);
+		tokenRouter(pi),
+]);
 
 	// Setup dynamic built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face,
 	// OpenRouter/OpenCode from Pi auth, and FastRouter public model discovery)

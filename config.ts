@@ -17,6 +17,7 @@ export {
 	PROVIDER_MODAL,
 	PROVIDER_QWEN,
 	PROVIDER_ROUTEWAY,
+	PROVIDER_TOKENROUTER,
 } from "./constants.ts";
 import { createLogger } from "./lib/logger.ts";
 
@@ -35,6 +36,7 @@ interface PiFreeConfig {
 	novita_api_key?: string;
 	routeway_api_key?: string;
 	fastrouter_api_key?: string;
+	tokenrouter_api_key?: string;
 	kilo_free_only?: boolean;
 	hidden_models?: string[];
 	free_only?: boolean;
@@ -51,6 +53,7 @@ interface PiFreeConfig {
 	novita_show_paid?: boolean;
 	routeway_show_paid?: boolean;
 	fastrouter_show_paid?: boolean;
+	tokenrouter_show_paid?: boolean;
 	openrouter_show_paid?: boolean;
 	opencode_show_paid?: boolean;
 }
@@ -68,6 +71,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	novita_api_key: "",
 	routeway_api_key: "",
 	fastrouter_api_key: "",
+	tokenrouter_api_key: "",
 
 	kilo_free_only: false,
 	hidden_models: [],
@@ -85,6 +89,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	novita_show_paid: false,
 	routeway_show_paid: false,
 	fastrouter_show_paid: false,
+	tokenrouter_show_paid: false,
 	openrouter_show_paid: false,
 	opencode_show_paid: false,
 };
@@ -230,6 +235,13 @@ export function getRoutewayShowPaid(): boolean {
 	return resolveBool("ROUTEWAY_SHOW_PAID", loadConfigFile().routeway_show_paid);
 }
 
+export function getTokenrouterShowPaid(): boolean {
+	return resolveBool(
+		"TOKENROUTER_SHOW_PAID",
+		loadConfigFile().tokenrouter_show_paid,
+	);
+}
+
 export function getFastrouterShowPaid(): boolean {
 	return resolveBool(
 		"FASTROUTER_SHOW_PAID",
@@ -276,6 +288,8 @@ export function getProviderShowPaid(providerId: string): boolean {
 			return getNovitaShowPaid();
 		case "routeway":
 			return getRoutewayShowPaid();
+		case "tokenrouter":
+			return getTokenrouterShowPaid();
 		case "fastrouter":
 			return getFastrouterShowPaid();
 		case "ollama-cloud":
@@ -347,6 +361,10 @@ export function getRoutewayApiKey(): string | undefined {
 
 export function getFastrouterApiKey(): string | undefined {
 	return resolve("FASTROUTER_API_KEY", loadConfigFile().fastrouter_api_key);
+}
+
+export function getTokenrouterApiKey(): string | undefined {
+	return resolve("TOKENROUTER_API_KEY", loadConfigFile().tokenrouter_api_key);
 }
 
 export function getOllamaApiKey(): string | undefined {
