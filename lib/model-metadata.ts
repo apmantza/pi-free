@@ -1,5 +1,6 @@
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_FETCH_TIMEOUT_MS, URL_MODELS_DEV } from "../constants.ts";
+import { createLogger } from "./logger.ts";
 import { getProxyModelCompat } from "./provider-compat.ts";
 import type {
 	CostConfig,
@@ -12,13 +13,88 @@ import type {
 
 const DEFAULT_CONTEXT_WINDOW = 128_000;
 const DEFAULT_MAX_TOKENS = 16_384;
+const MODELS_DEV_CACHE_TTL_MS = 5 * 60 * 1000;
+const MODELS_DEV_RETRIES = 3;
+const MODELS_DEV_RETRY_DELAY_MS = 250;
 const MODELS_DEV_PROVIDER_ALIASES: Record<string, string> = {
 	together: "togetherai",
 	novita: "novita-ai",
 };
 
+const _logger = createLogger("model-metadata");
+
 type ThinkingLevelMap = NonNullable<ProviderModelConfig["thinkingLevelMap"]>;
 type ModelCompat = NonNullable<ProviderModelConfig["compat"]>;
+
+let catalogCache:
+	| {
+			expiresAt: number;
+			promise: Promise<Record<string, ModelsDevProvider>>;
+	  }
+	| undefined;
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function clearModelsDevMetaCache(): void {
+	catalogCache = undefined;
+}
+
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
+
+async function fetchModelsDevCatalog(): Promise<Record<string, ModelsDevProvider>> {
+	let lastError: unknown;
+
+	for (let attempt = 1; attempt <= MODELS_DEV_RETRIES; attempt++) {
+		try {
+			const response = await fetch(URL_MODELS_DEV, {
+				headers: { "User-Agent": "pi-free-providers" },
+				signal: AbortSignal.timeout(DEFAULT_FETCH_TIMEOUT_MS),
+			});
+			if (response.ok) {
+				return (await response.json()) as Record<string, ModelsDevProvider>;
+			}
+
+			lastError = new Error(
+				`HTTP ${response.status} ${response.statusText}`.trim(),
+			);
+		} catch (error) {
+			lastError = error;
+		}
+
+		if (attempt < MODELS_DEV_RETRIES) {
+			await sleep(MODELS_DEV_RETRY_DELAY_MS);
+		}
+	}
+
+	_logger.warn("Failed to fetch models.dev metadata", {
+		error: errorMessage(lastError),
+	});
+	return {};
+}
+
+function getModelsDevCatalog(): Promise<Record<string, ModelsDevProvider>> {
+	const now = Date.now();
+	if (catalogCache && catalogCache.expiresAt > now) {
+		return catalogCache.promise;
+	}
+
+	const promise = fetchModelsDevCatalog().catch((error) => {
+		catalogCache = undefined;
+		_logger.warn("Failed to load models.dev metadata", {
+			error: errorMessage(error),
+		});
+		return {};
+	});
+	catalogCache = {
+		expiresAt: now + MODELS_DEV_CACHE_TTL_MS,
+		promise,
+	};
+	return promise;
+}
 
 function collectAllModels(
 	catalog: Record<string, ModelsDevProvider>,
@@ -32,23 +108,43 @@ function collectAllModels(
 	return allModels;
 }
 
+function hasModels(
+	models: Record<string, ModelsDevModel> | undefined,
+): models is Record<string, ModelsDevModel> {
+	return models !== undefined && Object.keys(models).length > 0;
+}
+
+function findProviderModels(
+	catalog: Record<string, ModelsDevProvider>,
+	providerId: string,
+): Record<string, ModelsDevModel> | undefined {
+	const ids = new Set(
+		[providerId, MODELS_DEV_PROVIDER_ALIASES[providerId]].filter(
+			(id): id is string => Boolean(id),
+		),
+	);
+
+	for (const id of ids) {
+		const directModels = catalog[id]?.models;
+		if (hasModels(directModels)) return directModels;
+	}
+
+	for (const provider of Object.values(catalog)) {
+		if (provider?.id && ids.has(provider.id) && hasModels(provider.models)) {
+			return provider.models;
+		}
+	}
+
+	return undefined;
+}
+
 export async function fetchModelsDevMeta(
 	providerId?: string,
 ): Promise<Record<string, ModelsDevModel>> {
-	const response = await fetch(URL_MODELS_DEV, {
-		headers: { "User-Agent": "pi-free-providers" },
-		signal: AbortSignal.timeout(DEFAULT_FETCH_TIMEOUT_MS),
-	});
-	if (!response.ok) return {};
-
-	const catalog = (await response.json()) as Record<string, ModelsDevProvider>;
+	const catalog = await getModelsDevCatalog();
 	if (providerId) {
-		const catalogProviderId =
-			MODELS_DEV_PROVIDER_ALIASES[providerId] ?? providerId;
-		const scopedModels = catalog[catalogProviderId]?.models;
-		if (scopedModels && Object.keys(scopedModels).length > 0) {
-			return scopedModels;
-		}
+		const scopedModels = findProviderModels(catalog, providerId);
+		if (scopedModels) return scopedModels;
 	}
 
 	return collectAllModels(catalog);
@@ -163,6 +259,71 @@ export interface ModelsDevEnrichmentOptions {
 	enrichCompat?: boolean;
 }
 
+interface EnrichmentContext {
+	index: Map<string, ModelsDevModel>;
+	fallbackContextWindows: Set<number>;
+	fallbackMaxTokens: Set<number>;
+	enrichInput: boolean;
+	enrichReasoning: boolean;
+	enrichCost: "never" | "fallback-only";
+	enrichCompat: boolean;
+}
+
+function enrichModel<T extends ProviderModelConfig>(
+	model: T,
+	ctx: EnrichmentContext,
+): T & ModelsDevEnrichedMetadata {
+	const modelMeta = findModelDevMeta(ctx.index, model.id);
+	if (!modelMeta) return model;
+
+	const contextWindow =
+		modelMeta.limit && ctx.fallbackContextWindows.has(model.contextWindow)
+			? modelMeta.limit.context
+			: model.contextWindow;
+	const maxTokens =
+		modelMeta.limit && ctx.fallbackMaxTokens.has(model.maxTokens)
+			? modelMeta.limit.output
+			: model.maxTokens;
+	const input =
+		ctx.enrichInput &&
+		isTextOnly(model.input) &&
+		modelMeta.modalities?.input?.includes("image")
+			? (["text", "image"] as const)
+			: model.input;
+	const reasoning =
+		ctx.enrichReasoning && modelMeta.reasoning === true ? true : model.reasoning;
+	const thinkingLevelMap =
+		ctx.enrichReasoning && model.thinkingLevelMap === undefined
+			? thinkingMapFromReasoningOptions(modelMeta.reasoning_options)
+			: model.thinkingLevelMap;
+	const cost =
+		ctx.enrichCost === "fallback-only" && costLooksLikeFallback(model.cost)
+			? (costFromModelsDev(modelMeta.cost) ?? model.cost)
+			: model.cost;
+	const compat = ctx.enrichCompat
+		? mergeCompat(model.compat, getProxyModelCompat(identityFromMeta(model, modelMeta)))
+		: model.compat;
+
+	const modelsDevMetadata: ModelMatchHints = {
+		id: modelMeta.id,
+		name: modelMeta.name,
+		...(modelMeta.family ? { family: modelMeta.family } : {}),
+		...(modelMeta.provider ? { provider: modelMeta.provider } : {}),
+	};
+
+	return {
+		...model,
+		contextWindow,
+		maxTokens,
+		input,
+		reasoning,
+		...(thinkingLevelMap ? { thinkingLevelMap } : {}),
+		cost,
+		...(compat ? { compat } : {}),
+		modelsDev: modelsDevMetadata,
+	};
+}
+
 /**
  * Fill Pi-usable model fields from models.dev when provider APIs only expose
  * generic defaults. Fail-open: network/API failures leave models unchanged.
@@ -176,83 +337,40 @@ export async function enrichModelsWithModelsDev<T extends ProviderModelConfig>(
 	let meta: Record<string, ModelsDevModel>;
 	try {
 		meta = await fetchModelsDevMeta(options.providerId);
-	} catch {
+	} catch (error) {
+		_logger.warn("Failed to load models.dev metadata", {
+			providerId: options.providerId,
+			error: errorMessage(error),
+		});
 		return models;
 	}
 	if (Object.keys(meta).length === 0) return models;
 
-	const index = buildModelMetaIndex(meta);
-	const fallbackContextWindows = new Set(
-		options.fallbackContextWindows ?? [DEFAULT_CONTEXT_WINDOW, 4096],
-	);
-	const fallbackMaxTokens = new Set(
-		options.fallbackMaxTokens ?? [DEFAULT_MAX_TOKENS, 4096],
-	);
-	const enrichInput = options.enrichInput ?? true;
-	const enrichReasoning = options.enrichReasoning ?? true;
-	const enrichCost = options.enrichCost ?? "never";
-	const enrichCompat = options.enrichCompat ?? true;
+	const ctx: EnrichmentContext = {
+		index: buildModelMetaIndex(meta),
+		fallbackContextWindows: new Set(
+			options.fallbackContextWindows ?? [DEFAULT_CONTEXT_WINDOW, 4096],
+		),
+		fallbackMaxTokens: new Set(
+			options.fallbackMaxTokens ?? [DEFAULT_MAX_TOKENS, 4096],
+		),
+		enrichInput: options.enrichInput ?? true,
+		enrichReasoning: options.enrichReasoning ?? true,
+		enrichCost: options.enrichCost ?? "never",
+		enrichCompat: options.enrichCompat ?? true,
+	};
 
-	try {
-		return models.map((model) => {
-			const modelMeta = findModelDevMeta(index, model.id);
-			if (!modelMeta) return model;
-
-			const contextWindow =
-				modelMeta.limit && fallbackContextWindows.has(model.contextWindow)
-					? modelMeta.limit.context
-					: model.contextWindow;
-			const maxTokens =
-				modelMeta.limit && fallbackMaxTokens.has(model.maxTokens)
-					? modelMeta.limit.output
-					: model.maxTokens;
-			const input =
-				enrichInput &&
-				isTextOnly(model.input) &&
-				modelMeta.modalities?.input?.includes("image")
-					? (["text", "image"] as const)
-					: model.input;
-			const reasoning =
-				enrichReasoning && modelMeta.reasoning === true
-					? true
-					: model.reasoning;
-			const thinkingLevelMap =
-				enrichReasoning && model.thinkingLevelMap === undefined
-					? thinkingMapFromReasoningOptions(modelMeta.reasoning_options)
-					: model.thinkingLevelMap;
-			const cost =
-				enrichCost === "fallback-only" && costLooksLikeFallback(model.cost)
-					? (costFromModelsDev(modelMeta.cost) ?? model.cost)
-					: model.cost;
-			const compat = enrichCompat
-				? mergeCompat(
-						model.compat,
-						getProxyModelCompat(identityFromMeta(model, modelMeta)),
-					)
-				: model.compat;
-
-			const modelsDevMetadata: ModelMatchHints = {
-				id: modelMeta.id,
-				name: modelMeta.name,
-				...(modelMeta.family ? { family: modelMeta.family } : {}),
-				...(modelMeta.provider ? { provider: modelMeta.provider } : {}),
-			};
-
-			return {
-				...model,
-				contextWindow,
-				maxTokens,
-				input,
-				reasoning,
-				...(thinkingLevelMap ? { thinkingLevelMap } : {}),
-				cost,
-				...(compat ? { compat } : {}),
-				modelsDev: modelsDevMetadata,
-			};
-		});
-	} catch {
-		return models;
-	}
+	return models.map((model) => {
+		try {
+			return enrichModel(model, ctx);
+		} catch (error) {
+			_logger.warn("Failed to enrich model from models.dev metadata", {
+				modelId: model.id,
+				error: errorMessage(error),
+			});
+			return model;
+		}
+	});
 }
 
 export async function safeEnrichModelsWithModelsDev<

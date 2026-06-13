@@ -1,6 +1,7 @@
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+	clearModelsDevMetaCache,
 	enrichModelsWithModelsDev,
 	fetchModelsDevMeta,
 } from "../lib/model-metadata.ts";
@@ -24,6 +25,7 @@ function mockModelsDev(catalog: unknown) {
 
 describe("models.dev metadata enrichment", () => {
 	afterEach(() => {
+		clearModelsDevMetaCache();
 		vi.restoreAllMocks();
 	});
 
@@ -150,9 +152,9 @@ describe("models.dev metadata enrichment", () => {
 		});
 	});
 
-	it("uses provider aliases and falls back to the full catalog", async () => {
+	it("uses provider aliases, provider id fields, and falls back to the full catalog", async () => {
 		mockModelsDev({
-			togetherai: {
+			"non-canonical-key": {
 				id: "togetherai",
 				models: {
 					"Qwen/Qwen3.6-Plus": {
@@ -173,6 +175,41 @@ describe("models.dev metadata enrichment", () => {
 			{ providerId: "gateway-not-in-catalog" },
 		);
 		expect(model.contextWindow).toBe(131_072);
+	});
+
+	it("reuses one models.dev catalog fetch across provider lookups", async () => {
+		mockModelsDev({
+			togetherai: {
+				id: "togetherai",
+				models: {
+					"Qwen/Qwen3.6-Plus": {
+						id: "Qwen/Qwen3.6-Plus",
+						name: "Qwen3.6 Plus",
+						reasoning: true,
+						limit: { context: 131_072, output: 16_384 },
+					},
+				},
+			},
+			novita: {
+				id: "novita-ai",
+				models: {
+					"moonshotai/Kimi-K2.6": {
+						id: "moonshotai/Kimi-K2.6",
+						name: "Kimi K2.6",
+						reasoning: true,
+						limit: { context: 131_072, output: 16_384 },
+					},
+				},
+			},
+		});
+
+		expect(
+			(await fetchModelsDevMeta("together"))["Qwen/Qwen3.6-Plus"],
+		).toBeDefined();
+		expect(
+			(await fetchModelsDevMeta("novita"))["moonshotai/Kimi-K2.6"],
+		).toBeDefined();
+		expect(globalThis.fetch).toHaveBeenCalledTimes(1);
 	});
 
 	it("fails open when metadata cannot be fetched", async () => {
