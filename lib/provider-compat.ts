@@ -1,9 +1,7 @@
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
+import type { ModelIdentity } from "./types.ts";
 
-export interface ProviderModelIdentity {
-	id: string;
-	name?: string;
-}
+export type ProviderModelIdentity = ModelIdentity;
 
 export const DEEPSEEK_PROXY_COMPAT: NonNullable<ProviderModelConfig["compat"]> =
 	{
@@ -23,13 +21,15 @@ const KIMI_PROXY_COMPAT: NonNullable<ProviderModelConfig["compat"]> = {
 	requiresReasoningContentOnAssistantMessages: true,
 };
 
-export function isDeepSeekModel(model: ProviderModelIdentity): boolean {
-	const haystack = `${model.id} ${model.name ?? ""}`.toLowerCase();
-	return haystack.includes("deepseek");
+function getModelHaystack(model: ProviderModelIdentity): string {
+	return [model.id, model.name, model.family, model.provider]
+		.filter(Boolean)
+		.join(" ")
+		.toLowerCase();
 }
 
-function getModelHaystack(model: ProviderModelIdentity): string {
-	return `${model.id} ${model.name ?? ""}`.toLowerCase();
+export function isDeepSeekModel(model: ProviderModelIdentity): boolean {
+	return getModelHaystack(model).includes("deepseek");
 }
 
 /** MiMo/Xiaomi reasoning models expose OpenAI-compatible reasoning controls

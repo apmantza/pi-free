@@ -19,6 +19,15 @@ describe("provider-compat", () => {
 			).toBe(true);
 		});
 
+		it("detects DeepSeek from metadata family or provider case-insensitively", () => {
+			expect(isDeepSeekModel({ id: "opaque", family: "DeepSeek-V3" })).toBe(
+				true,
+			);
+			expect(isDeepSeekModel({ id: "opaque", provider: "DEEPSEEK" })).toBe(
+				true,
+			);
+		});
+
 		it("returns false for non-DeepSeek models", () => {
 			expect(isDeepSeekModel({ id: "openai/gpt-4.1" })).toBe(false);
 			expect(

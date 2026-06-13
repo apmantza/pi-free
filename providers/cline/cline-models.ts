@@ -14,6 +14,7 @@ import {
 	PROVIDER_CLINE,
 } from "../../constants.ts";
 import type { ProviderModelConfig } from "../../lib/types.ts";
+import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import { getProxyModelCompat } from "../../lib/provider-compat.ts";
 import { cleanModelName, fetchWithRetry } from "../../lib/util.ts";
 
@@ -243,7 +244,12 @@ export async function fetchClineModels(
 		? models.filter((m) => m.cost.input === 0 && m.cost.output === 0)
 		: models;
 
-	return applyHidden(filtered, PROVIDER_CLINE);
+	return applyHidden(
+		await safeEnrichModelsWithModelsDev(filtered, {
+			providerId: PROVIDER_CLINE,
+		}),
+		PROVIDER_CLINE,
+	);
 }
 
 /**

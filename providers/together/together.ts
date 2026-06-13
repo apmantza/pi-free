@@ -41,6 +41,7 @@ import {
 	PROVIDER_TOGETHER,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
+import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import {
 	getProxyModelCompat,
 	isLikelyReasoningModel,
@@ -100,7 +101,7 @@ async function fetchTogetherModels(
 
 	_logger.info(`[together] Fetched ${models.length} models`);
 
-	return models
+	const mapped = models
 		.filter((m) => m.type === "chat" && m.id && !m.id.includes("embed"))
 		.map((m): ProviderModelConfig => {
 			const name = m.display_name || m.id.split("/").pop() || m.id;
@@ -128,6 +129,10 @@ async function fetchTogetherModels(
 				_pricingKnown: m.pricing !== undefined,
 			} as ProviderModelConfig & { _pricingKnown?: boolean };
 		});
+
+	return await safeEnrichModelsWithModelsDev(mapped, {
+		providerId: PROVIDER_TOGETHER,
+	});
 }
 
 // =============================================================================

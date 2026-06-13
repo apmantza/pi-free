@@ -28,6 +28,7 @@ import {
 	PROVIDER_CROFAI,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
+import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import {
 	getProxyModelCompat,
 	isLikelyReasoningModel,
@@ -98,7 +99,7 @@ async function fetchCrofaiModels(
 
 	_logger.info(`[crofai] Fetched ${models.length} models`);
 
-	return models
+	const mapped = models
 		.filter((m) => m.id)
 		.map((m): ProviderModelConfig => {
 			const name = m.name || m.id;
@@ -125,6 +126,10 @@ async function fetchCrofaiModels(
 					m.pricing?.cache_prompt !== undefined,
 			} as ProviderModelConfig & { _pricingKnown?: boolean };
 		});
+
+	return await safeEnrichModelsWithModelsDev(mapped, {
+		providerId: PROVIDER_CROFAI,
+	});
 }
 
 // =============================================================================

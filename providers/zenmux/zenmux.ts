@@ -27,6 +27,7 @@ import {
 	PROVIDER_ZENMUX,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
+import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import { getProxyModelCompat } from "../../lib/provider-compat.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
@@ -97,7 +98,7 @@ async function fetchZenmuxModels(
 
 		_logger.info(`[zenmux] Fetched ${models.length} models`);
 
-		return models.map((m) => {
+		const mapped = models.map((m) => {
 			const hasPricings = m.pricings !== undefined;
 			return {
 				id: m.id,
@@ -117,6 +118,10 @@ async function fetchZenmuxModels(
 				compat: getProxyModelCompat(m),
 				_pricingKnown: hasPricings,
 			} as ProviderModelConfig & { _pricingKnown?: boolean };
+		});
+
+		return await safeEnrichModelsWithModelsDev(mapped, {
+			providerId: PROVIDER_ZENMUX,
 		});
 	} catch (error) {
 		_logger.error("[zenmux] Failed to fetch models:", {

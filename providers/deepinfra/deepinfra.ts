@@ -40,6 +40,7 @@ import {
 	PROVIDER_DEEPINFRA,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
+import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import {
 	getProxyModelCompat,
 	isLikelyReasoningModel,
@@ -101,7 +102,7 @@ async function fetchDeepinfraModels(
 
 	_logger.info(`[deepinfra] Fetched ${models.length} models`);
 
-	return models
+	const mapped = models
 		.filter((m) => {
 			const id = m.id.toLowerCase();
 			// Filter out non-chat models
@@ -141,6 +142,10 @@ async function fetchDeepinfraModels(
 				_pricingKnown: meta?.pricing !== undefined,
 			} as ProviderModelConfig & { _pricingKnown?: boolean };
 		});
+
+	return await safeEnrichModelsWithModelsDev(mapped, {
+		providerId: PROVIDER_DEEPINFRA,
+	});
 }
 
 // =============================================================================

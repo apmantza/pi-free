@@ -19,6 +19,7 @@ export async function fetchKiloModels(options?: {
 	freeOnly?: boolean;
 }): Promise<ProviderModelConfig[]> {
 	const models = await fetchOpenRouterCompatibleModels({
+		providerId: PROVIDER_KILO,
 		baseUrl: KILO_GATEWAY_BASE,
 		apiKey: options?.token,
 		freeOnly: options?.freeOnly,

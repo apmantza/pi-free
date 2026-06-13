@@ -31,6 +31,7 @@ import {
 } from "../../constants.ts";
 import { applyHidden } from "../../config.ts";
 import { createLogger } from "../../lib/logger.ts";
+import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import {
 	getProxyModelCompat,
 	isLikelyReasoningModel,
@@ -157,7 +158,13 @@ async function fetchRoutewayModels(
 		const models = (json.data ?? []).filter(isChatModel);
 
 		_logger.info(`[routeway] Fetched ${models.length} chat models`);
-		return applyHidden(models.map(mapRoutewayModel), PROVIDER_ROUTEWAY);
+		const enriched = await safeEnrichModelsWithModelsDev(
+			models.map(mapRoutewayModel),
+			{
+				providerId: PROVIDER_ROUTEWAY,
+			},
+		);
+		return applyHidden(enriched, PROVIDER_ROUTEWAY);
 	} catch (error) {
 		_logger.error("[routeway] Failed to fetch models", {
 			error: error instanceof Error ? error.message : String(error),

@@ -42,6 +42,7 @@ import {
 } from "../../config.ts";
 import { DEFAULT_FETCH_TIMEOUT_MS } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
+import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import { getProxyModelCompat } from "../../lib/provider-compat.ts";
 import {
 	getModelsDueForProbe,
@@ -72,6 +73,7 @@ const _opencodeSession = createOpenCodeSessionTracker();
 // =============================================================================
 
 interface FetchModelsOptions {
+	providerId: string;
 	baseUrl: string;
 	apiKey: string;
 	compat?: ProviderModelConfig["compat"];
@@ -111,7 +113,7 @@ async function fetchModelsFromEndpoint(
 		? body
 		: (body.data ?? []);
 
-	return rawModels.map((m) => {
+	const models = rawModels.map((m) => {
 		const id = String(m.id ?? "");
 		const inputModalities = m.input_modalities as string[] | undefined;
 		return {
@@ -123,7 +125,9 @@ async function fetchModelsFromEndpoint(
 				: (["text"] as const),
 			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 			contextWindow:
-				((m.max_context_length ?? m.context_window) as number) ??
+				((m.context_length ??
+					m.max_context_length ??
+					m.context_window) as number) ??
 				opts.modelDefaults?.contextWindow ??
 				128_000,
 			maxTokens:
@@ -134,6 +138,10 @@ async function fetchModelsFromEndpoint(
 			...opts.modelDefaults,
 			...(opts.compat ? { compat: opts.compat } : {}),
 		} satisfies ProviderModelConfig & { _pricingKnown?: boolean };
+	});
+
+	return await safeEnrichModelsWithModelsDev(models, {
+		providerId: opts.providerId,
 	});
 }
 
@@ -284,6 +292,7 @@ const DYNAMIC_PROVIDERS: DynamicProviderDef[] = [
 		// OpenRouter returns full pricing — use its dedicated fetcher
 		fetchModels: (apiKey) =>
 			fetchOpenRouterCompatibleModels({
+				providerId: "openrouter",
 				baseUrl: "https://openrouter.ai/api/v1",
 				apiKey,
 				freeOnly: false,
@@ -307,6 +316,7 @@ async function discoverAndRegister(
 			allModels = await config.fetchModels(apiKey);
 		} else {
 			allModels = await fetchModelsFromEndpoint({
+				providerId: config.providerId,
 				baseUrl: config.baseUrl,
 				apiKey,
 				compat: config.compat,
@@ -652,6 +662,7 @@ export async function setupDynamicBuiltInProviders(
 				defaultShowPaid: getFastrouterShowPaid,
 				fetchModels: () =>
 					fetchOpenRouterCompatibleModels({
+						providerId: "fastrouter",
 						baseUrl: "https://api.fastrouter.ai/api/v1",
 						apiKey: fastrouterApiKey,
 						freeOnly: false,

@@ -39,11 +39,7 @@ describe("Benchmark Lookup", () => {
 
 		it("should not throw for Ollama colon format", () => {
 			expect(() =>
-				enhanceModelNameWithCodingIndex(
-					"Llama 3",
-					"llama3:latest",
-					"ollama",
-				),
+				enhanceModelNameWithCodingIndex("Llama 3", "llama3:latest", "ollama"),
 			).not.toThrow();
 		});
 
@@ -89,11 +85,7 @@ describe("Benchmark Lookup", () => {
 
 		it("should not throw for models with date suffixes", () => {
 			expect(() =>
-				enhanceModelNameWithCodingIndex(
-					"GPT-4o",
-					"gpt-4o-20250514",
-					"openai",
-				),
+				enhanceModelNameWithCodingIndex("GPT-4o", "gpt-4o-20250514", "openai"),
 			).not.toThrow();
 		});
 
@@ -177,6 +169,38 @@ describe("Benchmark Lookup", () => {
 			);
 			expect(result).toBeNull();
 		});
+
+		it("should use models.dev hints for opaque gateway IDs", () => {
+			expect(
+				findHardcodedBenchmark("Opaque Gateway Model", "opaque-id", "gateway"),
+			).toBeNull();
+
+			const result = findHardcodedBenchmark(
+				"Opaque Gateway Model",
+				"opaque-id",
+				"gateway",
+				{
+					id: "moonshotai/Kimi-K2.6",
+					name: "Kimi K2.6",
+					family: "kimi-k2",
+					provider: "moonshotai",
+				},
+			);
+
+			expect(result?.codingIndex).toBeCloseTo(47.1);
+			expect(result?.originalModel).toBe("Kimi K2.6");
+		});
+
+		it("should ignore non-matching family-only hints in prefix fallback", () => {
+			const result = findHardcodedBenchmark(
+				"Opaque Gateway Model",
+				"opaque-id",
+				"gateway",
+				{ family: "this-fam-does-not-exist-12345" },
+			);
+
+			expect(result).toBeNull();
+		});
 	});
 
 	describe("getHardcodedScore", () => {
@@ -189,6 +213,48 @@ describe("Benchmark Lookup", () => {
 		it("should return null for unknown models", () => {
 			const score = getHardcodedScore("Unknown", "unknown", "test");
 			expect(score).toBeNull();
+		});
+
+		it("should return a score from models.dev hints", () => {
+			const score = getHardcodedScore(
+				"Opaque Gateway Model",
+				"opaque-id",
+				"gateway",
+				{ id: "moonshotai/Kimi-K2.6" },
+			);
+			expect(score).toBeCloseTo(47.1);
+		});
+	});
+
+	describe("models.dev match hints", () => {
+		it("should enhance names using models.dev hints", () => {
+			const name = enhanceModelNameWithCodingIndex(
+				"Opaque Gateway Model",
+				"opaque-id",
+				"gateway",
+				{ id: "moonshotai/Kimi-K2.6" },
+			);
+			expect(name).toBe("Opaque Gateway Model [CI: 47.1]");
+		});
+
+		it("should enhance names using models.dev name-only hints", () => {
+			const name = enhanceModelNameWithCodingIndex(
+				"Opaque Gateway Model",
+				"opaque-id",
+				"gateway",
+				{ name: "Kimi K2.6" },
+			);
+			expect(name).toBe("Opaque Gateway Model [CI: 47.1]");
+		});
+
+		it("should leave names unchanged when hints do not match", () => {
+			const name = enhanceModelNameWithCodingIndex(
+				"Opaque Gateway Model",
+				"opaque-id",
+				"gateway",
+				{ id: "unknown-canonical-model" },
+			);
+			expect(name).toBe("Opaque Gateway Model");
 		});
 	});
 
@@ -211,7 +277,9 @@ describe("Benchmark Lookup", () => {
 			const matches = content.match(replaceAllRegex) || [];
 
 			// Filter out false positives where 'g' might be present but not captured
-			const nonGlobalMatches = matches.filter((m: string) => !m.includes("/g,"));
+			const nonGlobalMatches = matches.filter(
+				(m: string) => !m.includes("/g,"),
+			);
 
 			if (nonGlobalMatches.length > 0) {
 				throw new Error(

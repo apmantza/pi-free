@@ -17,6 +17,10 @@ import { enhanceModelNameWithCodingIndex } from "./provider-failover/benchmark-l
 
 const _logger = createLogger("provider-helper");
 
+type ModelsDevEnrichedMetadata = {
+	modelsDev?: Parameters<typeof enhanceModelNameWithCodingIndex>[3];
+};
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -78,12 +82,17 @@ export interface OpenAICompatibleConfig {
  * Use this for direct provider registration (not through setupProvider)
  */
 export function enhanceWithCI(
-	models: ProviderModelConfig[],
+	models: Array<ProviderModelConfig & ModelsDevEnrichedMetadata>,
 	providerId?: string,
 ): ProviderModelConfig[] {
 	return models.map((m) => ({
 		...m,
-		name: enhanceModelNameWithCodingIndex(m.name, m.id, providerId),
+		name: enhanceModelNameWithCodingIndex(
+			m.name,
+			m.id,
+			providerId,
+			m.modelsDev,
+		),
 	}));
 }
 

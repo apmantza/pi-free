@@ -1,4 +1,5 @@
 import { createLogger } from "./logger.ts";
+import { safeEnrichModelsWithModelsDev } from "./model-metadata.ts";
 import {
 	getProxyModelCompat,
 	isLikelyReasoningModel,
@@ -470,8 +471,7 @@ export async function fetchOpenAICompatibleModels(
 	callbacks: OpenAIModelCallbacks = {},
 ): Promise<PiProviderModelConfig[]> {
 	const logger = createLogger(providerId);
-	const detectReasoning =
-		callbacks.detectReasoning ?? isLikelyReasoningModel;
+	const detectReasoning = callbacks.detectReasoning ?? isLikelyReasoningModel;
 	const getCompat = callbacks.getProxyCompat ?? getProxyModelCompat;
 
 	logger.info(`[${providerId}] Fetching models...`);
@@ -501,7 +501,7 @@ export async function fetchOpenAICompatibleModels(
 
 		logger.info(`[${providerId}] Fetched ${models.length} models`);
 
-		return models
+		const mapped = models
 			.filter((m) => m.id)
 			.map((m): PiProviderModelConfig => {
 				const name = m.id.split("/").pop() || m.id;
@@ -522,8 +522,7 @@ export async function fetchOpenAICompatibleModels(
 					4_096;
 
 				// Use per-model reasoning flag if the API provides it
-				const reasoning =
-					m.reasoning ?? detectReasoning({ id: m.id, name });
+				const reasoning = m.reasoning ?? detectReasoning({ id: m.id, name });
 
 				// Use per-model input_modalities if the API provides it
 				const hasVision = m.input_modalities?.includes("image") ?? false;
@@ -563,6 +562,8 @@ export async function fetchOpenAICompatibleModels(
 					_pricingKnown: hasApiPricing,
 				} as PiProviderModelConfig & { _pricingKnown?: boolean };
 			});
+
+		return await safeEnrichModelsWithModelsDev(mapped, { providerId });
 	} catch (error) {
 		logger.error(`[${providerId}] Failed to fetch models:`, {
 			error: error instanceof Error ? error.message : String(error),

@@ -27,6 +27,7 @@ import {
 	PROVIDER_TOKENROUTER,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
+import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import {
 	getProxyModelCompat,
 	isLikelyReasoningModel,
@@ -148,7 +149,11 @@ async function fetchTokenRouterModels(
 		const models = (json.data ?? []).filter(isTextChatModel);
 
 		_logger.info(`[tokenrouter] Fetched ${models.length} text chat models`);
-		return applyHidden(models.map(mapTokenRouterModel), PROVIDER_TOKENROUTER);
+		const enriched = await safeEnrichModelsWithModelsDev(
+			models.map(mapTokenRouterModel),
+			{ providerId: PROVIDER_TOKENROUTER },
+		);
+		return applyHidden(enriched, PROVIDER_TOKENROUTER);
 	} catch (error) {
 		_logger.error("[tokenrouter] Failed to fetch models", {
 			error: error instanceof Error ? error.message : String(error),

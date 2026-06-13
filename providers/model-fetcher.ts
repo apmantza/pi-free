@@ -3,8 +3,9 @@
  * Consolidates duplicate logic from openrouter.ts and kilo-models.ts
  */
 
-import { DEFAULT_FETCH_TIMEOUT_MS, URL_MODELS_DEV } from "../constants.ts";
-import type { ModelsDevModel, ProviderModelConfig } from "../lib/types.ts";
+import { DEFAULT_FETCH_TIMEOUT_MS } from "../constants.ts";
+import { safeEnrichModelsWithModelsDev } from "../lib/model-metadata.ts";
+import type { ProviderModelConfig } from "../lib/types.ts";
 import { fetchWithRetry, mapOpenRouterModel } from "../lib/util.ts";
 
 interface OpenRouterCompatibleModel {
@@ -28,6 +29,8 @@ interface OpenRouterCompatibleModel {
 }
 
 interface FetchModelsOptions {
+	/** Provider id for scoped models.dev enrichment (e.g., openrouter, kilo). */
+	providerId?: string;
 	/** Base URL for the API (e.g., https://api.openrouter.ai/api/v1) */
 	baseUrl: string;
 	/** API key for authentication (optional) */
@@ -93,7 +96,7 @@ export async function fetchOpenRouterCompatibleModels(
 		throw new Error("Invalid models response: missing data array");
 	}
 
-	return json.data
+	const models = json.data
 		.filter((m) => {
 			// Filter out image generation models
 			const outputMods = m.architecture?.output_modalities ?? [];
@@ -110,6 +113,10 @@ export async function fetchOpenRouterCompatibleModels(
 			return true;
 		})
 		.map(mapOpenRouterModel);
+
+	return await safeEnrichModelsWithModelsDev(models, {
+		providerId: options.providerId,
+	});
 }
 
 /**
@@ -130,53 +137,4 @@ export async function fetchOpenRouterModelsWithFree(
 	});
 
 	return { free, all };
-}
-
-// =============================================================================
-// Models.dev metadata fetching
-// =============================================================================
-
-interface ModelsDevResponse {
-	[id: string]: {
-		id?: string;
-		models?: Record<string, ModelsDevModel>;
-	};
-}
-
-/**
- * Fetch model metadata from models.dev.
- * @param providerId - If specified, only return models for that provider
- * @returns Map of model ID to model metadata
- */
-export async function fetchModelsDevMeta(
-	providerId?: string,
-): Promise<Record<string, ModelsDevModel>> {
-	const response = await fetchWithRetry(
-		URL_MODELS_DEV,
-		{
-			headers: { "User-Agent": "pi-free-providers" },
-		},
-		3,
-		1000,
-		DEFAULT_FETCH_TIMEOUT_MS,
-	);
-
-	if (!response.ok) return {};
-
-	const json = (await response.json()) as ModelsDevResponse;
-
-	// If providerId specified, return only that provider's models
-	if (providerId) {
-		const provider = Object.values(json).find((p) => p?.id === providerId);
-		return provider?.models ?? {};
-	}
-
-	// Otherwise, return all models from all providers
-	const allModels: Record<string, ModelsDevModel> = {};
-	for (const provider of Object.values(json)) {
-		if (provider?.models) {
-			Object.assign(allModels, provider.models);
-		}
-	}
-	return allModels;
 }

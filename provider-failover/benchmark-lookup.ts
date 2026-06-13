@@ -12,6 +12,7 @@
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type { ModelMatchHints } from "../lib/types.ts";
 import {
 	HARDCODED_BENCHMARKS,
 	type HardcodedBenchmark,
@@ -677,6 +678,7 @@ export function findHardcodedBenchmark(
 	modelName: string,
 	modelId: string,
 	provider?: string,
+	hints?: ModelMatchHints,
 ): HardcodedBenchmark | null {
 	// Normalize: convert colons to dashes (Ollama model:tag format)
 	const search = `${modelName} ${modelId}`.toLowerCase().replaceAll(":", "-");
@@ -699,9 +701,17 @@ export function findHardcodedBenchmark(
 	);
 	if (normalizedResult) return normalizedResult;
 
-	// 4. Prefix fallback with base model extraction
-	const prefix = tryPrefixFallback(normalized, provider, modelId, modelName);
-	if (prefix) return prefix;
+	// 4. Prefix fallback with base model extraction. Also try models.dev
+	// canonical IDs/names when available for opaque gateway model IDs.
+	const prefixCandidates = [normalized, hints?.id, hints?.name]
+		.map((candidate) =>
+			(candidate?.trim() ?? "").toLowerCase().replaceAll(/[\s_:]+/g, "-"),
+		)
+		.filter(Boolean);
+	for (const candidate of prefixCandidates) {
+		const prefix = tryPrefixFallback(candidate, provider, modelId, modelName);
+		if (prefix) return prefix;
+	}
 
 	// No match found
 	logDebug({
@@ -724,8 +734,9 @@ export function getHardcodedScore(
 	modelName: string,
 	modelId: string,
 	provider?: string,
+	hints?: ModelMatchHints,
 ): number | null {
-	const benchmark = findHardcodedBenchmark(modelName, modelId, provider);
+	const benchmark = findHardcodedBenchmark(modelName, modelId, provider, hints);
 	return benchmark?.codingIndex ?? null;
 }
 
@@ -737,8 +748,9 @@ export function enhanceModelNameWithCodingIndex(
 	modelName: string,
 	modelId: string,
 	provider?: string,
+	hints?: ModelMatchHints,
 ): string {
-	const benchmark = findHardcodedBenchmark(modelName, modelId, provider);
+	const benchmark = findHardcodedBenchmark(modelName, modelId, provider, hints);
 	if (benchmark?.codingIndex !== undefined) {
 		return `${modelName} [CI: ${benchmark.codingIndex.toFixed(1)}]`;
 	}

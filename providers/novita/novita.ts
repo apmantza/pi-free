@@ -32,6 +32,7 @@ import {
 	PROVIDER_NOVITA,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
+import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import {
 	getProxyModelCompat,
 	isLikelyReasoningModel,
@@ -98,7 +99,7 @@ async function fetchNovitaModels(
 
 		_logger.info(`[novita] Fetched ${models.length} models`);
 
-		return models.map((m): ProviderModelConfig => {
+		const mapped = models.map((m): ProviderModelConfig => {
 			const name = m.display_name || m.id.split("/").pop() || m.id;
 			const reasoning =
 				(m.features ?? []).includes("reasoning") ||
@@ -128,6 +129,10 @@ async function fetchNovitaModels(
 				compat: getProxyModelCompat({ id: m.id, name }),
 				_pricingKnown: hasPricing,
 			} as ProviderModelConfig & { _pricingKnown?: boolean };
+		});
+
+		return await safeEnrichModelsWithModelsDev(mapped, {
+			providerId: PROVIDER_NOVITA,
 		});
 	} catch (error) {
 		_logger.error("[novita] Failed to fetch models:", {

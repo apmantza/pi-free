@@ -14,6 +14,19 @@ export interface CostConfig {
 	cacheWrite: number;
 }
 
+export interface ModelIdentity {
+	id: string;
+	name?: string;
+	family?: string;
+	provider?: string;
+}
+
+export type ModelMatchHints = Partial<ModelIdentity>;
+
+export interface ModelsDevEnrichedMetadata {
+	modelsDev?: ModelMatchHints;
+}
+
 export interface ProviderModelConfig {
 	id: string;
 	name: string;
@@ -35,6 +48,13 @@ export interface ModelsDevCost {
 	cache_write?: number;
 }
 
+export interface ModelsDevReasoningOption {
+	type: "effort" | "toggle" | "budget_tokens";
+	values?: string[];
+	min?: number;
+	max?: number;
+}
+
 export interface ModelsDevLimit {
 	context: number;
 	output: number;
@@ -45,10 +65,10 @@ export interface ModelsDevModalities {
 	output?: string[];
 }
 
-export interface ModelsDevModel {
-	id: string;
+export interface ModelsDevModel extends ModelIdentity {
 	name: string;
 	reasoning: boolean;
+	reasoning_options?: ModelsDevReasoningOption[];
 	cost?: ModelsDevCost;
 	limit: ModelsDevLimit;
 	modalities?: ModelsDevModalities;
