@@ -40,6 +40,10 @@ describe("provider-compat", () => {
 			expect(isLikelyReasoningModel({ id: "deepseek/deepseek-v3.2" })).toBe(
 				true,
 			);
+			expect(isLikelyReasoningModel({ id: "xiaomi/mimo-v2.5" })).toBe(true);
+			expect(
+				isLikelyReasoningModel({ id: "vendor/model", name: "Xiaomi MiMo" }),
+			).toBe(true);
 		});
 
 		it("returns false for normal non-reasoning models", () => {
@@ -58,6 +62,23 @@ describe("provider-compat", () => {
 			expect(
 				getProxyModelCompat({ id: "vendor/model", name: "DeepSeek V4 Flash" }),
 			).toEqual(DEEPSEEK_PROXY_COMPAT);
+		});
+
+		it("returns OpenAI-compatible reasoning compat for proxied MiMo/Xiaomi models", () => {
+			expect(getProxyModelCompat({ id: "xiaomi/mimo-v2.5" })).toEqual({
+				supportsStore: false,
+				supportsDeveloperRole: false,
+				supportsReasoningEffort: true,
+				requiresReasoningContentOnAssistantMessages: true,
+			});
+			expect(
+				getProxyModelCompat({ id: "vendor/model", name: "Xiaomi MiMo" }),
+			).toEqual({
+				supportsStore: false,
+				supportsDeveloperRole: false,
+				supportsReasoningEffort: true,
+				requiresReasoningContentOnAssistantMessages: true,
+			});
 		});
 
 		it("returns undefined for non-DeepSeek models", () => {

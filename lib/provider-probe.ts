@@ -75,12 +75,12 @@ export interface ProviderProbe {
 
 	/**
 	 * Convenience: wire lazy async auto-probe into session_start.
-	 * Returns a session_start handler that probes once on first session.
+	 * Returns a fire-and-forget session_start handler that schedules one probe.
 	 */
 	autoProbeHandler: (
 		apiKey: string,
 		models: ProviderModelConfig[],
-	) => () => Promise<void>;
+	) => () => void;
 }
 
 // =============================================================================
@@ -172,17 +172,15 @@ export function createProviderProbe(
 		models,
 	) => {
 		let done = false;
-		return async () => {
+		return () => {
 			if (done) return;
 			done = true;
 			_logger.info(`[probe] Starting lazy auto-probe for ${providerId}...`);
-			try {
-				await run(apiKey, models, { useCache: true });
-			} catch (err) {
+			run(apiKey, models, { useCache: true }).catch((err) => {
 				_logger.warn(`[probe] ${providerId}: auto-probe failed`, {
 					error: err instanceof Error ? err.message : String(err),
 				});
-			}
+			});
 		};
 	};
 

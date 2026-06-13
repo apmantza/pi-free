@@ -19,6 +19,9 @@ vi.mock("../lib/registry.ts", () => ({
 
 const mockGetClineShowPaid = vi.fn();
 const mockSaveConfig = vi.fn();
+const mockLoadProviderCache = vi.fn();
+const mockSaveProviderCache = vi.fn();
+const mockIsProviderCacheFresh = vi.fn();
 
 vi.mock("../lib/util.ts", () => ({
 	logWarning: vi.fn(),
@@ -27,6 +30,14 @@ vi.mock("../lib/util.ts", () => ({
 vi.mock("../config.ts", () => ({
 	getClineShowPaid: () => mockGetClineShowPaid(),
 	saveConfig: (...args: unknown[]) => mockSaveConfig(...args),
+}));
+
+vi.mock("../lib/provider-cache.ts", () => ({
+	DEFAULT_PROVIDER_CACHE_TTL_MS: 60 * 60 * 1000,
+	loadProviderCache: (...args: unknown[]) => mockLoadProviderCache(...args),
+	saveProviderCache: (...args: unknown[]) => mockSaveProviderCache(...args),
+	isProviderCacheFresh: (...args: unknown[]) =>
+		mockIsProviderCacheFresh(...args),
 }));
 
 vi.mock("../providers/cline/cline-auth.ts", () => ({
@@ -58,6 +69,9 @@ describe("Cline Provider", () => {
 		mockOn = vi.fn();
 		commandHandlers = {};
 		mockGetClineShowPaid.mockReturnValue(false);
+		mockLoadProviderCache.mockReturnValue(undefined);
+		mockSaveProviderCache.mockResolvedValue(undefined);
+		mockIsProviderCacheFresh.mockReturnValue(false);
 
 		mockPi = {
 			registerProvider: mockRegisterProvider,
@@ -109,6 +123,33 @@ describe("Cline Provider", () => {
 			expect(mockOn).toHaveBeenCalledWith(
 				"session_start",
 				expect.any(Function),
+			);
+		});
+
+		it("should use cached models at startup without fetching", async () => {
+			const cachedModels = [
+				{
+					id: "cached-free-model",
+					name: "Cached Free Model",
+					reasoning: false,
+					input: ["text" as const],
+					cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+					contextWindow: 200000,
+					maxTokens: 8192,
+				},
+			];
+			mockLoadProviderCache.mockReturnValue(cachedModels);
+
+			await clineProvider(mockPi);
+
+			expect(fetchClineModels).not.toHaveBeenCalled();
+			expect(mockRegisterProvider).toHaveBeenCalledWith(
+				"cline",
+				expect.objectContaining({
+					models: expect.arrayContaining([
+						expect.objectContaining({ id: "cached-free-model" }),
+					]),
+				}),
 			);
 		});
 	});
@@ -212,15 +253,83 @@ describe("Cline Provider", () => {
 				{ model: { provider: "cline" }, ui: { notify } },
 			);
 
-			expect(mockRegisterProvider).toHaveBeenCalledWith(
-				"cline",
-				expect.objectContaining({
-					models: expect.arrayContaining([
-						expect.objectContaining({ id: "free-model" }),
-						expect.objectContaining({ id: "paid-model" }),
-					]),
-				}),
-			);
+			await vi.waitFor(() => {
+				expect(mockRegisterProvider).toHaveBeenCalledWith(
+					"cline",
+					expect.objectContaining({
+						models: expect.arrayContaining([
+							expect.objectContaining({ id: "free-model" }),
+							expect.objectContaining({ id: "paid-model" }),
+						]),
+					}),
+				);
+			});
+		});
+
+		it("should skip session_start refresh when cache is fresh", async () => {
+			vi.mocked(fetchClineModels).mockResolvedValue([]);
+			mockIsProviderCacheFresh.mockReturnValue(true);
+
+			await clineProvider(mockPi);
+
+			vi.mocked(fetchClineModels).mockClear();
+			const sessionStartHandler = mockOn.mock.calls.find(
+				(call) => call[0] === "session_start",
+			)?.[1];
+			await sessionStartHandler({}, { model: { provider: "cline" }, ui: { notify: vi.fn() } });
+
+			expect(fetchClineModels).not.toHaveBeenCalled();
+			expect(mockSaveProviderCache).not.toHaveBeenCalled();
+		});
+
+		it("should save cache after stale session_start refresh", async () => {
+			const initialModels = [
+				{
+					id: "free-model",
+					name: "Free Model",
+					reasoning: false,
+					input: ["text" as const],
+					cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+					contextWindow: 200000,
+					maxTokens: 8192,
+				},
+			];
+			vi.mocked(fetchClineModels).mockResolvedValue(initialModels);
+
+			await clineProvider(mockPi);
+			mockSaveProviderCache.mockClear();
+
+			const sessionStartHandler = mockOn.mock.calls.find(
+				(call) => call[0] === "session_start",
+			)?.[1];
+			await sessionStartHandler({}, { model: { provider: "cline" }, ui: { notify: vi.fn() } });
+
+			await vi.waitFor(() => {
+				expect(mockSaveProviderCache).toHaveBeenCalledWith("cline", initialModels);
+			});
+		});
+
+		it("should not start duplicate session_start refresh while one is in flight", async () => {
+			vi.mocked(fetchClineModels).mockResolvedValueOnce([]);
+			let resolveRefresh!: (models: any[]) => void;
+			const refreshPromise = new Promise<any[]>((resolve) => {
+				resolveRefresh = resolve;
+			});
+			vi.mocked(fetchClineModels).mockReturnValueOnce(refreshPromise as any);
+
+			await clineProvider(mockPi);
+			vi.mocked(fetchClineModels).mockClear();
+			vi.mocked(fetchClineModels).mockReturnValue(refreshPromise as any);
+
+			const sessionStartHandler = mockOn.mock.calls.find(
+				(call) => call[0] === "session_start",
+			)?.[1];
+			await sessionStartHandler({}, { model: { provider: "cline" }, ui: { notify: vi.fn() } });
+			await sessionStartHandler({}, { model: { provider: "cline" }, ui: { notify: vi.fn() } });
+
+			expect(fetchClineModels).toHaveBeenCalledTimes(1);
+			resolveRefresh([]);
+			await refreshPromise;
 		});
 
 		it("should re-register provider with fresh headers on before_agent_start", async () => {

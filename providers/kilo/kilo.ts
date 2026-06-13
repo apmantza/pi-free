@@ -230,17 +230,15 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 	});
 
 	// Refresh models on session start if authenticated
+	let refreshInFlight: Promise<void> | undefined;
 	pi.on(
 		"session_start",
-		wrapSessionStartHandler("kilo", async (_event, ctx) => {
+		wrapSessionStartHandler("kilo", (_event, ctx) => {
 			const cred = ctx.modelRegistry.authStorage.get(PROVIDER_KILO);
+			if (cred?.type !== "oauth" || refreshInFlight) return Promise.resolve();
 
-			if (cred?.type === "oauth") {
-				try {
-					const newModels = await fetchKiloModels({
-						token: cred.access,
-						freeOnly: false,
-					});
+			refreshInFlight = fetchKiloModels({ token: cred.access, freeOnly: false })
+				.then((newModels) => {
 					allModels = newModels;
 					stored.all = allModels;
 					freeModels = allModels.filter((m) =>
@@ -258,14 +256,18 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 					if (showPaidModels && !getKiloFreeOnly()) {
 						ctxReRegister(allModels);
 					}
-				} catch (error) {
+				})
+				.catch((error) => {
 					logWarning(
 						"kilo",
 						"Failed to refresh models at session start",
-						error,
+						error instanceof Error ? error.message : String(error),
 					);
-				}
-			}
+				})
+				.finally(() => {
+					refreshInFlight = undefined;
+				});
+			return Promise.resolve();
 		}),
 	);
 }

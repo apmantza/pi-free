@@ -15,9 +15,18 @@
  */
 
 import type { OAuthCredentials } from "@earendil-works/pi-ai";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ProviderModelConfig,
+} from "@earendil-works/pi-coding-agent";
 import { getClineShowPaid } from "../../config.ts";
 import { BASE_URL_CLINE, PROVIDER_CLINE } from "../../constants.ts";
+import {
+	DEFAULT_PROVIDER_CACHE_TTL_MS,
+	isProviderCacheFresh,
+	loadProviderCache,
+	saveProviderCache,
+} from "../../lib/provider-cache.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
 import { createToggleState } from "../../lib/toggle-state.ts";
@@ -176,10 +185,21 @@ function shapeMessagesForCline(messages: any[]): any[] {
 // =============================================================================
 
 export default async function clineProvider(pi: ExtensionAPI) {
-	let allModels = await fetchClineModels(false).catch((err) => {
-		logWarning("cline", "Failed to fetch models at startup", err);
-		return [];
-	});
+	let allModels: ProviderModelConfig[];
+	const cachedModels = loadProviderCache(PROVIDER_CLINE);
+	if (cachedModels && cachedModels.length > 0) {
+		allModels = cachedModels;
+	} else {
+		allModels = await fetchClineModels(false).catch((err) => {
+			logWarning("cline", "Failed to fetch models at startup", err);
+			return [];
+		});
+		if (allModels.length > 0) {
+			saveProviderCache(PROVIDER_CLINE, allModels).catch((err) => {
+				logWarning("cline", "Failed to save model cache", err);
+			});
+		}
+	}
 	let freeModels = allModels.filter((m) =>
 		isFreeModel({ ...m, provider: PROVIDER_CLINE }, allModels),
 	);
@@ -206,12 +226,23 @@ export default async function clineProvider(pi: ExtensionAPI) {
 		});
 	};
 
+	const applyModelList = (models: ProviderModelConfig[]) => {
+		allModels = models;
+		freeModels = allModels.filter((m) =>
+			isFreeModel({ ...m, provider: PROVIDER_CLINE }, allModels),
+		);
+		stored.all = allModels;
+		stored.free = freeModels;
+		toggleState.setModels(stored);
+		toggleState.applyCurrent(reRegister);
+	};
+
 	registerWithGlobalToggle(PROVIDER_CLINE, stored, (m) => reRegister(m), false);
 	toggleState.applyCurrent(reRegister);
 
 	pi.registerCommand("toggle-cline", {
 		description: "Toggle between free and all Cline models",
-		handler: async (_args, ctx) => {
+		handler: (_args, ctx) => {
 			const applied = toggleState.toggle(reRegister);
 			const freeCount = stored.free.length;
 			const paidCount = stored.all.length - freeCount;
@@ -227,6 +258,7 @@ export default async function clineProvider(pi: ExtensionAPI) {
 					"info",
 				);
 			}
+			return Promise.resolve();
 		},
 	});
 
@@ -253,44 +285,40 @@ export default async function clineProvider(pi: ExtensionAPI) {
 		ctx.ui.setStatus(`${PROVIDER_CLINE}-status`, status);
 	});
 
-	pi.on("before_agent_start", async (_event, ctx) => {
+	pi.on("before_agent_start", (_event, ctx) => {
 		if (ctx.model?.provider !== PROVIDER_CLINE) return;
 		_currentTaskId = generateUlid();
 		toggleState.applyCurrent(reRegister);
 	});
 
-	pi.on("context", async (event, ctx) => {
+	pi.on("context", (event, ctx) => {
 		if (ctx.model?.provider !== PROVIDER_CLINE) return;
 		const sourceMessages = Array.isArray(event.messages) ? event.messages : [];
 		return { messages: shapeMessagesForCline(sourceMessages) };
 	});
 
+	let refreshInFlight: Promise<void> | undefined;
 	pi.on(
 		"session_start",
-		wrapSessionStartHandler("cline", async (_event, ctx) => {
-			try {
-				const fresh = await fetchClineModels(false);
-				if (fresh.length > 0) {
-					allModels = fresh;
-					freeModels = allModels.filter((m) =>
-						isFreeModel({ ...m, provider: PROVIDER_CLINE }, allModels),
-					);
-					stored.all = allModels;
-					stored.free = freeModels;
-					toggleState.setModels(stored);
-					toggleState.applyCurrent(reRegister);
-					if (ctx.model?.provider === PROVIDER_CLINE) {
-						const freeCount = stored.free.length;
-						const paidCount = stored.all.length - freeCount;
-						ctx.ui.notify(
-							`Cline: ${freeCount} free, ${paidCount} paid models available`,
-							"info",
-						);
-					}
-				}
-			} catch (err) {
-				logWarning("cline", "Failed to refresh models at session start", err);
+		wrapSessionStartHandler("cline", () => {
+			if (refreshInFlight) return Promise.resolve();
+			if (isProviderCacheFresh(PROVIDER_CLINE, DEFAULT_PROVIDER_CACHE_TTL_MS)) {
+				return Promise.resolve();
 			}
+
+			refreshInFlight = fetchClineModels(false)
+				.then(async (fresh) => {
+					if (fresh.length === 0) return;
+					await saveProviderCache(PROVIDER_CLINE, fresh);
+					applyModelList(fresh);
+				})
+				.catch((err) => {
+					logWarning("cline", "Failed to refresh models at session start", err);
+				})
+				.finally(() => {
+					refreshInFlight = undefined;
+				});
+			return Promise.resolve();
 		}),
 	);
 }

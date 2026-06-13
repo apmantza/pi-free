@@ -36,6 +36,8 @@ import {
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import {
+	DEFAULT_PROVIDER_CACHE_TTL_MS,
+	isProviderCacheFresh,
 	loadProviderCache,
 	saveProviderCache,
 } from "../../lib/provider-cache.ts";
@@ -518,7 +520,7 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 	_logger.info(
 		`[ollama-cloud] Registered ${initialModels.length} models` +
 			(fromCache ? " (from cache)" : " (fallback)") +
-			", fetching fresh in background...",
+			", refresh scheduled on session start...",
 	);
 
 	// ── Background refresh ─────────────────────────────────────────
@@ -602,31 +604,49 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 		ctx.ui.setStatus(`${PROVIDER_OLLAMA}-status`, `ollama: ${count} models`);
 	});
 
+	const runProbeInBackground = (models: ProviderModelConfig[]) => {
+		runOllamaProbe(apiKey, models, applyModelList, { useCache: true }).catch(
+			(error) => {
+				_logger.warn("Auto-probe failed", {
+					error: error instanceof Error ? error.message : String(error),
+				});
+			},
+		);
+	};
+
 	// ── Background refresh on session_start ─────────────────────────
-	let bgRefreshed = false;
+	let refreshInFlight: Promise<void> | undefined;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	pi.on(
 		"session_start" as any,
-		wrapSessionStartHandler("ollama-cloud", async (_event: any, ctx: any) => {
-			if (bgRefreshed) {
-				return;
-			}
-			bgRefreshed = true;
+		wrapSessionStartHandler("ollama-cloud", (_event: any, ctx: any) => {
+			if (refreshInFlight) return Promise.resolve();
 
-			try {
-				const fresh = await refreshModels();
-				applyModelList(fresh);
-				ctx.ui.notify(`Ollama Cloud: ${fresh.length} models ready`, "info");
-				runOllamaProbe(apiKey, fresh, applyModelList, { useCache: true }).catch(
-					(error) => {
-						_logger.warn("Auto-probe failed", {
-							error: error instanceof Error ? error.message : String(error),
-						});
-					},
+			if (
+				isProviderCacheFresh(PROVIDER_OLLAMA, DEFAULT_PROVIDER_CACHE_TTL_MS)
+			) {
+				_logger.info(
+					"session_start: Ollama Cloud cache is fresh; skipping refresh",
 				);
-			} catch {
-				// Already logged in refreshModels()
+				runProbeInBackground(allModels);
+				return Promise.resolve();
 			}
+
+			refreshInFlight = refreshModels()
+				.then((fresh) => {
+					applyModelList(fresh);
+					ctx.ui.notify(`Ollama Cloud: ${fresh.length} models ready`, "info");
+					runProbeInBackground(fresh);
+				})
+				.catch((error) => {
+					_logger.warn("Background refresh failed", {
+						error: error instanceof Error ? error.message : String(error),
+					});
+				})
+				.finally(() => {
+					refreshInFlight = undefined;
+				});
+			return Promise.resolve();
 		}),
 	);
 }

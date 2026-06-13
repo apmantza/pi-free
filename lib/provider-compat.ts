@@ -28,11 +28,23 @@ export function isDeepSeekModel(model: ProviderModelIdentity): boolean {
 	return haystack.includes("deepseek");
 }
 
+function getModelHaystack(model: ProviderModelIdentity): string {
+	return `${model.id} ${model.name ?? ""}`.toLowerCase();
+}
+
+/** MiMo/Xiaomi reasoning models expose OpenAI-compatible reasoning controls
+ * through gateways such as Cline/OpenRouter, but they are not DeepSeek-format. */
+function isMimoModel(model: ProviderModelIdentity): boolean {
+	const haystack = getModelHaystack(model);
+	return haystack.includes("mimo") || haystack.includes("xiaomi");
+}
+
 export function isLikelyReasoningModel(model: ProviderModelIdentity): boolean {
-	const haystack = `${model.id} ${model.name ?? ""}`.toLowerCase();
+	const haystack = getModelHaystack(model);
 	return (
 		isDeepSeekModel(model) ||
 		haystack.includes("minimax") ||
+		isMimoModel(model) ||
 		haystack.includes("kimi") ||
 		haystack.includes("qwen3.7") ||
 		haystack.includes("qwen3-7") ||
@@ -77,7 +89,7 @@ export function getProxyModelCompat(
 	if (isDeepSeekStyleModel(model)) {
 		return DEEPSEEK_PROXY_COMPAT;
 	}
-	if (isKimiModel(model)) {
+	if (isKimiModel(model) || isMimoModel(model)) {
 		return KIMI_PROXY_COMPAT;
 	}
 	return undefined;
