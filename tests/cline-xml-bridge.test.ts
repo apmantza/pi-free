@@ -230,6 +230,37 @@ describe("Cline XML bridge", () => {
 			]);
 		});
 
+		it("preserves JSON file content as a string in write_to_file", () => {
+			const jsonContent = JSON.stringify(
+				{
+					name: "plegma",
+					version: "0.1.0",
+					pi: { extensions: ["./index.ts"] },
+				},
+				null,
+				2,
+			);
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"<write_to_file>",
+					"<path>C:/Users/R3LiC/Desktop/pi-plegma/.pi/extensions/plegma/package.json</path>",
+					`<content>${jsonContent}</content>`,
+					"</write_to_file>",
+				].join("\n"),
+				[tool("write")],
+			);
+
+			expect(parsed.toolCalls).toEqual([
+				{
+					name: "write",
+					arguments: {
+						path: "C:/Users/R3LiC/Desktop/pi-plegma/.pi/extensions/plegma/package.json",
+						content: jsonContent,
+					},
+				},
+			]);
+		});
+
 		it("maps Cline replace_in_file XML to Pi edit tool calls", () => {
 			const parsed = __test__.parseXmlToolCalls(
 				[

@@ -661,9 +661,17 @@ function parseToolArguments(block: string): Record<string, unknown> {
 				: block.indexOf(close, openEnd + 1);
 		if (closeStart === -1 || closeStart < openEnd) break;
 		const raw = decodeXmlEntities(block.slice(openEnd + 1, closeStart).trim());
-		try {
-			args[tag] = JSON.parse(raw);
-		} catch {
+		// `content` and `diff` are explicitly string parameters (file bodies,
+		// SEARCH/REPLACE diffs). Parsing them as JSON corrupts JSON file content
+		// into "[object Object]".
+		const shouldParseJson = tag !== "content" && tag !== "diff";
+		if (shouldParseJson) {
+			try {
+				args[tag] = JSON.parse(raw);
+			} catch {
+				args[tag] = raw;
+			}
+		} else {
 			args[tag] = raw;
 		}
 		cursor = closeStart + close.length;
