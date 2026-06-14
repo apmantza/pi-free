@@ -3,6 +3,7 @@ import { isFreeModel } from "../lib/registry.ts";
 import {
 	finalizeTokenRouterModel,
 	mapTokenRouterModel,
+	normalizeAssistantMessage,
 	patchTokenRouterMinimaxThinkingPayload,
 } from "../providers/tokenrouter/tokenrouter.ts";
 
@@ -126,5 +127,66 @@ describe("TokenRouter free model detection", () => {
 		expect(
 			isFreeModel({ ...paidModel, provider: "tokenrouter" }, allModels),
 		).toBe(false);
+	});
+});
+
+describe("TokenRouter MiniMax reasoning cleanup", () => {
+	function assistantMessage(text: string): {
+		role: "assistant";
+		content: { type: "text"; text: string }[];
+	} {
+		return {
+			role: "assistant",
+			content: [{ type: "text", text }],
+		};
+	}
+
+	it("extracts inline think blocks into ThinkingContent", () => {
+		const message = assistantMessage(
+			"Before\n\n<think>Let me explore the freebuff-npm directory.</think>\n\nAfter",
+		);
+		const normalized = normalizeAssistantMessage(message as any);
+
+		expect(normalized.content).toHaveLength(2);
+		const textBlock = normalized.content[0];
+		expect(textBlock).toMatchObject({ type: "text" });
+		expect((textBlock as { text: string }).text).not.toContain("<think>");
+		expect((textBlock as { text: string }).text).toContain("Before");
+		expect((textBlock as { text: string }).text).toContain("After");
+		expect(normalized.content[1]).toMatchObject({
+			type: "thinking",
+			thinking: "Let me explore the freebuff-npm directory.",
+		});
+	});
+
+	it("handles multiple think blocks", () => {
+		const message = assistantMessage(
+			"<think>first</think> text <think>second</think>",
+		);
+		const normalized = normalizeAssistantMessage(message as any);
+
+		expect(normalized.content[0]).toEqual({ type: "text", text: "text" });
+		expect(normalized.content[1]).toMatchObject({
+			type: "thinking",
+			thinking: "first\n\nsecond",
+		});
+	});
+
+	it("treats unclosed think tag as thinking", () => {
+		const message = assistantMessage("<think>dangling reasoning");
+		const normalized = normalizeAssistantMessage(message as any);
+
+		expect(normalized.content).toHaveLength(1);
+		expect(normalized.content[0]).toMatchObject({
+			type: "thinking",
+			thinking: "dangling reasoning",
+		});
+	});
+
+	it("leaves text without think tags unchanged", () => {
+		const message = assistantMessage("Just plain text.");
+		const normalized = normalizeAssistantMessage(message as any);
+
+		expect(normalized.content).toEqual([{ type: "text", text: "Just plain text." }]);
 	});
 });

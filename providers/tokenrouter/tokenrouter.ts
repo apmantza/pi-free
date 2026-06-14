@@ -16,6 +16,10 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
+import type {
+	AssistantMessage,
+	ThinkingContent,
+} from "@earendil-works/pi-ai";
 import {
 	getTokenrouterApiKey,
 	getTokenrouterShowPaid,
@@ -38,6 +42,63 @@ import { cleanModelName, fetchWithRetry } from "../../lib/util.ts";
 import { createReRegister, setupProvider } from "../../provider-helper.ts";
 
 const _logger = createLogger("tokenrouter");
+
+// =============================================================================
+// Reasoning cleanup
+// TokenRouter's MiniMax-M3 model sometimes emits DeepSeek-style `<think>`
+// reasoning tags inline in the assistant text. Pi does not strip them, so we
+// extract them into proper ThinkingContent blocks on message_end.
+// =============================================================================
+
+interface ExtractedThinking {
+	text: string;
+	thinking: string;
+}
+
+function collapseWhitespace(text: string): string {
+	return text
+		.replace(/\r\n/g, "\n")
+		.replace(/\n{3,}/g, "\n\n")
+		.replace(/[ \t]+/g, " ")
+		.trim();
+}
+
+function extractThinkBlocks(text: string): ExtractedThinking {
+	const openTag = "<think>";
+	const closeTag = "</think>";
+	const thinkingParts: string[] = [];
+	const textParts: string[] = [];
+	let cursor = 0;
+
+	while (cursor < text.length) {
+		const openStart = text.indexOf(openTag, cursor);
+		if (openStart === -1) {
+			textParts.push(text.slice(cursor));
+			break;
+		}
+
+		textParts.push(text.slice(cursor, openStart));
+		const valueStart = openStart + openTag.length;
+		const closeStart = text.indexOf(closeTag, valueStart);
+		if (closeStart === -1) {
+			// Unclosed think tag: treat remainder as thinking.
+			thinkingParts.push(text.slice(valueStart));
+			break;
+		}
+
+		thinkingParts.push(text.slice(valueStart, closeStart));
+		cursor = closeStart + closeTag.length;
+	}
+
+	return {
+		text: collapseWhitespace(textParts.join("")),
+		thinking: collapseWhitespace(thinkingParts.join("\n\n")),
+	};
+}
+
+function isTokenRouterModel(model: { provider?: string }): boolean {
+	return model.provider === PROVIDER_TOKENROUTER;
+}
 
 // =============================================================================
 // Known Free Models
@@ -110,6 +171,37 @@ export function finalizeTokenRouterModel(
 			supportsReasoningEffort: true,
 		},
 	};
+}
+
+export function normalizeAssistantMessage(message: AssistantMessage): AssistantMessage {
+	const newContent: AssistantMessage["content"] = [];
+	let extractedThinking = "";
+
+	for (const block of message.content) {
+		if (block.type !== "text") {
+			newContent.push(block);
+			continue;
+		}
+
+		const extracted = extractThinkBlocks(block.text);
+		if (extracted.thinking) {
+			extractedThinking = extractedThinking
+				? `${extractedThinking}\n\n${extracted.thinking}`
+				: extracted.thinking;
+		}
+		if (extracted.text) {
+			newContent.push({ ...block, text: extracted.text });
+		}
+	}
+
+	if (extractedThinking) {
+		newContent.push({
+			type: "thinking",
+			thinking: extractedThinking,
+		} as ThinkingContent);
+	}
+
+	return { ...message, content: newContent };
 }
 
 export function patchTokenRouterMinimaxThinkingPayload(payload: unknown): unknown {
@@ -252,6 +344,12 @@ export default async function tokenRouterProvider(pi: ExtensionAPI) {
 	pi.on("before_provider_request", (event) =>
 		patchTokenRouterMinimaxThinkingPayload(event.payload),
 	);
+
+	pi.on("message_end", (event, ctx) => {
+		if (!isTokenRouterModel(ctx.model ?? {})) return;
+		if (event.message.role !== "assistant") return;
+		return { message: normalizeAssistantMessage(event.message) };
+	});
 
 	setupProvider(
 		pi,
