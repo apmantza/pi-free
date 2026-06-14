@@ -86,6 +86,92 @@ describe("Cline XML bridge", () => {
 			]);
 		});
 
+		it("maps Cline write_to_file XML to Pi write tool calls", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"<write_to_file>",
+					"<path>src/new-file.ts</path>",
+					"<content>export const value = 1;</content>",
+					"</write_to_file>",
+				].join("\n"),
+				[tool("write")],
+			);
+
+			expect(parsed.toolCalls).toEqual([
+				{
+					name: "write",
+					arguments: {
+						path: "src/new-file.ts",
+						content: "export const value = 1;",
+					},
+				},
+			]);
+		});
+
+		it("maps Cline replace_in_file XML to Pi edit tool calls", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"<replace_in_file>",
+					"<path>src/example.ts</path>",
+					"<diff>",
+					"------- SEARCH",
+					"const value = 1;",
+					"=======",
+					"const value = 2;",
+					"+++++++ REPLACE",
+					"</diff>",
+					"</replace_in_file>",
+				].join("\n"),
+				[tool("edit")],
+			);
+
+			expect(parsed.toolCalls).toEqual([
+				{
+					name: "edit",
+					arguments: {
+						path: "src/example.ts",
+						edits: [{ oldText: "const value = 1;", newText: "const value = 2;" }],
+					},
+				},
+			]);
+		});
+
+		it("maps multi-block Cline replace_in_file XML to one Pi edit call", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"<replace_in_file>",
+					"<path>src/example.ts</path>",
+					"<diff>",
+					"------- SEARCH",
+					"const first = 1;",
+					"=======",
+					"const first = 2;",
+					"+++++++ REPLACE",
+					"------- SEARCH",
+					"const second = 1;",
+					"=======",
+					"const second = 2;",
+					"+++++++ REPLACE",
+					"</diff>",
+					"</replace_in_file>",
+				].join("\n"),
+				[tool("edit")],
+			);
+
+			expect(parsed.toolCalls).toEqual([
+				{
+					name: "edit",
+					arguments: {
+						path: "src/example.ts",
+						edits: [
+							{ oldText: "const first = 1;", newText: "const first = 2;" },
+							{ oldText: "const second = 1;", newText: "const second = 2;" },
+						],
+					},
+				},
+			]);
+		});
+
 		it("maps Cline list_files to a safe bash-backed command", () => {
 			const parsed = __test__.parseXmlToolCalls(
 				"<list_files>\n<path>src</path>\n<recursive>true</recursive>\n</list_files>",
@@ -133,6 +219,80 @@ describe("Cline XML bridge", () => {
 	});
 
 	describe("buildClineXmlMessages", () => {
+		it("advertises Pi edit as Cline replace_in_file with SEARCH/REPLACE format", () => {
+			const messages = __test__.buildClineXmlMessages({
+				systemPrompt: "system",
+				tools: [tool("edit")],
+				messages: [
+					{
+						role: "user",
+						content: [{ type: "text", text: "edit file" }],
+						timestamp: Date.now(),
+					},
+				],
+			});
+
+			expect(messages[0]?.content).toContain("Tool: replace_in_file");
+			expect(messages[0]?.content).toContain("<diff>");
+			expect(messages[0]?.content).toContain("------- SEARCH");
+			expect(messages[0]?.content).toContain("+++++++ REPLACE");
+		});
+
+		it("serializes previous Pi edit calls back to Cline replace_in_file XML", () => {
+			const messages = __test__.buildClineXmlMessages({
+				systemPrompt: "system",
+				tools: [tool("edit")],
+				messages: [
+					{
+						role: "user",
+						content: [{ type: "text", text: "edit file" }],
+						timestamp: Date.now(),
+					},
+					{
+						role: "assistant",
+						api: "cline-xml-tools",
+						provider: "cline",
+						model: "mimo",
+						usage: {
+							input: 0,
+							output: 0,
+							cacheRead: 0,
+							cacheWrite: 0,
+							totalTokens: 0,
+							cost: {
+								input: 0,
+								output: 0,
+								cacheRead: 0,
+								cacheWrite: 0,
+								total: 0,
+							},
+						},
+						stopReason: "toolUse",
+						timestamp: Date.now(),
+						content: [
+							{
+								type: "toolCall",
+								id: "call_1",
+								name: "edit",
+								arguments: {
+									path: "src/example.ts",
+									edits: [
+										{ oldText: "const value = 1;", newText: "const value = 2;" },
+									],
+								},
+							},
+						],
+					},
+				],
+			});
+
+			expect(messages[2]?.content).toContain("<replace_in_file>");
+			expect(messages[2]?.content).toContain("<path>src/example.ts</path>");
+			expect(messages[2]?.content).toContain("------- SEARCH");
+			expect(messages[2]?.content).toContain("const value = 1;");
+			expect(messages[2]?.content).toContain("const value = 2;");
+		});
+
 		it("serializes previous Pi bash calls back to Cline execute_command XML", () => {
 			const messages = __test__.buildClineXmlMessages({
 				systemPrompt: "system",

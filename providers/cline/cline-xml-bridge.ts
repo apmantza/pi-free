@@ -94,6 +94,7 @@ type ToolBridge = {
 const CORE_CLINE_TOOL_NAMES = [
 	"read_file",
 	"write_to_file",
+	"replace_in_file",
 	"execute_command",
 	"list_files",
 	"search_files",
@@ -136,6 +137,51 @@ function buildSearchFilesCommand(args: Record<string, unknown>): string {
 	]
 		.filter(Boolean)
 		.join(" ");
+}
+
+function buildSearchReplaceDiff(
+	edits: Array<{ oldText: string; newText: string }>,
+): string {
+	return edits
+		.map((edit) =>
+			[
+				"------- SEARCH",
+				edit.oldText,
+				"=======",
+				edit.newText,
+				"+++++++ REPLACE",
+			].join("\n"),
+		)
+		.join("\n");
+}
+
+function parseSearchReplaceBlocks(
+	diff: string,
+): Array<{ oldText: string; newText: string }> {
+	const edits: Array<{ oldText: string; newText: string }> = [];
+	const normalized = diff.replaceAll("\r\n", "\n");
+	let cursor = 0;
+
+	while (cursor < normalized.length) {
+		const searchMarker = "------- SEARCH\n";
+		const replaceMarker = "\n=======\n";
+		const endMarker = "\n+++++++ REPLACE";
+		const searchStart = normalized.indexOf(searchMarker, cursor);
+		if (searchStart === -1) break;
+		const oldTextStart = searchStart + searchMarker.length;
+		const replaceStart = normalized.indexOf(replaceMarker, oldTextStart);
+		if (replaceStart === -1) break;
+		const newTextStart = replaceStart + replaceMarker.length;
+		const endStart = normalized.indexOf(endMarker, newTextStart);
+		if (endStart === -1) break;
+		edits.push({
+			oldText: normalized.slice(oldTextStart, replaceStart),
+			newText: normalized.slice(newTextStart, endStart),
+		});
+		cursor = endStart + endMarker.length;
+	}
+
+	return edits;
 }
 
 function buildListCodeDefinitionNamesCommand(
@@ -192,6 +238,40 @@ function writeToFileBridge(tool?: Tool): ToolBridge {
 			content: stringArg(args, "content"),
 		}),
 		fromRuntimeArgs: (args) => ({ path: args.path, content: args.content }),
+	};
+}
+
+function replaceInFileBridge(tool?: Tool): ToolBridge {
+	return {
+		remoteName: "replace_in_file",
+		runtimeName: tool?.name === "replace_in_file" ? "replace_in_file" : "edit",
+		description:
+			tool?.description ??
+			"Edit a file using Cline SEARCH/REPLACE blocks",
+		parameters: ["path", "diff"],
+		toRuntimeArgs: (args) => ({
+			path: stringArg(args, "path"),
+			edits: parseSearchReplaceBlocks(stringArg(args, "diff")),
+		}),
+		fromRuntimeArgs: (args) => {
+			const edits = Array.isArray(args.edits)
+				? args.edits
+						.map((edit) => ({
+							oldText: stringArg(edit as Record<string, unknown>, "oldText"),
+							newText: stringArg(edit as Record<string, unknown>, "newText"),
+						}))
+						.filter((edit) => edit.oldText || edit.newText)
+				: [
+					{
+						oldText: stringArg(args, "oldText"),
+						newText: stringArg(args, "newText"),
+					},
+				].filter((edit) => edit.oldText || edit.newText);
+			return {
+				path: args.path,
+				diff: buildSearchReplaceDiff(edits),
+			};
+		},
 	};
 }
 
@@ -254,6 +334,9 @@ function getToolBridge(tool: Tool): ToolBridge {
 	if (tool.name === "write" || tool.name === "write_to_file") {
 		return writeToFileBridge(tool);
 	}
+	if (tool.name === "edit" || tool.name === "replace_in_file") {
+		return replaceInFileBridge(tool);
+	}
 	if (tool.name === "bash" || tool.name === "execute_command") {
 		return executeCommandBridge(tool);
 	}
@@ -295,6 +378,9 @@ function getParseToolBridges(tools: Tool[] | undefined): ToolBridge[] {
 		}
 		if (remoteName === "write_to_file") {
 			bridges.push(writeToFileBridge(toolsByName.get("write_to_file")));
+		}
+		if (remoteName === "replace_in_file") {
+			bridges.push(replaceInFileBridge(toolsByName.get("replace_in_file")));
 		}
 		if (remoteName === "execute_command") {
 			bridges.push(executeCommandBridge(toolsByName.get("execute_command")));
@@ -367,9 +453,23 @@ function buildToolInstructions(tools: Tool[] | undefined): string {
 	if (bridges.length === 0) return "";
 
 	const sections = bridges.map((bridge) => {
-		const params = bridge.parameters.length
-			? bridge.parameters.map((name) => `  <${name}>value</${name}>`).join("\n")
-			: "  <arguments>{}</arguments>";
+		const params =
+			bridge.remoteName === "replace_in_file"
+				? [
+						"  <path>path/to/file</path>",
+						"  <diff>",
+						"------- SEARCH",
+						"exact text to replace",
+						"=======",
+						"new text",
+						"+++++++ REPLACE",
+						"  </diff>",
+					].join("\n")
+				: bridge.parameters.length
+					? bridge.parameters
+							.map((name) => `  <${name}>value</${name}>`)
+							.join("\n")
+					: "  <arguments>{}</arguments>";
 		return [
 			`Tool: ${bridge.remoteName}`,
 			`Description: ${bridge.description ?? bridge.runtimeName}`,
@@ -500,7 +600,7 @@ function parseToolArguments(block: string): Record<string, unknown> {
 		}
 		const close = `</${tag}>`;
 		const closeStart =
-			tag === "content"
+			tag === "content" || tag === "diff"
 				? block.lastIndexOf(close)
 				: block.indexOf(close, openEnd + 1);
 		if (closeStart === -1 || closeStart < openEnd) break;
