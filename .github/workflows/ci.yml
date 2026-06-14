@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  typecheck:
-    name: Type check
+  lint-and-typecheck:
+    name: Lint & type-check
     runs-on: ubuntu-latest
 
     steps:
@@ -22,10 +22,18 @@ jobs:
           node-version: "22"
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --no-audit --no-fund
 
-      - name: Type check
-        run: npx tsc --noEmit
+      - name: Lockfile in sync with package.json
+        run: npm run check:lockfile
+
+      # Fail on known-vulnerable production deps — the code that actually ships
+      # to users. DevDeps are excluded because they do not run in Pi installs.
+      - name: Audit production dependencies
+        run: npm run audit:prod
+
+      - name: TypeScript lint
+        run: npm run lint
 
   test:
     name: Unit tests
@@ -39,14 +47,15 @@ jobs:
           node-version: "22"
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --no-audit --no-fund
 
       - name: Run tests
-        run: npx vitest run
+        run: npm run test:run
 
   install-test:
     name: Install test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    needs: [lint-and-typecheck, test]
     strategy:
       fail-fast: false
       matrix:
@@ -59,17 +68,38 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
       - name: Pack tarball
         run: npm pack
 
-      - name: Install from tarball (simulates pi install npm:...)
+      - name: Verify required files and no forbidden artifacts in tarball
         shell: bash
         run: |
-          TARBALL=$(ls *.tgz)
+          TARBALL=$(ls pi-free-*.tgz)
+          node scripts/check-tarball.mjs "$TARBALL"
+
+      - name: Install from tarball (simulates pi install npm:pi-free)
+        shell: bash
+        run: |
+          TARBALL=$(ls pi-free-*.tgz)
           npm install -g "$TARBALL"
 
-      - name: Load each extension entry point (catches missing files)
+      - name: Verify published relative imports resolve
         shell: bash
         run: |
           INSTALL_DIR=$(npm root -g)/pi-free
           node scripts/check-extensions.mjs "$INSTALL_DIR"
+
+      - name: Smoke-load extension entry (catches missing runtime modules)
+        shell: bash
+        run: |
+          INSTALL_DIR=$(npm root -g)/pi-free
+          if command -v cygpath >/dev/null 2>&1; then
+            INSTALL_DIR=$(cygpath -w "$INSTALL_DIR")
+          fi
+          export P="$INSTALL_DIR/package.json"
+          ENTRY=$(node -p "require(process.env.P).pi.extensions[0]")
+          echo "Loading entry: $INSTALL_DIR/$ENTRY"
+          node --import tsx "$INSTALL_DIR/$ENTRY"

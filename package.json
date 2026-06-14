@@ -44,7 +44,11 @@
 		"scripts/check-extensions.mjs"
 	],
 	"scripts": {
+		"audit:prod": "npm audit --omit=dev --audit-level=high",
 		"check": "node scripts/check-extensions.mjs",
+		"check:lockfile": "node scripts/check-lockfile-sync.mjs",
+		"check:tarball": "node scripts/check-tarball.mjs",
+		"lint": "tsc --noEmit",
 		"test": "vitest",
 		"test:ui": "vitest --ui",
 		"test:run": "vitest run",

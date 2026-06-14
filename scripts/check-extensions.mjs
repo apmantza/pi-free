@@ -14,29 +14,45 @@ import { dirname, join, resolve } from "node:path";
 const installDir = resolve(process.argv[2] ?? ".");
 const fromSource = process.argv[2] == null;
 
-/** Resolve npm to an absolute path to avoid S4036 PATH-lookup flags. */
-function resolveNpm() {
+function resolveNpmCli() {
 	for (const p of [
-		"/usr/bin/npm",
-		"/usr/local/bin/npm",
-		process.platform === "win32"
-			? String.raw`C:\Program Files\nodejs\npm.cmd`
-			: "",
+		join(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js"),
+		"/usr/lib/node_modules/npm/bin/npm-cli.js",
+		"/usr/local/lib/node_modules/npm/bin/npm-cli.js",
+		"/usr/share/nodejs/npm/bin/npm-cli.js",
 	]) {
-		if (p && existsSync(p)) return p;
+		if (existsSync(p)) return p;
 	}
-	return "npm"; // fallback
+	throw new Error("Could not find npm-cli.js in known Node/npm locations");
 }
+
+function runNpmPackDryRun() {
+	return execFileSync(
+		process.execPath,
+		[resolveNpmCli(), "pack", "--dry-run", "--json"],
+		{ encoding: "utf8" },
+	);
+}
+
+function parsePackFileList(out) {
+	try {
+		const packed = JSON.parse(out);
+		return packed.flatMap((entry) =>
+			(entry.files ?? []).map((file) => file.path).filter(Boolean),
+		);
+	} catch {
+		return out
+			.split("\n")
+			.map((line) => line.match(/npm notice \S+\s+(.+)/)?.[1]?.trim())
+			.filter(Boolean);
+	}
+} 
 
 function getFiles() {
 	if (fromSource) {
-		// Use npm pack --dry-run with an absolute executable path.
-		const out = execFileSync(resolveNpm(), ["pack", "--dry-run"], {
-			encoding: "utf8",
-		});
-		return out
-			.split("\n")
-			.map((l) => l.match(/npm notice \S+\s+(.+)/)?.[1]?.trim())
+		// Use npm pack --dry-run to inspect exactly what would be published.
+		const out = runNpmPackDryRun();
+		return parsePackFileList(out)
 			.filter((f) => f && (f.endsWith(".ts") || f.endsWith(".mjs")))
 			.map((f) => join(installDir, f));
 	}
