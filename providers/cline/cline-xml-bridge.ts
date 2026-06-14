@@ -246,8 +246,7 @@ function replaceInFileBridge(tool?: Tool): ToolBridge {
 		remoteName: "replace_in_file",
 		runtimeName: tool?.name === "replace_in_file" ? "replace_in_file" : "edit",
 		description:
-			tool?.description ??
-			"Edit a file using Cline SEARCH/REPLACE blocks",
+			tool?.description ?? "Edit a file using Cline SEARCH/REPLACE blocks",
 		parameters: ["path", "diff"],
 		toRuntimeArgs: (args) => ({
 			path: stringArg(args, "path"),
@@ -262,11 +261,11 @@ function replaceInFileBridge(tool?: Tool): ToolBridge {
 						}))
 						.filter((edit) => edit.oldText || edit.newText)
 				: [
-					{
-						oldText: stringArg(args, "oldText"),
-						newText: stringArg(args, "newText"),
-					},
-				].filter((edit) => edit.oldText || edit.newText);
+						{
+							oldText: stringArg(args, "oldText"),
+							newText: stringArg(args, "newText"),
+						},
+					].filter((edit) => edit.oldText || edit.newText);
 			return {
 				path: args.path,
 				diff: buildSearchReplaceDiff(edits),
@@ -559,6 +558,46 @@ function pushTextFragment(textParts: string[], fragment: string): void {
 	textParts.push(trimmed);
 }
 
+function extractThinkingXml(text: string): {
+	text: string;
+	thinking: string[];
+} {
+	const thinking: string[] = [];
+	const parts: string[] = [];
+	const openTag = "<thinking>";
+	const closeTag = "</thinking>";
+	let cursor = 0;
+
+	while (cursor < text.length) {
+		const openStart = text.indexOf(openTag, cursor);
+		const closeStart = text.indexOf(closeTag, cursor);
+
+		if (closeStart !== -1 && (openStart === -1 || closeStart < openStart)) {
+			parts.push(text.slice(cursor, closeStart));
+			cursor = closeStart + closeTag.length;
+			continue;
+		}
+
+		if (openStart === -1) break;
+		parts.push(text.slice(cursor, openStart));
+		const valueStart = openStart + openTag.length;
+		const valueEnd = text.indexOf(closeTag, valueStart);
+		if (valueEnd === -1) {
+			const value = decodeXmlEntities(text.slice(valueStart).trim());
+			if (value) thinking.push(value);
+			cursor = text.length;
+			break;
+		}
+
+		const value = decodeXmlEntities(text.slice(valueStart, valueEnd).trim());
+		if (value) thinking.push(value);
+		cursor = valueEnd + closeTag.length;
+	}
+
+	parts.push(text.slice(cursor));
+	return { text: parts.join(""), thinking };
+}
+
 function extractTagContent(text: string, tag: string): string | undefined {
 	const open = `<${tag}>`;
 	const close = `</${tag}>`;
@@ -626,11 +665,14 @@ function parseXmlToolCalls(
 		getParseToolBridges(tools).map((bridge) => [bridge.remoteName, bridge]),
 	);
 	const toolNames = new Set(bridgeByRemoteName.keys());
-	if (toolNames.size === 0) return { text: rawText.trim(), toolCalls: [] };
+	const textWithoutThinking = extractThinkingXml(rawText).text;
+	if (toolNames.size === 0) {
+		return { text: textWithoutThinking.trim(), toolCalls: [] };
+	}
 
-	const sourceText = findNextToolStart(rawText, toolNames, 0)
-		? rawText
-		: decodeXmlEntities(rawText);
+	const sourceText = findNextToolStart(textWithoutThinking, toolNames, 0)
+		? textWithoutThinking
+		: decodeXmlEntities(textWithoutThinking);
 	const textParts: string[] = [];
 	const toolCalls: Array<{ name: string; arguments: Record<string, unknown> }> =
 		[];
@@ -868,8 +910,15 @@ export function streamClineXml(
 			}
 
 			assistant.usage = usageFromChunkUsage(usage);
-			pushThinking(assistant, thinking.trim(), stream);
-			const parsed = parseXmlToolCalls(rawText, context.tools);
+			const extractedThinking = extractThinkingXml(rawText);
+			pushThinking(
+				assistant,
+				[thinking.trim(), ...extractedThinking.thinking]
+					.filter(Boolean)
+					.join("\n\n"),
+				stream,
+			);
+			const parsed = parseXmlToolCalls(extractedThinking.text, context.tools);
 			pushText(assistant, parsed.text, stream);
 			for (const toolCall of parsed.toolCalls) {
 				pushToolCall(assistant, toolCall, stream);

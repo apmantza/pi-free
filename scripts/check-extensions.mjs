@@ -46,7 +46,7 @@ function parsePackFileList(out) {
 			.map((line) => line.match(/npm notice \S+\s+(.+)/)?.[1]?.trim())
 			.filter(Boolean);
 	}
-} 
+}
 
 function getFiles() {
 	if (fromSource) {

@@ -4,7 +4,13 @@
  * accidental/secrets/debug artifacts.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import {
+	existsSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -28,7 +34,9 @@ function resolveTar() {
 function findTarball() {
 	const explicit = process.argv[2];
 	if (explicit) return explicit;
-	const files = readdirSync(".").filter((entry) => /^pi-free-.+\.tgz$/.test(entry));
+	const files = readdirSync(".").filter((entry) =>
+		/^pi-free-.+\.tgz$/.test(entry),
+	);
 	if (files.length !== 1) {
 		fail(`expected exactly one pi-free-*.tgz tarball, found ${files.length}`);
 	}
@@ -110,7 +118,9 @@ console.log("No forbidden tarball artifacts found ✓");
 const extractDir = extractTarball(tarball);
 try {
 	const packageDir = join(extractDir, "package");
-	const pkg = JSON.parse(readFileSync(join(packageDir, "package.json"), "utf8"));
+	const pkg = JSON.parse(
+		readFileSync(join(packageDir, "package.json"), "utf8"),
+	);
 	const extensions = pkg.pi?.extensions ?? [];
 	if (!Array.isArray(extensions) || extensions.length === 0) {
 		fail("package.json has no pi.extensions entries");

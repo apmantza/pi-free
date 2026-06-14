@@ -56,6 +56,63 @@ describe("Cline XML bridge", () => {
 			]);
 		});
 
+		it("strips orphan thinking close tags before multiple Cline read calls", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				String.raw`</thinking>
+<read_file>
+<path>C:\Users\R3LiC\AppData\Roaming\npm\node_modules\@earendil-works\pi-coding-agent\docs\sdk.md</path>
+</read_file>
+<read_file>
+<path>C:\Users\R3LiC\AppData\Roaming\npm\node_modules\@earendil-works\pi-coding-agent\docs\session-format.md</path>
+</read_file>
+<read_file>
+<path>C:\Users\R3LiC\AppData\Roaming\npm\node_modules\@earendil-works\pi-coding-agent\docs\tui.md</path>
+</read_file>`,
+				[tool("read")],
+			);
+
+			expect(parsed.text).toBe("");
+			expect(parsed.toolCalls).toEqual([
+				{
+					name: "read",
+					arguments: {
+						path: String.raw`C:\Users\R3LiC\AppData\Roaming\npm\node_modules\@earendil-works\pi-coding-agent\docs\sdk.md`,
+					},
+				},
+				{
+					name: "read",
+					arguments: {
+						path: String.raw`C:\Users\R3LiC\AppData\Roaming\npm\node_modules\@earendil-works\pi-coding-agent\docs\session-format.md`,
+					},
+				},
+				{
+					name: "read",
+					arguments: {
+						path: String.raw`C:\Users\R3LiC\AppData\Roaming\npm\node_modules\@earendil-works\pi-coding-agent\docs\tui.md`,
+					},
+				},
+			]);
+		});
+
+		it("strips XML thinking blocks before Cline tool calls", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"<thinking>",
+					"I should inspect the docs first.",
+					"</thinking>",
+					"<read_file>",
+					"<path>README.md</path>",
+					"</read_file>",
+				].join("\n"),
+				[tool("read")],
+			);
+
+			expect(parsed.text).toBe("");
+			expect(parsed.toolCalls).toEqual([
+				{ name: "read", arguments: { path: "README.md" } },
+			]);
+		});
+
 		it("does not leak XML code fence markers as text", () => {
 			const parsed = __test__.parseXmlToolCalls(
 				[
@@ -130,7 +187,9 @@ describe("Cline XML bridge", () => {
 					name: "edit",
 					arguments: {
 						path: "src/example.ts",
-						edits: [{ oldText: "const value = 1;", newText: "const value = 2;" }],
+						edits: [
+							{ oldText: "const value = 1;", newText: "const value = 2;" },
+						],
 					},
 				},
 			]);
@@ -277,7 +336,10 @@ describe("Cline XML bridge", () => {
 								arguments: {
 									path: "src/example.ts",
 									edits: [
-										{ oldText: "const value = 1;", newText: "const value = 2;" },
+										{
+											oldText: "const value = 1;",
+											newText: "const value = 2;",
+										},
 									],
 								},
 							},
