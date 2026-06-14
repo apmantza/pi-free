@@ -49,6 +49,7 @@ import {
 	recordModelProbeResults,
 } from "../../lib/probe-cache.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
+import { updateConfig } from "../../config.ts";
 import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
 import { fetchWithTimeout } from "../../lib/util.ts";
 import { fetchOpenRouterCompatibleModels } from "../model-fetcher.ts";
@@ -506,6 +507,30 @@ async function registerProvider(
 		all: allModels,
 	};
 
+	/**
+	 * Hide broken free models in config and update the active model list.
+	 */
+	async function hideBrokenModels(brokenIds: string[]): Promise<void> {
+		if (brokenIds.length === 0) return;
+
+		await updateConfig((cfg) => {
+			const existingHidden = new Set(cfg.hidden_models ?? []);
+			for (const id of brokenIds) {
+				existingHidden.add(`${config.providerId}/${id}`);
+			}
+			return { hidden_models: Array.from(existingHidden) };
+		});
+
+		stored.all = stored.all.filter((m) => !brokenIds.includes(m.id));
+		stored.free = stored.free.filter((m) => !brokenIds.includes(m.id));
+		toggleState.setModels(stored);
+		toggleState.applyCurrent(reRegister);
+
+		_logger.info(
+			`[dynamic] ${config.providerId}: hidden ${brokenIds.length} broken models`,
+		);
+	}
+
 	// Toggle state
 	const toggleState = createToggleState({
 		providerId: config.providerId,
@@ -589,6 +614,7 @@ async function registerProvider(
 					`Found ${broken.length} expired free models:\n${broken.join("\n")}`,
 					"warning",
 				);
+				await hideBrokenModels(broken);
 			},
 		});
 
@@ -602,13 +628,16 @@ async function registerProvider(
 				_logger.info(
 					`Starting lazy auto-probe of ${config.providerId} free models...`,
 				);
-				config
-					.probe!.run(apiKey, stored.free, { useCache: true })
-					.catch((err) => {
-						_logger.warn("Auto-probe failed", {
-							error: err instanceof Error ? err.message : String(err),
-						});
+				try {
+					const broken = await config.probe!.run(apiKey, stored.free, {
+						useCache: true,
 					});
+					await hideBrokenModels(broken);
+				} catch (err) {
+					_logger.warn("Auto-probe failed", {
+						error: err instanceof Error ? err.message : String(err),
+					});
+				}
 			}),
 		);
 	}
