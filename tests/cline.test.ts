@@ -110,7 +110,7 @@ describe("Cline Provider", () => {
 			);
 		});
 
-		it("should register event handlers", async () => {
+		it("should register event handlers and XML bridge stream", async () => {
 			vi.mocked(fetchClineModels).mockResolvedValue([]);
 
 			await clineProvider(mockPi);
@@ -119,10 +119,16 @@ describe("Cline Provider", () => {
 				"before_agent_start",
 				expect.any(Function),
 			);
-			expect(mockOn).toHaveBeenCalledWith("context", expect.any(Function));
 			expect(mockOn).toHaveBeenCalledWith(
 				"session_start",
 				expect.any(Function),
+			);
+			expect(mockRegisterProvider).toHaveBeenCalledWith(
+				"cline",
+				expect.objectContaining({
+					api: "cline-xml-tools",
+					streamSimple: expect.any(Function),
+				}),
 			);
 		});
 
@@ -276,7 +282,10 @@ describe("Cline Provider", () => {
 			const sessionStartHandler = mockOn.mock.calls.find(
 				(call) => call[0] === "session_start",
 			)?.[1];
-			await sessionStartHandler({}, { model: { provider: "cline" }, ui: { notify: vi.fn() } });
+			await sessionStartHandler(
+				{},
+				{ model: { provider: "cline" }, ui: { notify: vi.fn() } },
+			);
 
 			expect(fetchClineModels).not.toHaveBeenCalled();
 			expect(mockSaveProviderCache).not.toHaveBeenCalled();
@@ -302,10 +311,16 @@ describe("Cline Provider", () => {
 			const sessionStartHandler = mockOn.mock.calls.find(
 				(call) => call[0] === "session_start",
 			)?.[1];
-			await sessionStartHandler({}, { model: { provider: "cline" }, ui: { notify: vi.fn() } });
+			await sessionStartHandler(
+				{},
+				{ model: { provider: "cline" }, ui: { notify: vi.fn() } },
+			);
 
 			await vi.waitFor(() => {
-				expect(mockSaveProviderCache).toHaveBeenCalledWith("cline", initialModels);
+				expect(mockSaveProviderCache).toHaveBeenCalledWith(
+					"cline",
+					initialModels,
+				);
 			});
 		});
 
@@ -324,8 +339,14 @@ describe("Cline Provider", () => {
 			const sessionStartHandler = mockOn.mock.calls.find(
 				(call) => call[0] === "session_start",
 			)?.[1];
-			await sessionStartHandler({}, { model: { provider: "cline" }, ui: { notify: vi.fn() } });
-			await sessionStartHandler({}, { model: { provider: "cline" }, ui: { notify: vi.fn() } });
+			await sessionStartHandler(
+				{},
+				{ model: { provider: "cline" }, ui: { notify: vi.fn() } },
+			);
+			await sessionStartHandler(
+				{},
+				{ model: { provider: "cline" }, ui: { notify: vi.fn() } },
+			);
 
 			expect(fetchClineModels).toHaveBeenCalledTimes(1);
 			resolveRefresh([]);

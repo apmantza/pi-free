@@ -34,6 +34,7 @@ import { logWarning } from "../../lib/util.ts";
 import { enhanceWithCI } from "../../provider-helper.ts";
 import { loginCline, refreshClineToken } from "./cline-auth.ts";
 import { fetchClineModels } from "./cline-models.ts";
+import { streamClineXml } from "./cline-xml-bridge.ts";
 
 // =============================================================================
 // Cline API headers (must match real Cline VS Code extension exactly)
@@ -79,83 +80,6 @@ function toApiKey(credentials: OAuthCredentials): string {
 }
 
 // =============================================================================
-// Context shaping — preserve full conversation with tool calls/results
-// =============================================================================
-
-function extractText(content: unknown): string {
-	if (typeof content === "string") return content.trim();
-	if (Array.isArray(content)) {
-		return (content as any[])
-			.filter((p: any) => p?.type === "text" && typeof p?.text === "string")
-			.map((p: any) => p.text)
-			.join("\n\n")
-			.trim();
-	}
-	return "";
-}
-
-/**
- * Format messages for Cline's API while preserving the full conversation
- * history including tool calls and results.
- *
- * Strategy:
- * 1. First user message gets wrapped in <task> (Cline-trained models expect this)
- * 2. Subsequent messages are sent with proper role alternation
- * 3. Tool calls stay in assistant messages (not collapsed)
- * 4. Tool results are sent as "tool" role messages
- *
- * This matches how Cline's native SDK sends messages to the API.
- */
-function shapeMessagesForCline(messages: any[]): any[] {
-	const shaped: any[] = [];
-	let firstUserFound = false;
-
-	for (const msg of messages) {
-		const role = msg?.role ?? "user";
-		const content = msg?.content;
-
-		// Skip empty messages
-		if (!content) continue;
-
-		// System messages: extract text and include
-		if (role === "system") {
-			const text = extractText(content);
-			if (text) shaped.push({ role: "system", content: text });
-			continue;
-		}
-
-		// First user message: wrap in <task> for Cline-trained models
-		if (role === "user" && !firstUserFound) {
-			firstUserFound = true;
-			const text = extractText(content);
-			if (text) {
-				shaped.push({
-					role: "user",
-					content: [{ type: "text", text: `<task>\n${text}\n</task>` }],
-				});
-			}
-			continue;
-		}
-
-		// Tool messages: send as-is with tool role
-		if (role === "tool") {
-			// Tool messages from Pi come as { role: "tool", content: [...] }
-			// or { role: "tool", content: "text" }
-			shaped.push({ role: "tool", content });
-			continue;
-		}
-
-		// Assistant and remaining user messages: send as-is
-		// This preserves tool-call blocks in assistant messages
-		if (role === "assistant" || role === "user") {
-			shaped.push({ role, content });
-		}
-	}
-
-	return shaped;
-}
-
-// =============================================================================
 // Extension entry point
 // =============================================================================
 
@@ -188,9 +112,11 @@ export default async function clineProvider(pi: ExtensionAPI) {
 	const reRegister = (m: typeof allModels) => {
 		pi.registerProvider(PROVIDER_CLINE, {
 			baseUrl: BASE_URL_CLINE,
-			api: "openai-completions" as const,
+			api: "cline-xml-tools" as const,
 			authHeader: false,
 			headers: buildClineHeaders(),
+			streamSimple: (model, context, options) =>
+				streamClineXml(model as any, context, options, buildClineHeaders()),
 			models: enhanceWithCI(m),
 			oauth: {
 				name: "Cline",
@@ -264,12 +190,6 @@ export default async function clineProvider(pi: ExtensionAPI) {
 		if (ctx.model?.provider !== PROVIDER_CLINE) return;
 		_currentTaskId = generateUlid();
 		toggleState.applyCurrent(reRegister);
-	});
-
-	pi.on("context", (event, ctx) => {
-		if (ctx.model?.provider !== PROVIDER_CLINE) return;
-		const sourceMessages = Array.isArray(event.messages) ? event.messages : [];
-		return { messages: shapeMessagesForCline(sourceMessages) };
 	});
 
 	let refreshInFlight: Promise<void> | undefined;

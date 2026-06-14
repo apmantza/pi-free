@@ -47,7 +47,8 @@
 		"check": "node scripts/check-extensions.mjs",
 		"test": "vitest",
 		"test:ui": "vitest --ui",
-		"test:run": "vitest run"
+		"test:run": "vitest run",
+		"smoke:cline": "tsx scripts/smoke-cline-xml-bridge.ts"
 	},
 	"peerDependencies": {
 		"@earendil-works/pi-ai": "*",
