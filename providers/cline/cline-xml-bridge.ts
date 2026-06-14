@@ -91,50 +91,171 @@ type ToolBridge = {
 	fromRuntimeArgs(args: Record<string, unknown>): Record<string, unknown>;
 };
 
+const CORE_CLINE_TOOL_NAMES = [
+	"read_file",
+	"write_to_file",
+	"execute_command",
+	"list_files",
+	"search_files",
+	"list_code_definition_names",
+] as const;
+
 function stringArg(args: Record<string, unknown>, key: string): string {
 	const value = args[key];
 	return typeof value === "string" ? value : value == null ? "" : String(value);
 }
 
+function booleanArg(args: Record<string, unknown>, key: string): boolean {
+	return String(args[key]).toLowerCase() === "true";
+}
+
+function shellQuote(value: string): string {
+	return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
+function buildListFilesCommand(args: Record<string, unknown>): string {
+	const path = shellQuote(stringArg(args, "path") || ".");
+	return booleanArg(args, "recursive")
+		? `find ${path} | sort`
+		: `find ${path} -mindepth 1 -maxdepth 1 | sort`;
+}
+
+function buildSearchFilesCommand(args: Record<string, unknown>): string {
+	const path = shellQuote(stringArg(args, "path") || ".");
+	const regex = shellQuote(stringArg(args, "regex"));
+	const filePattern = stringArg(args, "file_pattern");
+	return [
+		"rg",
+		"-n",
+		"--no-heading",
+		"--color",
+		"never",
+		filePattern ? `-g ${shellQuote(filePattern)}` : "",
+		`-e ${regex}`,
+		path,
+	]
+		.filter(Boolean)
+		.join(" ");
+}
+
+function buildListCodeDefinitionNamesCommand(
+	args: Record<string, unknown>,
+): string {
+	const path = shellQuote(stringArg(args, "path") || ".");
+	const globArgs = [
+		"-g '*.ts'",
+		"-g '*.tsx'",
+		"-g '*.js'",
+		"-g '*.jsx'",
+		"-g '*.mjs'",
+		"-g '*.cjs'",
+		"-g '*.py'",
+		"-g '*.go'",
+		"-g '*.rs'",
+		"-g '*.java'",
+		"-g '*.kt'",
+		"-g '*.swift'",
+	].join(" ");
+	const regex =
+		"^(export\\s+)?(async\\s+function|function|class|interface|type|enum)\\s+[A-Za-z_][A-Za-z0-9_]*|^(export\\s+)?const\\s+[A-Za-z_][A-Za-z0-9_]*\\s*=\\s*(async\\s*)?\\(";
+	return [
+		"rg",
+		"-n",
+		"--no-heading",
+		"--color",
+		"never",
+		globArgs,
+		`-e ${shellQuote(regex)}`,
+		path,
+	].join(" ");
+}
+
+function readFileBridge(tool?: Tool): ToolBridge {
+	return {
+		remoteName: "read_file",
+		runtimeName: tool?.name === "read_file" ? "read_file" : "read",
+		description: tool?.description ?? "Read a file from disk",
+		parameters: ["path"],
+		toRuntimeArgs: (args) => ({ path: stringArg(args, "path") }),
+		fromRuntimeArgs: (args) => ({ path: args.path }),
+	};
+}
+
+function writeToFileBridge(tool?: Tool): ToolBridge {
+	return {
+		remoteName: "write_to_file",
+		runtimeName: tool?.name === "write_to_file" ? "write_to_file" : "write",
+		description: tool?.description ?? "Write content to a file",
+		parameters: ["path", "content"],
+		toRuntimeArgs: (args) => ({
+			path: stringArg(args, "path"),
+			content: stringArg(args, "content"),
+		}),
+		fromRuntimeArgs: (args) => ({ path: args.path, content: args.content }),
+	};
+}
+
+function executeCommandBridge(tool?: Tool): ToolBridge {
+	return {
+		remoteName: "execute_command",
+		runtimeName: tool?.name === "execute_command" ? "execute_command" : "bash",
+		description: tool?.description ?? "Execute a shell command",
+		parameters: ["command", "timeout"],
+		toRuntimeArgs: (args) => ({
+			command: stringArg(args, "command"),
+			...(args.timeout !== undefined ? { timeout: Number(args.timeout) } : {}),
+		}),
+		fromRuntimeArgs: (args) => ({
+			command: args.command,
+			...(args.timeout !== undefined ? { timeout: args.timeout } : {}),
+		}),
+	};
+}
+
+function listFilesBridge(): ToolBridge {
+	return {
+		remoteName: "list_files",
+		runtimeName: "bash",
+		description: "List files in a directory",
+		parameters: ["path", "recursive"],
+		toRuntimeArgs: (args) => ({ command: buildListFilesCommand(args) }),
+		fromRuntimeArgs: (args) => ({ command: args.command }),
+	};
+}
+
+function searchFilesBridge(): ToolBridge {
+	return {
+		remoteName: "search_files",
+		runtimeName: "bash",
+		description: "Search files by regex",
+		parameters: ["path", "regex", "file_pattern"],
+		toRuntimeArgs: (args) => ({ command: buildSearchFilesCommand(args) }),
+		fromRuntimeArgs: (args) => ({ command: args.command }),
+	};
+}
+
+function listCodeDefinitionNamesBridge(): ToolBridge {
+	return {
+		remoteName: "list_code_definition_names",
+		runtimeName: "bash",
+		description: "List code definition names in source files",
+		parameters: ["path"],
+		toRuntimeArgs: (args) => ({
+			command: buildListCodeDefinitionNamesCommand(args),
+		}),
+		fromRuntimeArgs: (args) => ({ command: args.command }),
+	};
+}
+
 function getToolBridge(tool: Tool): ToolBridge {
-	if (tool.name === "read") {
-		return {
-			remoteName: "read_file",
-			runtimeName: "read",
-			description: tool.description,
-			parameters: ["path"],
-			toRuntimeArgs: (args) => ({ path: stringArg(args, "path") }),
-			fromRuntimeArgs: (args) => ({ path: args.path }),
-		};
+	if (tool.name === "read" || tool.name === "read_file") {
+		return readFileBridge(tool);
 	}
-	if (tool.name === "write") {
-		return {
-			remoteName: "write_to_file",
-			runtimeName: "write",
-			description: tool.description,
-			parameters: ["path", "content"],
-			toRuntimeArgs: (args) => ({
-				path: stringArg(args, "path"),
-				content: stringArg(args, "content"),
-			}),
-			fromRuntimeArgs: (args) => ({ path: args.path, content: args.content }),
-		};
+	if (tool.name === "write" || tool.name === "write_to_file") {
+		return writeToFileBridge(tool);
 	}
-	if (tool.name === "bash") {
-		return {
-			remoteName: "execute_command",
-			runtimeName: "bash",
-			description: tool.description,
-			parameters: ["command", "timeout"],
-			toRuntimeArgs: (args) => ({
-				command: stringArg(args, "command"),
-				...(args.timeout !== undefined ? { timeout: Number(args.timeout) } : {}),
-			}),
-			fromRuntimeArgs: (args) => ({
-				command: args.command,
-				...(args.timeout !== undefined ? { timeout: args.timeout } : {}),
-			}),
-		};
+	if (tool.name === "bash" || tool.name === "execute_command") {
+		return executeCommandBridge(tool);
 	}
 	const parameters = schemaProperties(tool);
 	return {
@@ -148,7 +269,48 @@ function getToolBridge(tool: Tool): ToolBridge {
 }
 
 function getToolBridges(tools: Tool[] | undefined): ToolBridge[] {
-	return (tools ?? []).map(getToolBridge);
+	const bridges: ToolBridge[] = [];
+	for (const tool of tools ?? []) {
+		bridges.push(getToolBridge(tool));
+		if (tool.name === "bash" || tool.name === "execute_command") {
+			bridges.push(
+				listFilesBridge(),
+				searchFilesBridge(),
+				listCodeDefinitionNamesBridge(),
+			);
+		}
+	}
+	return bridges;
+}
+
+function getParseToolBridges(tools: Tool[] | undefined): ToolBridge[] {
+	const bridges = getToolBridges(tools);
+	const remoteNames = new Set(bridges.map((bridge) => bridge.remoteName));
+	const toolsByName = new Map((tools ?? []).map((tool) => [tool.name, tool]));
+
+	for (const remoteName of CORE_CLINE_TOOL_NAMES) {
+		if (remoteNames.has(remoteName)) continue;
+		if (remoteName === "read_file") {
+			bridges.push(readFileBridge(toolsByName.get("read_file")));
+		}
+		if (remoteName === "write_to_file") {
+			bridges.push(writeToFileBridge(toolsByName.get("write_to_file")));
+		}
+		if (remoteName === "execute_command") {
+			bridges.push(executeCommandBridge(toolsByName.get("execute_command")));
+		}
+		if (remoteName === "list_files") {
+			bridges.push(listFilesBridge());
+		}
+		if (remoteName === "search_files") {
+			bridges.push(searchFilesBridge());
+		}
+		if (remoteName === "list_code_definition_names") {
+			bridges.push(listCodeDefinitionNamesBridge());
+		}
+	}
+
+	return bridges;
 }
 
 function serializeXmlToolCall(
@@ -168,9 +330,12 @@ function assistantMessageToText(
 	message: Extract<Message, { role: "assistant" }>,
 	tools: Tool[] | undefined,
 ): string {
-	const bridgeByRuntimeName = new Map(
-		getToolBridges(tools).map((bridge) => [bridge.runtimeName, bridge]),
-	);
+	const bridgeByRuntimeName = new Map<string, ToolBridge>();
+	for (const bridge of getToolBridges(tools)) {
+		if (!bridgeByRuntimeName.has(bridge.runtimeName)) {
+			bridgeByRuntimeName.set(bridge.runtimeName, bridge);
+		}
+	}
 	return message.content
 		.map((part) => {
 			if (part.type === "text") return part.text;
@@ -283,6 +448,17 @@ function findNextToolStart(
 	return best;
 }
 
+function isFenceOnlyText(text: string): boolean {
+	const trimmed = text.trim().toLowerCase();
+	return trimmed === "```" || trimmed === "```xml";
+}
+
+function pushTextFragment(textParts: string[], fragment: string): void {
+	const trimmed = fragment.trim();
+	if (!trimmed || isFenceOnlyText(trimmed)) return;
+	textParts.push(trimmed);
+}
+
 function extractTagContent(text: string, tag: string): string | undefined {
 	const open = `<${tag}>`;
 	const close = `</${tag}>`;
@@ -347,39 +523,41 @@ function parseXmlToolCalls(
 	toolCalls: Array<{ name: string; arguments: Record<string, unknown> }>;
 } {
 	const bridgeByRemoteName = new Map(
-		getToolBridges(tools).map((bridge) => [bridge.remoteName, bridge]),
+		getParseToolBridges(tools).map((bridge) => [bridge.remoteName, bridge]),
 	);
 	const toolNames = new Set(bridgeByRemoteName.keys());
 	if (toolNames.size === 0) return { text: rawText.trim(), toolCalls: [] };
 
+	const sourceText = findNextToolStart(rawText, toolNames, 0)
+		? rawText
+		: decodeXmlEntities(rawText);
 	const textParts: string[] = [];
 	const toolCalls: Array<{ name: string; arguments: Record<string, unknown> }> =
 		[];
 	let cursor = 0;
 
-	while (cursor < rawText.length) {
-		const next = findNextToolStart(rawText, toolNames, cursor);
+	while (cursor < sourceText.length) {
+		const next = findNextToolStart(sourceText, toolNames, cursor);
 		if (!next) break;
 		const closeTag = `</${next.name}>`;
-		const closeStart = rawText.indexOf(
+		const closeStart = sourceText.indexOf(
 			closeTag,
 			next.index + next.openTag.length,
 		);
-		if (closeStart === -1) break;
-		const before = rawText.slice(cursor, next.index).trim();
-		if (before) textParts.push(before);
-		const block = rawText.slice(next.index + next.openTag.length, closeStart);
+		pushTextFragment(textParts, sourceText.slice(cursor, next.index));
+		const blockEnd = closeStart === -1 ? sourceText.length : closeStart;
+		const block = sourceText.slice(next.index + next.openTag.length, blockEnd);
 		const bridge = bridgeByRemoteName.get(next.name);
 		const remoteArgs = parseToolArguments(block);
 		toolCalls.push({
 			name: bridge?.runtimeName ?? next.name,
 			arguments: bridge?.toRuntimeArgs(remoteArgs) ?? remoteArgs,
 		});
-		cursor = closeStart + closeTag.length;
+		cursor =
+			closeStart === -1 ? sourceText.length : closeStart + closeTag.length;
 	}
 
-	const rest = rawText.slice(cursor).trim();
-	if (rest) textParts.push(rest);
+	pushTextFragment(textParts, sourceText.slice(cursor));
 	return { text: textParts.join("\n\n").trim(), toolCalls };
 }
 
