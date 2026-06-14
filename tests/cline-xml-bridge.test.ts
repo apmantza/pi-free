@@ -113,6 +113,45 @@ describe("Cline XML bridge", () => {
 			]);
 		});
 
+		it("treats plain text before dangling thinking close as thinking", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"We need create new file pi capabilities.md and update proposed implementation to reference it.",
+					"Probably add section referencing pi capabilities. Need edit implementation to add section about leveraging pi capabilities. Use edit.",
+					"</thinking>",
+				].join("\n"),
+				[tool("edit"), tool("write")],
+			);
+
+			expect(parsed.text).toBe("");
+			expect(parsed.toolCalls).toEqual([]);
+		});
+
+		it("parses Cline write_to_file with Windows path and multi-line content", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"<write_to_file>",
+					" <path>C:/Users/R3LiC/Desktop/pi-plegma/pi capabilities.md</path>",
+					" <content># Pi SDK Capabilities for Plegma",
+					"This document maps pi's existing SDK capabilities to Plegma's requirements.</content>",
+					"</write_to_file>",
+				].join("\n"),
+				[tool("write")],
+			);
+
+			expect(parsed.text).toBe("");
+			expect(parsed.toolCalls).toEqual([
+				{
+					name: "write",
+					arguments: {
+						path: "C:/Users/R3LiC/Desktop/pi-plegma/pi capabilities.md",
+						content:
+							"# Pi SDK Capabilities for Plegma\nThis document maps pi's existing SDK capabilities to Plegma's requirements.",
+					},
+				},
+			]);
+		});
+
 		it("does not leak XML code fence markers as text", () => {
 			const parsed = __test__.parseXmlToolCalls(
 				[

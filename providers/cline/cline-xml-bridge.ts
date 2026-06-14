@@ -573,7 +573,10 @@ function extractThinkingXml(text: string): {
 		const closeStart = text.indexOf(closeTag, cursor);
 
 		if (closeStart !== -1 && (openStart === -1 || closeStart < openStart)) {
-			parts.push(text.slice(cursor, closeStart));
+			const danglingThinking = decodeXmlEntities(
+				text.slice(cursor, closeStart).trim(),
+			);
+			if (danglingThinking) thinking.push(danglingThinking);
 			cursor = closeStart + closeTag.length;
 			continue;
 		}
@@ -594,6 +597,9 @@ function extractThinkingXml(text: string): {
 		cursor = valueEnd + closeTag.length;
 	}
 
+	if (cursor === 0) {
+		return { text, thinking };
+	}
 	parts.push(text.slice(cursor));
 	return { text: parts.join(""), thinking };
 }
