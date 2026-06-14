@@ -564,12 +564,23 @@ function extractThinkingXml(text: string): {
 } {
 	const thinking: string[] = [];
 	const parts: string[] = [];
-	const openTag = "<thinking>";
+	const openTags = ["<thinking>", "<think>"];
 	const closeTag = "</thinking>";
 	let cursor = 0;
 
+	function findNextOpenTag(from: number): { index: number; tag: string } | null {
+		let best: { index: number; tag: string } | null = null;
+		for (const tag of openTags) {
+			const index = text.indexOf(tag, from);
+			if (index === -1) continue;
+			if (!best || index < best.index) best = { index, tag };
+		}
+		return best;
+	}
+
 	while (cursor < text.length) {
-		const openStart = text.indexOf(openTag, cursor);
+		const nextOpen = findNextOpenTag(cursor);
+		const openStart = nextOpen?.index ?? -1;
 		const closeStart = text.indexOf(closeTag, cursor);
 
 		if (closeStart !== -1 && (openStart === -1 || closeStart < openStart)) {
@@ -581,9 +592,9 @@ function extractThinkingXml(text: string): {
 			continue;
 		}
 
-		if (openStart === -1) break;
+		if (openStart === -1 || !nextOpen) break;
 		parts.push(text.slice(cursor, openStart));
-		const valueStart = openStart + openTag.length;
+		const valueStart = openStart + nextOpen.tag.length;
 		const valueEnd = text.indexOf(closeTag, valueStart);
 		if (valueEnd === -1) {
 			const value = decodeXmlEntities(text.slice(valueStart).trim());

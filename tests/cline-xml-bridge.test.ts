@@ -127,6 +127,32 @@ describe("Cline XML bridge", () => {
 			expect(parsed.toolCalls).toEqual([]);
 		});
 
+		it("treats DeepSeek-style <think> block content as thinking", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"<think>",
+					"The user wants me to continue. Let me check what still needs to be done.",
+					"</thinking>",
+					"<read_file>",
+					"<path>C:/Users/R3LiC/Desktop/pi-plegma/proposed implementation.md</path>",
+					"<offset>1100</offset>",
+					"<limit>50</limit>",
+					"</read_file>",
+				].join("\n"),
+				[tool("read")],
+			);
+
+			expect(parsed.text).toBe("");
+			expect(parsed.toolCalls).toEqual([
+				{
+					name: "read",
+					arguments: {
+						path: "C:/Users/R3LiC/Desktop/pi-plegma/proposed implementation.md",
+					},
+				},
+			]);
+		});
+
 		it("parses Cline write_to_file with Windows path and multi-line content", () => {
 			const parsed = __test__.parseXmlToolCalls(
 				[
