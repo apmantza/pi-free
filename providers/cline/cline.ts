@@ -79,12 +79,8 @@ function toApiKey(credentials: OAuthCredentials): string {
 }
 
 // =============================================================================
-// Context shaping — Cline's API requires a specific message envelope
+// Context shaping — preserve full conversation with tool calls/results
 // =============================================================================
-
-/* TASK_PROGRESS_BLOCK and buildEnvironmentDetails removed — they caused
- * Cline-trained models to hallucinate calling Cline's VS Code tools (tasklist,
- * execute_command, etc.) which don't exist in Pi. */
 
 function extractText(content: unknown): string {
 	if (typeof content === "string") return content.trim();
@@ -98,86 +94,65 @@ function extractText(content: unknown): string {
 	return "";
 }
 
-function isClineWrapped(content: unknown): boolean {
-	if (!Array.isArray(content)) return false;
-	const texts = (content as any[])
-		.filter((p: any) => p?.type === "text" && typeof p?.text === "string")
-		.map((p: any) => p.text as string);
-	return texts.some((t) => /<task>[\s\S]*<\/task>/.test(t));
-}
+/**
+ * Format messages for Cline's API while preserving the full conversation
+ * history including tool calls and results.
+ *
+ * Strategy:
+ * 1. First user message gets wrapped in <task> (Cline-trained models expect this)
+ * 2. Subsequent messages are sent with proper role alternation
+ * 3. Tool calls stay in assistant messages (not collapsed)
+ * 4. Tool results are sent as "tool" role messages
+ *
+ * This matches how Cline's native SDK sends messages to the API.
+ */
+function shapeMessagesForCline(messages: any[]): any[] {
+	const shaped: any[] = [];
+	let firstUserFound = false;
 
-function extractTaskBody(content: unknown): string {
-	if (!Array.isArray(content)) return "";
-	for (const p of content as any[]) {
-		if (p?.type !== "text" || typeof p?.text !== "string") continue;
-		const m = p.text.match(/<task>([\s\S]*?)<\/task>/);
-		if (m?.[1]) return m[1].trim();
-	}
-	return "";
-}
-
-function findLastClineWrappedMessage(messages: any[]): {
-	index: number;
-	transcript: string;
-} {
-	for (let i = messages.length - 1; i >= 0; i--) {
-		if (messages[i]?.role !== "user") continue;
-		if (!isClineWrapped(messages[i]?.content)) continue;
-		return { index: i, transcript: extractTaskBody(messages[i].content) };
-	}
-	return { index: -1, transcript: "" };
-}
-
-function buildTranscriptParts(
-	messages: any[],
-	startIdx: number,
-	baseTranscript: string,
-): string[] {
-	const parts: string[] = baseTranscript ? [baseTranscript] : [];
-
-	for (let i = startIdx; i < messages.length; i++) {
-		const msg = messages[i];
+	for (const msg of messages) {
 		const role = msg?.role ?? "user";
-		if (role === "system") continue;
-		if (role === "user" && isClineWrapped(msg?.content)) continue;
-		const text = extractText(msg?.content).trim();
-		if (!text) continue;
+		const content = msg?.content;
 
+		// Skip empty messages
+		if (!content) continue;
+
+		// System messages: extract text and include
+		if (role === "system") {
+			const text = extractText(content);
+			if (text) shaped.push({ role: "system", content: text });
+			continue;
+		}
+
+		// First user message: wrap in <task> for Cline-trained models
+		if (role === "user" && !firstUserFound) {
+			firstUserFound = true;
+			const text = extractText(content);
+			if (text) {
+				shaped.push({
+					role: "user",
+					content: [{ type: "text", text: `<task>\n${text}\n</task>` }],
+				});
+			}
+			continue;
+		}
+
+		// Tool messages: send as-is with tool role
 		if (role === "tool") {
-			parts.push(`<tool_result>\n${text}\n</tool_result>`);
-		} else if (role !== "assistant") {
-			parts.push(`[${role}]\n${text}`);
+			// Tool messages from Pi come as { role: "tool", content: [...] }
+			// or { role: "tool", content: "text" }
+			shaped.push({ role: "tool", content });
+			continue;
+		}
+
+		// Assistant and remaining user messages: send as-is
+		// This preserves tool-call blocks in assistant messages
+		if (role === "assistant" || role === "user") {
+			shaped.push({ role, content });
 		}
 	}
 
-	return parts;
-}
-
-function buildCollapsedMessage(messages: any[], transcript: string): any[] {
-	const collapsed: any[] = [];
-	const systemMsg = messages.find((m: any) => m?.role === "system");
-	if (systemMsg) {
-		const systemText = extractText(systemMsg.content);
-		if (systemText) collapsed.push({ role: "system", content: systemText });
-	}
-
-	collapsed.push({
-		role: "user",
-		content: [{ type: "text", text: `<task>\n${transcript}\n</task>` }],
-	});
-
-	return collapsed;
-}
-
-function shapeMessagesForCline(messages: any[]): any[] {
-	const { index: lastWrappedIdx, transcript: baseTranscript } =
-		findLastClineWrappedMessage(messages);
-
-	const startIdx = lastWrappedIdx >= 0 ? lastWrappedIdx + 1 : 0;
-	const parts = buildTranscriptParts(messages, startIdx, baseTranscript);
-	const transcript = parts.join("\n\n").trim() || "(no conversation yet)";
-
-	return buildCollapsedMessage(messages, transcript);
+	return shaped;
 }
 
 // =============================================================================
