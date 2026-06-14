@@ -29,6 +29,7 @@ import {
 import { createLogger } from "../../lib/logger.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import {
+	DEEPSEEK_PROXY_COMPAT,
 	getProxyModelCompat,
 	isLikelyReasoningModel,
 } from "../../lib/provider-compat.ts";
@@ -44,7 +45,12 @@ const _logger = createLogger("tokenrouter");
 // are hardcoded. Detected via name suffix also catches `:free`-tagged models.
 // =============================================================================
 
-const KNOWN_FREE_MODELS = new Set(["MiniMax-M3"]);
+const MINIMAX_M3_ID = "MiniMax-M3";
+const KNOWN_FREE_MODELS = new Set([MINIMAX_M3_ID]);
+const MINIMAX_ADAPTIVE_COMPAT: NonNullable<ProviderModelConfig["compat"]> = {
+	...DEEPSEEK_PROXY_COMPAT,
+	thinkingFormat: "deepseek",
+};
 
 // =============================================================================
 // Types
@@ -85,13 +91,53 @@ function isTextChatModel(model: TokenRouterModel): boolean {
 	return model.supported_endpoint_types.some((t) => CHAT_ENDPOINT_TYPES.has(t));
 }
 
-function mapTokenRouterModel(model: TokenRouterModel): ProviderModelConfig & {
+function isTokenRouterMinimaxModel(modelId: string): boolean {
+	return modelId.toLowerCase().includes("minimax");
+}
+
+export function finalizeTokenRouterModel(
+	model: ProviderModelConfig,
+): ProviderModelConfig {
+	if (!isTokenRouterMinimaxModel(model.id)) return model;
+
+	return {
+		...model,
+		reasoning: true,
+		compat: {
+			...MINIMAX_ADAPTIVE_COMPAT,
+			...(model.compat ?? {}),
+			thinkingFormat: "deepseek",
+			supportsReasoningEffort: true,
+		},
+	};
+}
+
+export function patchTokenRouterMinimaxThinkingPayload(payload: unknown): unknown {
+	if (typeof payload !== "object" || payload === null) return payload;
+	const body = payload as {
+		model?: unknown;
+		thinking?: { type?: unknown };
+	};
+	if (!isTokenRouterMinimaxModel(String(body.model ?? ""))) return payload;
+	if (body.thinking?.type !== "enabled") return payload;
+
+	return {
+		...body,
+		thinking: {
+			...body.thinking,
+			type: "adaptive",
+		},
+	};
+}
+
+export function mapTokenRouterModel(model: TokenRouterModel): ProviderModelConfig & {
 	_pricingKnown?: boolean;
 	_freeKnown?: boolean;
 	_isFree?: boolean;
 } {
 	const name = cleanModelName(model.id);
-	const reasoning = isLikelyReasoningModel({ id: model.id, name });
+	const isMinimax = isTokenRouterMinimaxModel(model.id);
+	const reasoning = isMinimax || isLikelyReasoningModel({ id: model.id, name });
 	const isResponseApi =
 		model.supported_endpoint_types.includes("openai-response");
 	const isKnownFree = KNOWN_FREE_MODELS.has(model.id);
@@ -105,7 +151,9 @@ function mapTokenRouterModel(model: TokenRouterModel): ProviderModelConfig & {
 		contextWindow: 128_000,
 		maxTokens: 16_384,
 		compat: {
-			...getProxyModelCompat({ id: model.id, name }),
+			...(isMinimax
+				? MINIMAX_ADAPTIVE_COMPAT
+				: getProxyModelCompat({ id: model.id, name })),
 			// openai-response models use a different API shape
 			...(isResponseApi ? { apiType: "openai-response" as const } : {}),
 		},
@@ -153,7 +201,10 @@ async function fetchTokenRouterModels(
 			models.map(mapTokenRouterModel),
 			{ providerId: PROVIDER_TOKENROUTER },
 		);
-		return applyHidden(enriched, PROVIDER_TOKENROUTER);
+		return applyHidden(
+			enriched.map(finalizeTokenRouterModel),
+			PROVIDER_TOKENROUTER,
+		);
 	} catch (error) {
 		_logger.error("[tokenrouter] Failed to fetch models", {
 			error: error instanceof Error ? error.message : String(error),
@@ -197,6 +248,10 @@ export default async function tokenRouterProvider(pi: ExtensionAPI) {
 	});
 
 	registerWithGlobalToggle(PROVIDER_TOKENROUTER, stored, reRegister, true);
+
+	pi.on("before_provider_request", (event) =>
+		patchTokenRouterMinimaxThinkingPayload(event.payload),
+	);
 
 	setupProvider(
 		pi,

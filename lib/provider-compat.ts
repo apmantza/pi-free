@@ -65,7 +65,6 @@ function isDeepSeekStyleModel(model: ProviderModelIdentity): boolean {
 	const id = model.id.toLowerCase();
 	return (
 		isDeepSeekModel(model) ||
-		id.includes("minimax") ||
 		id.includes("qwen3.7") ||
 		id.includes("qwen3-7")
 	);

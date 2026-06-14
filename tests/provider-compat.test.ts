@@ -90,6 +90,11 @@ describe("provider-compat", () => {
 			});
 		});
 
+		it("does not use DeepSeek thinking format for MiniMax models", () => {
+			expect(isLikelyReasoningModel({ id: "MiniMax-M3" })).toBe(true);
+			expect(getProxyModelCompat({ id: "MiniMax-M3" })).toBeUndefined();
+		});
+
 		it("returns undefined for non-DeepSeek models", () => {
 			expect(getProxyModelCompat({ id: "openai/gpt-4.1" })).toBeUndefined();
 			expect(

@@ -1,5 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { isFreeModel } from "../lib/registry.ts";
+import {
+	finalizeTokenRouterModel,
+	mapTokenRouterModel,
+	patchTokenRouterMinimaxThinkingPayload,
+} from "../providers/tokenrouter/tokenrouter.ts";
 
 describe("TokenRouter free model detection", () => {
 	const freeModel = {
@@ -41,6 +46,74 @@ describe("TokenRouter free model detection", () => {
 		expect(
 			isFreeModel({ ...freeModel, provider: "tokenrouter" }, allModels),
 		).toBe(true);
+	});
+
+	it("uses adaptive-thinking compat for MiniMax-M3", () => {
+		const model = mapTokenRouterModel({
+			id: "MiniMax-M3",
+			object: "model",
+			created: 0,
+			owned_by: "minimax",
+			supported_endpoint_types: ["openai"],
+			tags: "text",
+		});
+
+		expect(model.reasoning).toBe(true);
+		expect(
+			(model.compat as { thinkingFormat?: string } | undefined)?.thinkingFormat,
+		).toBe("deepseek");
+	});
+
+	it("keeps MiniMax-M3 adaptive-thinking compat after metadata enrichment", () => {
+		const model = finalizeTokenRouterModel({
+			...freeModel,
+			reasoning: true,
+			thinkingLevelMap: { high: "high" },
+			compat: {
+				thinkingFormat: "deepseek",
+				supportsReasoningEffort: true,
+				requiresReasoningContentOnAssistantMessages: true,
+				supportsDeveloperRole: false,
+			},
+		});
+
+		expect(model.reasoning).toBe(true);
+		expect(model.thinkingLevelMap).toEqual({ high: "high" });
+		expect(model.compat).toEqual({
+			supportsStore: false,
+			supportsDeveloperRole: false,
+			supportsReasoningEffort: true,
+			requiresReasoningContentOnAssistantMessages: true,
+			thinkingFormat: "deepseek",
+		});
+	});
+
+	it("patches MiniMax-M3 thinking payloads from enabled to adaptive", () => {
+		expect(
+			patchTokenRouterMinimaxThinkingPayload({
+				model: "MiniMax-M3",
+				thinking: { type: "enabled" },
+				reasoning_effort: "high",
+			}),
+		).toEqual({
+			model: "MiniMax-M3",
+			thinking: { type: "adaptive" },
+			reasoning_effort: "high",
+		});
+	});
+
+	it("leaves non-MiniMax and disabled thinking payloads unchanged", () => {
+		const disabled = {
+			model: "MiniMax-M3",
+			thinking: { type: "disabled" },
+		};
+		const other = {
+			model: "deepseek-r1",
+			thinking: { type: "enabled" },
+		};
+
+		expect(patchTokenRouterMinimaxThinkingPayload(disabled)).toBe(disabled);
+		expect(patchTokenRouterMinimaxThinkingPayload(other)).toBe(other);
 	});
 
 	it("detects :free suffix models as free (name-based Route B)", () => {
