@@ -7,7 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-06-15
+
 ### Added
+
+- **Cline XML tool bridge** — Replaced Cline's native OpenAI tool-message path with a custom `streamSimple` XML bridge. Cline-trained models now receive Cline-style XML tool instructions and emit XML tool calls that pi-free converts back to Pi `toolCall` blocks. This fixes strict upstream errors such as `Tool message must have tool_call_id` and `missing field "tool_call_id"` on models like `xiaomi/mimo-v2.5` and `nex-agi/nex-n2-pro:free` ([#232](https://github.com/apmantza/pi-free/pull/232)).
+
+- **Cline-native tool name mapping** — The XML bridge maps Cline-native tool names to Pi runtime tools:
+  - `read_file` → `read`
+  - `write_to_file` → `write`
+  - `replace_in_file` → `edit` (supports multi-block SEARCH/REPLACE diffs as one Pi `edit` call with multiple edits)
+  - `execute_command` → `bash`
+  - `list_files`, `search_files`, `list_code_definition_names` → `bash` (safe command generation)
+  - Unknown Pi tools pass through by their original names ([#235](https://github.com/apmantza/pi-free/pull/235), [#237](https://github.com/apmantza/pi-free/pull/237)).
+
+- **Cline XML thinking-tag hardening** — Strips `<thinking>...</thinking>` blocks, orphan `</thinking>` close tags, and dangling planning text before tool parsing, so Cline models don't emit visible plan text instead of tool calls ([#239](https://github.com/apmantza/pi-free/pull/239), [#240](https://github.com/apmantza/pi-free/pull/240)).
+
+- **Live Cline smoke test** — Added `npm run smoke:cline` gated test that hits the real Cline API and verifies Cline `read_file` XML is converted into a Pi `read` tool call ([#232](https://github.com/apmantza/pi-free/pull/232)).
+
+### Fixed
+
+- **TokenRouter MiniMax-M3 `<think>` leak** — The model sometimes emits DeepSeek-style `<think>` reasoning tags inline in assistant text. Added a `message_end` handler scoped to TokenRouter that extracts these blocks (including unclosed dangling tags) and promotes them to proper `ThinkingContent`, so Pi renders them as reasoning instead of visible text ([#243](https://github.com/apmantza/pi-free/pull/243)).
 
 - **TokenRouter provider** — OpenAI-compatible API gateway at `api.tokenrouter.com/v1` with 88 text chat models. 1 free via hardcoded `KNOWN_FREE_MODELS` + 1 `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` model. Set `TOKENROUTER_API_KEY` or add `tokenrouter_api_key` to `~/.pi/free.json` ([#222](https://github.com/apmantza/pi-free/pull/222)).
 
@@ -40,6 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **NVIDIA NIM provider** — Now a built-in Pi provider. Set `NVIDIA_API_KEY` to use directly. Removed `providers/nvidia/`, constants, config re-exports, and tests ([#218](https://github.com/apmantza/pi-free/pull/218)).
 
 ### Security
+
+- **CI/release hardening** — Added production dependency audit, lockfile drift check, tarball content/artifact verification, installed entry smoke-load, and pinned-action workflows. Added Dependabot config for npm and GitHub Actions. Hardened helper scripts against PATH-lookup Sonar hotspots by resolving `npm` and `tar` to fixed locations (#236).
 
 - **open-browser: `rundll32` + strict URL validation** — Replaced `cmd /c start "" <url>` with `rundll32 url.dll,FileProtocolHandler <url>` to fix GitHub Advanced Security CodeQL `js/uncontrolled-command-line` (Critical). rundll32 does NOT parse the command line, so the URL is handed to ShellExecute as a literal. Defense-in-depth: `isSafeUrl()` allows only `http`/`https`, rejects control characters, malformed URLs, and overlong URLs (>2048 chars) ([#223](https://github.com/apmantza/pi-free/pull/223), [#224](https://github.com/apmantza/pi-free/pull/224)).
 
