@@ -36,6 +36,104 @@ import {
 import { loginKilo, refreshKiloToken } from "./kilo-auth.ts";
 import { fetchKiloModels, KILO_GATEWAY_BASE } from "./kilo-models.ts";
 
+// =============================================================================
+// XML leak detection and auto-retry
+// =============================================================================
+
+/**
+ * Detect when a model outputs raw XML tool calls instead of using
+ * native function calling. This happens when gateways don't pass
+ * tool definitions to certain models (e.g., step-3.7-flash via Kilo).
+ *
+ * Pattern: <tool><name>tool_name</name><param>...</param></tool>
+ */
+function detectXmlToolLeak(text: string): boolean {
+	// Use simple string searches instead of regex to avoid ReDoS risks.
+	const lower = text.toLowerCase();
+	return (
+		lower.includes("<tool>") ||
+		lower.includes("<tool_call>") ||
+		lower.includes("<function_call>") ||
+		lower.includes("<invoke") ||
+		lower.includes("<antml:tool_use>")
+	);
+}
+
+function findTag(text: string, tag: string, start = 0): { start: number; end: number; content: string } | null {
+	const open = `<${tag}>`;
+	const close = `</${tag}>`;
+	const openIdx = text.indexOf(open, start);
+	if (openIdx === -1) return null;
+	const contentStart = openIdx + open.length;
+	const closeIdx = text.indexOf(close, contentStart);
+	if (closeIdx === -1) return null;
+	return {
+		start: openIdx,
+		end: closeIdx + close.length,
+		content: text.slice(contentStart, closeIdx),
+	};
+}
+
+/**
+ * Parse XML tool calls and convert to pi's tool call format.
+ * Returns null if parsing fails.
+ *
+ * Uses simple string scanning instead of regex with backreferences
+ * to avoid super-linear backtracking (ReDoS).
+ */
+function parseXmlToolCalls(
+	text: string,
+): Array<{ name: string; arguments: Record<string, unknown> }> | null {
+	try {
+		const calls: Array<{ name: string; arguments: Record<string, unknown> }> =
+			[];
+		let searchStart = 0;
+		while (true) {
+			const toolBlock = findTag(text, "tool", searchStart);
+			if (!toolBlock) break;
+			searchStart = toolBlock.end;
+
+			const nameTag = findTag(toolBlock.content, "name");
+			if (!nameTag) continue;
+			const name = nameTag.content.trim();
+			if (!name) continue;
+
+			const args: Record<string, unknown> = {};
+			// Skip the <name>...</name> block we already consumed.
+			let paramStart = nameTag.end;
+			const paramsText = toolBlock.content;
+			while (true) {
+				const openIdx = paramsText.indexOf("<", paramStart);
+				if (openIdx === -1) break;
+				const closeOpenIdx = paramsText.indexOf(">", openIdx);
+				if (closeOpenIdx === -1) break;
+				const tagName = paramsText.slice(openIdx + 1, closeOpenIdx).trim();
+				if (!tagName || tagName.startsWith("/")) {
+					paramStart = closeOpenIdx + 1;
+					continue;
+				}
+				const closeTag = `</${tagName}>`;
+				const closeIdx = paramsText.indexOf(closeTag, closeOpenIdx + 1);
+				if (closeIdx === -1) break;
+				const value = paramsText.slice(closeOpenIdx + 1, closeIdx).trim();
+				try {
+					args[tagName] = JSON.parse(value);
+				} catch {
+					args[tagName] = value;
+				}
+				paramStart = closeIdx + closeTag.length;
+			}
+			calls.push({ name, arguments: args });
+		}
+		return calls.length > 0 ? calls : null;
+	} catch {
+		return null;
+	}
+}
+
+// =============================================================================
+// Extension entry point
+// =============================================================================
 const KILO_PROVIDER_CONFIG = {
 	providerId: PROVIDER_KILO,
 	baseUrl: KILO_GATEWAY_BASE,
@@ -227,6 +325,88 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 				"info",
 			);
 		}
+	});
+
+	// ── XML leak detection and auto-retry ─────────────────────────
+	//
+	// When a model outputs raw XML tool calls (<tool><name>...</name></tool>)
+	// instead of native function calling, detect it and rewrite the message
+	// to force the model to use proper tool calling on the next turn.
+
+	let xmlLeakRetryCount = 0;
+	const MAX_XML_LEAK_RETRIES = 2;
+
+	(pi as any).on("message_end", (event: any, ctx: any) => {
+		if (ctx.model?.provider !== PROVIDER_KILO) return;
+
+		const msg = event.message;
+		if (msg.role !== "assistant") return;
+
+		// Extract text content from the message
+		let text = "";
+		if (typeof msg.content === "string") {
+			text = msg.content;
+		} else if (Array.isArray(msg.content)) {
+			text = msg.content
+				.filter((p: any) => p?.type === "text" && typeof p?.text === "string")
+				.map((p: any) => p.text)
+				.join("\n");
+		}
+
+		if (!text || !detectXmlToolLeak(text)) {
+			xmlLeakRetryCount = 0; // Reset on clean response
+			return;
+		}
+
+		// XML leak detected
+		if (xmlLeakRetryCount >= MAX_XML_LEAK_RETRIES) {
+			xmlLeakRetryCount = 0;
+			logWarning("kilo", "XML tool leak persisted after retries, giving up");
+			return;
+		}
+
+		xmlLeakRetryCount++;
+		logWarning(
+			"kilo",
+			`XML tool leak detected (attempt ${xmlLeakRetryCount}/${MAX_XML_LEAK_RETRIES}), rewriting message`,
+		);
+
+		// Try to parse the XML tool calls
+		const parsedCalls = parseXmlToolCalls(text);
+		if (parsedCalls && parsedCalls.length > 0) {
+			// We parsed the tool calls - convert to proper toolCall format
+			const toolCalls = parsedCalls.map((call, i) => ({
+				type: "toolCall" as const,
+				id: `xml_leak_${Date.now()}_${i}`,
+				name: call.name,
+				arguments: call.arguments,
+			}));
+
+			return {
+				...msg,
+				content: [
+					{
+						type: "text",
+						text:
+							text.replace(/<tool>[\s\S]*?<\/tool>/g, "").trim() ||
+							"(parsed tool calls)",
+					},
+					...toolCalls,
+				],
+			};
+		}
+
+		// Can't parse - add a correction message to force retry
+		// We rewrite the message to include a note about using proper tool calling
+		return {
+			...msg,
+			content: [
+				{
+					type: "text",
+					text: `${text}\n\n---\n[SYSTEM: You outputted XML tool calls instead of using the function calling API. Please use the native tool/function calling format with JSON arguments, not XML tags like <tool>.]`,
+				},
+			],
+		};
 	});
 
 	// Refresh models on session start if authenticated
