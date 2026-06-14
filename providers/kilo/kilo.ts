@@ -36,6 +36,17 @@ import {
 import { loginKilo, refreshKiloToken } from "./kilo-auth.ts";
 import { fetchKiloModels, KILO_GATEWAY_BASE } from "./kilo-models.ts";
 
+/** Kilo Gateway compat overrides, borrowed from pi-kilo-provider. */
+const KILO_COMPAT = {
+	supportsStore: false,
+	supportsDeveloperRole: false,
+	supportsReasoningEffort: false,
+	supportsUsageInStreaming: false,
+	supportsStrictMode: false,
+	thinkingFormat: "openrouter" as const,
+	maxTokensField: "max_tokens" as const,
+};
+
 // =============================================================================
 // XML leak detection and auto-retry
 // =============================================================================
@@ -59,7 +70,11 @@ function detectXmlToolLeak(text: string): boolean {
 	);
 }
 
-function findTag(text: string, tag: string, start = 0): { start: number; end: number; content: string } | null {
+function findTag(
+	text: string,
+	tag: string,
+	start = 0,
+): { start: number; end: number; content: string } | null {
 	const open = `<${tag}>`;
 	const close = `</${tag}>`;
 	const openIdx = text.indexOf(open, start);
@@ -143,6 +158,19 @@ const KILO_PROVIDER_CONFIG = {
 	},
 };
 
+/** Apply Kilo-specific compat overrides while preserving provider/model values. */
+function applyKiloCompat<T extends { compat?: ProviderModelConfig["compat"] }>(
+	models: T[],
+): T[] {
+	return models.map((m) => ({
+		...m,
+		compat: {
+			...KILO_COMPAT,
+			...m.compat,
+		},
+	}));
+}
+
 export default async function kiloProvider(pi: ExtensionAPI) {
 	// Try to fetch ALL models at startup (like Cline/OpenRouter)
 	// If no API key, this will return free models only
@@ -176,9 +204,11 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 	const stored: StoredModels = { free: freeModels, all: allModels };
 
 	// Create re-register function
-	const reRegister = createReRegister(pi, {
+	const baseReRegister = createReRegister(pi, {
 		...KILO_PROVIDER_CONFIG,
 	});
+	const reRegister = (models: ProviderModelConfig[]) =>
+		baseReRegister(applyKiloCompat(models));
 
 	// Register with global toggle system
 	registerWithGlobalToggle(
@@ -207,9 +237,11 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 				stored.free = freeModels;
 
 				// Update global toggle registration with new lists
-				const globalReRegister = createReRegister(pi, {
+				const baseGlobalReRegister = createReRegister(pi, {
 					...KILO_PROVIDER_CONFIG,
 				});
+				const globalReRegister = (models: ProviderModelConfig[]) =>
+					baseGlobalReRegister(applyKiloCompat(models));
 				registerWithGlobalToggle(PROVIDER_KILO, stored, globalReRegister, true);
 
 				// If paid mode is enabled, show all models
@@ -231,21 +263,24 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 			const template = models.find((m) => m.provider === PROVIDER_KILO);
 			if (!template) return models;
 			const nonKilo = models.filter((m) => m.provider !== PROVIDER_KILO);
-			const fullModels = allModels.map((m) => ({
-				...template,
-				id: m.id,
-				name: cleanModelName(m.name),
-				reasoning: m.reasoning,
-				input: m.input,
-				cost: m.cost,
-				contextWindow: m.contextWindow,
-				maxTokens: m.maxTokens,
-			}));
-			return [...nonKilo, ...fullModels];
+			const fullModels = applyKiloCompat(
+				allModels.map((m) => ({
+					...template,
+					id: m.id,
+					name: cleanModelName(m.name),
+					reasoning: m.reasoning,
+					input: m.input,
+					cost: m.cost,
+					contextWindow: m.contextWindow,
+					maxTokens: m.maxTokens,
+				})),
+			);
+			return [...nonKilo, ...fullModels] as Model<"openai-completions">[];
 		},
 	};
 
 	// Register initial provider (default to free models)
+	const modelsWithCompat = applyKiloCompat(currentModels);
 	pi.registerProvider(PROVIDER_KILO, {
 		baseUrl: KILO_GATEWAY_BASE,
 		apiKey: "$KILO_API_KEY",
@@ -254,7 +289,7 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 			"X-KILOCODE-EDITORNAME": "Pi",
 			"User-Agent": "pi-free-providers",
 		},
-		models: enhanceWithCI(currentModels),
+		models: enhanceWithCI(modelsWithCompat),
 		oauth: oauthConfig,
 	});
 
@@ -427,9 +462,11 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 					stored.free = freeModels;
 
 					// Update global toggle registration
-					const ctxReRegister = createCtxReRegister(ctx as any, {
+					const baseCtxReRegister = createCtxReRegister(ctx as any, {
 						...KILO_PROVIDER_CONFIG,
 					});
+					const ctxReRegister = (models: ProviderModelConfig[]) =>
+						baseCtxReRegister(applyKiloCompat(models));
 					registerWithGlobalToggle(PROVIDER_KILO, stored, ctxReRegister, true);
 
 					// Apply current view mode

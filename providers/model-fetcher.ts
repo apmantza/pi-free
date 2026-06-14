@@ -23,7 +23,10 @@ interface OpenRouterCompatibleModel {
 		input_modalities?: string[] | null;
 		output_modalities?: string[] | null;
 	};
-	top_provider?: { max_completion_tokens?: number | null };
+	top_provider?: {
+		context_length?: number | null;
+		max_completion_tokens?: number | null;
+	};
 	supported_parameters?: string[];
 	isFree?: boolean;
 }
@@ -98,9 +101,11 @@ export async function fetchOpenRouterCompatibleModels(
 
 	const models = json.data
 		.filter((m) => {
-			// Filter out image generation models
+			// Filter out models that cannot produce text output (image/video/audio
+			// generation, embedding-only, etc.). Keep models with no output
+			// modality info to avoid over-filtering older endpoints.
 			const outputMods = m.architecture?.output_modalities ?? [];
-			if (outputMods.includes("image")) return false;
+			if (outputMods.length > 0 && !outputMods.includes("text")) return false;
 
 			// Filter by provider flag when available, otherwise pricing.
 			if (freeOnly) {

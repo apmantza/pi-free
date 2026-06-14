@@ -87,7 +87,20 @@ describe("Kilo Provider", () => {
 					baseUrl: "https://api.kilo.ai/api/gateway",
 					apiKey: "$KILO_API_KEY",
 					api: "openai-completions",
-					models: mockModels,
+					models: mockModels.map((m) =>
+						expect.objectContaining({
+							id: m.id,
+							compat: {
+								maxTokensField: "max_tokens",
+								supportsDeveloperRole: false,
+								supportsReasoningEffort: false,
+								supportsStore: false,
+								supportsStrictMode: false,
+								supportsUsageInStreaming: false,
+								thinkingFormat: "openrouter",
+							},
+						}),
+					),
 					oauth: expect.any(Object),
 				}),
 			);

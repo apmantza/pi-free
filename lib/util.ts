@@ -370,31 +370,51 @@ export function mapOpenRouterModel(m: {
 	name: string;
 	context_length?: number;
 	max_completion_tokens?: number | null;
-	top_provider?: { max_completion_tokens?: number | null };
-	pricing?: { prompt?: string | null; completion?: string | null };
+	top_provider?: {
+		context_length?: number | null;
+		max_completion_tokens?: number | null;
+	};
+	pricing?: {
+		prompt?: string | null;
+		completion?: string | null;
+		input_cache_read?: string | null;
+		input_cache_write?: string | null;
+	};
 	architecture?: {
 		input_modalities?: string[] | null;
 		output_modalities?: string[] | null;
 	};
+	supported_parameters?: string[] | null;
 	isFree?: boolean;
 }): ProviderModelConfig {
 	const promptPrice = Number.parseFloat(m.pricing?.prompt ?? "0");
 	const completionPrice = Number.parseFloat(m.pricing?.completion ?? "0");
+	const cacheReadPrice = Number.parseFloat(
+		m.pricing?.input_cache_read ?? "0",
+	);
+	const cacheWritePrice = Number.parseFloat(
+		m.pricing?.input_cache_write ?? "0",
+	);
+	const supportedParameters = m.supported_parameters ?? [];
+	const reasoning =
+		supportedParameters.includes("reasoning") ||
+		supportedParameters.includes("reasoning_effort");
 
 	return {
 		id: m.id,
 		name: cleanModelName(m.name),
-		reasoning: false, // OpenRouter doesn't expose reasoning flag directly
+		reasoning,
+		...(reasoning && { thinkingLevelMap: { off: "none" } }),
 		input: m.architecture?.input_modalities?.includes("image")
 			? (["text", "image"] as const)
 			: (["text"] as const),
 		cost: {
 			input: promptPrice,
 			output: completionPrice,
-			cacheRead: 0,
-			cacheWrite: 0,
+			cacheRead: cacheReadPrice,
+			cacheWrite: cacheWritePrice,
 		},
-		contextWindow: m.context_length ?? 4096,
+		contextWindow: m.context_length ?? m.top_provider?.context_length ?? 4096,
 		maxTokens:
 			m.max_completion_tokens ?? m.top_provider?.max_completion_tokens ?? 4096,
 		_pricingKnown: true,
