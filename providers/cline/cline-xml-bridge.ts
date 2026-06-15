@@ -867,6 +867,31 @@ function parseReasoningToolCalls(
 	return { thinking, toolCalls: parsed.toolCalls };
 }
 
+function prepareClineXmlOutput(
+	parsedText: string,
+	contentThinking: string[],
+	reasoningThinking: string[],
+	toolCalls: ParsedToolCalls["toolCalls"],
+): { visibleText: string; thinkingText: string; toolCalls: ParsedToolCalls["toolCalls"] } {
+	const thinkingParts = [...reasoningThinking, ...contentThinking].filter(Boolean);
+	if (!parsedText && toolCalls.length === 0 && thinkingParts.length > 0) {
+		// Some Cline/DeepSeek responses put the entire assistant answer in the
+		// reasoning stream and send no content/tool XML. Hiding that would produce
+		// a blank `stop` turn, so surface it as a best-effort visible response.
+		return {
+			visibleText: thinkingParts.join("\n\n"),
+			thinkingText: "",
+			toolCalls,
+		};
+	}
+
+	return {
+		visibleText: parsedText,
+		thinkingText: thinkingParts.join("\n\n"),
+		toolCalls,
+	};
+}
+
 function usageFromChunkUsage(usage: ClineXmlChunk["usage"] | undefined): Usage {
 	const input = usage?.prompt_tokens ?? 0;
 	const output = usage?.completion_tokens ?? 0;
@@ -1076,16 +1101,16 @@ export function streamClineXml(
 			assistant.usage = usageFromChunkUsage(usage);
 			const extractedThinking = extractThinkingXml(rawText);
 			const parsedReasoning = parseReasoningToolCalls(thinking, context.tools);
-			pushThinking(
-				assistant,
-				[...parsedReasoning.thinking, ...extractedThinking.thinking]
-					.filter(Boolean)
-					.join("\n\n"),
-				stream,
-			);
 			const parsed = parseXmlToolCalls(extractedThinking.text, context.tools);
-			const toolCalls = [...parsed.toolCalls, ...parsedReasoning.toolCalls];
-			pushText(assistant, parsed.text, stream);
+			const output = prepareClineXmlOutput(
+				parsed.text,
+				extractedThinking.thinking,
+				parsedReasoning.thinking,
+				[...parsed.toolCalls, ...parsedReasoning.toolCalls],
+			);
+			pushThinking(assistant, output.thinkingText, stream);
+			pushText(assistant, output.visibleText, stream);
+			const toolCalls = output.toolCalls;
 			for (const toolCall of toolCalls) {
 				pushToolCall(assistant, toolCall, stream);
 			}
@@ -1120,5 +1145,6 @@ export const __test__ = {
 	buildClineXmlMessages,
 	parseReasoningToolCalls,
 	parseXmlToolCalls,
+	prepareClineXmlOutput,
 	serializeXmlToolCall,
 };

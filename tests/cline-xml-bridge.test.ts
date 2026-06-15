@@ -456,6 +456,57 @@ describe("Cline XML bridge", () => {
 		});
 	});
 
+	describe("prepareClineXmlOutput", () => {
+		it("surfaces reasoning-only Cline responses instead of returning a blank stop", () => {
+			const output = __test__.prepareClineXmlOutput(
+				"",
+				[],
+				[
+					"The user is prompting me to continue. Let me respond with my thoughts on this UX design.",
+				],
+				[],
+			);
+
+			expect(output).toEqual({
+				visibleText:
+					"The user is prompting me to continue. Let me respond with my thoughts on this UX design.",
+				thinkingText: "",
+				toolCalls: [],
+			});
+		});
+
+		it("keeps reasoning hidden when visible text is present", () => {
+			const output = __test__.prepareClineXmlOutput(
+				"Visible answer",
+				[],
+				["Private plan"],
+				[],
+			);
+
+			expect(output).toEqual({
+				visibleText: "Visible answer",
+				thinkingText: "Private plan",
+				toolCalls: [],
+			});
+		});
+
+		it("keeps reasoning hidden when tool calls are present", () => {
+			const toolCalls = [{ name: "read", arguments: { path: "README.md" } }];
+			const output = __test__.prepareClineXmlOutput(
+				"",
+				[],
+				["I should inspect the file."],
+				toolCalls,
+			);
+
+			expect(output).toEqual({
+				visibleText: "",
+				thinkingText: "I should inspect the file.",
+				toolCalls,
+			});
+		});
+	});
+
 	describe("buildClineXmlMessages", () => {
 		it("advertises Pi edit as Cline replace_in_file with SEARCH/REPLACE format", () => {
 			const messages = __test__.buildClineXmlMessages({
