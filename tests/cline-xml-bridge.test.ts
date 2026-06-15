@@ -618,9 +618,7 @@ describe("Cline XML bridge", () => {
 
 			expect(fetchMock).toHaveBeenCalledTimes(2);
 			expect(requestBody(fetchMock, 0).include_reasoning).toBe(true);
-			expect(requestBody(fetchMock, 1)).not.toHaveProperty(
-				"include_reasoning",
-			);
+			expect(requestBody(fetchMock, 1)).not.toHaveProperty("include_reasoning");
 			expect(result.stopReason).toBe("stop");
 			expect(result.content).toContainEqual({
 				type: "text",
@@ -746,11 +744,50 @@ describe("Cline XML bridge", () => {
 		});
 
 		it("handles mixed decorated and plain tags", () => {
-			const input = "<\u{1D41A}\u{1D42C}\u{1D429}\u{1D428}\u{1D427}:thinking>plan</\u{1D41A}\u{1D42C}\u{1D429}\u{1D428}\u{1D427}:thinking>\n<read_file>\n<path>x</path>\n</read_file>";
+			const input =
+				"<\u{1D41A}\u{1D42C}\u{1D429}\u{1D428}\u{1D427}:thinking>plan</\u{1D41A}\u{1D42C}\u{1D429}\u{1D428}\u{1D427}:thinking>\n<read_file>\n<path>x</path>\n</read_file>";
 			const result = __test__.normalizeDecoratedXmlTags(input);
 			expect(result).toContain("<thinking>");
 			expect(result).toContain("<read_file>");
 			expect(result).not.toContain("\u{1D41A}");
+		});
+	});
+
+	describe("extractFunctionTagToolCalls", () => {
+		it("parses <function=name> Pi SDK format directly to tool calls", () => {
+			const input =
+				'<function=read_file>\n<param name="path">README.md</param>\n</function>';
+			const result = __test__.extractFunctionTagToolCalls(input, new Map());
+			expect(result.toolCalls).toHaveLength(1);
+			expect(result.toolCalls[0].name).toBe("read_file");
+			expect(result.toolCalls[0].arguments).toEqual({ path: "README.md" });
+			expect(result.text).toBe("");
+		});
+
+		it("parses multiple <function=name> blocks", () => {
+			const input =
+				'<function=read_file>\n<param name="path">a.txt</param>\n</function>\n<function=write_to_file>\n<param name="path">b.txt</param>\n<param name="content">hello</param>\n</function>';
+			const result = __test__.extractFunctionTagToolCalls(input, new Map());
+			expect(result.toolCalls).toHaveLength(2);
+			expect(result.toolCalls[0].name).toBe("read_file");
+			expect(result.toolCalls[0].arguments).toEqual({ path: "a.txt" });
+			expect(result.toolCalls[1].name).toBe("write_to_file");
+			expect(result.toolCalls[1].arguments).toEqual({ path: "b.txt", content: "hello" });
+		});
+
+		it("preserves surrounding text", () => {
+			const input = "Let me read the file.\n<function=read_file>\n<param name=\"path\">x.txt</param>\n</function>\nDone.";
+			const result = __test__.extractFunctionTagToolCalls(input, new Map());
+			expect(result.toolCalls).toHaveLength(1);
+			expect(result.text).toContain("Let me read the file.");
+			expect(result.text).toContain("Done.");
+		});
+
+		it("leaves normal Cline XML untouched", () => {
+			const input = "<read_file>\n<path>README.md</path>\n</read_file>";
+			const result = __test__.extractFunctionTagToolCalls(input, new Map());
+			expect(result.toolCalls).toHaveLength(0);
+			expect(result.text).toContain("<read_file>");
 		});
 	});
 

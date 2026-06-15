@@ -900,6 +900,51 @@ type ParsedToolCalls = {
 	toolCalls: Array<{ name: string; arguments: Record<string, unknown> }>;
 };
 
+/**
+ * Some MiMo/Cline models emit Pi SDK `<function=name>` tool-call syntax
+ * instead of Cline XML `<toolName>` syntax:
+ *
+ *   <function=read_file>
+ *   <param name="path">README.md</param>
+ *   </function>
+ *
+ * Parse these directly to Pi tool calls without going through Cline XML.
+ */
+function extractFunctionTagToolCalls(
+	text: string,
+	bridgeByRemoteName: Map<string, ToolBridge>,
+): { text: string; toolCalls: ParsedToolCalls["toolCalls"] } {
+	const FUNCTION_TAG_RE = /<function=([a-zA-Z0-9_-]+)>([\s\S]*?)<\/function>/g;
+	const toolCalls: ParsedToolCalls["toolCalls"] = [];
+	const parts: string[] = [];
+	let cursor = 0;
+	let match: RegExpExecArray | null;
+
+	while ((match = FUNCTION_TAG_RE.exec(text)) !== null) {
+		const [fullMatch, toolName, body] = match;
+		pushTextFragment(parts, text.slice(cursor, match.index));
+
+		// Parse <param name="x">val</param> directly to arguments
+		const args: Record<string, unknown> = {};
+		const PARAM_RE = /<param\s+name="([^"]*)">([\s\S]*?)<\/param>/g;
+		let paramMatch: RegExpExecArray | null;
+		while ((paramMatch = PARAM_RE.exec(body)) !== null) {
+			args[paramMatch[1]] = paramMatch[2];
+		}
+
+		const bridge = bridgeByRemoteName.get(toolName);
+		toolCalls.push({
+			name: bridge?.runtimeName ?? toolName,
+			arguments: bridge?.toRuntimeArgs(args) ?? args,
+		});
+
+		cursor = match.index + fullMatch.length;
+	}
+
+	pushTextFragment(parts, text.slice(cursor));
+	return { text: parts.join("\n\n").trim(), toolCalls };
+}
+
 function parseXmlToolCalls(
 	rawText: string,
 	tools: Tool[] | undefined,
@@ -908,9 +953,12 @@ function parseXmlToolCalls(
 		getParseToolBridges(tools).map((bridge) => [bridge.remoteName, bridge]),
 	);
 	const toolNames = new Set(bridgeByRemoteName.keys());
-	const textWithoutThinking = extractThinkingXml(rawText).text;
+
+	// Extract <function=name> Pi SDK tool calls directly (no Cline XML intermediate)
+	const fnResult = extractFunctionTagToolCalls(rawText, bridgeByRemoteName);
+	const textWithoutThinking = extractThinkingXml(fnResult.text).text;
 	if (toolNames.size === 0) {
-		return { text: textWithoutThinking.trim(), toolCalls: [] };
+		return { text: textWithoutThinking.trim(), toolCalls: fnResult.toolCalls };
 	}
 
 	const sourceText = findNextToolStart(textWithoutThinking, toolNames, 0)
@@ -955,7 +1003,7 @@ function parseXmlToolCalls(
 	}
 
 	pushTextFragment(textParts, sourceText.slice(cursor));
-	return { text: textParts.join("\n\n").trim(), toolCalls };
+	return { text: textParts.join("\n\n").trim(), toolCalls: [...fnResult.toolCalls, ...toolCalls] };
 }
 
 function parseReasoningHiddenToolCalls(
@@ -982,7 +1030,12 @@ function parseReasoningHiddenToolCalls(
 		toolCalls.push(...parsed.toolCalls, ...nested.toolCalls);
 		if (parsed.text) thinking.push(parsed.text);
 		thinking.push(...nested.thinking);
-		if (!parsed.text && parsed.toolCalls.length === 0 && nested.toolCalls.length === 0 && nested.thinking.length === 0) {
+		if (
+			!parsed.text &&
+			parsed.toolCalls.length === 0 &&
+			nested.toolCalls.length === 0 &&
+			nested.thinking.length === 0
+		) {
 			thinking.push(trimmed);
 		}
 	}
@@ -1369,6 +1422,7 @@ export function streamClineXml(
 
 export const __test__ = {
 	buildClineXmlMessages,
+	extractFunctionTagToolCalls,
 	isRetryableClineReasoningStreamError,
 	normalizeDecoratedXmlTags,
 	parseReasoningHiddenToolCalls,
