@@ -1,6 +1,9 @@
-import type { Tool } from "@earendil-works/pi-ai";
-import { describe, expect, it } from "vitest";
-import { __test__ } from "../providers/cline/cline-xml-bridge.ts";
+import type { Context, Model, Tool } from "@earendil-works/pi-ai";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+	__test__,
+	streamClineXml,
+} from "../providers/cline/cline-xml-bridge.ts";
 
 function tool(name: string): Tool {
 	return {
@@ -9,6 +12,45 @@ function tool(name: string): Tool {
 		parameters: { type: "object", properties: {} } as Tool["parameters"],
 	};
 }
+
+function clineModel(id = "xiaomi/mimo-v2.5"): Model<string> {
+	return {
+		id,
+		name: id,
+		api: "cline-xml-tools",
+		provider: "cline",
+	} as Model<string>;
+}
+
+function clineContext(): Context {
+	return {
+		systemPrompt: "system",
+		messages: [
+			{
+				role: "user",
+				content: [{ type: "text", text: "continue" }],
+				timestamp: 1,
+			},
+		],
+		tools: [tool("read")],
+	};
+}
+
+function sseResponse(chunks: unknown[], status = 200): Response {
+	const body = `${chunks
+		.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`)
+		.join("")}data: [DONE]\n\n`;
+	return new Response(body, { status });
+}
+
+function requestBody(fetchMock: ReturnType<typeof vi.spyOn>, index: number) {
+	const init = fetchMock.mock.calls[index]?.[1] as RequestInit | undefined;
+	return JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+}
+
+afterEach(() => {
+	vi.restoreAllMocks();
+});
 
 describe("Cline XML bridge", () => {
 	describe("parseXmlToolCalls", () => {
@@ -536,6 +578,70 @@ describe("Cline XML bridge", () => {
 			expect(parsed.toolCalls[0]?.name).toBe("bash");
 			expect(parsed.toolCalls[0]?.arguments.command).toContain("rg -n");
 			expect(parsed.toolCalls[0]?.arguments.command).toContain("'providers'");
+		});
+	});
+
+	describe("streamClineXml", () => {
+		it("retries MiMo generic stream errors once without include_reasoning", async () => {
+			const fetchMock = vi
+				.spyOn(globalThis, "fetch")
+				.mockResolvedValueOnce(
+					sseResponse([
+						{
+							error: {
+								code: "error",
+								message: "Stream error occurred",
+							},
+						},
+					]),
+				)
+				.mockResolvedValueOnce(
+					sseResponse([
+						{
+							choices: [
+								{
+									delta: { content: "Recovered without reasoning" },
+									finish_reason: "stop",
+								},
+							],
+						},
+					]),
+				);
+
+			const stream = streamClineXml(
+				clineModel(),
+				clineContext(),
+				{ apiKey: "token" },
+				{},
+			);
+			const result = await stream.result();
+
+			expect(fetchMock).toHaveBeenCalledTimes(2);
+			expect(requestBody(fetchMock, 0).include_reasoning).toBe(true);
+			expect(requestBody(fetchMock, 1)).not.toHaveProperty(
+				"include_reasoning",
+			);
+			expect(result.stopReason).toBe("stop");
+			expect(result.content).toContainEqual({
+				type: "text",
+				text: "Recovered without reasoning",
+			});
+		});
+
+		it("returns an error instead of a blank stop when Cline streams no content", async () => {
+			vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(sseResponse([]));
+
+			const stream = streamClineXml(
+				clineModel(),
+				clineContext(),
+				{ apiKey: "token" },
+				{},
+			);
+			const result = await stream.result();
+
+			expect(result.stopReason).toBe("error");
+			expect(result.errorMessage).toBe("Cline returned empty response");
+			expect(result.content).toEqual([]);
 		});
 	});
 
