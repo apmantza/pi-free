@@ -16,7 +16,16 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import type { AssistantMessage, ThinkingContent } from "@earendil-works/pi-ai";
+import type {
+	Api,
+	AssistantMessage,
+	AssistantMessageEventStream,
+	Context,
+	Model,
+	SimpleStreamOptions,
+	ThinkingContent,
+} from "@earendil-works/pi-ai";
+import { streamSimpleOpenAICompletions } from "@earendil-works/pi-ai";
 import {
 	getTokenrouterApiKey,
 	getTokenrouterShowPaid,
@@ -36,7 +45,7 @@ import {
 } from "../../lib/provider-compat.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { cleanModelName, fetchWithRetry } from "../../lib/util.ts";
-import { createReRegister, setupProvider } from "../../provider-helper.ts";
+import { enhanceWithCI, setupProvider } from "../../provider-helper.ts";
 
 const _logger = createLogger("tokenrouter");
 
@@ -105,6 +114,7 @@ function isTokenRouterModel(model: { provider?: string }): boolean {
 
 const MINIMAX_M3_ID = "MiniMax-M3";
 const KNOWN_FREE_MODELS = new Set([MINIMAX_M3_ID]);
+const TOKENROUTER_OPENAI_API = "tokenrouter-openai-completions" as const;
 const MINIMAX_ADAPTIVE_COMPAT: NonNullable<ProviderModelConfig["compat"]> = {
 	...DEEPSEEK_PROXY_COMPAT,
 	thinkingFormat: "deepseek",
@@ -272,6 +282,35 @@ export function patchTokenRouterMinimaxThinkingPayload(
 	return result.changed ? result.value : payload;
 }
 
+export function streamSimpleTokenRouter(
+	model: Model<Api>,
+	context: Context,
+	options?: SimpleStreamOptions,
+): AssistantMessageEventStream {
+	const forcePatch = isTokenRouterMinimaxModel(model.id);
+	return streamSimpleOpenAICompletions(
+		{ ...model, api: "openai-completions" },
+		context,
+		{
+			...options,
+			onPayload: async (payload, payloadModel) => {
+				const patchedPayload = patchTokenRouterMinimaxThinkingPayload(
+					payload,
+					forcePatch,
+				);
+				const upstreamPayload = await options?.onPayload?.(
+					patchedPayload,
+					payloadModel,
+				);
+				return patchTokenRouterMinimaxThinkingPayload(
+					upstreamPayload ?? patchedPayload,
+					forcePatch,
+				);
+			},
+		},
+	);
+}
+
 export function mapTokenRouterModel(
 	model: TokenRouterModel,
 ): ProviderModelConfig & {
@@ -385,11 +424,16 @@ export default async function tokenRouterProvider(pi: ExtensionAPI) {
 		`[tokenrouter] Registered ${allModels.length} models (${freeModels.length} free)`,
 	);
 
-	const reRegister = createReRegister(pi, {
-		providerId: PROVIDER_TOKENROUTER,
-		baseUrl: BASE_URL_TOKENROUTER,
-		apiKey,
-	});
+	const reRegister = (models: ProviderModelConfig[]) => {
+		pi.registerProvider(PROVIDER_TOKENROUTER, {
+			baseUrl: BASE_URL_TOKENROUTER,
+			apiKey,
+			api: TOKENROUTER_OPENAI_API,
+			streamSimple: streamSimpleTokenRouter,
+			headers: { "User-Agent": "pi-free-providers" },
+			models: enhanceWithCI(models, PROVIDER_TOKENROUTER),
+		});
+	};
 
 	registerWithGlobalToggle(PROVIDER_TOKENROUTER, stored, reRegister, true);
 

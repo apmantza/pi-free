@@ -5,6 +5,7 @@ import {
 	mapTokenRouterModel,
 	normalizeAssistantMessage,
 	patchTokenRouterMinimaxThinkingPayload,
+	streamSimpleTokenRouter,
 } from "../providers/tokenrouter/tokenrouter.ts";
 
 describe("TokenRouter free model detection", () => {
@@ -149,6 +150,60 @@ describe("TokenRouter free model detection", () => {
 		expect(patchTokenRouterMinimaxThinkingPayload(payload, true)).toBe(
 			JSON.stringify({ thinking: { type: "adaptive" } }),
 		);
+	});
+
+	it("patches the actual OpenAI-completions payload before TokenRouter sends it", async () => {
+		let capturedPayload: unknown;
+		const stream = streamSimpleTokenRouter(
+			{
+				id: "MiniMax-M3",
+				name: "MiniMax-M3",
+				provider: "tokenrouter",
+				api: "tokenrouter-openai-completions",
+				baseUrl: "http://127.0.0.1:9/v1",
+				reasoning: true,
+				input: ["text"],
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 128_000,
+				maxTokens: 16_384,
+				compat: {
+					thinkingFormat: "deepseek",
+					supportsReasoningEffort: true,
+					supportsStore: false,
+					supportsDeveloperRole: false,
+					requiresReasoningContentOnAssistantMessages: true,
+				},
+			},
+			{
+				systemPrompt: "",
+				messages: [
+					{
+						role: "user",
+						content: [{ type: "text", text: "summarize" }],
+						timestamp: Date.now(),
+					},
+				],
+				tools: [],
+			},
+			{
+				apiKey: "test-tokenrouter-key",
+				reasoning: "high",
+				maxRetries: 0,
+				timeoutMs: 1,
+				onPayload: (payload) => {
+					capturedPayload = payload;
+					throw new Error("stop after payload capture");
+				},
+			},
+		);
+
+		await stream.result();
+		expect(capturedPayload).toMatchObject({
+			model: "MiniMax-M3",
+			thinking: { type: "adaptive" },
+			reasoning_effort: "high",
+		});
+		expect(JSON.stringify(capturedPayload)).not.toContain('"enabled"');
 	});
 
 	it("leaves non-MiniMax and disabled thinking payloads unchanged", () => {
