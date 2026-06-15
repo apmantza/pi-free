@@ -125,15 +125,4 @@ export default async function codestralProvider(pi: ExtensionAPI) {
 
 	_logger.info(`[codestral] Registered codestral-latest via ${keySource}`);
 
-	// Status bar
-	pi.on("model_select", (_event, ctx) => {
-		if (_event.model?.provider !== PROVIDER_CODESTRAL) {
-			ctx.ui.setStatus(`${PROVIDER_CODESTRAL}-status`, undefined);
-			return;
-		}
-		ctx.ui.setStatus(
-			`${PROVIDER_CODESTRAL}-status`,
-			`codestral: 1 model (free tier) 🔑`,
-		);
-	});
 }

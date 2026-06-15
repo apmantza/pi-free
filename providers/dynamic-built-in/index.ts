@@ -563,26 +563,6 @@ async function registerProvider(
 		true,
 	);
 
-	// Status bar
-	const pid = config.providerId;
-	pi.on("model_select", (_event, ctx) => {
-		if (_event.model?.provider !== pid) {
-			ctx.ui.setStatus(`${pid}-status`, undefined);
-			return;
-		}
-		const f = freeModels.length;
-		const t = allModels.length;
-		const p = t - f;
-		const mode = toggleState.getCurrentMode();
-		const status =
-			p === 0
-				? `${pid}: ${f} free models`
-				: mode === "all"
-					? `${pid}: ${t} models (free + paid)`
-					: `${pid}: ${f} free \u00b7 ${p} paid`;
-		ctx.ui.setStatus(`${pid}-status`, `${status} 🔑`);
-	});
-
 	// Register models (this swaps in our discovered models over Pi's defaults)
 	toggleState.applyCurrent(reRegister);
 

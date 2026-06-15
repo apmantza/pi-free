@@ -591,19 +591,6 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 		},
 	});
 
-	// ── Status bar for provider selection ───────────────────────────
-
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	pi.on("model_select" as any, (_event: any, ctx: any) => {
-		if (_event.model?.provider !== PROVIDER_OLLAMA) {
-			ctx.ui.setStatus(`${PROVIDER_OLLAMA}-status`, undefined);
-			return;
-		}
-
-		const count = allModels.length;
-		ctx.ui.setStatus(`${PROVIDER_OLLAMA}-status`, `ollama: ${count} models`);
-	});
-
 	const runProbeInBackground = (models: ProviderModelConfig[]) => {
 		runOllamaProbe(apiKey, models, applyModelList, { useCache: true }).catch(
 			(error) => {

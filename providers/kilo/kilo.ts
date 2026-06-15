@@ -326,27 +326,10 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 		},
 	});
 
-	// Status bar + ToS notice on provider selection
+	// ToS notice on provider selection
 	let tosShown = false;
 	pi.on("model_select", async (_event, ctx) => {
-		if (ctx.model?.provider !== PROVIDER_KILO) {
-			ctx.ui.setStatus(`${PROVIDER_KILO}-status`, undefined);
-			return;
-		}
-
-		// Build status line
-		const free = freeModels.length;
-		const total = allModels.length;
-		const paid = total - free;
-		let status: string;
-		if (paid === 0) {
-			status = `kilo: ${free} free models`;
-		} else if (showPaidModels) {
-			status = `kilo: ${total} models (free + paid)`;
-		} else {
-			status = `kilo: ${free} free \u00b7 ${paid} paid`;
-		}
-		ctx.ui.setStatus(`${PROVIDER_KILO}-status`, status);
+		if (ctx.model?.provider !== PROVIDER_KILO) return;
 
 		// ToS notice (once)
 		if (tosShown) return;

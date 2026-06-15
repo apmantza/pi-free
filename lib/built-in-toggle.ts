@@ -95,7 +95,6 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 		for (const config of activeConfigs) {
 			registerToggleCommand(pi, config);
 		}
-		setupStatusBar(pi, activeConfigs);
 		commandsRegistered = true;
 	}
 
@@ -248,45 +247,6 @@ function modelToProviderConfig(
 	}
 
 	return base;
-}
-
-// =============================================================================
-// Status bar for provider selection
-// =============================================================================
-
-function setupStatusBar(
-	pi: ExtensionAPI,
-	configs: BuiltInToggleConfig[],
-): void {
-	pi.on("model_select", (_event, ctx) => {
-		const selected = _event.model?.provider;
-
-		// Clear status for all fallback-captured built-in providers
-		for (const config of configs) {
-			if (selected !== config.id) {
-				ctx.ui.setStatus(`${config.id}-status`, undefined);
-			}
-		}
-
-		if (!selected) return;
-
-		const state = providerStates.get(selected);
-		if (!state) return;
-
-		const free = state.stored.free.length;
-		const total = state.stored.all.length;
-		const paid = total - free;
-		const mode = state.toggleState.getCurrentMode();
-		let status: string;
-		if (paid === 0) {
-			status = `${selected}: ${free} free models`;
-		} else if (mode === "all") {
-			status = `${selected}: ${total} models (free + paid)`;
-		} else {
-			status = `${selected}: ${free} free \u00b7 ${paid} paid`;
-		}
-		ctx.ui.setStatus(`${selected}-status`, status);
-	});
 }
 
 function getApiKeyEnvForProvider(providerId: string): string {
