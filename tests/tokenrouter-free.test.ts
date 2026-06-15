@@ -129,6 +129,28 @@ describe("TokenRouter free model detection", () => {
 		});
 	});
 
+	it("patches compaction payloads without a model field when forced", () => {
+		expect(
+			patchTokenRouterMinimaxThinkingPayload(
+				{
+					messages: [{ role: "user", content: "summarize" }],
+					thinking: { type: "enabled" },
+				},
+				true,
+			),
+		).toEqual({
+			messages: [{ role: "user", content: "summarize" }],
+			thinking: { type: "adaptive" },
+		});
+	});
+
+	it("patches stringified compaction payloads when forced", () => {
+		const payload = JSON.stringify({ thinking: { type: "enabled" } });
+		expect(patchTokenRouterMinimaxThinkingPayload(payload, true)).toBe(
+			JSON.stringify({ thinking: { type: "adaptive" } }),
+		);
+	});
+
 	it("leaves non-MiniMax and disabled thinking payloads unchanged", () => {
 		const disabled = {
 			model: "MiniMax-M3",

@@ -255,8 +255,19 @@ function patchThinkingType(value: unknown): {
 
 export function patchTokenRouterMinimaxThinkingPayload(
 	payload: unknown,
+	force = false,
 ): unknown {
-	if (!containsTokenRouterMinimaxModel(payload)) return payload;
+	if (typeof payload === "string") {
+		try {
+			const parsed = JSON.parse(payload) as unknown;
+			const patched = patchTokenRouterMinimaxThinkingPayload(parsed, force);
+			return patched === parsed ? payload : JSON.stringify(patched);
+		} catch {
+			return payload;
+		}
+	}
+
+	if (!force && !containsTokenRouterMinimaxModel(payload)) return payload;
 	const result = patchThinkingType(payload);
 	return result.changed ? result.value : payload;
 }
@@ -382,8 +393,12 @@ export default async function tokenRouterProvider(pi: ExtensionAPI) {
 
 	registerWithGlobalToggle(PROVIDER_TOKENROUTER, stored, reRegister, true);
 
-	pi.on("before_provider_request", (event) =>
-		patchTokenRouterMinimaxThinkingPayload(event.payload),
+	pi.on("before_provider_request", (event, ctx) =>
+		patchTokenRouterMinimaxThinkingPayload(
+			event.payload,
+			isTokenRouterModel(ctx.model ?? {}) &&
+				isTokenRouterMinimaxModel(ctx.model?.id ?? ""),
+		),
 	);
 
 	pi.on("message_end", (event, ctx) => {
