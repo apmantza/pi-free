@@ -16,10 +16,7 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import type {
-	AssistantMessage,
-	ThinkingContent,
-} from "@earendil-works/pi-ai";
+import type { AssistantMessage, ThinkingContent } from "@earendil-works/pi-ai";
 import {
 	getTokenrouterApiKey,
 	getTokenrouterShowPaid,
@@ -173,7 +170,9 @@ export function finalizeTokenRouterModel(
 	};
 }
 
-export function normalizeAssistantMessage(message: AssistantMessage): AssistantMessage {
+export function normalizeAssistantMessage(
+	message: AssistantMessage,
+): AssistantMessage {
 	const newContent: AssistantMessage["content"] = [];
 	let extractedThinking = "";
 
@@ -223,7 +222,10 @@ function containsTokenRouterMinimaxModel(value: unknown): boolean {
 	return false;
 }
 
-function patchThinkingType(value: unknown): { value: unknown; changed: boolean } {
+function patchThinkingType(value: unknown): {
+	value: unknown;
+	changed: boolean;
+} {
 	if (Array.isArray(value)) {
 		let changed = false;
 		const patched = value.map((child) => {
@@ -251,13 +253,17 @@ function patchThinkingType(value: unknown): { value: unknown; changed: boolean }
 	return changed ? { value: patched, changed } : { value, changed: false };
 }
 
-export function patchTokenRouterMinimaxThinkingPayload(payload: unknown): unknown {
+export function patchTokenRouterMinimaxThinkingPayload(
+	payload: unknown,
+): unknown {
 	if (!containsTokenRouterMinimaxModel(payload)) return payload;
 	const result = patchThinkingType(payload);
 	return result.changed ? result.value : payload;
 }
 
-export function mapTokenRouterModel(model: TokenRouterModel): ProviderModelConfig & {
+export function mapTokenRouterModel(
+	model: TokenRouterModel,
+): ProviderModelConfig & {
 	_pricingKnown?: boolean;
 	_freeKnown?: boolean;
 	_isFree?: boolean;

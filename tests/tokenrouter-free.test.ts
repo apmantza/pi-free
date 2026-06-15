@@ -213,6 +213,8 @@ describe("TokenRouter MiniMax reasoning cleanup", () => {
 		const message = assistantMessage("Just plain text.");
 		const normalized = normalizeAssistantMessage(message as any);
 
-		expect(normalized.content).toEqual([{ type: "text", text: "Just plain text." }]);
+		expect(normalized.content).toEqual([
+			{ type: "text", text: "Just plain text." },
+		]);
 	});
 });

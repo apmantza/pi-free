@@ -568,7 +568,9 @@ function extractThinkingXml(text: string): {
 	const closeTag = "</thinking>";
 	let cursor = 0;
 
-	function findNextOpenTag(from: number): { index: number; tag: string } | null {
+	function findNextOpenTag(
+		from: number,
+	): { index: number; tag: string } | null {
 		let best: { index: number; tag: string } | null = null;
 		for (const tag of openTags) {
 			const index = text.indexOf(tag, from);
