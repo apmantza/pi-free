@@ -204,22 +204,57 @@ export function normalizeAssistantMessage(message: AssistantMessage): AssistantM
 	return { ...message, content: newContent };
 }
 
-export function patchTokenRouterMinimaxThinkingPayload(payload: unknown): unknown {
-	if (typeof payload !== "object" || payload === null) return payload;
-	const body = payload as {
-		model?: unknown;
-		thinking?: { type?: unknown };
-	};
-	if (!isTokenRouterMinimaxModel(String(body.model ?? ""))) return payload;
-	if (body.thinking?.type !== "enabled") return payload;
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
-	return {
-		...body,
-		thinking: {
-			...body.thinking,
-			type: "adaptive",
-		},
-	};
+function containsTokenRouterMinimaxModel(value: unknown): boolean {
+	if (Array.isArray(value)) {
+		return value.some(containsTokenRouterMinimaxModel);
+	}
+	if (!isRecord(value)) return false;
+
+	for (const [key, child] of Object.entries(value)) {
+		if (key === "model" && isTokenRouterMinimaxModel(String(child ?? ""))) {
+			return true;
+		}
+		if (containsTokenRouterMinimaxModel(child)) return true;
+	}
+	return false;
+}
+
+function patchThinkingType(value: unknown): { value: unknown; changed: boolean } {
+	if (Array.isArray(value)) {
+		let changed = false;
+		const patched = value.map((child) => {
+			const result = patchThinkingType(child);
+			changed ||= result.changed;
+			return result.value;
+		});
+		return changed ? { value: patched, changed } : { value, changed: false };
+	}
+	if (!isRecord(value)) return { value, changed: false };
+
+	let changed = false;
+	const patched: Record<string, unknown> = {};
+	for (const [key, child] of Object.entries(value)) {
+		let next = patchThinkingType(child).value;
+		if (key === "thinking" && isRecord(next) && next.type === "enabled") {
+			next = { ...next, type: "adaptive" };
+			changed = true;
+		} else {
+			changed ||= next !== child;
+		}
+		patched[key] = next;
+	}
+
+	return changed ? { value: patched, changed } : { value, changed: false };
+}
+
+export function patchTokenRouterMinimaxThinkingPayload(payload: unknown): unknown {
+	if (!containsTokenRouterMinimaxModel(payload)) return payload;
+	const result = patchThinkingType(payload);
+	return result.changed ? result.value : payload;
 }
 
 export function mapTokenRouterModel(model: TokenRouterModel): ProviderModelConfig & {

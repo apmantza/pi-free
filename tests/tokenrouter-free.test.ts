@@ -103,6 +103,32 @@ describe("TokenRouter free model detection", () => {
 		});
 	});
 
+	it("patches nested MiniMax-M3 thinking payloads used by compaction", () => {
+		expect(
+			patchTokenRouterMinimaxThinkingPayload({
+				model: "MiniMax-M3",
+				extra_body: {
+					thinking: { type: "enabled", budget_tokens: 1024 },
+				},
+				provider_options: {
+					tokenrouter: {
+						thinking: { type: "enabled" },
+					},
+				},
+			}),
+		).toEqual({
+			model: "MiniMax-M3",
+			extra_body: {
+				thinking: { type: "adaptive", budget_tokens: 1024 },
+			},
+			provider_options: {
+				tokenrouter: {
+					thinking: { type: "adaptive" },
+				},
+			},
+		});
+	});
+
 	it("leaves non-MiniMax and disabled thinking payloads unchanged", () => {
 		const disabled = {
 			model: "MiniMax-M3",
