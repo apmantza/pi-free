@@ -841,14 +841,9 @@ function parseXmlToolCalls(
 		getParseToolBridges(tools).map((bridge) => [bridge.remoteName, bridge]),
 	);
 	const toolNames = new Set(bridgeByRemoteName.keys());
-	const extracted = extractThinkingXml(rawText);
-	const textWithoutThinking = extracted.text;
-	const hiddenParsed = parseHiddenThoughtToolCalls(extracted.thinking, tools);
+	const textWithoutThinking = extractThinkingXml(rawText).text;
 	if (toolNames.size === 0) {
-		return {
-			text: textWithoutThinking.trim(),
-			toolCalls: hiddenParsed.toolCalls,
-		};
+		return { text: textWithoutThinking.trim(), toolCalls: [] };
 	}
 
 	const sourceText = findNextToolStart(textWithoutThinking, toolNames, 0)
@@ -893,26 +888,34 @@ function parseXmlToolCalls(
 	}
 
 	pushTextFragment(textParts, sourceText.slice(cursor));
-	return {
-		text: textParts.join("\n\n").trim(),
-		toolCalls: [...toolCalls, ...hiddenParsed.toolCalls],
-	};
+	return { text: textParts.join("\n\n").trim(), toolCalls };
 }
 
-function parseHiddenThoughtToolCalls(
+function parseReasoningHiddenToolCalls(
 	thinkingParts: string[],
 	tools: Tool[] | undefined,
+	depth = 3,
 ): { thinking: string[]; toolCalls: ParsedToolCalls["toolCalls"] } {
 	const thinking: string[] = [];
 	const toolCalls: ParsedToolCalls["toolCalls"] = [];
 	for (const part of thinkingParts) {
 		const trimmed = part.trim();
 		if (!trimmed) continue;
-		const parsed = parseXmlToolCalls(trimmed, tools);
-		toolCalls.push(...parsed.toolCalls);
-		if (parsed.text) {
-			thinking.push(parsed.text);
-		} else if (parsed.toolCalls.length === 0) {
+		if (depth <= 0) {
+			thinking.push(trimmed);
+			continue;
+		}
+		const extracted = extractThinkingXml(trimmed);
+		const nested = parseReasoningHiddenToolCalls(
+			extracted.thinking,
+			tools,
+			depth - 1,
+		);
+		const parsed = parseXmlToolCalls(extracted.text, tools);
+		toolCalls.push(...parsed.toolCalls, ...nested.toolCalls);
+		if (parsed.text) thinking.push(parsed.text);
+		thinking.push(...nested.thinking);
+		if (!parsed.text && parsed.toolCalls.length === 0 && nested.toolCalls.length === 0 && nested.thinking.length === 0) {
 			thinking.push(trimmed);
 		}
 	}
@@ -926,7 +929,7 @@ function parseReasoningToolCalls(
 	if (!reasoning.trim()) return { thinking: [], toolCalls: [] };
 
 	const extracted = extractThinkingXml(reasoning);
-	const hiddenParsed = parseHiddenThoughtToolCalls(extracted.thinking, tools);
+	const hiddenParsed = parseReasoningHiddenToolCalls(extracted.thinking, tools);
 	const parsed = parseXmlToolCalls(extracted.text, tools);
 	const thinking = [...hiddenParsed.thinking];
 	if (parsed.toolCalls.length > 0 && parsed.text) {
@@ -1080,10 +1083,7 @@ type ClineXmlResponseData = {
 function isRetryableClineReasoningStreamError(error: unknown): boolean {
 	if (!(error instanceof Error)) return false;
 	const message = error.message.toLowerCase();
-	return (
-		message.includes("stream error occurred") ||
-		(message.includes("reasoning") && message.includes("stream"))
-	);
+	return message.includes("stream error occurred");
 }
 
 async function readClineXmlResponse(
@@ -1111,6 +1111,10 @@ async function readClineXmlResponse(
 		if (choice.finish_reason) finishReason = choice.finish_reason;
 		rawText += choice.delta?.content ?? "";
 		thinking += choice.delta?.reasoning ?? "";
+	}
+
+	if (!rawText.trim() && !thinking.trim()) {
+		throw new Error("Cline returned empty response");
 	}
 
 	return { rawText, thinking, finishReason, usage };
@@ -1303,21 +1307,13 @@ export function streamClineXml(
 
 			assistant.usage = usageFromChunkUsage(usage);
 			const extractedThinking = extractThinkingXml(rawText);
-			const parsedHiddenContent = parseHiddenThoughtToolCalls(
-				extractedThinking.thinking,
-				context.tools,
-			);
 			const parsedReasoning = parseReasoningToolCalls(thinking, context.tools);
 			const parsed = parseXmlToolCalls(extractedThinking.text, context.tools);
 			const output = prepareClineXmlOutput(
 				parsed.text,
-				parsedHiddenContent.thinking,
+				extractedThinking.thinking,
 				parsedReasoning.thinking,
-				[
-					...parsed.toolCalls,
-					...parsedHiddenContent.toolCalls,
-					...parsedReasoning.toolCalls,
-				],
+				[...parsed.toolCalls, ...parsedReasoning.toolCalls],
 			);
 			pushThinking(assistant, output.thinkingText, stream);
 			pushText(assistant, output.visibleText, stream);
@@ -1355,7 +1351,7 @@ export function streamClineXml(
 export const __test__ = {
 	buildClineXmlMessages,
 	isRetryableClineReasoningStreamError,
-	parseHiddenThoughtToolCalls,
+	parseReasoningHiddenToolCalls,
 	parseReasoningToolCalls,
 	parseXmlToolCalls,
 	prepareClineXmlOutput,

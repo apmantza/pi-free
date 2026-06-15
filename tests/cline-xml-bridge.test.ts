@@ -202,7 +202,7 @@ describe("Cline XML bridge", () => {
 			expect(parsed.toolCalls).toEqual([]);
 		});
 
-		it("recovers tool calls inside hidden summary wrappers", () => {
+		it("does not execute tool calls hidden in visible summary wrappers", () => {
 			const parsed = __test__.parseXmlToolCalls(
 				[
 					"<summary>",
@@ -216,12 +216,10 @@ describe("Cline XML bridge", () => {
 			);
 
 			expect(parsed.text).toBe("");
-			expect(parsed.toolCalls).toEqual([
-				{ name: "read", arguments: { path: "README.md" } },
-			]);
+			expect(parsed.toolCalls).toEqual([]);
 		});
 
-		it("recovers tool calls inside hidden persistent issue wrappers", () => {
+		it("does not execute tool calls hidden in visible persistent issue wrappers", () => {
 			const parsed = __test__.parseXmlToolCalls(
 				[
 					"<persistent_issue_checking>",
@@ -235,13 +233,11 @@ describe("Cline XML bridge", () => {
 			);
 
 			expect(parsed.text).toBe("");
-			expect(parsed.toolCalls).toEqual([
-				{ name: "bash", arguments: { command: "npm run check" } },
-			]);
+			expect(parsed.toolCalls).toEqual([]);
 		});
 
-		it("keeps non-tool text from hidden wrappers hidden after recovering tools", () => {
-			const parsed = __test__.parseHiddenThoughtToolCalls(
+		it("recovers tool calls inside reasoning-channel hidden wrappers", () => {
+			const parsed = __test__.parseReasoningHiddenToolCalls(
 				[
 					[
 						"The user wants me to inspect the file first.",
