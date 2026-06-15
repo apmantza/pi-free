@@ -951,45 +951,6 @@ function parseReasoningToolCalls(
 const INTERNAL_ONLY_RESPONSE =
 	"Cline returned internal reasoning only and did not produce a user-visible response. Please retry or ask it to continue.";
 
-function startsWithAny(value: string, prefixes: string[]): boolean {
-	for (const prefix of prefixes) {
-		if (value.startsWith(prefix)) return true;
-	}
-	return false;
-}
-
-function includesAny(value: string, needles: string[]): boolean {
-	for (const needle of needles) {
-		if (value.includes(needle)) return true;
-	}
-	return false;
-}
-
-function isInternalPlanningArtifact(text: string): boolean {
-	const trimmed = text.trim();
-	if (!trimmed) return false;
-	const lower = trimmed.toLowerCase();
-	return (
-		startsWithAny(lower, [
-			"the user ",
-			"let me ",
-			"i need to ",
-			"i should ",
-			"we need ",
-			"now i ",
-		]) ||
-		includesAny(lower, HIDDEN_THOUGHT_CLOSE_TAGS) ||
-		includesAny(lower, [
-			"the user wants me to",
-			"the user is asking",
-			"the user is prompting",
-			"let me check",
-			"let me update",
-			"let me rewrite",
-		])
-	);
-}
-
 function prepareClineXmlOutput(
 	parsedText: string,
 	contentThinking: string[],
@@ -1004,32 +965,15 @@ function prepareClineXmlOutput(
 		Boolean,
 	);
 	const thinkingText = thinkingParts.join("\n\n");
-	if (
-		toolCalls.length === 0 &&
-		parsedText &&
-		isInternalPlanningArtifact(parsedText)
-	) {
+	if (!parsedText && toolCalls.length === 0 && thinkingText) {
+		// Never return a blank stop, but also do not surface hidden reasoning as
+		// user-visible answer text. If Cline sends only hidden/reasoning content,
+		// show a stable visible fallback and keep the raw content in thinking.
 		return {
 			visibleText: INTERNAL_ONLY_RESPONSE,
-			thinkingText: [thinkingText, parsedText].filter(Boolean).join("\n\n"),
+			thinkingText,
 			toolCalls,
 		};
-	}
-	if (!parsedText && toolCalls.length === 0 && thinkingText) {
-		// Some Cline/DeepSeek responses put the entire assistant answer in the
-		// reasoning stream and send no content/tool XML. Surface answer-like text,
-		// but never leak obvious internal planning as a user-facing response.
-		return isInternalPlanningArtifact(thinkingText)
-			? {
-					visibleText: INTERNAL_ONLY_RESPONSE,
-					thinkingText,
-					toolCalls,
-				}
-			: {
-					visibleText: thinkingText,
-					thinkingText: "",
-					toolCalls,
-				};
 	}
 
 	return {

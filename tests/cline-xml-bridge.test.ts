@@ -558,43 +558,22 @@ describe("Cline XML bridge", () => {
 	});
 
 	describe("prepareClineXmlOutput", () => {
-		it("surfaces answer-like reasoning-only Cline responses instead of returning a blank stop", () => {
-			const output = __test__.prepareClineXmlOutput(
-				"",
-				[],
-				[
-					"Yes — that UX matches. Keep `/toggle-plegma` as the simple activation switch.",
-				],
-				[],
-			);
+		it("returns a visible fallback for reasoning-only Cline responses instead of blank stopping", () => {
+			const reasoning =
+				"Yes — that UX matches. Keep `/toggle-plegma` as the simple activation switch.";
+			const output = __test__.prepareClineXmlOutput("", [], [reasoning], []);
 
-			expect(output).toEqual({
-				visibleText:
-					"Yes — that UX matches. Keep `/toggle-plegma` as the simple activation switch.",
-				thinkingText: "",
-				toolCalls: [],
-			});
+			expect(output.visibleText).toContain(
+				"Cline returned internal reasoning only",
+			);
+			expect(output.thinkingText).toBe(reasoning);
+			expect(output.toolCalls).toEqual([]);
 		});
 
 		it("does not surface internal planning from reasoning-only Cline responses", () => {
 			const internal =
 				"The user is prompting me to continue. Let me respond with my thoughts on this UX design.";
 			const output = __test__.prepareClineXmlOutput("", [], [internal], []);
-
-			expect(output.visibleText).toContain(
-				"Cline returned internal reasoning only",
-			);
-			expect(output.thinkingText).toBe(internal);
-			expect(output.toolCalls).toEqual([]);
-		});
-
-		it("does not surface visible text that is actually internal Cline planning", () => {
-			const internal = [
-				"The user makes a good point about worker diversity - each worker should come from a different provider.",
-				"Let me also fix the biome issues and the empty catch blocks.",
-				"</summary>",
-			].join("\n\n");
-			const output = __test__.prepareClineXmlOutput(internal, [], [], []);
 
 			expect(output.visibleText).toContain(
 				"Cline returned internal reasoning only",
