@@ -225,6 +225,42 @@ describe("Cline XML bridge", () => {
 			]);
 		});
 
+		it("recovers write_to_file emitted in the reasoning channel", () => {
+			const parsed = __test__.parseReasoningToolCalls(
+				[
+					"Good, the package.json is created correctly. Now I need to write index.ts.",
+					"</thinking>",
+					"<write_to_file>",
+					"<path>C:/Users/R3LiC/Desktop/pi-plegma/.pi/extensions/plegma/index.ts</path>",
+					"<content>/**",
+					" * Plegma extension",
+					" */",
+					"const branch = `plegma-${runId}-${role}`;",
+					"</content>",
+					"</write_to_file>",
+				].join("\n"),
+				[tool("write")],
+			);
+
+			expect(parsed.thinking).toEqual([
+				"Good, the package.json is created correctly. Now I need to write index.ts.",
+			]);
+			expect(parsed.toolCalls).toEqual([
+				{
+					name: "write",
+					arguments: {
+						path: "C:/Users/R3LiC/Desktop/pi-plegma/.pi/extensions/plegma/index.ts",
+						content: [
+							"/**",
+							" * Plegma extension",
+							" */",
+							"const branch = `plegma-${runId}-${role}`;",
+						].join("\n"),
+					},
+				},
+			]);
+		});
+
 		it("does not leak XML code fence markers as text", () => {
 			const parsed = __test__.parseXmlToolCalls(
 				[
