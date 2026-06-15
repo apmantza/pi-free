@@ -507,7 +507,9 @@ describe("Cline XML bridge", () => {
 			const output = __test__.prepareClineXmlOutput(
 				"",
 				[],
-				["Yes — that UX matches. Keep `/toggle-plegma` as the simple activation switch."],
+				[
+					"Yes — that UX matches. Keep `/toggle-plegma` as the simple activation switch.",
+				],
 				[],
 			);
 

@@ -965,7 +965,11 @@ function prepareClineXmlOutput(
 		Boolean,
 	);
 	const thinkingText = thinkingParts.join("\n\n");
-	if (toolCalls.length === 0 && parsedText && isInternalPlanningArtifact(parsedText)) {
+	if (
+		toolCalls.length === 0 &&
+		parsedText &&
+		isInternalPlanningArtifact(parsedText)
+	) {
 		return {
 			visibleText: INTERNAL_ONLY_RESPONSE,
 			thinkingText: [thinkingText, parsedText].filter(Boolean).join("\n\n"),
@@ -1042,7 +1046,7 @@ function isRetryableClineReasoningStreamError(error: unknown): boolean {
 	const message = error.message.toLowerCase();
 	return (
 		message.includes("stream error occurred") ||
-		message.includes("reasoning") && message.includes("stream")
+		(message.includes("reasoning") && message.includes("stream"))
 	);
 }
 
@@ -1109,7 +1113,9 @@ async function fetchClineXmlResponse(
 	);
 
 	if (!response.ok) {
-		throw new Error(`Cline API error ${response.status}: ${await response.text()}`);
+		throw new Error(
+			`Cline API error ${response.status}: ${await response.text()}`,
+		);
 	}
 
 	return readClineXmlResponse(response);
