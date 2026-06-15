@@ -19,13 +19,17 @@ import type {
 import type {
 	Api,
 	AssistantMessage,
+	AssistantMessageEvent,
 	AssistantMessageEventStream,
 	Context,
 	Model,
 	SimpleStreamOptions,
 	ThinkingContent,
 } from "@earendil-works/pi-ai";
-import { streamSimpleOpenAICompletions } from "@earendil-works/pi-ai";
+import {
+	createAssistantMessageEventStream,
+	streamSimpleOpenAICompletions,
+} from "@earendil-works/pi-ai";
 import {
 	getTokenrouterApiKey,
 	getTokenrouterShowPaid,
@@ -115,6 +119,7 @@ function isTokenRouterModel(model: { provider?: string }): boolean {
 const MINIMAX_M3_ID = "MiniMax-M3";
 const KNOWN_FREE_MODELS = new Set([MINIMAX_M3_ID]);
 const TOKENROUTER_OPENAI_API = "tokenrouter-openai-completions" as const;
+const TOKENROUTER_HIGH_LOAD_RETRY_DELAY_MS = 30_000;
 const MINIMAX_ADAPTIVE_COMPAT: NonNullable<ProviderModelConfig["compat"]> = {
 	...DEEPSEEK_PROXY_COMPAT,
 	thinkingFormat: "deepseek",
@@ -282,10 +287,50 @@ export function patchTokenRouterMinimaxThinkingPayload(
 	return result.changed ? result.value : payload;
 }
 
-export function streamSimpleTokenRouter(
+function isTokenRouterHighLoadError(message: string | undefined): boolean {
+	const lower = (message ?? "").toLowerCase();
+	return (
+		lower.includes("(2064)") ||
+		lower.includes("server cluster is currently under high load")
+	);
+}
+
+function isOutputEvent(event: AssistantMessageEvent): boolean {
+	return (
+		event.type === "text_start" ||
+		event.type === "text_delta" ||
+		event.type === "text_end" ||
+		event.type === "thinking_start" ||
+		event.type === "thinking_delta" ||
+		event.type === "thinking_end" ||
+		event.type === "toolcall_start" ||
+		event.type === "toolcall_delta" ||
+		event.type === "toolcall_end"
+	);
+}
+
+function waitForTokenRouterRetry(
+	ms: number,
+	signal: AbortSignal | undefined,
+): Promise<void> {
+	if (signal?.aborted) return Promise.reject(new Error("aborted"));
+	return new Promise((resolve, reject) => {
+		const onAbort = () => {
+			clearTimeout(timeout);
+			reject(new Error("aborted"));
+		};
+		const timeout = setTimeout(() => {
+			signal?.removeEventListener("abort", onAbort);
+			resolve();
+		}, ms);
+		signal?.addEventListener("abort", onAbort, { once: true });
+	});
+}
+
+function createTokenRouterOpenAIStream(
 	model: Model<Api>,
 	context: Context,
-	options?: SimpleStreamOptions,
+	options: SimpleStreamOptions | undefined,
 ): AssistantMessageEventStream {
 	const forcePatch = isTokenRouterMinimaxModel(model.id);
 	return streamSimpleOpenAICompletions(
@@ -310,6 +355,120 @@ export function streamSimpleTokenRouter(
 		},
 	);
 }
+
+function createTokenRouterRetryErrorMessage(
+	model: Model<Api>,
+	options: SimpleStreamOptions | undefined,
+	error: unknown,
+): AssistantMessage {
+	return {
+		role: "assistant",
+		content: [],
+		api: model.api,
+		provider: model.provider,
+		model: model.id,
+		usage: {
+			input: 0,
+			output: 0,
+			cacheRead: 0,
+			cacheWrite: 0,
+			totalTokens: 0,
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+		},
+		stopReason: options?.signal?.aborted ? "aborted" : "error",
+		errorMessage: error instanceof Error ? error.message : String(error),
+		timestamp: Date.now(),
+	};
+}
+
+function streamWithTokenRouterHighLoadRetry(
+	model: Model<Api>,
+	createAttempt: () => AssistantMessageEventStream,
+	options: SimpleStreamOptions | undefined,
+): AssistantMessageEventStream {
+	const output = createAssistantMessageEventStream();
+
+	void (async () => {
+		const buffer: AssistantMessageEvent[] = [];
+		let flushed = false;
+		let sawOutput = false;
+
+		function flushBuffer(): void {
+			if (flushed) return;
+			flushed = true;
+			for (const event of buffer) output.push(event);
+			buffer.length = 0;
+		}
+
+		try {
+			const first = createAttempt();
+			let retryAfterHighLoad = false;
+			for await (const event of first) {
+				if (isOutputEvent(event)) {
+					sawOutput = true;
+					flushBuffer();
+					output.push(event);
+					continue;
+				}
+
+				if (
+					event.type === "error" &&
+					!sawOutput &&
+					isTokenRouterHighLoadError(event.error.errorMessage)
+				) {
+					retryAfterHighLoad = true;
+					break;
+				}
+
+				if (flushed) output.push(event);
+				else buffer.push(event);
+			}
+
+			if (!retryAfterHighLoad) {
+				flushBuffer();
+				return;
+			}
+
+			_logger.warn(
+				"[tokenrouter] Server cluster high load (2064); retrying once after 30s",
+			);
+			await waitForTokenRouterRetry(
+				TOKENROUTER_HIGH_LOAD_RETRY_DELAY_MS,
+				options?.signal,
+			);
+			for await (const event of createAttempt()) output.push(event);
+		} catch (error) {
+			flushBuffer();
+			const message = createTokenRouterRetryErrorMessage(model, options, error);
+			output.push({
+				type: "error",
+				reason: message.stopReason as "error" | "aborted",
+				error: message,
+			});
+		}
+	})();
+
+	return output;
+}
+
+export function streamSimpleTokenRouter(
+	model: Model<Api>,
+	context: Context,
+	options?: SimpleStreamOptions,
+): AssistantMessageEventStream {
+	return streamWithTokenRouterHighLoadRetry(
+		model,
+		() => createTokenRouterOpenAIStream(model, context, options),
+		options,
+	);
+}
+
+export const __test__ = {
+	TOKENROUTER_HIGH_LOAD_RETRY_DELAY_MS,
+	isTokenRouterHighLoadError,
+	streamWithTokenRouterHighLoadRetry,
+	waitForTokenRouterRetry,
+};
 
 export function mapTokenRouterModel(
 	model: TokenRouterModel,

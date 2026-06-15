@@ -1,12 +1,76 @@
-import { describe, expect, it } from "vitest";
+import type { AssistantMessage, Model } from "@earendil-works/pi-ai";
+import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { isFreeModel } from "../lib/registry.ts";
 import {
+	__test__,
 	finalizeTokenRouterModel,
 	mapTokenRouterModel,
 	normalizeAssistantMessage,
 	patchTokenRouterMinimaxThinkingPayload,
 	streamSimpleTokenRouter,
 } from "../providers/tokenrouter/tokenrouter.ts";
+
+function tokenRouterTestModel(): Model<string> {
+	return {
+		id: "MiniMax-M3",
+		name: "MiniMax-M3",
+		provider: "tokenrouter",
+		api: "tokenrouter-openai-completions",
+	} as Model<string>;
+}
+
+function assistantMessage(
+	stopReason: AssistantMessage["stopReason"],
+	errorMessage?: string,
+	content: AssistantMessage["content"] = [],
+): AssistantMessage {
+	return {
+		role: "assistant",
+		content,
+		api: "tokenrouter-openai-completions",
+		provider: "tokenrouter",
+		model: "MiniMax-M3",
+		usage: {
+			input: 0,
+			output: 0,
+			cacheRead: 0,
+			cacheWrite: 0,
+			totalTokens: 0,
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+		},
+		stopReason,
+		errorMessage,
+		timestamp: Date.now(),
+	};
+}
+
+function errorAttempt(message: string) {
+	const stream = createAssistantMessageEventStream();
+	queueMicrotask(() => {
+		const error = assistantMessage("error", message);
+		stream.push({ type: "start", partial: error });
+		stream.push({ type: "error", reason: "error", error });
+	});
+	return stream;
+}
+
+function textAttempt(text: string) {
+	const stream = createAssistantMessageEventStream();
+	queueMicrotask(() => {
+		const message = assistantMessage("stop", undefined, [{ type: "text", text }]);
+		stream.push({ type: "start", partial: { ...message, content: [] } });
+		stream.push({ type: "text_start", contentIndex: 0, partial: message });
+		stream.push({ type: "text_delta", contentIndex: 0, delta: text, partial: message });
+		stream.push({ type: "text_end", contentIndex: 0, content: text, partial: message });
+		stream.push({ type: "done", reason: "stop", message });
+	});
+	return stream;
+}
+
+afterEach(() => {
+	vi.useRealTimers();
+});
 
 describe("TokenRouter free model detection", () => {
 	const freeModel = {
@@ -204,6 +268,75 @@ describe("TokenRouter free model detection", () => {
 			reasoning_effort: "high",
 		});
 		expect(JSON.stringify(capturedPayload)).not.toContain('"enabled"');
+	});
+
+	it("retries TokenRouter high-load 2064 errors once after 30 seconds", async () => {
+		vi.useFakeTimers();
+		let attempts = 0;
+		const stream = __test__.streamWithTokenRouterHighLoadRetry(
+			tokenRouterTestModel(),
+			() => {
+				attempts += 1;
+				return attempts === 1
+					? errorAttempt(
+							"The server cluster is currently under high load. Please retry after a short wait and thank you for your patience. (2064)",
+						)
+					: textAttempt("retried successfully");
+			},
+			{},
+		);
+
+		const resultPromise = stream.result();
+		await vi.advanceTimersByTimeAsync(
+			__test__.TOKENROUTER_HIGH_LOAD_RETRY_DELAY_MS - 1,
+		);
+		expect(attempts).toBe(1);
+		await vi.advanceTimersByTimeAsync(1);
+
+		const result = await resultPromise;
+		expect(attempts).toBe(2);
+		expect(result.stopReason).toBe("stop");
+		expect(result.content).toEqual([
+			{ type: "text", text: "retried successfully" },
+		]);
+	});
+
+	it("does not retry TokenRouter high-load errors after output started", async () => {
+		let attempts = 0;
+		const stream = __test__.streamWithTokenRouterHighLoadRetry(
+			tokenRouterTestModel(),
+			() => {
+				attempts += 1;
+				const attempt = createAssistantMessageEventStream();
+				queueMicrotask(() => {
+					const partial = assistantMessage("error", undefined, [
+						{ type: "text", text: "partial" },
+					]);
+					attempt.push({ type: "start", partial: { ...partial, content: [] } });
+					attempt.push({ type: "text_start", contentIndex: 0, partial });
+					attempt.push({
+						type: "text_delta",
+						contentIndex: 0,
+						delta: "partial",
+						partial,
+					});
+					attempt.push({
+						type: "error",
+						reason: "error",
+						error: assistantMessage("error", "high load (2064)", [
+							{ type: "text", text: "partial" },
+						]),
+					});
+				});
+				return attempt;
+			},
+			{},
+		);
+
+		const result = await stream.result();
+		expect(attempts).toBe(1);
+		expect(result.stopReason).toBe("error");
+		expect(result.errorMessage).toBe("high load (2064)");
 	});
 
 	it("leaves non-MiniMax and disabled thinking payloads unchanged", () => {
