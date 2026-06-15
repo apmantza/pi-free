@@ -202,6 +202,65 @@ describe("Cline XML bridge", () => {
 			expect(parsed.toolCalls).toEqual([]);
 		});
 
+		it("recovers tool calls inside hidden summary wrappers", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"<summary>",
+					"The user wants me to inspect the file first.",
+					"<read_file>",
+					"<path>README.md</path>",
+					"</read_file>",
+					"</summary>",
+				].join("\n"),
+				[tool("read")],
+			);
+
+			expect(parsed.text).toBe("");
+			expect(parsed.toolCalls).toEqual([
+				{ name: "read", arguments: { path: "README.md" } },
+			]);
+		});
+
+		it("recovers tool calls inside hidden persistent issue wrappers", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"<persistent_issue_checking>",
+					"Let me fix the formatter issues now.",
+					"<execute_command>",
+					"<command>npm run check</command>",
+					"</execute_command>",
+					"</persistent_issue_checking>",
+				].join("\n"),
+				[tool("bash")],
+			);
+
+			expect(parsed.text).toBe("");
+			expect(parsed.toolCalls).toEqual([
+				{ name: "bash", arguments: { command: "npm run check" } },
+			]);
+		});
+
+		it("keeps non-tool text from hidden wrappers hidden after recovering tools", () => {
+			const parsed = __test__.parseHiddenThoughtToolCalls(
+				[
+					[
+						"The user wants me to inspect the file first.",
+						"<read_file>",
+						"<path>README.md</path>",
+						"</read_file>",
+					].join("\n"),
+				],
+				[tool("read")],
+			);
+
+			expect(parsed.thinking).toEqual([
+				"The user wants me to inspect the file first.",
+			]);
+			expect(parsed.toolCalls).toEqual([
+				{ name: "read", arguments: { path: "README.md" } },
+			]);
+		});
+
 		it("treats DeepSeek-style <think> block content as thinking", () => {
 			const parsed = __test__.parseXmlToolCalls(
 				[

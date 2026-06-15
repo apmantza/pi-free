@@ -841,9 +841,14 @@ function parseXmlToolCalls(
 		getParseToolBridges(tools).map((bridge) => [bridge.remoteName, bridge]),
 	);
 	const toolNames = new Set(bridgeByRemoteName.keys());
-	const textWithoutThinking = extractThinkingXml(rawText).text;
+	const extracted = extractThinkingXml(rawText);
+	const textWithoutThinking = extracted.text;
+	const hiddenParsed = parseHiddenThoughtToolCalls(extracted.thinking, tools);
 	if (toolNames.size === 0) {
-		return { text: textWithoutThinking.trim(), toolCalls: [] };
+		return {
+			text: textWithoutThinking.trim(),
+			toolCalls: hiddenParsed.toolCalls,
+		};
 	}
 
 	const sourceText = findNextToolStart(textWithoutThinking, toolNames, 0)
@@ -888,7 +893,30 @@ function parseXmlToolCalls(
 	}
 
 	pushTextFragment(textParts, sourceText.slice(cursor));
-	return { text: textParts.join("\n\n").trim(), toolCalls };
+	return {
+		text: textParts.join("\n\n").trim(),
+		toolCalls: [...toolCalls, ...hiddenParsed.toolCalls],
+	};
+}
+
+function parseHiddenThoughtToolCalls(
+	thinkingParts: string[],
+	tools: Tool[] | undefined,
+): { thinking: string[]; toolCalls: ParsedToolCalls["toolCalls"] } {
+	const thinking: string[] = [];
+	const toolCalls: ParsedToolCalls["toolCalls"] = [];
+	for (const part of thinkingParts) {
+		const trimmed = part.trim();
+		if (!trimmed) continue;
+		const parsed = parseXmlToolCalls(trimmed, tools);
+		toolCalls.push(...parsed.toolCalls);
+		if (parsed.text) {
+			thinking.push(parsed.text);
+		} else if (parsed.toolCalls.length === 0) {
+			thinking.push(trimmed);
+		}
+	}
+	return { thinking, toolCalls };
 }
 
 function parseReasoningToolCalls(
@@ -898,15 +926,23 @@ function parseReasoningToolCalls(
 	if (!reasoning.trim()) return { thinking: [], toolCalls: [] };
 
 	const extracted = extractThinkingXml(reasoning);
+	const hiddenParsed = parseHiddenThoughtToolCalls(extracted.thinking, tools);
 	const parsed = parseXmlToolCalls(extracted.text, tools);
-	const thinking = [...extracted.thinking];
+	const thinking = [...hiddenParsed.thinking];
 	if (parsed.toolCalls.length > 0 && parsed.text) {
 		thinking.push(parsed.text);
-	} else if (parsed.toolCalls.length === 0 && extracted.thinking.length === 0) {
+	} else if (
+		parsed.toolCalls.length === 0 &&
+		hiddenParsed.thinking.length === 0 &&
+		extracted.thinking.length === 0
+	) {
 		thinking.push(reasoning.trim());
 	}
 
-	return { thinking, toolCalls: parsed.toolCalls };
+	return {
+		thinking,
+		toolCalls: [...parsed.toolCalls, ...hiddenParsed.toolCalls],
+	};
 }
 
 const INTERNAL_ONLY_RESPONSE =
@@ -1267,13 +1303,21 @@ export function streamClineXml(
 
 			assistant.usage = usageFromChunkUsage(usage);
 			const extractedThinking = extractThinkingXml(rawText);
+			const parsedHiddenContent = parseHiddenThoughtToolCalls(
+				extractedThinking.thinking,
+				context.tools,
+			);
 			const parsedReasoning = parseReasoningToolCalls(thinking, context.tools);
 			const parsed = parseXmlToolCalls(extractedThinking.text, context.tools);
 			const output = prepareClineXmlOutput(
 				parsed.text,
-				extractedThinking.thinking,
+				parsedHiddenContent.thinking,
 				parsedReasoning.thinking,
-				[...parsed.toolCalls, ...parsedReasoning.toolCalls],
+				[
+					...parsed.toolCalls,
+					...parsedHiddenContent.toolCalls,
+					...parsedReasoning.toolCalls,
+				],
 			);
 			pushThinking(assistant, output.thinkingText, stream);
 			pushText(assistant, output.visibleText, stream);
@@ -1311,6 +1355,7 @@ export function streamClineXml(
 export const __test__ = {
 	buildClineXmlMessages,
 	isRetryableClineReasoningStreamError,
+	parseHiddenThoughtToolCalls,
 	parseReasoningToolCalls,
 	parseXmlToolCalls,
 	prepareClineXmlOutput,
