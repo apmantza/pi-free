@@ -45,6 +45,53 @@ describe("Cline XML bridge", () => {
 			]);
 		});
 
+		it("recovers Cline heredoc file writes as Pi write tool calls", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"The user wants to continue scaffolding. Let me write the package.json properly.",
+					"</thinking>",
+					"<execute_command>",
+					"<command>cat > \"C:/Users/R3LiC/Desktop/pi-plegma/.pi/extensions/plegma/package.json\" << 'JSONEOF'",
+					"{",
+					'  "name": "plegma",',
+					'  "version": "0.1.0",',
+					'  "type": "module",',
+					'  "main": "./index.ts",',
+					'  "private": true,',
+					'  "pi": {',
+					'    "extensions": ["./index.ts"]',
+					"  }",
+					"}",
+					"JSONEOF",
+					"cat \"C:/Users/R3LiC/Desktop/pi-plegma/.pi/extensions/plegma/package.json\"</command>",
+					"</execute_command>",
+				].join("\n"),
+				[tool("bash"), tool("write")],
+			);
+
+			expect(parsed.text).toBe("");
+			expect(parsed.toolCalls).toEqual([
+				{
+					name: "write",
+					arguments: {
+						path: "C:/Users/R3LiC/Desktop/pi-plegma/.pi/extensions/plegma/package.json",
+						content: [
+							"{",
+							'  "name": "plegma",',
+							'  "version": "0.1.0",',
+							'  "type": "module",',
+							'  "main": "./index.ts",',
+							'  "private": true,',
+							'  "pi": {',
+							'    "extensions": ["./index.ts"]',
+							"  }",
+							"}",
+						].join("\n"),
+					},
+				},
+			]);
+		});
+
 		it("recovers top-level escaped XML tool calls", () => {
 			const parsed = __test__.parseXmlToolCalls(
 				"&lt;read_file&gt;&lt;path&gt;package.json&lt;/path&gt;&lt;/read_file&gt;",

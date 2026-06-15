@@ -291,6 +291,106 @@ function executeCommandBridge(tool?: Tool): ToolBridge {
 	};
 }
 
+type HeredocWriteCommand = {
+	path: string;
+	content: string;
+};
+
+function shellSplitLine(line: string): string[] {
+	const tokens: string[] = [];
+	let current = "";
+	let quote: '"' | "'" | undefined;
+
+	for (let i = 0; i < line.length; i++) {
+		const char = line[i];
+		if (quote) {
+			if (char === quote) {
+				quote = undefined;
+			} else {
+				current += char;
+			}
+			continue;
+		}
+		if (char === '"' || char === "'") {
+			quote = char;
+			continue;
+		}
+		if (char === " " || char === "\t") {
+			if (current) {
+				tokens.push(current);
+				current = "";
+			}
+			continue;
+		}
+		current += char;
+	}
+
+	if (current) tokens.push(current);
+	return tokens;
+}
+
+function parseCatHeredocWriteCommand(
+	command: string,
+): HeredocWriteCommand | undefined {
+	const normalized = command.replaceAll("\r\n", "\n").trim();
+	const lines = normalized.split("\n");
+	if (lines.length < 3) return undefined;
+
+	const tokens = shellSplitLine(lines[0].trim());
+	if (tokens[0] !== "cat") return undefined;
+	const redirectIndex = tokens.indexOf(">");
+	if (redirectIndex === -1) return undefined;
+	const path = tokens[redirectIndex + 1];
+	if (!path) return undefined;
+
+	let delimiter = "";
+	for (let i = redirectIndex + 2; i < tokens.length; i++) {
+		const token = tokens[i];
+		if (token === "<<") {
+			delimiter = tokens[i + 1] ?? "";
+			break;
+		}
+		if (token.startsWith("<<")) {
+			delimiter = token.slice(2);
+			break;
+		}
+	}
+	if (!delimiter) return undefined;
+
+	let delimiterLine = -1;
+	for (let i = 1; i < lines.length; i++) {
+		if (lines[i].trim() === delimiter) {
+			delimiterLine = i;
+			break;
+		}
+	}
+	if (delimiterLine === -1) return undefined;
+
+	const trailing = lines.slice(delimiterLine + 1).join("\n").trim();
+	if (trailing) {
+		const trailingLines = trailing.split("\n").filter((line) => line.trim());
+		if (trailingLines.length !== 1) return undefined;
+		const trailingTokens = shellSplitLine(trailingLines[0].trim());
+		if (trailingTokens.length !== 2 || trailingTokens[0] !== "cat") {
+			return undefined;
+		}
+		if (trailingTokens[1] !== path) return undefined;
+	}
+
+	return {
+		path,
+		content: lines.slice(1, delimiterLine).join("\n"),
+	};
+}
+
+function getWriteRuntimeToolName(tools: Tool[] | undefined): string | undefined {
+	if ((tools ?? []).some((tool) => tool.name === "write_to_file")) {
+		return "write_to_file";
+	}
+	if ((tools ?? []).some((tool) => tool.name === "write")) return "write";
+	return undefined;
+}
+
 function listFilesBridge(): ToolBridge {
 	return {
 		remoteName: "list_files",
@@ -716,10 +816,19 @@ function parseXmlToolCalls(
 		const block = sourceText.slice(next.index + next.openTag.length, blockEnd);
 		const bridge = bridgeByRemoteName.get(next.name);
 		const remoteArgs = parseToolArguments(block);
-		toolCalls.push({
-			name: bridge?.runtimeName ?? next.name,
-			arguments: bridge?.toRuntimeArgs(remoteArgs) ?? remoteArgs,
-		});
+		const writeRuntimeName = getWriteRuntimeToolName(tools);
+		const heredocWrite =
+			next.name === "execute_command" && writeRuntimeName
+				? parseCatHeredocWriteCommand(stringArg(remoteArgs, "command"))
+				: undefined;
+		if (heredocWrite && writeRuntimeName) {
+			toolCalls.push({ name: writeRuntimeName, arguments: { ...heredocWrite } });
+		} else {
+			toolCalls.push({
+				name: bridge?.runtimeName ?? next.name,
+				arguments: bridge?.toRuntimeArgs(remoteArgs) ?? remoteArgs,
+			});
+		}
 		cursor =
 			closeStart === -1 ? sourceText.length : closeStart + closeTag.length;
 	}
