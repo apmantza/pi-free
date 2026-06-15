@@ -1369,27 +1369,65 @@ export function streamClineXml(
 				throw new Error("No Cline access token found. Run /login cline first.");
 			}
 
-			const { rawText, thinking, finishReason, usage } =
-				await fetchClineXmlResponseWithReasoningFallback(
+			let output: ReturnType<typeof prepareClineXmlOutput>;
+			let rawText: string;
+			let thinking: string;
+			let finishReason: string | null | undefined;
+			let usage: ClineXmlChunk["usage"] | undefined;
+			let currentContext = context;
+
+			for (let attempt = 0; attempt < 2; attempt++) {
+				const data = await fetchClineXmlResponseWithReasoningFallback(
 					model,
-					context,
+					currentContext,
 					options,
 					headers,
 				);
+				rawText = data.rawText;
+				thinking = data.thinking;
+				finishReason = data.finishReason;
+				usage = data.usage;
 
-			assistant.usage = usageFromChunkUsage(usage);
-			const extractedThinking = extractThinkingXml(rawText);
-			const parsedReasoning = parseReasoningToolCalls(thinking, context.tools);
-			const parsed = parseXmlToolCalls(extractedThinking.text, context.tools);
-			const output = prepareClineXmlOutput(
-				parsed.text,
-				extractedThinking.thinking,
-				parsedReasoning.thinking,
-				[...parsed.toolCalls, ...parsedReasoning.toolCalls],
-			);
-			pushThinking(assistant, output.thinkingText, stream);
-			pushText(assistant, output.visibleText, stream);
-			const toolCalls = output.toolCalls;
+				const extractedThinking = extractThinkingXml(rawText);
+				const parsedReasoning = parseReasoningToolCalls(
+					thinking,
+					currentContext.tools,
+				);
+				const parsed = parseXmlToolCalls(extractedThinking.text, currentContext.tools);
+				output = prepareClineXmlOutput(
+					parsed.text,
+					extractedThinking.thinking,
+					parsedReasoning.thinking,
+					[...parsed.toolCalls, ...parsedReasoning.toolCalls],
+				);
+
+				// Reasoning-only response: MiMo stopped without producing visible
+				// text or tool calls. Auto-retry once with a "continue" nudge
+				// instead of showing a dead-end error to the user.
+				if (
+					output.visibleText === INTERNAL_ONLY_RESPONSE &&
+					attempt === 0
+				) {
+					currentContext = {
+						...context,
+						messages: [
+							...context.messages,
+							{
+								role: "user" as const,
+								content: [{ type: "text" as const, text: "Please continue." }],
+								timestamp: Date.now(),
+							},
+						],
+					};
+					continue;
+				}
+				break;
+			}
+
+			assistant.usage = usageFromChunkUsage(usage!);
+			pushThinking(assistant, output!.thinkingText, stream);
+			pushText(assistant, output!.visibleText, stream);
+			const toolCalls = output!.toolCalls;
 			for (const toolCall of toolCalls) {
 				pushToolCall(assistant, toolCall, stream);
 			}
