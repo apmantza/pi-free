@@ -663,56 +663,98 @@ function pushTextFragment(textParts: string[], fragment: string): void {
 	textParts.push(trimmed);
 }
 
+type HiddenThoughtTag = {
+	open: string;
+	closes: string[];
+};
+
+const HIDDEN_THOUGHT_TAGS: HiddenThoughtTag[] = [
+	{ open: "<thinking>", closes: ["</thinking>"] },
+	// Some DeepSeek/Cline variants open with <think> but close with </thinking>.
+	{ open: "<think>", closes: ["</think>", "</thinking>"] },
+	// Compaction/summary artifacts can leak into Cline content as </summary>.
+	{ open: "<summary>", closes: ["</summary>"] },
+	// Cline may emit persistent issue-checking as hidden deliberation.
+	{
+		open: "<persistent_issue_checking>",
+		closes: ["</persistent_issue_checking>"],
+	},
+];
+
+const HIDDEN_THOUGHT_CLOSE_TAGS = Array.from(
+	new Set(HIDDEN_THOUGHT_TAGS.flatMap((tag) => tag.closes)),
+);
+
+function findNextHiddenOpenTag(
+	text: string,
+	from: number,
+): { index: number; tag: HiddenThoughtTag } | null {
+	let best: { index: number; tag: HiddenThoughtTag } | null = null;
+	for (const tag of HIDDEN_THOUGHT_TAGS) {
+		const index = text.indexOf(tag.open, from);
+		if (index === -1) continue;
+		if (!best || index < best.index) best = { index, tag };
+	}
+	return best;
+}
+
+function findNextCloseTag(
+	text: string,
+	from: number,
+	closeTags: string[],
+): { index: number; tag: string } | null {
+	let best: { index: number; tag: string } | null = null;
+	for (const tag of closeTags) {
+		const index = text.indexOf(tag, from);
+		if (index === -1) continue;
+		if (!best || index < best.index) best = { index, tag };
+	}
+	return best;
+}
+
 function extractThinkingXml(text: string): {
 	text: string;
 	thinking: string[];
 } {
 	const thinking: string[] = [];
 	const parts: string[] = [];
-	const openTags = ["<thinking>", "<think>"];
-	const closeTag = "</thinking>";
 	let cursor = 0;
 
-	function findNextOpenTag(
-		from: number,
-	): { index: number; tag: string } | null {
-		let best: { index: number; tag: string } | null = null;
-		for (const tag of openTags) {
-			const index = text.indexOf(tag, from);
-			if (index === -1) continue;
-			if (!best || index < best.index) best = { index, tag };
-		}
-		return best;
-	}
-
 	while (cursor < text.length) {
-		const nextOpen = findNextOpenTag(cursor);
+		const nextOpen = findNextHiddenOpenTag(text, cursor);
 		const openStart = nextOpen?.index ?? -1;
-		const closeStart = text.indexOf(closeTag, cursor);
+		const nextClose = findNextCloseTag(text, cursor, HIDDEN_THOUGHT_CLOSE_TAGS);
+		const closeStart = nextClose?.index ?? -1;
 
-		if (closeStart !== -1 && (openStart === -1 || closeStart < openStart)) {
+		if (nextClose && (openStart === -1 || closeStart < openStart)) {
 			const danglingThinking = decodeXmlEntities(
 				text.slice(cursor, closeStart).trim(),
 			);
 			if (danglingThinking) thinking.push(danglingThinking);
-			cursor = closeStart + closeTag.length;
+			cursor = closeStart + nextClose.tag.length;
 			continue;
 		}
 
 		if (openStart === -1 || !nextOpen) break;
 		parts.push(text.slice(cursor, openStart));
-		const valueStart = openStart + nextOpen.tag.length;
-		const valueEnd = text.indexOf(closeTag, valueStart);
-		if (valueEnd === -1) {
+		const valueStart = openStart + nextOpen.tag.open.length;
+		const nextValueClose = findNextCloseTag(
+			text,
+			valueStart,
+			nextOpen.tag.closes,
+		);
+		if (!nextValueClose) {
 			const value = decodeXmlEntities(text.slice(valueStart).trim());
 			if (value) thinking.push(value);
 			cursor = text.length;
 			break;
 		}
 
-		const value = decodeXmlEntities(text.slice(valueStart, valueEnd).trim());
+		const value = decodeXmlEntities(
+			text.slice(valueStart, nextValueClose.index).trim(),
+		);
 		if (value) thinking.push(value);
-		cursor = valueEnd + closeTag.length;
+		cursor = nextValueClose.index + nextValueClose.tag.length;
 	}
 
 	if (cursor === 0) {
@@ -867,27 +909,89 @@ function parseReasoningToolCalls(
 	return { thinking, toolCalls: parsed.toolCalls };
 }
 
+const INTERNAL_ONLY_RESPONSE =
+	"Cline returned internal reasoning only and did not produce a user-visible response. Please retry or ask it to continue.";
+
+function startsWithAny(value: string, prefixes: string[]): boolean {
+	for (const prefix of prefixes) {
+		if (value.startsWith(prefix)) return true;
+	}
+	return false;
+}
+
+function includesAny(value: string, needles: string[]): boolean {
+	for (const needle of needles) {
+		if (value.includes(needle)) return true;
+	}
+	return false;
+}
+
+function isInternalPlanningArtifact(text: string): boolean {
+	const trimmed = text.trim();
+	if (!trimmed) return false;
+	const lower = trimmed.toLowerCase();
+	return (
+		startsWithAny(lower, [
+			"the user ",
+			"let me ",
+			"i need to ",
+			"i should ",
+			"we need ",
+			"now i ",
+		]) ||
+		includesAny(lower, HIDDEN_THOUGHT_CLOSE_TAGS) ||
+		includesAny(lower, [
+			"the user wants me to",
+			"the user is asking",
+			"the user is prompting",
+			"let me check",
+			"let me update",
+			"let me rewrite",
+		])
+	);
+}
+
 function prepareClineXmlOutput(
 	parsedText: string,
 	contentThinking: string[],
 	reasoningThinking: string[],
 	toolCalls: ParsedToolCalls["toolCalls"],
-): { visibleText: string; thinkingText: string; toolCalls: ParsedToolCalls["toolCalls"] } {
-	const thinkingParts = [...reasoningThinking, ...contentThinking].filter(Boolean);
-	if (!parsedText && toolCalls.length === 0 && thinkingParts.length > 0) {
-		// Some Cline/DeepSeek responses put the entire assistant answer in the
-		// reasoning stream and send no content/tool XML. Hiding that would produce
-		// a blank `stop` turn, so surface it as a best-effort visible response.
+): {
+	visibleText: string;
+	thinkingText: string;
+	toolCalls: ParsedToolCalls["toolCalls"];
+} {
+	const thinkingParts = [...reasoningThinking, ...contentThinking].filter(
+		Boolean,
+	);
+	const thinkingText = thinkingParts.join("\n\n");
+	if (toolCalls.length === 0 && parsedText && isInternalPlanningArtifact(parsedText)) {
 		return {
-			visibleText: thinkingParts.join("\n\n"),
-			thinkingText: "",
+			visibleText: INTERNAL_ONLY_RESPONSE,
+			thinkingText: [thinkingText, parsedText].filter(Boolean).join("\n\n"),
 			toolCalls,
 		};
+	}
+	if (!parsedText && toolCalls.length === 0 && thinkingText) {
+		// Some Cline/DeepSeek responses put the entire assistant answer in the
+		// reasoning stream and send no content/tool XML. Surface answer-like text,
+		// but never leak obvious internal planning as a user-facing response.
+		return isInternalPlanningArtifact(thinkingText)
+			? {
+					visibleText: INTERNAL_ONLY_RESPONSE,
+					thinkingText,
+					toolCalls,
+				}
+			: {
+					visibleText: thinkingText,
+					thinkingText: "",
+					toolCalls,
+				};
 	}
 
 	return {
 		visibleText: parsedText,
-		thinkingText: thinkingParts.join("\n\n"),
+		thinkingText,
 		toolCalls,
 	};
 }
@@ -923,6 +1027,110 @@ async function* parseSse(response: Response): AsyncGenerator<ClineXmlChunk> {
 			if (!data || data === "[DONE]") continue;
 			yield JSON.parse(data) as ClineXmlChunk;
 		}
+	}
+}
+
+type ClineXmlResponseData = {
+	rawText: string;
+	thinking: string;
+	finishReason: string | null | undefined;
+	usage: ClineXmlChunk["usage"] | undefined;
+};
+
+function isRetryableClineReasoningStreamError(error: unknown): boolean {
+	if (!(error instanceof Error)) return false;
+	const message = error.message.toLowerCase();
+	return (
+		message.includes("stream error occurred") ||
+		message.includes("reasoning") && message.includes("stream")
+	);
+}
+
+async function readClineXmlResponse(
+	response: Response,
+): Promise<ClineXmlResponseData> {
+	let rawText = "";
+	let thinking = "";
+	let finishReason: string | null | undefined;
+	let usage: ClineXmlChunk["usage"] | undefined;
+
+	for await (const chunk of parseSse(response)) {
+		if (chunk.error) {
+			throw new Error(
+				`${chunk.error.code ?? "cline_error"}: ${chunk.error.message ?? "Unknown Cline error"}`,
+			);
+		}
+		if (chunk.usage) usage = chunk.usage;
+		const choice = chunk.choices?.[0];
+		if (!choice) continue;
+		if (choice.error) {
+			throw new Error(
+				`${choice.error.code ?? "cline_error"}: ${choice.error.message ?? "Unknown Cline error"}`,
+			);
+		}
+		if (choice.finish_reason) finishReason = choice.finish_reason;
+		rawText += choice.delta?.content ?? "";
+		thinking += choice.delta?.reasoning ?? "";
+	}
+
+	return { rawText, thinking, finishReason, usage };
+}
+
+async function fetchClineXmlResponse(
+	model: Model<string>,
+	context: Context,
+	options: SimpleStreamOptions,
+	headers: Record<string, string>,
+	includeReasoning: boolean,
+): Promise<ClineXmlResponseData> {
+	const response = await fetch(`${BASE_URL_CLINE}/chat/completions`, {
+		method: "POST",
+		headers: {
+			...headers,
+			Authorization: `Bearer ${options.apiKey}`,
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify({
+			model: normalizeApiModelId(model.id),
+			temperature: 0,
+			messages: buildClineXmlMessages(context),
+			stream: true,
+			stream_options: { include_usage: true },
+			...(includeReasoning ? { include_reasoning: true } : {}),
+		}),
+		signal: options.signal,
+	});
+	await options.onResponse?.(
+		{
+			status: response.status,
+			headers: Object.fromEntries(response.headers.entries()),
+		},
+		model,
+	);
+
+	if (!response.ok) {
+		throw new Error(`Cline API error ${response.status}: ${await response.text()}`);
+	}
+
+	return readClineXmlResponse(response);
+}
+
+async function fetchClineXmlResponseWithReasoningFallback(
+	model: Model<string>,
+	context: Context,
+	options: SimpleStreamOptions,
+	headers: Record<string, string>,
+): Promise<ClineXmlResponseData> {
+	try {
+		return await fetchClineXmlResponse(model, context, options, headers, true);
+	} catch (error) {
+		if (
+			options.signal?.aborted ||
+			!isRetryableClineReasoningStreamError(error)
+		) {
+			throw error;
+		}
+		return fetchClineXmlResponse(model, context, options, headers, false);
 	}
 }
 
@@ -1043,60 +1251,13 @@ export function streamClineXml(
 				throw new Error("No Cline access token found. Run /login cline first.");
 			}
 
-			const response = await fetch(`${BASE_URL_CLINE}/chat/completions`, {
-				method: "POST",
-				headers: {
-					...headers,
-					Authorization: `Bearer ${options.apiKey}`,
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({
-					model: normalizeApiModelId(model.id),
-					temperature: 0,
-					messages: buildClineXmlMessages(context),
-					stream: true,
-					stream_options: { include_usage: true },
-					include_reasoning: true,
-				}),
-				signal: options.signal,
-			});
-			await options.onResponse?.(
-				{
-					status: response.status,
-					headers: Object.fromEntries(response.headers.entries()),
-				},
-				model,
-			);
-
-			if (!response.ok) {
-				throw new Error(
-					`Cline API error ${response.status}: ${await response.text()}`,
+			const { rawText, thinking, finishReason, usage } =
+				await fetchClineXmlResponseWithReasoningFallback(
+					model,
+					context,
+					options,
+					headers,
 				);
-			}
-
-			let rawText = "";
-			let thinking = "";
-			let finishReason: string | null | undefined;
-			let usage: ClineXmlChunk["usage"] | undefined;
-
-			for await (const chunk of parseSse(response)) {
-				if (chunk.error) {
-					throw new Error(
-						`${chunk.error.code ?? "cline_error"}: ${chunk.error.message ?? "Unknown Cline error"}`,
-					);
-				}
-				if (chunk.usage) usage = chunk.usage;
-				const choice = chunk.choices?.[0];
-				if (!choice) continue;
-				if (choice.error) {
-					throw new Error(
-						`${choice.error.code ?? "cline_error"}: ${choice.error.message ?? "Unknown Cline error"}`,
-					);
-				}
-				if (choice.finish_reason) finishReason = choice.finish_reason;
-				rawText += choice.delta?.content ?? "";
-				thinking += choice.delta?.reasoning ?? "";
-			}
 
 			assistant.usage = usageFromChunkUsage(usage);
 			const extractedThinking = extractThinkingXml(rawText);
@@ -1143,6 +1304,7 @@ export function streamClineXml(
 
 export const __test__ = {
 	buildClineXmlMessages,
+	isRetryableClineReasoningStreamError,
 	parseReasoningToolCalls,
 	parseXmlToolCalls,
 	prepareClineXmlOutput,

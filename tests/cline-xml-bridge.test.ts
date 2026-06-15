@@ -174,6 +174,34 @@ describe("Cline XML bridge", () => {
 			expect(parsed.toolCalls).toEqual([]);
 		});
 
+		it("treats plain text before dangling summary close as hidden thinking", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"The user makes a good point about worker diversity.",
+					"Let me check if the diversePanel function already handles this.",
+					"</summary>",
+				].join("\n"),
+				[tool("edit"), tool("write")],
+			);
+
+			expect(parsed.text).toBe("");
+			expect(parsed.toolCalls).toEqual([]);
+		});
+
+		it("treats plain text before dangling persistent issue close as hidden thinking", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"The user wants me to continue. Let me fix the issues found by the diagnostics.",
+					"The main things to fix are remove unused imports and fix empty catch blocks.",
+					"</persistent_issue_checking>",
+				].join("\n"),
+				[tool("edit"), tool("write")],
+			);
+
+			expect(parsed.text).toBe("");
+			expect(parsed.toolCalls).toEqual([]);
+		});
+
 		it("treats DeepSeek-style <think> block content as thinking", () => {
 			const parsed = __test__.parseXmlToolCalls(
 				[
@@ -456,23 +484,66 @@ describe("Cline XML bridge", () => {
 		});
 	});
 
+	describe("isRetryableClineReasoningStreamError", () => {
+		it("retries generic Cline stream errors without reasoning", () => {
+			expect(
+				__test__.isRetryableClineReasoningStreamError(
+					new Error("error: Stream error occurred"),
+				),
+			).toBe(true);
+		});
+
+		it("does not retry quota or auth errors", () => {
+			expect(
+				__test__.isRetryableClineReasoningStreamError(
+					new Error("Cline API error 429: Daily free limit reached"),
+				),
+			).toBe(false);
+		});
+	});
+
 	describe("prepareClineXmlOutput", () => {
-		it("surfaces reasoning-only Cline responses instead of returning a blank stop", () => {
+		it("surfaces answer-like reasoning-only Cline responses instead of returning a blank stop", () => {
 			const output = __test__.prepareClineXmlOutput(
 				"",
 				[],
-				[
-					"The user is prompting me to continue. Let me respond with my thoughts on this UX design.",
-				],
+				["Yes — that UX matches. Keep `/toggle-plegma` as the simple activation switch."],
 				[],
 			);
 
 			expect(output).toEqual({
 				visibleText:
-					"The user is prompting me to continue. Let me respond with my thoughts on this UX design.",
+					"Yes — that UX matches. Keep `/toggle-plegma` as the simple activation switch.",
 				thinkingText: "",
 				toolCalls: [],
 			});
+		});
+
+		it("does not surface internal planning from reasoning-only Cline responses", () => {
+			const internal =
+				"The user is prompting me to continue. Let me respond with my thoughts on this UX design.";
+			const output = __test__.prepareClineXmlOutput("", [], [internal], []);
+
+			expect(output.visibleText).toContain(
+				"Cline returned internal reasoning only",
+			);
+			expect(output.thinkingText).toBe(internal);
+			expect(output.toolCalls).toEqual([]);
+		});
+
+		it("does not surface visible text that is actually internal Cline planning", () => {
+			const internal = [
+				"The user makes a good point about worker diversity - each worker should come from a different provider.",
+				"Let me also fix the biome issues and the empty catch blocks.",
+				"</summary>",
+			].join("\n\n");
+			const output = __test__.prepareClineXmlOutput(internal, [], [], []);
+
+			expect(output.visibleText).toContain(
+				"Cline returned internal reasoning only",
+			);
+			expect(output.thinkingText).toBe(internal);
+			expect(output.toolCalls).toEqual([]);
 		});
 
 		it("keeps reasoning hidden when visible text is present", () => {
