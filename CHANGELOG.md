@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-06-15
+
+### Fixed
+
+- **Cline XML bridge**:
+  - Preserve JSON file content as string in `write_to_file` XML — prevents file bodies from being parsed as JSON objects and corrupted ([#244](https://github.com/apmantza/pi-free/pull/244)).
+  - Recover heredoc file writes (Model `cat << 'EOF'` pattern in `execute_command`) as `write`/`write_to_file` tool calls ([#246](https://github.com/apmantza/pi-free/pull/246)).
+  - Recover XML tool calls from the reasoning stream when MiMo nests tools inside thinking blocks ([#249](https://github.com/apmantza/pi-free/pull/249)).
+  - Surface reasoning-only responses: when MiMo puts the entire answer in reasoning with no visible text, surface it as best-effort visible output instead of a blank stop ([#251](https://github.com/apmantza/pi-free/pull/251)).
+  - Strip Unicode math-italic XML tag decorations (`<𝑎𝑛𝑡𝑚𝑙:thinking>`, `<𝑎𝑛𝑡𝑚𝑙:read_file>`) that MiMo emits instead of standard Cline XML tags ([#252](https://github.com/apmantza/pi-free/pull/252)).
+  - Hide internal planning phrases and restrict hidden-tool recovery to the reasoning channel only — never leak raw LLM planning as user-visible text ([#252](https://github.com/apmantza/pi-free/pull/252)).
+  - Retry MiMo stream errors with reasoning disabled on the second attempt ([#252](https://github.com/apmantza/pi-free/pull/252)).
+  - Parse MiMo Pi SDK `<function=name>` tool-call syntax directly — no double conversion through Cline XML ([#255](https://github.com/apmantza/pi-free/pull/255)).
+  - Auto-retry reasoning-only MiMo responses with a "continue" nudge instead of showing a dead-end error to the user ([#256](https://github.com/apmantza/pi-free/pull/256)).
+
+- **TokenRouter**:
+  - Patch nested MiniMax `<think>` blocks that appear inside `reasoning_content` deltas ([#247](https://github.com/apmantza/pi-free/pull/247)).
+  - Scope MiniMax thinking patches to active MiniMax models only, avoiding interference with other model families ([#248](https://github.com/apmantza/pi-free/pull/248)).
+  - Patch MiniMax payloads in the stream wrapper to prevent malformed SSE from breaking the parser ([#250](https://github.com/apmantza/pi-free/pull/250)).
+  - Retry high-load 2064 errors from TokenRouter with automatic backoff ([#254](https://github.com/apmantza/pi-free/pull/254)).
+
+- **UI**: Remove provider-count footer status text unconditionally — reduces status bar clutter ([#245](https://github.com/apmantza/pi-free/pull/245)).
+
 ## [2.1.0] - 2026-06-15
 
 ### Added
@@ -349,9 +372,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - If ANY model has cost > 0, assumes pricing exposed → uses Route A
   - All providers (Cline, Kilo, NVIDIA, Ollama, dynamic built-in) now use this consistent helper
 
-- **CrofAI provider (PAID)** — Added new **paid** provider for CrofAI (https://crof.ai), an OpenAI-compatible LLM inference API. **Note: CrofAI is a paid provider** — users must have a CrofAI API key with credits. The provider uses Route B detection (name-only) since CrofAI's API doesn't expose per-model pricing. Only models with `"free"` in their names are marked as free (none currently).
+- **CrofAI provider (PAID)** — Added new **paid** provider for CrofAI (<https://crof.ai>), an OpenAI-compatible LLM inference API. **Note: CrofAI is a paid provider** — users must have a CrofAI API key with credits. The provider uses Route B detection (name-only) since CrofAI's API doesn't expose per-model pricing. Only models with `"free"` in their names are marked as free (none currently).
 
-- **ZenMux provider (PAID)** — Added new **paid** provider for ZenMux AI gateway (https://zenmux.ai), a unified API for 200+ models from OpenAI, Anthropic, Google, etc. **Note: ZenMux is a paid provider** — users must have a ZenMux API key with credits. The provider uses Route A detection (OR logic) since ZenMux exposes pricing. Models marked as free only if `cost === 0` OR `"free"` in name (2 free models identified: GLM 4.7 Flash Free, GLM 4.6v Flash Free).
+- **ZenMux provider (PAID)** — Added new **paid** provider for ZenMux AI gateway (<https://zenmux.ai>), a unified API for 200+ models from OpenAI, Anthropic, Google, etc. **Note: ZenMux is a paid provider** — users must have a ZenMux API key with credits. The provider uses Route A detection (OR logic) since ZenMux exposes pricing. Models marked as free only if `cost === 0` OR `"free"` in name (2 free models identified: GLM 4.7 Flash Free, GLM 4.6v Flash Free).
 
 - **Comprehensive `isFreeModel` test suite** — Added 30+ unit tests covering Route A, Route B, freemium behavior, and edge cases. Tests verify correct classification on actual OpenRouter API data (371 models, 30 free).
 
@@ -553,7 +576,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **$0.011 per 1,000 Neurons** beyond free allocation
   - Only requires `CLOUDFLARE_API_TOKEN` — account ID auto-derived from token
   - Toggle with `/cloudflare-toggle`
-  - Create token at https://dash.cloudflare.com/profile/api-tokens
+  - Create token at <https://dash.cloudflare.com/profile/api-tokens>
 
 - **Unified dynamic built-in providers module** — New `providers/dynamic-built-in/` module that dynamically fetches models from Pi's built-in providers when users have API keys:
   - **Mistral** (`MISTRAL_API_KEY`) — Fetches from `api.mistral.ai/v1/models`
