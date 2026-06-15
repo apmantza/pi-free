@@ -720,6 +720,40 @@ describe("Cline XML bridge", () => {
 		});
 	});
 
+	describe("normalizeDecoratedXmlTags", () => {
+		it("strips Unicode math-italic prefixes from MiMo/Cline thinking tags", () => {
+			const input =
+				"<\u{1D41A}\u{1D42C}\u{1D429}\u{1D428}\u{1D427}:thinking>\nLet me read the file.\n</\u{1D41A}\u{1D42C}\u{1D429}\u{1D428}\u{1D427}:thinking>";
+			const result = __test__.normalizeDecoratedXmlTags(input);
+			expect(result).toContain("<thinking>");
+			expect(result).toContain("</thinking>");
+			expect(result).not.toContain("\u{1D41A}");
+		});
+
+		it("strips Unicode math-italic prefixes from MiMo/Cline tool tags", () => {
+			const input =
+				"<\u{1D41A}\u{1D42C}\u{1D429}\u{1D428}\u{1D427}:read_file>\n<path>README.md</path>\n</\u{1D41A}\u{1D42C}\u{1D429}\u{1D428}\u{1D427}:read_file>";
+			const result = __test__.normalizeDecoratedXmlTags(input);
+			expect(result).toContain("<read_file>");
+			expect(result).toContain("</read_file>");
+			expect(result).not.toContain("\u{1D41A}");
+		});
+
+		it("leaves normal ASCII XML tags unchanged", () => {
+			const input =
+				"<thinking>\nLet me read the file.\n</thinking>\n<read_file>\n<path>README.md</path>\n</read_file>";
+			expect(__test__.normalizeDecoratedXmlTags(input)).toBe(input);
+		});
+
+		it("handles mixed decorated and plain tags", () => {
+			const input = "<\u{1D41A}\u{1D42C}\u{1D429}\u{1D428}\u{1D427}:thinking>plan</\u{1D41A}\u{1D42C}\u{1D429}\u{1D428}\u{1D427}:thinking>\n<read_file>\n<path>x</path>\n</read_file>";
+			const result = __test__.normalizeDecoratedXmlTags(input);
+			expect(result).toContain("<thinking>");
+			expect(result).toContain("<read_file>");
+			expect(result).not.toContain("\u{1D41A}");
+		});
+	});
+
 	describe("buildClineXmlMessages", () => {
 		it("advertises Pi edit as Cline replace_in_file with SEARCH/REPLACE format", () => {
 			const messages = __test__.buildClineXmlMessages({

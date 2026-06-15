@@ -46,6 +46,73 @@ function normalizeApiModelId(modelId: string): string {
 		: modelId;
 }
 
+/**
+ * Some MiMo/Cline models emit XML tags wrapped in Unicode math-italic
+ * characters that spell out "anthml:" before the real tag name:
+ *   <𝑎𝑛𝑡𝑚𝑙:thinking>...</𝑎𝑛𝑡𝑚𝑙:thinking>
+ *   <𝑎𝑛𝑡𝑚𝑙:read_file>...</𝑎𝑛𝑡𝑚𝑙:read_file>
+ *
+ * This function strips the Unicode-decorated prefix so the rest of the
+ * parser sees standard ASCII XML tags.
+ */
+function normalizeDecoratedXmlTags(text: string): string {
+	const parts: string[] = [];
+	let cursor = 0;
+
+	while (cursor < text.length) {
+		const ltIndex = text.indexOf("<", cursor);
+		if (ltIndex === -1) {
+			parts.push(text.slice(cursor));
+			break;
+		}
+
+		parts.push(text.slice(cursor, ltIndex));
+		let contentStart = ltIndex + 1;
+		let prefix = "<";
+
+		// Handle closing tags: </𝑎𝑛𝑡𝑚𝑙:thinking> → </thinking>
+		if (contentStart < text.length && text[contentStart] === "/") {
+			prefix = "</";
+			contentStart += 1;
+		}
+
+		const gtIndex = text.indexOf(">", contentStart);
+		const colonIndex = text.indexOf(":", contentStart);
+		const spaceIndex = text.indexOf(" ", contentStart);
+		if (
+			colonIndex === -1 ||
+			colonIndex === contentStart ||
+			(gtIndex !== -1 && colonIndex > gtIndex) ||
+			(spaceIndex !== -1 && spaceIndex < colonIndex)
+		) {
+			parts.push(prefix);
+			cursor = contentStart;
+			continue;
+		}
+
+		// Strip non-ASCII bytes between prefix and : to undo Unicode-decorated
+		// prefixes like <𝑎𝑛𝑡𝑚𝑙:thinking> → <thinking>.
+		let hasNonAscii = false;
+		for (let i = contentStart; i < colonIndex; i++) {
+			if (text.charCodeAt(i) > 127) {
+				hasNonAscii = true;
+				break;
+			}
+		}
+
+		if (hasNonAscii) {
+			parts.push(prefix);
+			cursor = colonIndex + 1;
+		} else {
+			// No decorated prefix - emit < and re-include everything after it
+			parts.push("<");
+			cursor = ltIndex + 1;
+		}
+	}
+
+	return parts.join("");
+}
+
 function xmlEscape(value: unknown): string {
 	return String(value)
 		.replaceAll("&", "&amp;")
@@ -1061,7 +1128,15 @@ async function readClineXmlResponse(
 		throw new Error("Cline returned empty response");
 	}
 
-	return { rawText, thinking, finishReason, usage };
+	// Some MiMo/Cline models wrap XML tags in Unicode math-italic characters
+	// forming "anthml:" prefixes (e.g. <𝑎𝑛𝑡𝑚𝑙:thinking>, <𝑎𝑛𝑡𝑚𝑙:read_file>).
+	// Strip these so the rest of the parser sees standard ASCII XML tags.
+	return {
+		rawText: normalizeDecoratedXmlTags(rawText),
+		thinking: normalizeDecoratedXmlTags(thinking),
+		finishReason,
+		usage,
+	};
 }
 
 async function fetchClineXmlResponse(
@@ -1295,6 +1370,7 @@ export function streamClineXml(
 export const __test__ = {
 	buildClineXmlMessages,
 	isRetryableClineReasoningStreamError,
+	normalizeDecoratedXmlTags,
 	parseReasoningHiddenToolCalls,
 	parseReasoningToolCalls,
 	parseXmlToolCalls,
