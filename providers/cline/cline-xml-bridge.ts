@@ -366,7 +366,10 @@ function parseCatHeredocWriteCommand(
 	}
 	if (delimiterLine === -1) return undefined;
 
-	const trailing = lines.slice(delimiterLine + 1).join("\n").trim();
+	const trailing = lines
+		.slice(delimiterLine + 1)
+		.join("\n")
+		.trim();
 	if (trailing) {
 		const trailingLines = trailing.split("\n").filter((line) => line.trim());
 		if (trailingLines.length !== 1) return undefined;
@@ -383,7 +386,9 @@ function parseCatHeredocWriteCommand(
 	};
 }
 
-function getWriteRuntimeToolName(tools: Tool[] | undefined): string | undefined {
+function getWriteRuntimeToolName(
+	tools: Tool[] | undefined,
+): string | undefined {
 	if ((tools ?? []).some((tool) => tool.name === "write_to_file")) {
 		return "write_to_file";
 	}
@@ -826,7 +831,10 @@ function parseXmlToolCalls(
 				? parseCatHeredocWriteCommand(stringArg(remoteArgs, "command"))
 				: undefined;
 		if (heredocWrite && writeRuntimeName) {
-			toolCalls.push({ name: writeRuntimeName, arguments: { ...heredocWrite } });
+			toolCalls.push({
+				name: writeRuntimeName,
+				arguments: { ...heredocWrite },
+			});
 		} else {
 			toolCalls.push({
 				name: bridge?.runtimeName ?? next.name,

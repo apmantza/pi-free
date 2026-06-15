@@ -63,7 +63,7 @@ describe("Cline XML bridge", () => {
 					"  }",
 					"}",
 					"JSONEOF",
-					"cat \"C:/Users/R3LiC/Desktop/pi-plegma/.pi/extensions/plegma/package.json\"</command>",
+					'cat "C:/Users/R3LiC/Desktop/pi-plegma/.pi/extensions/plegma/package.json"</command>',
 					"</execute_command>",
 				].join("\n"),
 				[tool("bash"), tool("write")],
