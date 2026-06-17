@@ -60,6 +60,14 @@ export function getModelsDueForProbe(
 	});
 }
 
+export function areAllModelsFresh(
+	providerId: string,
+	modelIds: string[],
+	ttlMs = DEFAULT_PROBE_TTL_MS,
+): boolean {
+	return getModelsDueForProbe(providerId, modelIds, ttlMs).length === 0;
+}
+
 export async function recordModelProbeResults(
 	providerId: string,
 	results: ModelProbeResult[],

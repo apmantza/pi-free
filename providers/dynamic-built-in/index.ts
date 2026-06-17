@@ -45,6 +45,7 @@ import { createLogger } from "../../lib/logger.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import { getProxyModelCompat } from "../../lib/provider-compat.ts";
 import {
+	areAllModelsFresh,
 	getModelsDueForProbe,
 	recordModelProbeResults,
 } from "../../lib/probe-cache.ts";
@@ -605,6 +606,17 @@ async function registerProvider(
 			wrapSessionStartHandler(`${config.providerId}-auto-probe`, async () => {
 				if (_autoProbeDone) return;
 				_autoProbeDone = true;
+				if (
+					areAllModelsFresh(
+						config.providerId,
+						stored.free.map((m) => m.id),
+					)
+				) {
+					_logger.info(
+						`[probe] ${config.providerId}: auto-probe cache is fresh`,
+					);
+					return;
+				}
 				_logger.info(
 					`Starting lazy auto-probe of ${config.providerId} free models...`,
 				);

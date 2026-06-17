@@ -24,6 +24,7 @@ import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { updateConfig } from "../config.ts";
 import { createLogger } from "./logger.ts";
 import {
+	areAllModelsFresh,
 	getModelsDueForProbe,
 	recordModelProbeResults,
 	type ModelProbeResult,
@@ -175,6 +176,20 @@ export function createProviderProbe(
 		return () => {
 			if (done) return;
 			done = true;
+
+			// Skip scheduling entirely if every model was probed recently.
+			// Without this check the handler fires on every session_start and
+			// only then discovers the cache is fresh inside run().
+			if (
+				areAllModelsFresh(
+					providerId,
+					models.map((m) => m.id),
+				)
+			) {
+				_logger.info(`[probe] ${providerId}: auto-probe cache is fresh`);
+				return;
+			}
+
 			_logger.info(`[probe] Starting lazy auto-probe for ${providerId}...`);
 			run(apiKey, models, { useCache: true }).catch((err) => {
 				_logger.warn(`[probe] ${providerId}: auto-probe failed`, {

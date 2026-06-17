@@ -37,6 +37,7 @@ import {
 	isLikelyReasoningModel,
 } from "../../lib/provider-compat.ts";
 import {
+	areAllModelsFresh,
 	getModelsDueForProbe,
 	recordModelProbeResults,
 } from "../../lib/probe-cache.ts";
@@ -350,6 +351,15 @@ export default async function routewayProvider(pi: ExtensionAPI) {
 		wrapSessionStartHandler("routeway", async () => {
 			if (_autoProbeDone || !apiKey) return;
 			_autoProbeDone = true;
+			if (
+				areAllModelsFresh(
+					PROVIDER_ROUTEWAY,
+					allModels.map((m) => m.id),
+				)
+			) {
+				_logger.info("Auto-probe: Routeway probe cache is fresh");
+				return;
+			}
 			_logger.info("Starting lazy auto-probe of Routeway models...");
 			runRoutewayProbe(apiKey, allModels, stored, reRegister, {
 				useCache: true,

@@ -43,6 +43,7 @@ import {
 } from "../../lib/provider-cache.ts";
 import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
 import {
+	areAllModelsFresh,
 	getModelsDueForProbe,
 	recordModelProbeResults,
 } from "../../lib/probe-cache.ts";
@@ -592,6 +593,18 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 	});
 
 	const runProbeInBackground = (models: ProviderModelConfig[]) => {
+		// Skip scheduling entirely if every model was probed recently.
+		// Without this check the probe runs on every session_start and
+		// only then discovers the cache is fresh inside runOllamaProbe.
+		if (
+			areAllModelsFresh(
+				PROVIDER_OLLAMA,
+				models.map((m) => m.id),
+			)
+		) {
+			_logger.info("Auto-probe: Ollama probe cache is fresh");
+			return;
+		}
 		runOllamaProbe(apiKey, models, applyModelList, { useCache: true }).catch(
 			(error) => {
 				_logger.warn("Auto-probe failed", {
