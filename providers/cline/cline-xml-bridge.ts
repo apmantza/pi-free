@@ -971,10 +971,12 @@ function parseXmlToolCalls(
 	// Some Cline/MiMo variants use the Pi runtime tool name (e.g. <edit>,
 	// <write>) instead of the Cline XML name (<replace_in_file>, <write_to_file>).
 	// Register runtime names as aliases so both forms are recognised.
-	const bridgeByName = new Map(bridges.flatMap((bridge) => [
-		[bridge.remoteName, bridge],
-		[bridge.runtimeName, bridge],
-	]));
+	const bridgeByName = new Map(
+		bridges.flatMap((bridge) => [
+			[bridge.remoteName, bridge],
+			[bridge.runtimeName, bridge],
+		]),
+	);
 	const toolNames = new Set(bridgeByName.keys());
 
 	// Extract <function=name> Pi SDK tool calls directly (no Cline XML intermediate)
@@ -1027,7 +1029,10 @@ function parseXmlToolCalls(
 	}
 
 	pushTextFragment(textParts, sourceText.slice(cursor));
-	return { text: textParts.join("\n\n").trim(), toolCalls: [...fnResult.toolCalls, ...toolCalls] };
+	return {
+		text: textParts.join("\n\n").trim(),
+		toolCalls: [...fnResult.toolCalls, ...toolCalls],
+	};
 }
 
 function parseReasoningHiddenToolCalls(
@@ -1417,7 +1422,10 @@ export function streamClineXml(
 					thinking,
 					currentContext.tools,
 				);
-				const parsed = parseXmlToolCalls(extractedThinking.text, currentContext.tools);
+				const parsed = parseXmlToolCalls(
+					extractedThinking.text,
+					currentContext.tools,
+				);
 				output = prepareClineXmlOutput(
 					parsed.text,
 					extractedThinking.thinking,
@@ -1428,10 +1436,7 @@ export function streamClineXml(
 				// Reasoning-only response: MiMo stopped without producing visible
 				// text or tool calls. Auto-retry once with a "continue" nudge
 				// instead of showing a dead-end error to the user.
-				if (
-					output.visibleText === INTERNAL_ONLY_RESPONSE &&
-					attempt === 0
-				) {
+				if (output.visibleText === INTERNAL_ONLY_RESPONSE && attempt === 0) {
 					currentContext = {
 						...context,
 						messages: [

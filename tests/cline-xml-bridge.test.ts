@@ -504,7 +504,7 @@ describe("Cline XML bridge", () => {
 				[
 					"<edit>",
 					"  <path>CHANGELOG.md</path>",
-					"  <edits>[{\"oldText\":\"before\",\"newText\":\"after\"}]</edits>",
+					'  <edits>[{"oldText":"before","newText":"after"}]</edits>',
 					"</edit>",
 				].join("\n"),
 				[tool("edit")],
@@ -794,11 +794,15 @@ describe("Cline XML bridge", () => {
 			expect(result.toolCalls[0].name).toBe("read_file");
 			expect(result.toolCalls[0].arguments).toEqual({ path: "a.txt" });
 			expect(result.toolCalls[1].name).toBe("write_to_file");
-			expect(result.toolCalls[1].arguments).toEqual({ path: "b.txt", content: "hello" });
+			expect(result.toolCalls[1].arguments).toEqual({
+				path: "b.txt",
+				content: "hello",
+			});
 		});
 
 		it("preserves surrounding text", () => {
-			const input = "Let me read the file.\n<function=read_file>\n<param name=\"path\">x.txt</param>\n</function>\nDone.";
+			const input =
+				'Let me read the file.\n<function=read_file>\n<param name="path">x.txt</param>\n</function>\nDone.';
 			const result = __test__.extractFunctionTagToolCalls(input, new Map());
 			expect(result.toolCalls).toHaveLength(1);
 			expect(result.text).toContain("Let me read the file.");
