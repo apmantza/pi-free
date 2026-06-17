@@ -315,10 +315,25 @@ function replaceInFileBridge(tool?: Tool): ToolBridge {
 		description:
 			tool?.description ?? "Edit a file using Cline SEARCH/REPLACE blocks",
 		parameters: ["path", "diff"],
-		toRuntimeArgs: (args) => ({
-			path: stringArg(args, "path"),
-			edits: parseSearchReplaceBlocks(stringArg(args, "diff")),
-		}),
+		toRuntimeArgs: (args) => {
+			// Pi native <edit> form sends <edits>[{oldText,newText},...]</edits>
+			// as JSON. Cline <replace_in_file> form uses SEARCH/REPLACE <diff>.
+			if (Array.isArray(args.edits)) {
+				return {
+					path: stringArg(args, "path"),
+					edits: args.edits
+						.map((edit) => ({
+							oldText: stringArg(edit as Record<string, unknown>, "oldText"),
+							newText: stringArg(edit as Record<string, unknown>, "newText"),
+						}))
+						.filter((edit) => edit.oldText || edit.newText),
+				};
+			}
+			return {
+				path: stringArg(args, "path"),
+				edits: parseSearchReplaceBlocks(stringArg(args, "diff")),
+			};
+		},
 		fromRuntimeArgs: (args) => {
 			const edits = Array.isArray(args.edits)
 				? args.edits
@@ -949,10 +964,18 @@ function parseXmlToolCalls(
 	rawText: string,
 	tools: Tool[] | undefined,
 ): ParsedToolCalls {
+	const bridges = getParseToolBridges(tools);
 	const bridgeByRemoteName = new Map(
-		getParseToolBridges(tools).map((bridge) => [bridge.remoteName, bridge]),
+		bridges.map((bridge) => [bridge.remoteName, bridge]),
 	);
-	const toolNames = new Set(bridgeByRemoteName.keys());
+	// Some Cline/MiMo variants use the Pi runtime tool name (e.g. <edit>,
+	// <write>) instead of the Cline XML name (<replace_in_file>, <write_to_file>).
+	// Register runtime names as aliases so both forms are recognised.
+	const bridgeByName = new Map(bridges.flatMap((bridge) => [
+		[bridge.remoteName, bridge],
+		[bridge.runtimeName, bridge],
+	]));
+	const toolNames = new Set(bridgeByName.keys());
 
 	// Extract <function=name> Pi SDK tool calls directly (no Cline XML intermediate)
 	const fnResult = extractFunctionTagToolCalls(rawText, bridgeByRemoteName);
@@ -972,7 +995,9 @@ function parseXmlToolCalls(
 	while (cursor < sourceText.length) {
 		const next = findNextToolStart(sourceText, toolNames, cursor);
 		if (!next) break;
-		const closeTag = `</${next.name}>`;
+		const bridge = bridgeByName.get(next.name);
+		const remoteName = bridge?.remoteName ?? next.name;
+		const closeTag = `</${remoteName}>`;
 		const closeStart = sourceText.indexOf(
 			closeTag,
 			next.index + next.openTag.length,
@@ -980,11 +1005,10 @@ function parseXmlToolCalls(
 		pushTextFragment(textParts, sourceText.slice(cursor, next.index));
 		const blockEnd = closeStart === -1 ? sourceText.length : closeStart;
 		const block = sourceText.slice(next.index + next.openTag.length, blockEnd);
-		const bridge = bridgeByRemoteName.get(next.name);
 		const remoteArgs = parseToolArguments(block);
 		const writeRuntimeName = getWriteRuntimeToolName(tools);
 		const heredocWrite =
-			next.name === "execute_command" && writeRuntimeName
+			remoteName === "execute_command" && writeRuntimeName
 				? parseCatHeredocWriteCommand(stringArg(remoteArgs, "command"))
 				: undefined;
 		if (heredocWrite && writeRuntimeName) {

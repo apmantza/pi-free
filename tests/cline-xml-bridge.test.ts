@@ -499,6 +499,28 @@ describe("Cline XML bridge", () => {
 			]);
 		});
 
+		it("maps Pi runtime \u003cedit\u003e XML tag to Pi edit tool calls", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"<edit>",
+					"  <path>CHANGELOG.md</path>",
+					"  <edits>[{\"oldText\":\"before\",\"newText\":\"after\"}]</edits>",
+					"</edit>",
+				].join("\n"),
+				[tool("edit")],
+			);
+
+			expect(parsed.toolCalls).toEqual([
+				{
+					name: "edit",
+					arguments: {
+						path: "CHANGELOG.md",
+						edits: [{ oldText: "before", newText: "after" }],
+					},
+				},
+			]);
+		});
+
 		it("maps multi-block Cline replace_in_file XML to one Pi edit call", () => {
 			const parsed = __test__.parseXmlToolCalls(
 				[
