@@ -54,6 +54,8 @@ import routeway from "./providers/routeway/routeway.ts";
 import tokenRouter from "./providers/tokenrouter/tokenrouter.ts";
 import ollama from "./providers/ollama/ollama.ts";
 import zenmux from "./providers/zenmux/zenmux.ts";
+import bai from "./providers/bai/bai.ts";
+import zcode from "./providers/zcode/zcode.ts";
 
 const _logger = createLogger("pi-free");
 
@@ -346,6 +348,8 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 		novita(pi),
 		routeway(pi),
 		tokenRouter(pi),
+		bai(pi),
+		zcode(pi),
 	]);
 
 	// Setup dynamic built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face,

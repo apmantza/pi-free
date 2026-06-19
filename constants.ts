@@ -24,6 +24,8 @@ export const PROVIDER_TOGETHER = "together";
 export const PROVIDER_NOVITA = "novita";
 export const PROVIDER_ROUTEWAY = "routeway";
 export const PROVIDER_TOKENROUTER = "tokenrouter";
+export const PROVIDER_BAI = "bai";
+export const PROVIDER_ZCODE = "zcode";
 
 export const ALL_UNIQUE_PROVIDERS = [
 	PROVIDER_KILO,
@@ -42,6 +44,8 @@ export const ALL_UNIQUE_PROVIDERS = [
 	PROVIDER_NOVITA,
 	PROVIDER_ROUTEWAY,
 	PROVIDER_TOKENROUTER,
+	PROVIDER_BAI,
+	PROVIDER_ZCODE,
 ] as const;
 
 // =============================================================================
@@ -65,6 +69,19 @@ export const BASE_URL_TOGETHER = "https://api.together.xyz/v1";
 export const BASE_URL_NOVITA = "https://api.novita.ai/openai/v1";
 export const BASE_URL_ROUTEWAY = "https://api.routeway.ai/v1";
 export const BASE_URL_TOKENROUTER = "https://api.tokenrouter.com/v1";
+export const BASE_URL_BAI = "https://api.b.ai/v1";
+/**
+ * ZCode "Start Plan" gateway — the free trial / promotional tier exposed by
+ * the ZCode desktop IDE. Requires an OAuth-issued JWT (not a static API key).
+ * Reverse-engineered from TriDefender/zcode-api.
+ *
+ * Endpoints:
+ *   OpenAI-compatible:  /chat/completions
+ *   Anthropic-format:   /anthropic/v1/messages
+ *   Models listing:     /models
+ */
+export const BASE_URL_ZCODE_STARTPLAN = "https://zcode.z.ai/api/v1/zcode-plan";
+export const ZCODE_OAUTH_BASE = "https://zcode.z.ai/api/v1";
 
 /** Cline fetches free models from OpenRouter */
 export const BASE_URL_OPENROUTER = "https://openrouter.ai/api/v1";
@@ -94,6 +111,13 @@ export const DEFAULT_FETCH_TIMEOUT_MS: number = 10_000;
 
 export const KILO_POLL_INTERVAL_MS = 3_000;
 export const KILO_TOKEN_EXPIRATION_MS = 365 * 24 * 60 * 60 * 1000; // 1 year
+
+/** ZCode identity headers — must match the official ZCode desktop client so
+ *  the upstream doesn't reject requests with bot-detection fingerprints. */
+export const ZCODE_APP_VERSION = "3.1.2";
+export const ZCODE_REFERER_ORIGIN = "https://zcode.z.ai";
+export const ZCODE_POLL_INTERVAL_MS = 3_000;
+export const ZCODE_TOKEN_EXPIRATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // =============================================================================
 // Removed providers (now built into pi):

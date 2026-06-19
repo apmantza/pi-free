@@ -12,6 +12,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 export {
+	PROVIDER_BAI,
 	PROVIDER_CLINE,
 	PROVIDER_KILO,
 	PROVIDER_MODAL,
@@ -48,6 +49,7 @@ interface PiFreeConfig {
 	routeway_api_key?: string;
 	fastrouter_api_key?: string;
 	tokenrouter_api_key?: string;
+	bai_api_key?: string;
 	kilo_free_only?: boolean;
 	hidden_models?: string[];
 	free_only?: boolean;
@@ -65,6 +67,7 @@ interface PiFreeConfig {
 	routeway_show_paid?: boolean;
 	fastrouter_show_paid?: boolean;
 	tokenrouter_show_paid?: boolean;
+	bai_show_paid?: boolean;
 	openrouter_show_paid?: boolean;
 	opencode_show_paid?: boolean;
 }
@@ -83,6 +86,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	routeway_api_key: "",
 	fastrouter_api_key: "",
 	tokenrouter_api_key: "",
+	bai_api_key: "",
 
 	kilo_free_only: false,
 	hidden_models: [],
@@ -101,6 +105,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	routeway_show_paid: false,
 	fastrouter_show_paid: false,
 	tokenrouter_show_paid: false,
+	bai_show_paid: false,
 	openrouter_show_paid: false,
 	opencode_show_paid: false,
 };
@@ -255,6 +260,10 @@ export function getTokenrouterShowPaid(): boolean {
 	);
 }
 
+export function getBaiShowPaid(): boolean {
+	return resolveBool("BAI_SHOW_PAID", loadConfigFile().bai_show_paid);
+}
+
 export function getFastrouterShowPaid(): boolean {
 	return resolveBool(
 		"FASTROUTER_SHOW_PAID",
@@ -303,6 +312,8 @@ export function getProviderShowPaid(providerId: string): boolean {
 			return getRoutewayShowPaid();
 		case "tokenrouter":
 			return getTokenrouterShowPaid();
+		case "bai":
+			return getBaiShowPaid();
 		case "fastrouter":
 			return getFastrouterShowPaid();
 		case "ollama-cloud":
@@ -378,6 +389,10 @@ export function getFastrouterApiKey(): string | undefined {
 
 export function getTokenrouterApiKey(): string | undefined {
 	return resolve("TOKENROUTER_API_KEY", loadConfigFile().tokenrouter_api_key);
+}
+
+export function getBaiApiKey(): string | undefined {
+	return resolve("BAI_API_KEY", loadConfigFile().bai_api_key);
 }
 
 export function getOllamaApiKey(): string | undefined {
