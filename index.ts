@@ -222,29 +222,42 @@ function setupQuotaMonitoring(pi: ExtensionAPI) {
 	(pi as any).on(
 		"after_provider_response",
 		(event: { status: number; headers: Record<string, string> }, ctx: any) => {
-			const providerId = ctx.model?.provider;
-			if (!providerId) return;
+			try {
+				const providerId = ctx.model?.provider;
+				if (!providerId) return;
 
-			processQuotaResponse(providerId, event.headers);
+				processQuotaResponse(providerId, event.headers);
 
-			// Update status bar with quota for the active provider
-			const status = formatQuotaStatus(providerId);
-			if (status) {
-				ctx.ui.setStatus("quota", status);
+				// Update status bar with quota for the active provider
+				const status = formatQuotaStatus(providerId);
+				if (status) {
+					ctx.ui.setStatus("quota", status);
+				}
+			} catch (err) {
+				// Quota monitoring is best-effort — never break the agent flow
+				_logger.warn("quota monitoring failed", {
+					error: err instanceof Error ? err.message : String(err),
+				});
 			}
 		},
 	);
 
 	// Clear quota status when switching away from a provider
 	pi.on("model_select", (_event, ctx) => {
-		const providerId = ctx.model?.provider;
-		if (!providerId) {
-			ctx.ui.setStatus("quota", undefined);
-			return;
+		try {
+			const providerId = ctx.model?.provider;
+			if (!providerId) {
+				ctx.ui.setStatus("quota", undefined);
+				return;
+			}
+			// Show cached quota on provider switch (if still fresh)
+			const status = formatQuotaStatus(providerId);
+			ctx.ui.setStatus("quota", status);
+		} catch (err) {
+			_logger.warn("quota status update failed", {
+				error: err instanceof Error ? err.message : String(err),
+			});
 		}
-		// Show cached quota on provider switch (if still fresh)
-		const status = formatQuotaStatus(providerId);
-		ctx.ui.setStatus("quota", status);
 	});
 }
 
@@ -261,7 +274,14 @@ function setupTelemetry(pi: ExtensionAPI) {
 		const provider = ctx.model?.provider;
 		const model = ctx.model?.id;
 		if (provider && model) {
-			startModelCall(provider, model);
+			try {
+				startModelCall(provider, model);
+			} catch (err) {
+				// Telemetry is best-effort — never break the agent flow
+				_logger.warn("telemetry startModelCall failed", {
+					error: err instanceof Error ? err.message : String(err),
+				});
+			}
 		}
 	});
 
@@ -300,17 +320,24 @@ function setupTelemetry(pi: ExtensionAPI) {
 		const cost = usage?.cost?.total ?? 0;
 		const isError = msg.stopReason === "error" || !!msg.errorMessage;
 
-		await recordModelCall(
-			provider,
-			model,
-			{ input: inputTokens, output: outputTokens, totalTokens },
-			cost,
-			{
-				success: !isError,
-				stopReason: msg.stopReason,
-				errorMessage: msg.errorMessage,
-			},
-		);
+		try {
+			await recordModelCall(
+				provider,
+				model,
+				{ input: inputTokens, output: outputTokens, totalTokens },
+				cost,
+				{
+					success: !isError,
+					stopReason: msg.stopReason,
+					errorMessage: msg.errorMessage,
+				},
+			);
+		} catch (err) {
+			// Telemetry is best-effort — never break the agent flow
+			_logger.warn("telemetry recordModelCall failed", {
+				error: err instanceof Error ? err.message : String(err),
+			});
+		}
 	});
 }
 

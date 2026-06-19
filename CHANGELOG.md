@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-06-19
+
+### Security
+
+- `~/.pi/free.json` (which contains API keys for paid providers) is now
+  written and re-tightened with mode `0600` (owner read/write only) on
+  every startup and on every write. Previously the file was world-readable
+  on Unix. No-op on Windows. Closes DRYKISS finding.
+
+### Fixed
+
+- Wrap quota monitoring and telemetry event handlers in `try/catch` so a
+  failed status-bar update or telemetry write can never break the agent
+  loop (DRYKISS resilience findings).
+
 ## [2.2.0] - 2026-06-19
 
 ### Added

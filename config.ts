@@ -9,7 +9,7 @@
  * (e.g. after toggle-{provider}) are visible immediately.
  */
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 export {
 	PROVIDER_BAI,
@@ -130,6 +130,9 @@ function ensureConfigFile(): void {
 				);
 				return;
 			}
+			// Always tighten permissions on startup, even if contents are
+			// unchanged — older installs may have a world-readable file.
+			restrictConfigFilePermissions();
 			// Merge with template to add any missing keys, preserving existing values
 			const merged = { ...CONFIG_TEMPLATE, ...existing };
 			if (JSON.stringify(merged) !== JSON.stringify(existing)) {
@@ -138,6 +141,7 @@ function ensureConfigFile(): void {
 					`${JSON.stringify(merged, null, 2)}\n`,
 					"utf8",
 				);
+				restrictConfigFilePermissions();
 			}
 		} else {
 			writeFileSync(
@@ -145,9 +149,28 @@ function ensureConfigFile(): void {
 				`${JSON.stringify(CONFIG_TEMPLATE, null, 2)}\n`,
 				"utf8",
 			);
+			restrictConfigFilePermissions();
 		}
 	} catch (err) {
 		_logger.warn("Could not create config file", {
+			path: CONFIG_PATH,
+			error: err instanceof Error ? err.message : String(err),
+		});
+	}
+}
+
+/**
+ * Restrict `~/.pi/free.json` to owner read/write (0600). The file may
+ * contain API keys for paid providers, so it must never be world-readable.
+ * Best-effort: if chmod is not supported on the platform/filesystem,
+ * log a warning and continue (the keys are still safe inside the user's
+ * home directory).
+ */
+function restrictConfigFilePermissions(): void {
+	try {
+		chmodSync(CONFIG_PATH, 0o600);
+	} catch (err) {
+		_logger.warn("Could not restrict config file permissions to 0600", {
 			path: CONFIG_PATH,
 			error: err instanceof Error ? err.message : String(err),
 		});
