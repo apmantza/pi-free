@@ -26,6 +26,11 @@ export const PROVIDER_ROUTEWAY = "routeway";
 export const PROVIDER_TOKENROUTER = "tokenrouter";
 export const PROVIDER_BAI = "bai";
 
+// Built-in pi providers that pi-free wraps with toggles
+export const PROVIDER_OPENROUTER = "openrouter";
+export const PROVIDER_OPENCODE = "opencode";
+export const PROVIDER_FASTROUTER = "fastrouter";
+
 export const ALL_UNIQUE_PROVIDERS = [
 	PROVIDER_KILO,
 	PROVIDER_CLINE,

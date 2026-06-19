@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.2] - 2026-06-19
+
+### Refactored
+
+- `config.ts`: Introduced `PROVIDER_META` table that pairs each
+  provider's ID, env-var prefix, and typed config key. `getProviderShowPaid`
+  now delegates to a generic `resolveShowPaidForProvider` resolver
+  instead of a 17-case switch. New `PROVIDER_OPENROUTER`, `PROVIDER_OPENCODE`,
+  and `PROVIDER_FASTROUTER` constants added to `constants.ts` and used
+  in the table (DRYKISS DRY/Architecture findings).
+- `index.ts`: Wrap dynamic built-in provider import in `try/catch`
+  with full error+stack logging to both `~/.pi/free.log` and stderr
+  (DRYKISS Resilience finding).
+- `providers/bai/bai.ts`: Improve startup-failure message to point users
+  at `~/.pi/free.log` and their API key (DRYKISS Resilience finding).
+
 ## [2.2.1] - 2026-06-19
 
 ### Security

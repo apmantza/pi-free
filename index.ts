@@ -379,10 +379,22 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 
 	// Setup dynamic built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face,
 	// OpenRouter/OpenCode from Pi auth, and FastRouter public model discovery)
-	const { setupDynamicBuiltInProviders } = await import(
-		"./providers/dynamic-built-in/index.ts"
-	);
-	await setupDynamicBuiltInProviders(pi);
+	try {
+		const { setupDynamicBuiltInProviders } = await import(
+			"./providers/dynamic-built-in/index.ts"
+		);
+		await setupDynamicBuiltInProviders(pi);
+	} catch (err) {
+		// Dynamic providers are a best-effort enhancement — if the import
+		// or init fails (e.g. upstream API change), continue with the
+		// already-registered static providers rather than failing the whole
+		// extension load. Log full error (message + stack) to the structured
+		// log so the user can investigate, but never block startup.
+		_logger.error("[pi-free] Dynamic built-in providers failed to load", {
+			error: err instanceof Error ? err.message : String(err),
+			stack: err instanceof Error ? err.stack : undefined,
+		});
+	}
 
 	// Setup toggles for pi's built-in providers (e.g., OpenCode)
 	setupBuiltInProviderToggles(pi);

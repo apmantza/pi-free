@@ -184,7 +184,12 @@ export default async function baiProvider(pi: ExtensionAPI) {
 	const allModels = await fetchBaiModels(apiKey);
 
 	if (allModels.length === 0) {
-		_logger.warn("[bai] No text chat models available");
+		// Either the API failed (already logged inside fetchBaiModels) or
+		// the API returned zero text chat models. We can't tell the user
+		// which, but we can give a hint to check the log / their key.
+		_logger.warn(
+			"[bai] No text chat models available — verify BAI_API_KEY is valid and see ~/.pi/free.log for details",
+		);
 		return;
 	}
 
