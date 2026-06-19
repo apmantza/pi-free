@@ -4,19 +4,8 @@
  * Provides free model filtering for ALL providers (built-in + extension)
  * plus unique free/paid providers not covered by pi's built-in providers.
  *
- * Unique providers:
- * - Kilo: OAuth-based free models
- * - Cline: Cline bot integration
- * - NVIDIA: NVIDIA NIM hosting (free tier available)
- * - Ollama Cloud: Ollama's cloud-hosted models with usage-based free tier
- * - ZenMux: Unified AI API gateway with 200+ models
- * - Codestral: Mistral's code-focused model via codestral.mistral.ai (free tier)
- * - DeepInfra: AI inference cloud ($5 trial credit)
- * - SambaNova: Fast inference on RDU hardware (free tier, no credit card)
- * - Together: Fast inference on 200+ open-source models ($1 trial credit)
- * - Routeway: OpenAI-compatible gateway with free `:free` models
- * - TokenRouter: OpenAI-compatible gateway routing to 90+ models
- * - LLM7: AI gateway (free default/fast selectors)
+ * The unique provider list is defined in `UNIQUE_PROVIDERS` below; see
+ * `README.md` for the full provider catalog.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -55,6 +44,31 @@ import tokenRouter from "./providers/tokenrouter/tokenrouter.ts";
 import ollama from "./providers/ollama/ollama.ts";
 import zenmux from "./providers/zenmux/zenmux.ts";
 import bai from "./providers/bai/bai.ts";
+
+/**
+ * Single source of truth for unique provider extensions (providers NOT
+ * built into pi). Each entry is an async function that registers its
+ * provider with pi. Add a new provider by:
+ *   1. Adding the import above
+ *   2. Adding an entry to this array
+ *   3. Adding the provider constant + getter to constants.ts and config.ts
+ */
+const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
+	kilo,
+	ollama,
+	cline,
+	zenmux,
+	crofai,
+	codestral,
+	llm7,
+	deepinfra,
+	sambanova,
+	together,
+	novita,
+	routeway,
+	tokenRouter,
+	bai,
+];
 
 const _logger = createLogger("pi-free");
 
@@ -360,22 +374,7 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 
 	// Load all unique providers
 	// Each provider will register itself with the global toggle system
-	await Promise.allSettled([
-		kilo(pi),
-		ollama(pi),
-		cline(pi),
-		zenmux(pi),
-		crofai(pi),
-		codestral(pi),
-		llm7(pi),
-		deepinfra(pi),
-		sambanova(pi),
-		together(pi),
-		novita(pi),
-		routeway(pi),
-		tokenRouter(pi),
-		bai(pi),
-	]);
+	await Promise.allSettled(UNIQUE_PROVIDERS.map((setup) => setup(pi)));
 
 	// Setup dynamic built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face,
 	// OpenRouter/OpenCode from Pi auth, and FastRouter public model discovery)

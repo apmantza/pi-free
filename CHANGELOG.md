@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.3] - 2026-06-19
+
+### Refactored
+
+- `index.ts`: Introduce a `UNIQUE_PROVIDERS` array as the single source
+  of truth for the provider list. `Promise.allSettled` now maps over
+  it instead of a hardcoded 14-element literal, so adding a new
+  provider is a one-line change in the array (DRYKISS DRY finding).
+- `index.ts`: Trim the outdated top-level docstring; point to
+  `UNIQUE_PROVIDERS` and `README.md` for the full provider catalog
+  (DRYKISS Documentation finding).
+
 ## [2.2.2] - 2026-06-19
 
 ### Refactored
