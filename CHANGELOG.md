@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-06-19
+
+### Added
+
+- **b.ai** provider (`api.b.ai/v1`) — OpenAI-compatible gateway with 29 models
+  (Claude Opus 4.x / Sonnet 4.x, GPT-5.x family, Gemini 3.x family, DeepSeek
+  V4 / V3.2, GLM-5.x, Kimi K2.5, Qwen 3.6-27B, MiniMax M3 / M2.7). Currently
+  advertises `MiniMax-M3` as a limited-time free promotional model; all
+  other models default to paid (visible by default). Static API key auth via
+  `BAI_API_KEY` env var or `bai_api_key` in `~/.pi/free.json`. New commands:
+  `/toggle-bai`.
+
+### Security
+
+- Bumped `@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`, and
+  `@earendil-works/pi-tui` to `^0.79.8` — resolves Dependabot advisories
+  #19 and #21 (high-severity protobufjs, ws, undici vulnerabilities in
+  `@earendil-works/pi-coding-agent`).
+- Bumped `typescript` devDep to `^6.0.3`.
+- Removed now-redundant `overrides` for `protobufjs` and `ws` (fixed
+  upstream).
+
 ## [2.1.1] - 2026-06-15
 
 ### Fixed

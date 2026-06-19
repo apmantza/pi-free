@@ -14,7 +14,7 @@ Free and paid AI model providers for [Pi](https://pi.dev). Access **free and pai
 
 When you install pi-free, it:
 
-1. **Registers free-tier providers** with Pi's model picker — Kilo (free), Cline (free), LLM7 (free), TokenRouter (1 free model), ZenMux (paid), CrofAI (paid), Ollama Cloud (freemium), SambaNova (freemium), Codestral (freemium), DeepInfra (trial credit), Together AI (trial credit), Novita (paid), Routeway (paid), and more
+1. **Registers free-tier providers** with Pi's model picker — Kilo (free), Cline (free), LLM7 (free), TokenRouter (1 free model), ZenMux (paid), CrofAI (paid), b.ai (paid, 1 free promo model), Ollama Cloud (freemium), SambaNova (freemium), Codestral (freemium), DeepInfra (trial credit), Together AI (trial credit), Novita (paid), Routeway (paid), and more
 
 2. **Captures Pi's built-in OpenCode and OpenRouter providers** with a free/paid toggle — OpenCode and OpenRouter are now built into Pi; pi-free adds `/toggle-opencode` and `/toggle-openrouter` so you can switch between free-only and all models without restart
 
@@ -341,7 +341,7 @@ Codestral is Mistral's code-focused model via `codestral.mistral.ai`:
 
 - Free tier (Experiment plan): 2 req/min, 500K tokens/min, 1B tokens/month
 - No credit card — phone verification only
-- Sign up at https://console.mistral.ai/codestral
+- Sign up at <https://console.mistral.ai/codestral>
 
 ```bash
 export CODESTRAL_API_KEY="..."
@@ -363,7 +363,7 @@ LLM7 routes across multiple providers through a single OpenAI-compatible endpoin
 
 - Free tier: default/fast selectors, 100 req/hr, 20 req/min
 - No credit card required
-- Get free token at https://token.llm7.io/
+- Get free token at <https://token.llm7.io/>
 
 ```bash
 export LLM7_API_KEY="..."
@@ -404,6 +404,34 @@ Fast inference on custom RDU hardware:
 export SAMBANOVA_API_KEY="..."
 ```
 
+### b.ai (paid gateway with 1 free promo model)
+
+OpenAI-compatible gateway at `api.b.ai/v1` providing access to 29 frontier models:
+
+- **Anthropic**: Claude Opus 4.5–4.8, Claude Sonnet 4.5–4.6, Claude Haiku 4.5
+- **OpenAI**: GPT-5.5, GPT-5.5 Instant, GPT-5.4, GPT-5.4 Pro/Mini/Nano, GPT-5.2, GPT-5 Mini/Nano
+- **Google**: Gemini 3.1 Pro, Gemini 3 Flash, Gemini 3.5 Flash
+- **DeepSeek**: V4 Pro, V4 Flash, V3.2
+- **GLM**: GLM-5.x family
+- **Other**: Kimi K2.5, Qwen 3.6-27B, MiniMax M3 / M2.7
+
+Currently advertises `MiniMax-M3` as a limited-time free promotional model. All other models are paid — they're visible by default (toggle with `/toggle-bai` to show free-only).
+
+```bash
+export BAI_API_KEY="sk-..."
+```
+
+Or add to `~/.pi/free.json`:
+
+```json
+{
+  "bai_api_key": "sk-...",
+  "bai_show_paid": true
+}
+```
+
+Get a key at <https://b.ai/>.
+
 ---
 
 ## Slash Commands
@@ -426,6 +454,7 @@ Each provider has toggle commands to switch between free and all models:
 | `/toggle-deepinfra`     | Toggle DeepInfra (💳 trial credit)                       |
 | `/toggle-together`      | Toggle Together AI (💳 trial credit)                     |
 | `/toggle-sambanova`     | Toggle SambaNova (🔄 freemium)                           |
+| `/toggle-bai`           | Toggle b.ai (💳 paid — 1 free promo model)                |
 | `/toggle-llm7`          | Toggle LLM7 (✅ free gateway)                            |
 | `/toggle-zenmux`        | Toggle ZenMux (💳 paid)                                  |
 | `/toggle-crofai`        | Toggle CrofAI (💳 paid)                                  |
@@ -442,7 +471,6 @@ Each provider has toggle commands to switch between free and all models:
 - **For 🔄 freemium providers**: Shows all models by default; toggle switches between filtered and full list
 - **For 🔧 dynamic API providers**: Filters the model list when you have an API key configured
 - **Persists your preference** to `~/.pi/free.json` for next startup
-
 
 ### Probe Commands (Health Check)
 
