@@ -188,7 +188,12 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 
 			const lines = ["📊 Model Telemetry:", ""];
 			lines.push(
-				`${`Model`.padEnd(40)} ${`Calls`.padEnd(6)} ${`OK%`.padEnd(6)} ${`Lat`.padEnd(7)} ${`tok/s`.padEnd(7)} ${`Cost`}`,
+				"Model".padEnd(40) + " " +
+				"Calls".padEnd(6) + " " +
+				"OK%".padEnd(6) + " " +
+				"Lat".padEnd(7) + " " +
+				"tok/s".padEnd(7) + " " +
+				"Cost",
 			);
 			lines.push(`─`.repeat(75));
 

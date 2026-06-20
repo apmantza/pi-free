@@ -170,7 +170,9 @@ const CORE_CLINE_TOOL_NAMES = [
 
 function stringArg(args: Record<string, unknown>, key: string): string {
 	const value = args[key];
-	return typeof value === "string" ? value : value == null ? "" : String(value);
+	if (typeof value === "string") return value;
+	if (value == null) return "";
+	return String(value);
 }
 
 function booleanArg(args: Record<string, unknown>, key: string): boolean {
@@ -178,7 +180,8 @@ function booleanArg(args: Record<string, unknown>, key: string): boolean {
 }
 
 function shellQuote(value: string): string {
-	return `'${value.replaceAll("'", `'"'"'`)}'`;
+	const escaped = value.replaceAll("'", `'"'"'`);
+	return `'${escaped}'`;
 }
 
 function buildListFilesCommand(args: Record<string, unknown>): string {
@@ -639,23 +642,25 @@ function buildToolInstructions(tools: Tool[] | undefined): string {
 	if (bridges.length === 0) return "";
 
 	const sections = bridges.map((bridge) => {
-		const params =
-			bridge.remoteName === "replace_in_file"
-				? [
-						"  <path>path/to/file</path>",
-						"  <diff>",
-						"------- SEARCH",
-						"exact text to replace",
-						"=======",
-						"new text",
-						"+++++++ REPLACE",
-						"  </diff>",
-					].join("\n")
-				: bridge.parameters.length
-					? bridge.parameters
-							.map((name) => `  <${name}>value</${name}>`)
-							.join("\n")
-					: "  <arguments>{}</arguments>";
+		let params: string;
+		if (bridge.remoteName === "replace_in_file") {
+			params = [
+					"  <path>path/to/file</path>",
+					"  <diff>",
+					"------- SEARCH",
+					"exact text to replace",
+					"=======",
+					"new text",
+					"+++++++ REPLACE",
+					"  </diff>",
+				].join("\n");
+		} else if (bridge.parameters.length) {
+			params = bridge.parameters
+					.map((name) => `  <${name}>value</${name}>`)
+					.join("\n");
+		} else {
+			params = "  <arguments>{}</arguments>";
+		}
 		return [
 			`Tool: ${bridge.remoteName}`,
 			`Description: ${bridge.description ?? bridge.runtimeName}`,
@@ -1461,12 +1466,13 @@ export function streamClineXml(
 				pushToolCall(assistant, toolCall, stream);
 			}
 
-			assistant.stopReason =
-				toolCalls.length > 0
-					? "toolUse"
-					: finishReason === "length"
-						? "length"
-						: "stop";
+			if (toolCalls.length > 0) {
+				assistant.stopReason = "toolUse";
+			} else if (finishReason === "length") {
+				assistant.stopReason = "length";
+			} else {
+				assistant.stopReason = "stop";
+			}
 			stream.push({
 				type: "done",
 				reason: assistant.stopReason as "stop" | "length" | "toolUse",

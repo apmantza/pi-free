@@ -156,16 +156,16 @@ function deriveModelTelemetry(
 				: 0,
 		avgTokensPerSecond:
 			totalLatencyFromSuccessful > 0
-				? parseFloat(
+				? Number.parseFloat(
 						(
 							totalTokensFromSuccessful /
 							(totalLatencyFromSuccessful / 1000)
 						).toFixed(1),
-					)
+				)
 				: 0,
 		successRate:
 			totalCalls > 0
-				? parseFloat(((successCalls / totalCalls) * 100).toFixed(1))
+				? Number.parseFloat(((successCalls / totalCalls) * 100).toFixed(1))
 				: 0,
 		recentCalls: recent,
 	};
@@ -310,7 +310,7 @@ export async function recordModelCall(
 	const totalTokens = usage.totalTokens || usage.input + usage.output;
 	const tokensPerSecond =
 		latencyMs > 0
-			? parseFloat((totalTokens / (latencyMs / 1000)).toFixed(1))
+			? Number.parseFloat((totalTokens / (latencyMs / 1000)).toFixed(1))
 			: 0;
 
 	const entry: TelemetryEntry = {

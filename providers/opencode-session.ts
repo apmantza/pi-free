@@ -226,8 +226,8 @@ function resolvePiAiSubpathFromPackage(specifier: string): string | undefined {
 }
 
 class DeferredAssistantMessageEventStream {
-	private queue: AssistantMessageEvent[] = [];
-	private waiting: Array<
+	private readonly queue: AssistantMessageEvent[] = [];
+	private readonly waiting: Array<
 		(result: IteratorResult<AssistantMessageEvent>) => void
 	> = [];
 	private done = false;
