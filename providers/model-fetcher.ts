@@ -138,7 +138,7 @@ export async function fetchOpenRouterModelsWithFree(
 
 	const free = all.filter((m) => {
 		const cost = m.cost;
-		return cost?.input === 0 && cost.output === 0;
+		return cost != null && cost.input === 0 && cost.output === 0;
 	});
 
 	return { free, all };

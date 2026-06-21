@@ -645,19 +645,19 @@ function buildToolInstructions(tools: Tool[] | undefined): string {
 		let params: string;
 		if (bridge.remoteName === "replace_in_file") {
 			params = [
-					"  <path>path/to/file</path>",
-					"  <diff>",
-					"------- SEARCH",
-					"exact text to replace",
-					"=======",
-					"new text",
-					"+++++++ REPLACE",
-					"  </diff>",
-				].join("\n");
+				"  <path>path/to/file</path>",
+				"  <diff>",
+				"------- SEARCH",
+				"exact text to replace",
+				"=======",
+				"new text",
+				"+++++++ REPLACE",
+				"  </diff>",
+			].join("\n");
 		} else if (bridge.parameters.length) {
 			params = bridge.parameters
-					.map((name) => `  <${name}>value</${name}>`)
-					.join("\n");
+				.map((name) => `  <${name}>value</${name}>`)
+				.join("\n");
 		} else {
 			params = "  <arguments>{}</arguments>";
 		}

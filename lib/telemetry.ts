@@ -105,54 +105,46 @@ const _store = createJSONStore<TelemetryStore>(TELEMETRY_FILE, {
 // =============================================================================
 
 function deriveModelTelemetry(
-	_modelKey: string,
 	entries: TelemetryEntry[],
 ): ModelTelemetry {
 	const recent = entries.slice(-MAX_RECENT_CALLS);
+
+	let successCalls = 0;
+	let totalTokensFromSuccessful = 0;
+	let totalLatencyFromSuccessful = 0;
+	let totalTokens = 0;
+	let totalPromptTokens = 0;
+	let totalCompletionTokens = 0;
+	let totalLatencyMs = 0;
+	let totalCost = 0;
+
+	for (const e of entries) {
+		totalTokens += e.totalTokens;
+		totalPromptTokens += e.promptTokens;
+		totalCompletionTokens += e.completionTokens;
+		totalLatencyMs += e.latencyMs;
+		totalCost += e.cost;
+		if (e.success) {
+			successCalls++;
+			totalTokensFromSuccessful += e.totalTokens;
+			totalLatencyFromSuccessful += e.latencyMs;
+		}
+	}
+
 	const totalCalls = entries.length;
-	const successCalls = entries.filter((e) => e.success).length;
-	const errorCalls = totalCalls - successCalls;
-
-	const stats = entries.reduce(
-		(acc, e) => {
-			acc.totalTokens += e.totalTokens;
-			acc.totalPromptTokens += e.promptTokens;
-			acc.totalCompletionTokens += e.completionTokens;
-			acc.totalLatencyMs += e.latencyMs;
-			acc.totalCost += e.cost;
-			return acc;
-		},
-		{
-			totalTokens: 0,
-			totalPromptTokens: 0,
-			totalCompletionTokens: 0,
-			totalLatencyMs: 0,
-			totalCost: 0,
-		},
-	);
-
-	const totalSuccessEntries = entries.filter((e) => e.success);
-	const totalTokensFromSuccessful = totalSuccessEntries.reduce(
-		(s, e) => s + e.totalTokens,
-		0,
-	);
-	const totalLatencyFromSuccessful = totalSuccessEntries.reduce(
-		(s, e) => s + e.latencyMs,
-		0,
-	);
 
 	return {
 		totalCalls,
 		successCalls,
-		errorCalls,
-		totalTokens: stats.totalTokens,
-		totalPromptTokens: stats.totalPromptTokens,
-		totalCompletionTokens: stats.totalCompletionTokens,
-		totalLatencyMs: stats.totalLatencyMs,
-		totalCost: stats.totalCost,
+		errorCalls: totalCalls - successCalls,
+		totalTokens,
+		totalPromptTokens,
+		totalCompletionTokens,
+		totalLatencyMs,
+		totalCost,
 		avgLatencyMs:
-			totalSuccessEntries.length > 0
-				? Math.round(totalLatencyFromSuccessful / totalSuccessEntries.length)
+			successCalls > 0
+				? Math.round(totalLatencyFromSuccessful / successCalls)
 				: 0,
 		avgTokensPerSecond:
 			totalLatencyFromSuccessful > 0
@@ -186,7 +178,7 @@ async function addEntry(entry: TelemetryEntry): Promise<void> {
 			...store,
 			models: {
 				...store.models,
-				[modelKey]: deriveModelTelemetry(modelKey, pruned),
+				[modelKey]: deriveModelTelemetry(pruned),
 			},
 			lastUpdated: Date.now(),
 		};

@@ -45,7 +45,9 @@ function errorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
-async function fetchModelsDevCatalog(): Promise<Record<string, ModelsDevProvider>> {
+async function fetchModelsDevCatalog(): Promise<
+	Record<string, ModelsDevProvider>
+> {
 	let lastError: unknown;
 
 	for (let attempt = 1; attempt <= MODELS_DEV_RETRIES; attempt++) {
@@ -291,7 +293,9 @@ function enrichModel<T extends ProviderModelConfig>(
 			? (["text", "image"] as const)
 			: model.input;
 	const reasoning =
-		ctx.enrichReasoning && modelMeta.reasoning === true ? true : model.reasoning;
+		ctx.enrichReasoning && modelMeta.reasoning === true
+			? true
+			: model.reasoning;
 	const thinkingLevelMap =
 		ctx.enrichReasoning && model.thinkingLevelMap === undefined
 			? thinkingMapFromReasoningOptions(modelMeta.reasoning_options)
@@ -301,7 +305,10 @@ function enrichModel<T extends ProviderModelConfig>(
 			? (costFromModelsDev(modelMeta.cost) ?? model.cost)
 			: model.cost;
 	const compat = ctx.enrichCompat
-		? mergeCompat(model.compat, getProxyModelCompat(identityFromMeta(model, modelMeta)))
+		? mergeCompat(
+				model.compat,
+				getProxyModelCompat(identityFromMeta(model, modelMeta)),
+			)
 		: model.compat;
 
 	const modelsDevMetadata: ModelMatchHints = {
