@@ -44,6 +44,9 @@ import tokenRouter from "./providers/tokenrouter/tokenrouter.ts";
 import ollama from "./providers/ollama/ollama.ts";
 import zenmux from "./providers/zenmux/zenmux.ts";
 import bai from "./providers/bai/bai.ts";
+import openmodel from "./providers/openmodel/openmodel.ts";
+import naraya from "./providers/naraya/naraya.ts";
+import agentrouter from "./providers/agentrouter/agentrouter.ts";
 
 /**
  * Single source of truth for unique provider extensions (providers NOT
@@ -68,6 +71,9 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 	routeway,
 	tokenRouter,
 	bai,
+	openmodel,
+	naraya,
+	agentrouter,
 ];
 
 const _logger = createLogger("pi-free");
@@ -127,7 +133,12 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 				"cerebras",
 			]);
 			// Freemium providers - all models share a free tier quota
-			const freemiumProviders = new Set(["sambanova", "ollama-cloud"]);
+			const freemiumProviders = new Set([
+				"sambanova",
+				"ollama-cloud",
+				"naraya",
+				"agentrouter",
+			]);
 			// Trial credit providers - one-time credits, otherwise paid
 			const trialCreditProviders = new Set(["deepinfra"]);
 

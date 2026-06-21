@@ -18,6 +18,9 @@ import {
 	PROVIDER_KILO,
 	PROVIDER_OLLAMA,
 	PROVIDER_OPENCODE,
+	PROVIDER_NARAYA,
+	PROVIDER_AGENTROUTER,
+	PROVIDER_OPENMODEL,
 	PROVIDER_OPENROUTER,
 	PROVIDER_ROUTEWAY,
 	PROVIDER_TOKENROUTER,
@@ -72,6 +75,9 @@ interface PiFreeConfig {
 	fastrouter_api_key?: string;
 	tokenrouter_api_key?: string;
 	bai_api_key?: string;
+	openmodel_api_key?: string;
+	naraya_api_key?: string;
+	agentrouter_api_key?: string;
 	kilo_free_only?: boolean;
 	hidden_models?: string[];
 	free_only?: boolean;
@@ -90,6 +96,9 @@ interface PiFreeConfig {
 	fastrouter_show_paid?: boolean;
 	tokenrouter_show_paid?: boolean;
 	bai_show_paid?: boolean;
+	openmodel_show_paid?: boolean;
+	naraya_show_paid?: boolean;
+	agentrouter_show_paid?: boolean;
 	openrouter_show_paid?: boolean;
 	opencode_show_paid?: boolean;
 }
@@ -109,6 +118,9 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	fastrouter_api_key: "",
 	tokenrouter_api_key: "",
 	bai_api_key: "",
+	openmodel_api_key: "",
+	naraya_api_key: "",
+	agentrouter_api_key: "",
 
 	kilo_free_only: false,
 	hidden_models: [],
@@ -128,6 +140,9 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	fastrouter_show_paid: false,
 	tokenrouter_show_paid: false,
 	bai_show_paid: false,
+	openmodel_show_paid: false,
+	naraya_show_paid: true,
+	agentrouter_show_paid: true,
 	openrouter_show_paid: false,
 	opencode_show_paid: false,
 };
@@ -262,19 +277,66 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 	{ id: PROVIDER_CLINE, prefix: "CLINE", showPaidKey: "cline_show_paid" },
 	{ id: PROVIDER_ZENMUX, prefix: "ZENMUX", showPaidKey: "zenmux_show_paid" },
 	{ id: PROVIDER_CROFAI, prefix: "CROFAI", showPaidKey: "crofai_show_paid" },
-	{ id: PROVIDER_CODESTRAL, prefix: "CODESTRAL", showPaidKey: "codestral_show_paid" },
+	{
+		id: PROVIDER_CODESTRAL,
+		prefix: "CODESTRAL",
+		showPaidKey: "codestral_show_paid",
+	},
 	{ id: PROVIDER_LLM7, prefix: "LLM7", showPaidKey: "llm7_show_paid" },
-	{ id: PROVIDER_DEEPINFRA, prefix: "DEEPINFRA", showPaidKey: "deepinfra_show_paid" },
-	{ id: PROVIDER_SAMBANOVA, prefix: "SAMBANOVA", showPaidKey: "sambanova_show_paid" },
-	{ id: PROVIDER_TOGETHER, prefix: "TOGETHER", showPaidKey: "together_show_paid" },
+	{
+		id: PROVIDER_DEEPINFRA,
+		prefix: "DEEPINFRA",
+		showPaidKey: "deepinfra_show_paid",
+	},
+	{
+		id: PROVIDER_SAMBANOVA,
+		prefix: "SAMBANOVA",
+		showPaidKey: "sambanova_show_paid",
+	},
+	{
+		id: PROVIDER_TOGETHER,
+		prefix: "TOGETHER",
+		showPaidKey: "together_show_paid",
+	},
 	{ id: PROVIDER_NOVITA, prefix: "NOVITA", showPaidKey: "novita_show_paid" },
-	{ id: PROVIDER_ROUTEWAY, prefix: "ROUTEWAY", showPaidKey: "routeway_show_paid" },
-	{ id: PROVIDER_TOKENROUTER, prefix: "TOKENROUTER", showPaidKey: "tokenrouter_show_paid" },
+	{
+		id: PROVIDER_ROUTEWAY,
+		prefix: "ROUTEWAY",
+		showPaidKey: "routeway_show_paid",
+	},
+	{
+		id: PROVIDER_TOKENROUTER,
+		prefix: "TOKENROUTER",
+		showPaidKey: "tokenrouter_show_paid",
+	},
 	{ id: PROVIDER_BAI, prefix: "BAI", showPaidKey: "bai_show_paid" },
-	{ id: PROVIDER_FASTROUTER, prefix: "FASTROUTER", showPaidKey: "fastrouter_show_paid" },
+	{
+		id: PROVIDER_OPENMODEL,
+		prefix: "OPENMODEL",
+		showPaidKey: "openmodel_show_paid",
+	},
+	{ id: PROVIDER_NARAYA, prefix: "NARAYA", showPaidKey: "naraya_show_paid" },
+	{
+		id: PROVIDER_AGENTROUTER,
+		prefix: "AGENTROUTER",
+		showPaidKey: "agentrouter_show_paid",
+	},
+	{
+		id: PROVIDER_FASTROUTER,
+		prefix: "FASTROUTER",
+		showPaidKey: "fastrouter_show_paid",
+	},
 	{ id: PROVIDER_OLLAMA, prefix: "OLLAMA", showPaidKey: "ollama_show_paid" },
-	{ id: PROVIDER_OPENROUTER, prefix: "OPENROUTER", showPaidKey: "openrouter_show_paid" },
-	{ id: PROVIDER_OPENCODE, prefix: "OPENCODE", showPaidKey: "opencode_show_paid" },
+	{
+		id: PROVIDER_OPENROUTER,
+		prefix: "OPENROUTER",
+		showPaidKey: "openrouter_show_paid",
+	},
+	{
+		id: PROVIDER_OPENCODE,
+		prefix: "OPENCODE",
+		showPaidKey: "opencode_show_paid",
+	},
 ];
 
 const PROVIDER_META_BY_ID = new Map(PROVIDER_META.map((m) => [m.id, m]));
@@ -288,7 +350,10 @@ function resolveShowPaidForProvider(providerId: string): boolean {
 	if (!meta) return false;
 	const cfg = loadConfigFile();
 	const fileVal = cfg[meta.showPaidKey];
-	return resolveBool(`${meta.prefix}_SHOW_PAID`, fileVal as boolean | undefined);
+	return resolveBool(
+		`${meta.prefix}_SHOW_PAID`,
+		fileVal as boolean | undefined,
+	);
 }
 
 // =============================================================================
@@ -357,6 +422,24 @@ export function getTokenrouterShowPaid(): boolean {
 
 export function getBaiShowPaid(): boolean {
 	return resolveBool("BAI_SHOW_PAID", loadConfigFile().bai_show_paid);
+}
+
+export function getOpenmodelShowPaid(): boolean {
+	return resolveBool(
+		"OPENMODEL_SHOW_PAID",
+		loadConfigFile().openmodel_show_paid,
+	);
+}
+
+export function getNarayaShowPaid(): boolean {
+	return resolveBool("NARAYA_SHOW_PAID", loadConfigFile().naraya_show_paid);
+}
+
+export function getAgentrouterShowPaid(): boolean {
+	return resolveBool(
+		"AGENTROUTER_SHOW_PAID",
+		loadConfigFile().agentrouter_show_paid,
+	);
 }
 
 export function getFastrouterShowPaid(): boolean {
@@ -451,6 +534,18 @@ export function getTokenrouterApiKey(): string | undefined {
 
 export function getBaiApiKey(): string | undefined {
 	return resolve("BAI_API_KEY", loadConfigFile().bai_api_key);
+}
+
+export function getOpenmodelApiKey(): string | undefined {
+	return resolve("OPENMODEL_API_KEY", loadConfigFile().openmodel_api_key);
+}
+
+export function getNarayaApiKey(): string | undefined {
+	return resolve("NARAYA_API_KEY", loadConfigFile().naraya_api_key);
+}
+
+export function getAgentrouterApiKey(): string | undefined {
+	return resolve("AGENTROUTER_API_KEY", loadConfigFile().agentrouter_api_key);
 }
 
 export function getOllamaApiKey(): string | undefined {
