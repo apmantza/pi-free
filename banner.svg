@@ -88,28 +88,31 @@
   </g>
 
   <!-- Provider cards (right side) -->
-  <g transform="translate(700, 55)">
-    <rect x="0" y="0" width="250" height="170" rx="12" fill="url(#card1)" stroke="#7c3aed" stroke-width="0.5" stroke-opacity="0.2" filter="url(#shadow)"/>
-    <rect x="0" y="0" width="250" height="170" rx="12" fill="none" stroke="url(#accent)" stroke-width="0.5" opacity="0.1"/>
-    <text x="20" y="28" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#c4b5fd">Providers</text>
-    <text x="20" y="50" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Kilo · Cline · OpenCode</text>
-    <text x="20" y="70" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Ollama Cloud · SambaNova</text>
-    <text x="20" y="90" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Codestral · LLM7 · Novita</text>
-    <text x="20" y="110" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">ZenMux · CrofAI · DeepInfra</text>
-    <text x="20" y="130" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Together · TokenRouter · b.ai</text>
+  <g transform="translate(700, 45)">
+    <rect x="0" y="0" width="250" height="200" rx="12" fill="url(#card1)" stroke="#7c3aed" stroke-width="0.5" stroke-opacity="0.2" filter="url(#shadow)"/>
+    <rect x="0" y="0" width="250" height="200" rx="12" fill="none" stroke="url(#accent)" stroke-width="0.5" opacity="0.1"/>
+    <text x="20" y="26" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#c4b5fd">Providers</text>
+    <text x="20" y="46" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Kilo · Cline · OpenCode</text>
+    <text x="20" y="66" font-family="system-ui, sans-serif" font-size="11" fill="#a78bfa">OpenModel · Naraya · AgentRouter</text>
+    <text x="20" y="86" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Ollama Cloud · SambaNova</text>
+    <text x="20" y="106" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Codestral · LLM7 · Novita</text>
+    <text x="20" y="126" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">ZenMux · CrofAI · DeepInfra</text>
+    <text x="20" y="146" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Together · TokenRouter · FastRouter</text>
+    <text x="20" y="166" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">+ dynamic (Mistral, Groq, …)</text>
   </g>
 
-  <g transform="translate(970, 55)">
-    <rect x="0" y="0" width="250" height="170" rx="12" fill="url(#card2)" stroke="#06b6d4" stroke-width="0.5" stroke-opacity="0.2" filter="url(#shadow)"/>
-    <rect x="0" y="0" width="250" height="170" rx="12" fill="none" stroke="url(#accent2)" stroke-width="0.5" opacity="0.1"/>
-    <text x="20" y="28" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#67e8f9">Features</text>
-    <text x="20" y="50" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Free model auto-detection</text>
-    <text x="20" y="68" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Per-provider toggles</text>
-    <text x="20" y="86" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">OAuth flows (Kilo, Cline)</text>
-    <text x="20" y="104" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Coding Index (CI) scores</text>
-    <text x="20" y="122" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Model health probes</text>
-    <text x="20" y="140" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Thinking level maps</text>
-    <text x="20" y="158" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">404/403 auto-hide on probe</text>
+  <g transform="translate(970, 45)">
+    <rect x="0" y="0" width="250" height="200" rx="12" fill="url(#card2)" stroke="#06b6d4" stroke-width="0.5" stroke-opacity="0.2" filter="url(#shadow)"/>
+    <rect x="0" y="0" width="250" height="200" rx="12" fill="none" stroke="url(#accent2)" stroke-width="0.5" opacity="0.1"/>
+    <text x="20" y="26" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#67e8f9">Features</text>
+    <text x="20" y="46" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Free model auto-detection</text>
+    <text x="20" y="64" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Per-provider toggles</text>
+    <text x="20" y="82" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">OAuth flows (Kilo, Cline)</text>
+    <text x="20" y="100" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Coding Index (CI) scores</text>
+    <text x="20" y="118" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Model health probes</text>
+    <text x="20" y="136" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Thinking level maps</text>
+    <text x="20" y="154" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">404/403 auto-hide on probe</text>
+    <text x="20" y="172" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">+ dynamic built-in fetch</text>
   </g>
 
   <!-- Bottom tagline -->

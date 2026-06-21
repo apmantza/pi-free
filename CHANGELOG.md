@@ -7,70 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.2.3] - 2026-06-19
+### Added
 
-### Refactored
+- **OpenModel AI provider** — Anthropic-compatible LLM gateway at `api.openmodel.ai` (24 models). Merges the public `/web/v1/models` catalog (real per-token pricing via `price_multiplier`, supports flags, max tokens) with the authed `/v1/models` protocol list. Registers only messages-protocol models. The current **DeepSeek V4 Flash Free Event** is automatically detected: `deepseek-v4-flash` has `price_multiplier=0` → free via Route A (no hardcoding required). 6 free models surface under `free_only`: `deepseek-v4-flash` (1M context, MoE), plus 5 DashScope Qwen models whose catalog entries have no per-token pricing. Set `OPENMODEL_API_KEY` or add `openmodel_api_key` to `~/.pi/free.json`. Toggle with `/toggle-openmodel` ([#269](https://github.com/apmantza/pi-free/pull/269)).
 
-- `index.ts`: Introduce a `UNIQUE_PROVIDERS` array as the single source
-  of truth for the provider list. `Promise.allSettled` now maps over
-  it instead of a hardcoded 14-element literal, so adding a new
-  provider is a one-line change in the array (DRYKISS DRY finding).
-- `index.ts`: Trim the outdated top-level docstring; point to
-  `UNIQUE_PROVIDERS` and `README.md` for the full provider catalog
-  (DRYKISS Documentation finding).
+- **Naraya AI Router provider** — OpenAI-compatible LLM gateway at `router.naraya.ai/v1` (9 models). The API exposes `context_window`, `weight`, `reasoning`, and `vision` flags but no per-token pricing — costs are hardcoded from the published rate card. **Freemium**: all 9 models are included in the free plan with a **5,000,000 tokens/day quota**. Marked `_freeKnown:true, _isFree:true` and added to `freemiumProviders`. Set `NARAYA_API_KEY` or add `naraya_api_key` to `~/.pi/free.json`. Toggle with `/toggle-naraya` ([#269](https://github.com/apmantza/pi-free/pull/269)).
 
-## [2.2.2] - 2026-06-19
-
-### Refactored
-
-- `config.ts`: Introduced `PROVIDER_META` table that pairs each
-  provider's ID, env-var prefix, and typed config key. `getProviderShowPaid`
-  now delegates to a generic `resolveShowPaidForProvider` resolver
-  instead of a 17-case switch. New `PROVIDER_OPENROUTER`, `PROVIDER_OPENCODE`,
-  and `PROVIDER_FASTROUTER` constants added to `constants.ts` and used
-  in the table (DRYKISS DRY/Architecture findings).
-- `index.ts`: Wrap dynamic built-in provider import in `try/catch`
-  with full error+stack logging to both `~/.pi/free.log` and stderr
-  (DRYKISS Resilience finding).
-- `providers/bai/bai.ts`: Improve startup-failure message to point users
-  at `~/.pi/free.log` and their API key (DRYKISS Resilience finding).
-
-## [2.2.1] - 2026-06-19
-
-### Security
-
-- `~/.pi/free.json` (which contains API keys for paid providers) is now
-  written and re-tightened with mode `0600` (owner read/write only) on
-  every startup and on every write. Previously the file was world-readable
-  on Unix. No-op on Windows. Closes DRYKISS finding.
+- **AgentRouter provider** — Anthropic-compatible free public-welfare gateway at `agentrouter.org` (5 of 10 models reachable). Filters the public `/api/pricing` catalog to models whose `supported_endpoint_types` includes `"anthropic"` — the OpenAI-compatible path is gateway-blocked for direct API clients (Codex CLI only). All 5 registered models (Claude Opus 4-6/7/8, Sonnet 4-5/4-6) are freemium (`model_price: 0` for the entire service). Set `AGENTROUTER_API_KEY` or add `agentrouter_api_key` to `~/.pi/free.json`. Toggle with `/toggle-agentrouter` ([#269](https://github.com/apmantza/pi-free/pull/269)).
 
 ### Fixed
 
-- Wrap quota monitoring and telemetry event handlers in `try/catch` so a
-  failed status-bar update or telemetry write can never break the agent
-  loop (DRYKISS resilience findings).
+- **`mistral-medium-3-5` and `deepseek-v4-flash-naraya` CI matching (Naraya)** — Both Naraya model IDs failed to substring-match their corresponding benchmark entries due to a **separator/format mismatch**: `"mistral-medium-3-5".includes("mistral-medium-3.5")` returns false (hyphen vs period at the version separator), and `"deepseek-v4-flash-naraya".includes("deepseek-v4-flash-reasoning-*")` returns false (the benchmark key carries a `-reasoning-*` qualifier the model ID omits). As a result the lookup fell through to incorrect entries (`mistral-medium-3`, CI 13.6) or `miss|all-strategies-failed`. Added legitimate `MODEL_VARIANTS` aliases that point to the existing benchmark keys (`mistral-medium-3.5` → CI 35.4, `deepseek-v4-flash-reasoning-high-effort` → CI 39.8). No fabricated scores added.
 
-## [2.2.0] - 2026-06-19
+- **`mistral-medium-3-5` CI score** — Was incorrectly reported as `CI: 13.6` (from a substring shadow match on the older `mistral-medium-3`). Now correctly resolved to `CI: 35.4` via the new variant alias (see above).
 
-### Added
+### Verified clean (no fix needed)
 
-- **b.ai** provider (`api.b.ai/v1`) — OpenAI-compatible gateway with 29 models
-  (Claude Opus 4.x / Sonnet 4.x, GPT-5.x family, Gemini 3.x family, DeepSeek
-  V4 / V3.2, GLM-5.x, Kimi K2.5, Qwen 3.6-27B, MiniMax M3 / M2.7). Currently
-  advertises `MiniMax-M3` as a limited-time free promotional model; all
-  other models default to paid (visible by default). Static API key auth via
-  `BAI_API_KEY` env var or `bai_api_key` in `~/.pi/free.json`. New commands:
-  `/toggle-bai`.
+The following recent model IDs correctly miss `all-strategies-failed` because the benchmark DB genuinely has no entry for them — no fabricated scores added (pending the next `scripts/update-benchmarks.ts` run against the Artificial Analysis API):
 
-### Security
-
-- Bumped `@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`, and
-  `@earendil-works/pi-tui` to `^0.79.8` — resolves Dependabot advisories
-  #19 and #21 (high-severity protobufjs, ws, undici vulnerabilities in
-  `@earendil-works/pi-coding-agent`).
-- Bumped `typescript` devDep to `^6.0.3`.
-- Removed now-redundant `overrides` for `protobufjs` and `ws` (fixed
-  upstream).
+- `minimax-m3` — latest MiniMax generation, not yet in benchmark DB
+- `claude-haiku-4-5` — Claude Haiku 4.5, not yet in benchmark DB
+- `mistral-large` (bare, from Naraya) — distinct from `mistral-large-2`/`-3`
+- `deepseek-3.2` (bare, from Naraya) — Naraya drops the `v` prefix
+- `qwen3.6-flash` — Qwen 3.6 Flash variant, not yet in benchmark DB
 
 ## [2.1.1] - 2026-06-15
 

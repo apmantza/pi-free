@@ -481,6 +481,17 @@ const MODEL_VARIANTS: Record<string, string[]> = {
 	"mimo-v2-flash": ["mimo-v2-flash", "mimo-v2-flash-free", "mimo-flash"],
 	"big-pickle": ["big-pickle", "bigpickle"],
 	"minimax-m2.5": ["minimax-m2.5", "minimax-m2.5-free", "minimax-m25"],
+	// Naraya provider: hyphen form (mistral-medium-3-5) doesn't substring-match
+	// the benchmark key with the canonical period form (mistral-medium-3.5).
+	// Without this variant the lookup falls through to mistral-medium-3 (CI 13.6).
+	"mistral-medium-3.5": ["mistral-medium-3-5", "mistral-medium-3.5"],
+	// Naraya provider suffix: deepseek-v4-flash-naraya doesn't substring-match
+	// any deepseek-v4-flash-* benchmark (those keys carry -reasoning-/-non-reasoning
+	// qualifiers). Without this variant the lookup miss|all-strategies-failed.
+	"deepseek-v4-flash-reasoning-high-effort": [
+		"deepseek-v4-flash-naraya",
+		"deepseek-v4-flash",
+	],
 	"nvidia-nemotron-3-super-120b-a12b-reasoning": [
 		"nemotron-3-super",
 		"nemotron-3-super-free",
@@ -551,22 +562,34 @@ function tryDirectSubstringMatch(
 	modelId: string,
 	modelName: string,
 ): HardcodedBenchmark | null {
+	// Collect ALL substring matches, then return the LONGEST key. This
+	// prevents short general keys (e.g. "mistral-medium-3") from shadowing
+	// longer specific keys (e.g. "mistral-medium-3.5") when a provider
+	// uses a different separator convention in the model ID.
+	let bestKey: string | null = null;
+	let bestData: HardcodedBenchmark | null = null;
 	for (const [key, data] of Object.entries(HARDCODED_BENCHMARKS) as [
 		string,
 		HardcodedBenchmark,
 	][]) {
 		if (search.includes(key.toLowerCase())) {
-			logDebug({
-				provider,
-				modelId,
-				modelName,
-				action: "match",
-				strategy: "direct-substring",
-				matchKey: key,
-				codingIndex: data.codingIndex,
-			});
-			return data;
+			if (bestKey === null || key.length > bestKey.length) {
+				bestKey = key;
+				bestData = data;
+			}
 		}
+	}
+	if (bestKey !== null && bestData !== null) {
+		logDebug({
+			provider,
+			modelId,
+			modelName,
+			action: "match",
+			strategy: "direct-substring",
+			matchKey: bestKey,
+			codingIndex: bestData.codingIndex,
+		});
+		return bestData;
 	}
 	return null;
 }
@@ -685,13 +708,17 @@ export function findHardcodedBenchmark(
 
 	logDebug({ provider, modelId, modelName, action: "attempt" });
 
-	// 1. Direct substring match
-	const direct = tryDirectSubstringMatch(search, provider, modelId, modelName);
-	if (direct) return direct;
-
-	// 2. Variant alias matching
+	// 1. Variant alias matching (human-curated, runs first so deliberate
+	// aliases for separator/suffix mismatches can override generic substring
+	// matches — e.g. "mistral-medium-3-5" (Naraya) → "mistral-medium-3.5"
+	// (benchmark) without being shadowed by "mistral-medium-3").
 	const variant = tryVariantAliasMatch(search, provider, modelId, modelName);
 	if (variant) return variant;
+
+	// 2. Direct substring match (longest-key wins, so "minimax-m2.5" beats
+	// "minimax-m2" when both could match).
+	const direct = tryDirectSubstringMatch(search, provider, modelId, modelName);
+	if (direct) return direct;
 
 	// 3. Provider-specific normalization
 	const { result: normalizedResult, normalized } = tryProviderNormalizedMatch(

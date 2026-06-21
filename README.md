@@ -14,7 +14,7 @@ Free and paid AI model providers for [Pi](https://pi.dev). Access **free and pai
 
 When you install pi-free, it:
 
-1. **Registers free-tier providers** with Pi's model picker — Kilo (free), Cline (free), LLM7 (free), TokenRouter (1 free model), ZenMux (paid), CrofAI (paid), b.ai (paid, 1 free promo model), Ollama Cloud (freemium), SambaNova (freemium), Codestral (freemium), DeepInfra (trial credit), Together AI (trial credit), Novita (paid), Routeway (paid), and more
+1. **Registers free-tier providers** with Pi's model picker — Kilo (free), Cline (free), LLM7 (free), TokenRouter (1 free model), OpenModel (6 free models including DeepSeek V4 Flash event), ZenMux (paid), CrofAI (paid), Ollama Cloud (freemium), SambaNova (freemium), Codestral (freemium), DeepInfra (trial credit), Together AI (trial credit), Novita (paid), Routeway (paid), Naraya (freemium), AgentRouter (freemium), and more
 
 2. **Captures Pi's built-in OpenCode and OpenRouter providers** with a free/paid toggle — OpenCode and OpenRouter are now built into Pi; pi-free adds `/toggle-opencode` and `/toggle-openrouter` so you can switch between free-only and all models without restart
 
@@ -53,12 +53,15 @@ Free models are shown by default — look for the provider prefixes:
 - `cline/` — Cline models (run `/login cline` to use)
 - `llm7/` — LLM7 gateway models (free tier: default/fast selectors, 100 req/hr)
 - `tokenrouter/` — TokenRouter gateway (1 free model: `MiniMax-M3`; requires API key with credits for the rest)
+- `openmodel/` — OpenModel AI gateway (6 free models including `deepseek-v4-flash` during the current free event — 1M context, MoE; 10 RPM / 100K TPM daily quota)
 
 **🔄 Freemium (free tier with limits, then paid):**
 
 - `ollama-cloud/` — Ollama Cloud models (usage-based free tier, resets every 5 hours + 7 days)
 - `sambanova/` — SambaNova Cloud models (20-480 RPM free, no credit card required)
 - `codestral/` — Codestral via Mistral (free Experiment plan: 2 req/min, 1B tokens/month)
+- `naraya/` — Naraya AI Router (9 models included, 5M tokens/day free quota; requires API key)
+- `agentrouter/` — AgentRouter free public-welfare gateway (5 Claude models with Anthropic-compatible access; requires API key)
 
 **💳 Paid Providers (API key with credits required):**
 
@@ -109,6 +112,9 @@ Want to see paid models too? Run the toggle command for your provider:
 /toggle-routeway  # Toggle Routeway AI (💳 paid — has :free models)
 /toggle-fastrouter # Toggle FastRouter (🔧 dynamic — always discovered)
 /toggle-tokenrouter # Toggle TokenRouter (💳 paid — 1 free model)
+/toggle-openmodel   # Toggle OpenModel (✅ 6 free models — deepseek-v4-flash free event)
+/toggle-naraya      # Toggle Naraya (🔄 freemium — 5M tokens/day quota)
+/toggle-agentrouter # Toggle AgentRouter (🔄 freemium — free public-welfare gateway)
 ```
 
 **Notes:**
@@ -404,34 +410,6 @@ Fast inference on custom RDU hardware:
 export SAMBANOVA_API_KEY="..."
 ```
 
-### b.ai (paid gateway with 1 free promo model)
-
-OpenAI-compatible gateway at `api.b.ai/v1` providing access to 29 frontier models:
-
-- **Anthropic**: Claude Opus 4.5–4.8, Claude Sonnet 4.5–4.6, Claude Haiku 4.5
-- **OpenAI**: GPT-5.5, GPT-5.5 Instant, GPT-5.4, GPT-5.4 Pro/Mini/Nano, GPT-5.2, GPT-5 Mini/Nano
-- **Google**: Gemini 3.1 Pro, Gemini 3 Flash, Gemini 3.5 Flash
-- **DeepSeek**: V4 Pro, V4 Flash, V3.2
-- **GLM**: GLM-5.x family
-- **Other**: Kimi K2.5, Qwen 3.6-27B, MiniMax M3 / M2.7
-
-Currently advertises `MiniMax-M3` as a limited-time free promotional model. All other models are paid — they're visible by default (toggle with `/toggle-bai` to show free-only).
-
-```bash
-export BAI_API_KEY="sk-..."
-```
-
-Or add to `~/.pi/free.json`:
-
-```json
-{
-  "bai_api_key": "sk-...",
-  "bai_show_paid": true
-}
-```
-
-Get a key at <https://b.ai/>.
-
 ---
 
 ## Slash Commands
@@ -454,7 +432,6 @@ Each provider has toggle commands to switch between free and all models:
 | `/toggle-deepinfra`     | Toggle DeepInfra (💳 trial credit)                       |
 | `/toggle-together`      | Toggle Together AI (💳 trial credit)                     |
 | `/toggle-sambanova`     | Toggle SambaNova (🔄 freemium)                           |
-| `/toggle-bai`           | Toggle b.ai (💳 paid — 1 free promo model)                |
 | `/toggle-llm7`          | Toggle LLM7 (✅ free gateway)                            |
 | `/toggle-zenmux`        | Toggle ZenMux (💳 paid)                                  |
 | `/toggle-crofai`        | Toggle CrofAI (💳 paid)                                  |
@@ -462,6 +439,9 @@ Each provider has toggle commands to switch between free and all models:
 | `/toggle-routeway`      | Toggle Routeway AI (💳 paid)                             |
 | `/toggle-fastrouter`    | Toggle FastRouter (🔧 dynamic)                           |
 | `/toggle-tokenrouter`   | Toggle TokenRouter (💳 paid — 1 free model)              |
+| `/toggle-openmodel`     | Toggle OpenModel (✅ free gateway — deepseek-v4-flash event) |
+| `/toggle-naraya`        | Toggle Naraya (🔄 freemium — 5M tokens/day)               |
+| `/toggle-agentrouter`   | Toggle AgentRouter (🔄 freemium — free public-welfare)    |
 | `/ollama-cloud-refresh` | Re-fetch Ollama Cloud models live (no restart needed)    |
 | `/probe-ollama`         | Test Ollama Cloud models for 403 errors (auto-hide)      |
 
