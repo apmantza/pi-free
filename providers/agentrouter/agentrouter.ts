@@ -162,14 +162,58 @@ async function fetchAgentRouterCatalog(): Promise<AgentRouterPricingItem[]> {
 }
 
 async function fetchAgentRouterModels(
-	_apiKey: string,
+	apiKey: string,
 ): Promise<ProviderModelConfig[]> {
-	// Note: _apiKey is unused for the catalog fetch (public endpoint) but
-	// is kept in the signature for symmetry with other providers and to
-	// document that chat calls require auth.
-	void _apiKey;
+	// Note: apiKey is unused for the catalog fetch (public endpoint) but
+	// is used to verify the gateway authorizes direct API clients — if
+	// not, the catalog loads but every POST will 401, and the user
+	// will see "Stream ended without finish_reason" mid-conversation.
+	void apiKey;
 
 	const allItems = await fetchAgentRouterCatalog();
+
+	// Health check: send a tiny test request to /v1/messages to confirm
+	// the gateway authorizes this key. If we get 401 "unauthorized client"
+	// the catalog is fine but the key is blocked for direct API access
+	// (a server-side block, not a missing/wrong key). Refuse to register
+	// in that case so the user gets a clear actionable warning now
+	// instead of "Stream ended without finish_reason" later.
+	const healthUrl = `${BASE_URL_AGENTROUTER}/v1/messages`;
+	let healthStatus = 0;
+	try {
+		const healthResp = await fetch(healthUrl, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"anthropic-version": "2023-06-01",
+				"x-api-key": apiKey,
+			},
+			body: JSON.stringify({
+				model: allItems[0]?.model_name ?? "claude-sonnet-4-5",
+				messages: [{ role: "user", content: "ping" }],
+				max_tokens: 1,
+			}),
+			signal: AbortSignal.timeout(10_000),
+		});
+		healthStatus = healthResp.status;
+		if (healthStatus === 401) {
+			_logger.error(
+				"[agentrouter] API key is NOT authorized for direct API access (the gateway blocks direct clients with 401 'unauthorized client detected'). The pricing catalog still works, but no chat calls will succeed. Request whitelist access at https://discord.gg/aYq5B4RW3 — see https://docs.agentrouter.org/ for details. Skipping registration.",
+			);
+			return [];
+		}
+	} catch (healthErr) {
+		// Health check itself failed (network, timeout) — fall through
+		// and let the catalog register normally. The user will see the
+		// actual error when they try to use a model.
+		_logger.warn(
+			"[agentrouter] Health check failed; registering anyway",
+			{
+				error: healthErr instanceof Error ? healthErr.message : String(healthErr),
+			},
+		);
+	}
+
 	const anthropicItems = allItems.filter(supportsAnthropicProtocol);
 
 	if (anthropicItems.length === 0) {
@@ -247,6 +291,7 @@ export default async function agentrouterProvider(pi: ExtensionAPI) {
 		providerId: PROVIDER_AGENTROUTER,
 		baseUrl: BASE_URL_AGENTROUTER,
 		apiKey,
+		api: "anthropic-messages",
 	});
 
 	registerWithGlobalToggle(PROVIDER_AGENTROUTER, stored, reRegister, true);

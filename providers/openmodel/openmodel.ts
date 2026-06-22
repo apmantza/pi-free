@@ -492,6 +492,7 @@ export default async function openmodelProvider(pi: ExtensionAPI) {
 		providerId: PROVIDER_OPENMODEL,
 		baseUrl: BASE_URL_OPENMODEL,
 		apiKey,
+		api: "anthropic-messages",
 	});
 
 	registerWithGlobalToggle(PROVIDER_OPENMODEL, stored, reRegister, true);
