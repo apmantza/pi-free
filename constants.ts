@@ -27,7 +27,6 @@ export const PROVIDER_TOKENROUTER = "tokenrouter";
 export const PROVIDER_BAI = "bai";
 export const PROVIDER_OPENMODEL = "openmodel";
 export const PROVIDER_NARAYA = "naraya";
-export const PROVIDER_AGENTROUTER = "agentrouter";
 
 // Built-in pi providers that pi-free wraps with toggles
 export const PROVIDER_OPENROUTER = "openrouter";
@@ -54,7 +53,6 @@ export const ALL_UNIQUE_PROVIDERS = [
 	PROVIDER_BAI,
 	PROVIDER_OPENMODEL,
 	PROVIDER_NARAYA,
-	PROVIDER_AGENTROUTER,
 ] as const;
 
 // =============================================================================
@@ -86,16 +84,6 @@ export const BASE_URL_BAI = "https://api.b.ai/v1";
  */
 export const BASE_URL_OPENMODEL = "https://api.openmodel.ai";
 export const BASE_URL_NARAYA = "https://router.naraya.ai/v1";
-/**
- * AgentRouter is registered with `api: "anthropic-messages"`. The pi-ai
- * Anthropic SDK appends `/v1/messages` to `baseURL`, so the base must
- * NOT include `/v1`. The OpenAI-compatible path is blocked by the
- * gateway for direct API clients (Claude Code / Codex only), so we use
- * the Anthropic endpoint and filter to models whose
- * `supported_endpoint_types` includes "anthropic".
- * See {@link PROVIDER_AGENTROUTER}.
- */
-export const BASE_URL_AGENTROUTER = "https://agentrouter.org";
 
 /** Cline fetches free models from OpenRouter */
 export const BASE_URL_OPENROUTER = "https://openrouter.ai/api/v1";

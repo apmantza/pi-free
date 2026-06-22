@@ -52,7 +52,8 @@
 		"test": "vitest",
 		"test:ui": "vitest --ui",
 		"test:run": "vitest run",
-		"smoke:cline": "tsx scripts/smoke-cline-xml-bridge.ts"
+		"smoke:cline": "tsx scripts/smoke-cline-xml-bridge.ts",
+		"smoke:openmodel": "tsx scripts/smoke-openmodel-wire-format.ts"
 	},
 	"peerDependencies": {
 		"@earendil-works/pi-ai": "^0.79.8",

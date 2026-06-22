@@ -492,6 +492,11 @@ export default async function openmodelProvider(pi: ExtensionAPI) {
 		providerId: PROVIDER_OPENMODEL,
 		baseUrl: BASE_URL_OPENMODEL,
 		apiKey,
+		// OpenModel is an Anthropic-protocol gateway — /v1/chat/completions
+		// does not exist on it. Without `api: "anthropic-messages"`, the
+		// helper defaults to openai-completions and pi-ai POSTs to a 404
+		// path. Pin the wire format so it dispatches to the Anthropic SDK.
+		api: "anthropic-messages",
 	});
 
 	registerWithGlobalToggle(PROVIDER_OPENMODEL, stored, reRegister, true);

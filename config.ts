@@ -19,7 +19,6 @@ import {
 	PROVIDER_OLLAMA,
 	PROVIDER_OPENCODE,
 	PROVIDER_NARAYA,
-	PROVIDER_AGENTROUTER,
 	PROVIDER_OPENMODEL,
 	PROVIDER_OPENROUTER,
 	PROVIDER_ROUTEWAY,
@@ -77,7 +76,6 @@ interface PiFreeConfig {
 	bai_api_key?: string;
 	openmodel_api_key?: string;
 	naraya_api_key?: string;
-	agentrouter_api_key?: string;
 	kilo_free_only?: boolean;
 	hidden_models?: string[];
 	free_only?: boolean;
@@ -98,7 +96,6 @@ interface PiFreeConfig {
 	bai_show_paid?: boolean;
 	openmodel_show_paid?: boolean;
 	naraya_show_paid?: boolean;
-	agentrouter_show_paid?: boolean;
 	openrouter_show_paid?: boolean;
 	opencode_show_paid?: boolean;
 }
@@ -120,7 +117,6 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	bai_api_key: "",
 	openmodel_api_key: "",
 	naraya_api_key: "",
-	agentrouter_api_key: "",
 
 	kilo_free_only: false,
 	hidden_models: [],
@@ -142,7 +138,6 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	bai_show_paid: false,
 	openmodel_show_paid: false,
 	naraya_show_paid: true,
-	agentrouter_show_paid: true,
 	openrouter_show_paid: false,
 	opencode_show_paid: false,
 };
@@ -317,11 +312,6 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 	},
 	{ id: PROVIDER_NARAYA, prefix: "NARAYA", showPaidKey: "naraya_show_paid" },
 	{
-		id: PROVIDER_AGENTROUTER,
-		prefix: "AGENTROUTER",
-		showPaidKey: "agentrouter_show_paid",
-	},
-	{
 		id: PROVIDER_FASTROUTER,
 		prefix: "FASTROUTER",
 		showPaidKey: "fastrouter_show_paid",
@@ -435,13 +425,6 @@ export function getNarayaShowPaid(): boolean {
 	return resolveBool("NARAYA_SHOW_PAID", loadConfigFile().naraya_show_paid);
 }
 
-export function getAgentrouterShowPaid(): boolean {
-	return resolveBool(
-		"AGENTROUTER_SHOW_PAID",
-		loadConfigFile().agentrouter_show_paid,
-	);
-}
-
 export function getFastrouterShowPaid(): boolean {
 	return resolveBool(
 		"FASTROUTER_SHOW_PAID",
@@ -542,10 +525,6 @@ export function getOpenmodelApiKey(): string | undefined {
 
 export function getNarayaApiKey(): string | undefined {
 	return resolve("NARAYA_API_KEY", loadConfigFile().naraya_api_key);
-}
-
-export function getAgentrouterApiKey(): string | undefined {
-	return resolve("AGENTROUTER_API_KEY", loadConfigFile().agentrouter_api_key);
 }
 
 export function getOllamaApiKey(): string | undefined {

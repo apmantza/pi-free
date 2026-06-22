@@ -13,13 +13,10 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { saveConfig } from "./config.ts";
 import { createLogger } from "./lib/logger.ts";
+import type { ModelsDevEnrichedMetadata } from "./lib/types.ts";
 import { enhanceModelNameWithCodingIndex } from "./provider-failover/benchmark-lookup.ts";
 
 const _logger = createLogger("provider-helper");
-
-type ModelsDevEnrichedMetadata = {
-	modelsDev?: Parameters<typeof enhanceModelNameWithCodingIndex>[3];
-};
 
 // =============================================================================
 // Types
@@ -66,6 +63,14 @@ export interface OpenAICompatibleConfig {
 	baseUrl: string;
 	/** Environment variable name for the API key */
 	apiKey: string;
+	/**
+	 * Wire API to use. Defaults to `"openai-completions"` for backward
+	 * compatibility with the 17 existing providers that pass through
+	 * this helper without setting it. Set to `"anthropic-messages"`
+	 * for Anthropic-protocol gateways (e.g. OpenModel). The pi-ai
+	 * runtime dispatches to the right client based on this value.
+	 */
+	api?: "openai-completions" | "anthropic-messages";
 	/** Additional headers to include */
 	headers?: Record<string, string>;
 	/** OAuth configuration (optional) */
@@ -105,12 +110,19 @@ export function registerOpenAICompatible(
 	config: OpenAICompatibleConfig,
 	models: ProviderModelConfig[],
 ): void {
-	const { providerId, baseUrl, apiKey, headers, oauth } = config;
+	const {
+		providerId,
+		baseUrl,
+		apiKey,
+		api = "openai-completions",
+		headers,
+		oauth,
+	} = config;
 
 	pi.registerProvider(providerId, {
 		baseUrl,
 		apiKey,
-		api: "openai-completions" as const,
+		api,
 		headers: {
 			"User-Agent": "pi-free-providers",
 			...headers,
@@ -143,13 +155,20 @@ export function createCtxReRegister(
 	},
 	config: OpenAICompatibleConfig,
 ): (models: ProviderModelConfig[]) => void {
-	const { providerId, baseUrl, apiKey, headers, oauth } = config;
+	const {
+		providerId,
+		baseUrl,
+		apiKey,
+		api = "openai-completions",
+		headers,
+		oauth,
+	} = config;
 
 	return (models: ProviderModelConfig[]) => {
 		ctx.modelRegistry.registerProvider(providerId, {
 			baseUrl,
 			apiKey,
-			api: "openai-completions" as const,
+			api,
 			headers: {
 				"User-Agent": "pi-free-providers",
 				...headers,
