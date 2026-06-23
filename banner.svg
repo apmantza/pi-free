@@ -93,7 +93,7 @@
     <rect x="0" y="0" width="250" height="200" rx="12" fill="none" stroke="url(#accent)" stroke-width="0.5" opacity="0.1"/>
     <text x="20" y="26" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#c4b5fd">Providers</text>
     <text x="20" y="46" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Kilo · Cline · OpenCode</text>
-    <text x="20" y="66" font-family="system-ui, sans-serif" font-size="11" fill="#a78bfa">OpenModel · Naraya · AgentRouter</text>
+    <text x="20" y="66" font-family="system-ui, sans-serif" font-size="11" fill="#a78bfa">OpenModel · AgentRouter</text>
     <text x="20" y="86" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Ollama Cloud · SambaNova</text>
     <text x="20" y="106" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">Codestral · LLM7 · Novita</text>
     <text x="20" y="126" font-family="system-ui, sans-serif" font-size="11" fill="#8b9aaa">ZenMux · CrofAI · DeepInfra</text>

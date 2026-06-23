@@ -45,7 +45,6 @@ import ollama from "./providers/ollama/ollama.ts";
 import zenmux from "./providers/zenmux/zenmux.ts";
 import bai from "./providers/bai/bai.ts";
 import openmodel from "./providers/openmodel/openmodel.ts";
-import naraya from "./providers/naraya/naraya.ts";
 
 /**
  * Single source of truth for unique provider extensions (providers NOT
@@ -71,7 +70,6 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 	tokenRouter,
 	bai,
 	openmodel,
-	naraya,
 ];
 
 const _logger = createLogger("pi-free");
@@ -134,7 +132,6 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 			const freemiumProviders = new Set([
 				"sambanova",
 				"ollama-cloud",
-				"naraya",
 			]);
 			// Trial credit providers - one-time credits, otherwise paid
 			const trialCreditProviders = new Set(["deepinfra"]);

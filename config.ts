@@ -18,7 +18,6 @@ import {
 	PROVIDER_KILO,
 	PROVIDER_OLLAMA,
 	PROVIDER_OPENCODE,
-	PROVIDER_NARAYA,
 	PROVIDER_OPENMODEL,
 	PROVIDER_OPENROUTER,
 	PROVIDER_ROUTEWAY,
@@ -75,7 +74,6 @@ interface PiFreeConfig {
 	tokenrouter_api_key?: string;
 	bai_api_key?: string;
 	openmodel_api_key?: string;
-	naraya_api_key?: string;
 	kilo_free_only?: boolean;
 	hidden_models?: string[];
 	free_only?: boolean;
@@ -95,7 +93,6 @@ interface PiFreeConfig {
 	tokenrouter_show_paid?: boolean;
 	bai_show_paid?: boolean;
 	openmodel_show_paid?: boolean;
-	naraya_show_paid?: boolean;
 	openrouter_show_paid?: boolean;
 	opencode_show_paid?: boolean;
 }
@@ -116,7 +113,6 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	tokenrouter_api_key: "",
 	bai_api_key: "",
 	openmodel_api_key: "",
-	naraya_api_key: "",
 
 	kilo_free_only: false,
 	hidden_models: [],
@@ -137,7 +133,6 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	tokenrouter_show_paid: false,
 	bai_show_paid: false,
 	openmodel_show_paid: false,
-	naraya_show_paid: true,
 	openrouter_show_paid: false,
 	opencode_show_paid: false,
 };
@@ -310,7 +305,6 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 		prefix: "OPENMODEL",
 		showPaidKey: "openmodel_show_paid",
 	},
-	{ id: PROVIDER_NARAYA, prefix: "NARAYA", showPaidKey: "naraya_show_paid" },
 	{
 		id: PROVIDER_FASTROUTER,
 		prefix: "FASTROUTER",
@@ -421,10 +415,6 @@ export function getOpenmodelShowPaid(): boolean {
 	);
 }
 
-export function getNarayaShowPaid(): boolean {
-	return resolveBool("NARAYA_SHOW_PAID", loadConfigFile().naraya_show_paid);
-}
-
 export function getFastrouterShowPaid(): boolean {
 	return resolveBool(
 		"FASTROUTER_SHOW_PAID",
@@ -521,10 +511,6 @@ export function getBaiApiKey(): string | undefined {
 
 export function getOpenmodelApiKey(): string | undefined {
 	return resolve("OPENMODEL_API_KEY", loadConfigFile().openmodel_api_key);
-}
-
-export function getNarayaApiKey(): string | undefined {
-	return resolve("NARAYA_API_KEY", loadConfigFile().naraya_api_key);
 }
 
 export function getOllamaApiKey(): string | undefined {

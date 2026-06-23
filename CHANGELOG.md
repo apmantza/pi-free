@@ -11,21 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **OpenModel AI provider** — Anthropic-compatible LLM gateway at `api.openmodel.ai` (24 models). Merges the public `/web/v1/models` catalog (real per-token pricing via `price_multiplier`, supports flags, max tokens) with the authed `/v1/models` protocol list. Registers only messages-protocol models. The current **DeepSeek V4 Flash Free Event** is automatically detected: `deepseek-v4-flash` has `price_multiplier=0` → free via Route A (no hardcoding required). 6 free models surface under `free_only`: `deepseek-v4-flash` (1M context, MoE), plus 5 DashScope Qwen models whose catalog entries have no per-token pricing. Set `OPENMODEL_API_KEY` or add `openmodel_api_key` to `~/.pi/free.json`. Toggle with `/toggle-openmodel` ([#269](https://github.com/apmantza/pi-free/pull/269)).
 
-- **Naraya AI Router provider** — OpenAI-compatible LLM gateway at `router.naraya.ai/v1` (9 models). The API exposes `context_window`, `weight`, `reasoning`, and `vision` flags but no per-token pricing — costs are hardcoded from the published rate card. **Freemium**: all 9 models are included in the free plan with a **5,000,000 tokens/day quota**. Marked `_freeKnown:true, _isFree:true` and added to `freemiumProviders`. Set `NARAYA_API_KEY` or add `naraya_api_key` to `~/.pi/free.json`. Toggle with `/toggle-naraya` ([#269](https://github.com/apmantza/pi-free/pull/269)).
-
 - `npm run smoke:openmodel` — Live end-to-end check for the OpenModel Anthropic-Messages wire format. Reads `OPENMODEL_API_KEY` from env or `~/.pi/free.json`; skips with exit 0 when neither is set, exits 1 on any non-200 or malformed response.
 
 ### Removed
 
 - **AgentRouter provider** — The `agentrouter.org` gateway is unreachable from Pi: its OpenAI-compatible path returns `unauthorized client detected` for every direct API client (Codex CLI only), and the Anthropic path returned the same error for every key we tested. The "free public-welfare" tier is therefore not accessible from this extension, so the provider has been removed. Files deleted: `providers/agentrouter/agentrouter.ts`, `tests/agentrouter.test.ts`. Cleaned up: `PROVIDER_AGENTROUTER` / `BASE_URL_AGENTROUTER` in `constants.ts`, the `agentrouter_api_key` and `agentrouter_show_paid` config fields, the `PROVIDER_META` entry, `getAgentrouterApiKey` / `getAgentrouterShowPaid`, the import + `UNIQUE_PROVIDERS` slot in `index.ts`, and the `agentrouter` entry in the `freemiumProviders` Set. The corresponding `### Added` entry for AgentRouter is also removed from this release.
 
+- **Naraya AI Router provider** — The `router.naraya.ai` gateway's `/v1/*` namespace is broken (observed 2026-06-23 and counting): every request returns HTTP 200 with `content-length: 0` and no `content-type` — nginx is responding with a default 200 but the upstream API is unreachable. The marketing website (`router.naraya.ai/`) is still up, so the failure mode is the `/v1/*` reverse-proxy backend specifically. No working API = no usable provider, so Naraya has been removed. Files deleted: `providers/naraya/naraya.ts`, `tests/naraya.test.ts`. Cleaned up: `PROVIDER_NARAYA` / `BASE_URL_NARAYA` in `constants.ts`, the `naraya_api_key` and `naraya_show_paid` config fields, the `PROVIDER_META` entry, `getNarayaApiKey` / `getNarayaShowPaid`, the import + `UNIQUE_PROVIDERS` slot in `index.ts`, and the `naraya` entry in the `freemiumProviders` Set. Orphaned `MODEL_VARIANTS` entries (`mistral-medium-3-5` → `mistral-medium-3.5`, `deepseek-v4-flash-naraya` → `deepseek-v4-flash-reasoning-high-effort`) in `provider-failover/benchmark-lookup.ts` were also removed.
+
 ### Fixed
 
 - **OpenModel 404 (`route not found`)** — The shared `createReRegister` / `registerOpenAICompatible` / `createCtxReRegister` helpers in `provider-helper.ts` hardcoded `api: "openai-completions"` regardless of the provider's actual wire protocol. This silently forced OpenModel to POST to `/v1/chat/completions` even though it is an Anthropic-protocol gateway, returning `404 {"code":"NOT_FOUND","msg":"route not found"}` on every chat call. Added an optional `api` field on `OpenAICompatibleConfig` (default `"openai-completions"` for backward compatibility with the 17 existing callers) and threaded it through all three helpers. OpenModel now passes `api: "anthropic-messages"` so pi-ai dispatches to the Anthropic SDK and POSTs to `/v1/messages` correctly. New test file `tests/provider-helper-api-field.test.ts` pins the new behaviour (6 tests covering default, anthropic-messages, ctx variant, and header preservation). Live-verified end-to-end against `https://api.openmodel.ai/v1/messages` with a real `OPENMODEL_API_KEY` via `scripts/smoke-openmodel-wire-format.ts` — both non-streaming JSON (200 with Anthropic Messages shape) and streaming SSE (200 with `text/event-stream`, `event: message_start` + `event: content_block_start` + thinking deltas) work.
 
-- **`mistral-medium-3-5` and `deepseek-v4-flash-naraya` CI matching (Naraya)** — Both Naraya model IDs failed to substring-match their corresponding benchmark entries due to a **separator/format mismatch**: `"mistral-medium-3-5".includes("mistral-medium-3.5")` returns false (hyphen vs period at the version separator), and `"deepseek-v4-flash-naraya".includes("deepseek-v4-flash-reasoning-*")` returns false (the benchmark key carries a `-reasoning-*` qualifier the model ID omits). As a result the lookup fell through to incorrect entries (`mistral-medium-3`, CI 13.6) or `miss|all-strategies-failed`. Added legitimate `MODEL_VARIANTS` aliases that point to the existing benchmark keys (`mistral-medium-3.5` → CI 35.4, `deepseek-v4-flash-reasoning-high-effort` → CI 39.8). No fabricated scores added.
-
-- **`mistral-medium-3-5` CI score** — Was incorrectly reported as `CI: 13.6` (from a substring shadow match on the older `mistral-medium-3`). Now correctly resolved to `CI: 35.4` via the new variant alias (see above).
+(Removed: `mistral-medium-3-5` / `deepseek-v4-flash-naraya` CI matching fix and `mistral-medium-3-5` CI score fix entries — Naraya is gone, so the hyphen-form variants no longer need a benchmark lookup alias.)
 
 ### Verified clean (no fix needed)
 
@@ -33,9 +31,9 @@ The following recent model IDs correctly miss `all-strategies-failed` because th
 
 - `minimax-m3` — latest MiniMax generation, not yet in benchmark DB
 - `claude-haiku-4-5` — Claude Haiku 4.5, not yet in benchmark DB
-- `mistral-large` (bare, from Naraya) — distinct from `mistral-large-2`/`-3`
-- `deepseek-3.2` (bare, from Naraya) — Naraya drops the `v` prefix
 - `qwen3.6-flash` — Qwen 3.6 Flash variant, not yet in benchmark DB
+
+(Removed: `mistral-large (bare, from Naraya)` and `deepseek-3.2 (bare, from Naraya)` notes — Naraya is gone.)
 
 ## [2.1.1] - 2026-06-15
 
