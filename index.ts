@@ -45,6 +45,7 @@ import ollama from "./providers/ollama/ollama.ts";
 import zenmux from "./providers/zenmux/zenmux.ts";
 import bai from "./providers/bai/bai.ts";
 import openmodel from "./providers/openmodel/openmodel.ts";
+import qoder from "./providers/qoder/qoder.ts";
 
 /**
  * Single source of truth for unique provider extensions (providers NOT
@@ -70,6 +71,7 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 	tokenRouter,
 	bai,
 	openmodel,
+	qoder,
 ];
 
 const _logger = createLogger("pi-free");
@@ -129,10 +131,7 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 				"cerebras",
 			]);
 			// Freemium providers - all models share a free tier quota
-			const freemiumProviders = new Set([
-				"sambanova",
-				"ollama-cloud",
-			]);
+			const freemiumProviders = new Set(["sambanova", "ollama-cloud"]);
 			// Trial credit providers - one-time credits, otherwise paid
 			const trialCreditProviders = new Set(["deepinfra"]);
 

@@ -26,6 +26,7 @@ export const PROVIDER_ROUTEWAY = "routeway";
 export const PROVIDER_TOKENROUTER = "tokenrouter";
 export const PROVIDER_BAI = "bai";
 export const PROVIDER_OPENMODEL = "openmodel";
+export const PROVIDER_QODER = "qoder";
 
 // Built-in pi providers that pi-free wraps with toggles
 export const PROVIDER_OPENROUTER = "openrouter";
@@ -51,6 +52,7 @@ export const ALL_UNIQUE_PROVIDERS = [
 	PROVIDER_TOKENROUTER,
 	PROVIDER_BAI,
 	PROVIDER_OPENMODEL,
+	PROVIDER_QODER,
 ] as const;
 
 // =============================================================================
@@ -81,6 +83,7 @@ export const BASE_URL_BAI = "https://api.b.ai/v1";
  * NOT include `/v1`. See {@link PROVIDER_OPENMODEL}.
  */
 export const BASE_URL_OPENMODEL = "https://api.openmodel.ai";
+export const BASE_URL_QODER = "https://api3.qoder.sh";
 
 /** Cline fetches free models from OpenRouter */
 export const BASE_URL_OPENROUTER = "https://openrouter.ai/api/v1";
