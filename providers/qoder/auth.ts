@@ -370,9 +370,7 @@ async function runDeviceFlow(
  * Retrieve cached Qoder credentials (userID/email/name/machineID) from
  * pi's auth store. Best-effort — returns null if not found.
  */
-export function getCachedCredentials(
-	_accessToken: string,
-): QoderCredentials | null {
+export function getCachedCredentials(): QoderCredentials | null {
 	if (existsSync(AUTH_FILE)) {
 		try {
 			const auth = JSON.parse(readFileSync(AUTH_FILE, "utf-8"));
@@ -406,7 +404,11 @@ export async function loginQoder(
 			const creds = await credentialsFromPat(pat);
 			return creds as OAuthCredentials;
 		} catch {
-			// Fall through to interactive login
+			(
+				callbacks as unknown as { onProgress?: (msg: string) => void }
+			).onProgress?.(
+				"Environment PAT invalid, falling back to interactive login...",
+			);
 		}
 	}
 

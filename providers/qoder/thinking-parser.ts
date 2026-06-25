@@ -63,10 +63,8 @@ function getMaxTrailingPossibleTagPrefixLength(
 export class ThinkingTagParser {
 	private textBuffer = "";
 	private inThinking = false;
-	private thinkingExtracted = false;
 	private thinkingBlockIndex: number | null = null;
 	private textBlockIndex: number | null = null;
-	private lastTextBlockIndex: number | null = null;
 	private activeEndTag = "";
 
 	constructor(
@@ -81,17 +79,13 @@ export class ThinkingTagParser {
 		this.textBuffer += chunk;
 		while (this.textBuffer.length > 0) {
 			const prevLength = this.textBuffer.length;
-			if (!this.inThinking && !this.thinkingExtracted) {
+			if (!this.inThinking) {
 				this.processBeforeThinking();
 				if (this.textBuffer.length === 0) break;
 			}
 			if (this.inThinking) {
 				this.processInsideThinking();
 				if (this.textBuffer.length === 0) break;
-			}
-			if (this.thinkingExtracted) {
-				this.processAfterThinking();
-				break;
 			}
 			if (this.textBuffer.length >= prevLength) break;
 		}
@@ -124,7 +118,7 @@ export class ThinkingTagParser {
 
 	/** Get the index of the final text block (after thinking, or null if none) */
 	getTextBlockIndex(): number | null {
-		return this.textBlockIndex ?? this.lastTextBlockIndex;
+		return this.textBlockIndex;
 	}
 
 	private processBeforeThinking(): void {
@@ -179,8 +173,7 @@ export class ThinkingTagParser {
 				endPos + this.activeEndTag.length,
 			);
 			this.inThinking = false;
-			this.thinkingExtracted = true;
-			this.lastTextBlockIndex = this.textBlockIndex;
+			this.thinkingBlockIndex = null;
 			this.textBlockIndex = null;
 			if (this.textBuffer.startsWith("\n\n"))
 				this.textBuffer = this.textBuffer.slice(2);
@@ -197,11 +190,6 @@ export class ThinkingTagParser {
 			this.emitThinking(this.textBuffer.slice(0, safeLen));
 			this.textBuffer = this.textBuffer.slice(safeLen);
 		}
-	}
-
-	private processAfterThinking(): void {
-		this.emitText(this.textBuffer);
-		this.textBuffer = "";
 	}
 
 	private emitText(text: string): void {

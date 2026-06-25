@@ -23,7 +23,7 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import { PROVIDER_QODER, BASE_URL_QODER } from "../../constants.ts";
+import { BASE_URL_QODER } from "../../constants.ts";
 import {
 	getCachedModels,
 	isCacheStale,
@@ -32,9 +32,6 @@ import {
 } from "./models.ts";
 import { getCachedCredentials, loginQoder, refreshQoderToken } from "./auth.ts";
 import { streamQoder } from "./stream.ts";
-
-// All Qoder models are free — no _pricingKnown flags needed
-const ALL_FREE = true;
 
 // =============================================================================
 // Extension Entry Point
@@ -49,7 +46,7 @@ export default async function qoderProvider(pi: ExtensionAPI) {
 		try {
 			const accessToken = await ctx.modelRegistry.getApiKeyForProvider("qoder");
 			if (!accessToken || !isCacheStale()) return;
-			const creds = getCachedCredentials(accessToken);
+			const creds = getCachedCredentials();
 			const userID = creds?.userID || "qoder-user";
 			const name = creds?.name || "Qoder User";
 			const email = creds?.email || "user@qoder.com";

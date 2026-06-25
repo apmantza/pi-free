@@ -136,7 +136,7 @@ export function streamQoder(
 			}
 
 			// Resolve user details from cached credentials
-			const cachedCreds = getCachedCredentials(accessToken);
+			const cachedCreds = getCachedCredentials();
 			const userID = cachedCreds?.userID || "qoder-user";
 			const name = cachedCreds?.name || "Qoder User";
 			const email = cachedCreds?.email || "user@qoder.com";
@@ -510,7 +510,8 @@ export function streamQoder(
 
 			if (toolCallsState.length > 0) {
 				output.stopReason = "toolUse";
-			} else {
+			} else if (!output.stopReason || output.stopReason === "stop") {
+				// Only default to "stop" if the API didn't provide a finish_reason
 				output.stopReason = "stop";
 			}
 
@@ -521,6 +522,12 @@ export function streamQoder(
 			});
 			stream.end();
 		} catch (e: unknown) {
+			const logger = (await import("../../lib/logger.ts")).createLogger(
+				"qoder",
+			);
+			logger.error("stream error", {
+				error: e instanceof Error ? e.message : String(e),
+			});
 			output.stopReason = options?.signal?.aborted ? "aborted" : "error";
 			output.errorMessage = e instanceof Error ? e.message : String(e);
 			stream.push({
