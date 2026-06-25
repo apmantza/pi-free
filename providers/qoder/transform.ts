@@ -89,100 +89,101 @@ export function transformTools(tools: Tool[]): QoderTool[] {
  */
 export function transformMessagesForQoder(messages: Message[]): QoderMessage[] {
 	const normalizedMessages: QoderMessage[] = [];
-
 	for (const msg of messages) {
-		// Skip error or aborted messages
-		if (
-			msg.role === "assistant" &&
-			((msg as AssistantMessage).stopReason === "error" ||
-				(msg as AssistantMessage).stopReason === "aborted")
-		) {
-			continue;
-		}
-
+		if (isSkippableMessage(msg)) continue;
 		if (msg.role === "user") {
-			let content: QoderContent = "";
-			if (typeof msg.content === "string") {
-				content = msg.content;
-			} else if (Array.isArray(msg.content)) {
-				const hasImage = msg.content.some((c) => c.type === "image");
-				if (hasImage) {
-					content = msg.content
-						.map((c): QoderTextPart | QoderImagePart | null => {
-							if (c.type === "text") {
-								return {
-									type: "text",
-									text: (c as TextContent).text,
-								};
-							}
-							if (c.type === "image") {
-								const img = c as ImageContent;
-								return {
-									type: "image_url",
-									image_url: {
-										url: `data:${img.mimeType};base64,${img.data}`,
-									},
-								};
-							}
-							return null;
-						})
-						.filter((p): p is QoderTextPart | QoderImagePart => p !== null);
-				} else {
-					content = getContentText(msg);
-				}
-			}
-			normalizedMessages.push({
-				role: "user",
-				content,
-			});
+			normalizedMessages.push(transformUserMessage(msg));
 		} else if (msg.role === "assistant") {
-			const am = msg as AssistantMessage;
-			let content = "";
-			const toolCalls: QoderToolCall[] = [];
-
-			if (Array.isArray(am.content)) {
-				for (const block of am.content) {
-					if (block.type === "text") {
-						content += (block as TextContent).text;
-					} else if (block.type === "thinking") {
-						// Include thinking in textual form if reasoning was on
-						content += `<thinking>${(block as ThinkingContent).thinking}</thinking>\n\n`;
-					} else if (block.type === "toolCall") {
-						const tc = block as ToolCall;
-						toolCalls.push({
-							id: tc.id,
-							type: "function",
-							function: {
-								name: tc.name,
-								arguments:
-									typeof tc.arguments === "string"
-										? tc.arguments
-										: JSON.stringify(tc.arguments),
-							},
-						});
-					}
-				}
-			} else {
-				content = am.content || "";
-			}
-
-			const mapped: QoderMessage = {
-				role: "assistant",
-				content: content || null,
-			};
-			if (toolCalls.length > 0) {
-				mapped.tool_calls = toolCalls;
-			}
-			normalizedMessages.push(mapped);
+			normalizedMessages.push(transformAssistantMessage(msg as AssistantMessage));
 		} else if (msg.role === "toolResult") {
-			const tr = msg as ToolResultMessage;
-			normalizedMessages.push({
-				role: "tool",
-				tool_call_id: tr.toolCallId,
-				content: getContentText(tr),
-			});
+			normalizedMessages.push(transformToolResultMessage(msg as ToolResultMessage));
 		}
 	}
-
 	return normalizedMessages;
+}
+
+function isSkippableMessage(msg: Message): boolean {
+	if (msg.role !== "assistant") return false;
+	const am = msg as AssistantMessage;
+	return am.stopReason === "error" || am.stopReason === "aborted";
+}
+
+function transformUserMessage(msg: Message): QoderMessage {
+	let content: QoderContent = "";
+	if (typeof msg.content === "string") {
+		content = msg.content;
+	} else if (Array.isArray(msg.content)) {
+		const hasImage = msg.content.some((c) => c.type === "image");
+		if (hasImage) {
+			content = msg.content
+				.map((c): QoderTextPart | QoderImagePart | null => {
+					if (c.type === "text") {
+						return { type: "text", text: (c as TextContent).text };
+					}
+					if (c.type === "image") {
+						const img = c as ImageContent;
+						return {
+							type: "image_url",
+							image_url: { url: `data:${img.mimeType};base64,${img.data}` },
+						};
+					}
+					return null;
+				})
+				.filter((p): p is QoderTextPart | QoderImagePart => p !== null);
+		} else {
+			content = getContentText(msg);
+		}
+	}
+	return { role: "user", content };
+}
+
+function transformAssistantMessage(
+	am: AssistantMessage,
+): QoderMessage {
+	let content = "";
+	const toolCalls: QoderToolCall[] = [];
+
+	if (Array.isArray(am.content)) {
+		for (const block of am.content) {
+			if (block.type === "text") {
+				content += (block as TextContent).text;
+			} else if (block.type === "thinking") {
+				content += `<thinking>${(block as ThinkingContent).thinking}</thinking>\n\n`;
+			} else if (block.type === "toolCall") {
+				const tc = block as ToolCall;
+				toolCalls.push({
+					id: tc.id,
+					type: "function",
+					function: {
+						name: tc.name,
+						arguments:
+							typeof tc.arguments === "string"
+								? tc.arguments
+								: JSON.stringify(tc.arguments),
+					},
+				});
+			}
+		}
+	} else {
+		content = am.content || "";
+	}
+
+	const mapped: QoderMessage = {
+		role: "assistant",
+		content: content || null,
+	};
+	if (toolCalls.length > 0) {
+		mapped.tool_calls = toolCalls;
+	}
+	return mapped;
+}
+
+function transformToolResultMessage(
+	tr: ToolResultMessage,
+): QoderMessage {
+	return {
+		role: "tool",
+		tool_call_id: tr.toolCallId,
+		content: getContentText(tr),
+	};
 }

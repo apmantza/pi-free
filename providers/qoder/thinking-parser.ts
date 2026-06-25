@@ -68,8 +68,8 @@ export class ThinkingTagParser {
 	private activeEndTag = "";
 
 	constructor(
-		private output: AssistantMessage,
-		private stream: AssistantMessageEventStream,
+		private readonly output: AssistantMessage,
+		private readonly stream: AssistantMessageEventStream,
 	) {
 		// Set initial active end tag to the first variant's close
 		this.activeEndTag = THINKING_TAG_VARIANTS[0]!.close;
@@ -214,7 +214,7 @@ export class ThinkingTagParser {
 	}
 
 	private emitThinking(thinking: string): void {
-		if (!thinking) return;
+		if (thinking.length === 0) return;
 		if (this.thinkingBlockIndex === null) {
 			if (this.textBlockIndex !== null) {
 				// Insert thinking block before the existing text block

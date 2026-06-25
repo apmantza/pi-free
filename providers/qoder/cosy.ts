@@ -57,6 +57,18 @@ export interface CosyCredentials {
 	machineID?: string;
 }
 
+function bodyToUtf8(body: Buffer | string | null): string {
+	if (!body) return "";
+	if (Buffer.isBuffer(body)) return body.toString("utf8");
+	return body;
+}
+
+function bodyToLengthString(body: Buffer | string | null): string {
+	if (!body) return "0";
+	if (Buffer.isBuffer(body)) return String(body.length);
+	return String(Buffer.from(body).length);
+}
+
 function rsaEncryptBase64(data: Buffer | string): string {
 	const key = {
 		key: QODER_RSA_PUBLIC_KEY,
@@ -143,7 +155,7 @@ export function buildAuthHeaders(
 		throw new Error("cosy: auth token is empty");
 	}
 
-	const aesKey = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+	const aesKey = crypto.randomUUID().replaceAll(/-/g, "").slice(0, 16);
 	const userInfo: UserInfo = {
 		uid: creds.userID,
 		security_oauth_token: creds.authToken,
@@ -171,11 +183,7 @@ export function buildAuthHeaders(
 	);
 	const sigPath = computeSigPath(requestURL);
 
-	const bodyStr = body
-		? Buffer.isBuffer(body)
-			? body.toString("utf8")
-			: body
-		: "";
+	const bodyStr = bodyToUtf8(body);
 	const sigInput = `${payloadB64}\n${cosyKey}\n${timestamp}\n${bodyStr}\n${sigPath}`;
 	const sig = crypto.createHash("md5").update(sigInput).digest("hex");
 
@@ -183,12 +191,7 @@ export function buildAuthHeaders(
 		.createHash("md5")
 		.update(body || "")
 		.digest("hex");
-	const bodyLen = body
-		? (Buffer.isBuffer(body)
-				? body.length
-				: Buffer.from(body).length
-			).toString()
-		: "0";
+	const bodyLen = bodyToLengthString(body);
 
 	const machineID = creds.machineID || getMachineId();
 

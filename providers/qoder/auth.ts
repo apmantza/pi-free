@@ -233,6 +233,63 @@ function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
 
 // ─── OAuth Device Flow ───────────────────────────────────────────────────────
 
+async function buildDeviceFlowCredentials(
+	callbacks: OAuthLoginCallbacks,
+	tokenData: {
+		token: string;
+		user_id: string;
+		refresh_token: string;
+		expires_at?: string;
+		expires_in?: number;
+	},
+	machineID: string,
+): Promise<QoderCredentials> {
+	const expireMs = parseExpiresAt(tokenData.expires_at, tokenData.expires_in);
+
+	(callbacks as unknown as { onProgress?: (msg: string) => void }).onProgress?.(
+		"Fetching user profile...",
+	);
+	let email = "";
+	let name = "";
+	try {
+		const userinfoRes = await fetch(USERINFO_URL, {
+			method: "GET",
+			headers: {
+				Authorization: `Bearer ${tokenData.token}`,
+				Accept: "application/json",
+				"User-Agent": UA,
+			},
+		});
+		if (userinfoRes.ok) {
+			const userinfo = (await userinfoRes.json()) as {
+				email?: string;
+				name?: string;
+				username?: string;
+			};
+			email = userinfo.email || "";
+			name = userinfo.name || userinfo.username || "";
+		}
+	} catch {
+		// Best-effort
+	}
+
+	(callbacks as unknown as { onProgress?: (msg: string) => void }).onProgress?.(
+		"Login successful!",
+	);
+
+	return {
+		refresh: `${tokenData.refresh_token}|${tokenData.user_id}|${machineID}`,
+		access: tokenData.token,
+		expires: expireMs - 5 * 60 * 1000,
+		userID: tokenData.user_id,
+		email,
+		name,
+		machineID,
+	} as QoderCredentials;
+}
+
+// ─── OAuth Device Flow ───────────────────────────────────────────────────────
+
 /**
  * Run the PKCE-based OAuth device code flow.
  * Opens a browser URL for the user to authenticate, then polls for the token.
@@ -283,7 +340,6 @@ async function runDeviceFlow(
 			});
 
 			if (response.status === 202 || response.status === 404) {
-				// Pending
 				continue;
 			}
 
@@ -306,52 +362,11 @@ async function runDeviceFlow(
 				throw new Error("Device token poll returned empty access token");
 			}
 
-			const expireMs = parseExpiresAt(
-				tokenData.expires_at,
-				tokenData.expires_in,
-			);
-
-			// Fetch user info (best effort)
-			(
-				callbacks as unknown as { onProgress?: (msg: string) => void }
-			).onProgress?.("Fetching user profile...");
-			let email = "";
-			let name = "";
-			try {
-				const userinfoRes = await fetch(USERINFO_URL, {
-					method: "GET",
-					headers: {
-						Authorization: `Bearer ${tokenData.token}`,
-						Accept: "application/json",
-						"User-Agent": UA,
-					},
-				});
-				if (userinfoRes.ok) {
-					const userinfo = (await userinfoRes.json()) as {
-						email?: string;
-						name?: string;
-						username?: string;
-					};
-					email = userinfo.email || "";
-					name = userinfo.name || userinfo.username || "";
-				}
-			} catch {
-				// Best-effort
-			}
-
-			(
-				callbacks as unknown as { onProgress?: (msg: string) => void }
-			).onProgress?.("Login successful!");
-
-			return {
-				refresh: `${tokenData.refresh_token}|${tokenData.user_id}|${machineID}`,
-				access: tokenData.token,
-				expires: expireMs - 5 * 60 * 1000,
-				userID: tokenData.user_id,
-				email,
-				name,
+			return buildDeviceFlowCredentials(
+				callbacks,
+				tokenData,
 				machineID,
-			} as QoderCredentials;
+			);
 		} catch (e: unknown) {
 			const err = e as { name?: string };
 			if (err.name === "AbortError" || getSignal()?.aborted) {

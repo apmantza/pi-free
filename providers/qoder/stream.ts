@@ -40,6 +40,15 @@ interface ToolCallState {
 	contentIndex: number;
 }
 
+interface StreamState {
+	output: AssistantMessage;
+	stream: AssistantMessageEventStream;
+	contentBlockIndex: number;
+	thinkingBlockIndex: number;
+	toolCallsState: ToolCallState[];
+	thinkingParser: ThinkingTagParser | null;
+}
+
 function stableHash(prefix: string, ...inputs: string[]): string {
 	const hash = crypto.createHash("sha256");
 	hash.update(prefix);
@@ -81,6 +90,331 @@ function stableChatRecordID(
 	hash.update("\0");
 	hash.update(`mt=${maxTokens}`);
 	return hash.digest("hex").slice(0, 16);
+}
+
+// ─── Delta processing helpers ────────────────────────────────────────────────
+
+function processReasoningDelta(
+	state: StreamState,
+	reasoningContent: string,
+): void {
+	if (state.thinkingBlockIndex === -1) {
+		state.thinkingBlockIndex = state.output.content.length;
+		state.output.content.push({ type: "thinking", thinking: "" });
+		state.stream.push({
+			type: "thinking_start",
+			contentIndex: state.thinkingBlockIndex,
+			partial: state.output,
+		});
+	}
+	const block = state.output.content[state.thinkingBlockIndex] as ThinkingContent;
+	block.thinking += reasoningContent;
+	state.stream.push({
+		type: "thinking_delta",
+		contentIndex: state.thinkingBlockIndex,
+		delta: reasoningContent,
+		partial: state.output,
+	});
+}
+
+function closeThinkingBlock(state: StreamState): void {
+	if (state.thinkingBlockIndex === -1) return;
+	const block = state.output.content[state.thinkingBlockIndex] as ThinkingContent;
+	state.stream.push({
+		type: "thinking_end",
+		contentIndex: state.thinkingBlockIndex,
+		content: block.thinking,
+		partial: state.output,
+	});
+	state.thinkingBlockIndex = -1;
+}
+
+function processTextDelta(
+	state: StreamState,
+	text: string,
+): void {
+	if (state.thinkingParser) {
+		state.thinkingParser.processChunk(text);
+		return;
+	}
+	if (state.contentBlockIndex === -1) {
+		state.contentBlockIndex = state.output.content.length;
+		state.output.content.push({ type: "text", text: "" });
+		state.stream.push({
+			type: "text_start",
+			contentIndex: state.contentBlockIndex,
+			partial: state.output,
+		});
+	}
+	const block = state.output.content[state.contentBlockIndex] as TextContent;
+	block.text += text;
+	state.stream.push({
+		type: "text_delta",
+		contentIndex: state.contentBlockIndex,
+		delta: text,
+		partial: state.output,
+	});
+}
+
+function processToolCallDelta(
+	state: StreamState,
+	tc: { index?: number; id?: string; function?: { name?: string; arguments?: string } },
+): void {
+	const idx = tc.index ?? 0;
+	if (!state.toolCallsState[idx]) {
+		state.toolCallsState[idx] = {
+			arguments: "",
+			id: "",
+			name: "",
+			contentIndex: 0,
+		};
+	}
+	const toolState = state.toolCallsState[idx];
+	if (tc.id) toolState.id = tc.id;
+	if (tc.function?.name) toolState.name = tc.function.name;
+	if (tc.function?.arguments) {
+		const argDelta = tc.function.arguments;
+		toolState.arguments += argDelta;
+
+		if (toolState.emittedStart === undefined) {
+			toolState.emittedStart = true;
+			toolState.contentIndex = state.output.content.length;
+			const block: ToolCall = {
+				type: "toolCall",
+				id: toolState.id,
+				name: toolState.name,
+				arguments: {},
+			};
+			state.output.content.push(block);
+			state.stream.push({
+				type: "toolcall_start",
+				contentIndex: toolState.contentIndex,
+				partial: state.output,
+			});
+		}
+		state.stream.push({
+			type: "toolcall_delta",
+			contentIndex: toolState.contentIndex,
+			delta: argDelta,
+			partial: state.output,
+		});
+	}
+}
+
+function processDelta(state: StreamState, delta: Record<string, unknown>): void {
+	// 1. Reasoning content (API-native)
+	if (delta.reasoning_content) {
+		processReasoningDelta(state, delta.reasoning_content as string);
+	}
+
+	// 2. Text content
+	if (delta.content) {
+		closeThinkingBlock(state);
+		processTextDelta(state, delta.content as string);
+	}
+
+	// 3. Tool calls
+	if (delta.tool_calls && Array.isArray(delta.tool_calls)) {
+		for (const tc of delta.tool_calls) {
+			processToolCallDelta(state, tc);
+		}
+	}
+}
+
+function finalizeToolCalls(state: StreamState): void {
+	for (const toolState of state.toolCallsState) {
+		if (toolState?.emittedStart && !toolState.emittedEnd) {
+			toolState.emittedEnd = true;
+			let args = {};
+			try {
+				args = JSON.parse(toolState.arguments || "{}");
+			} catch {
+				// Invalid JSON args — use empty object
+			}
+			const block = state.output.content[toolState.contentIndex] as ToolCall;
+			block.arguments = args;
+			state.stream.push({
+				type: "toolcall_end",
+				contentIndex: toolState.contentIndex,
+				toolCall: {
+					type: "toolCall",
+					id: toolState.id,
+					name: toolState.name,
+					arguments: args,
+				},
+				partial: state.output,
+			});
+		}
+	}
+}
+
+// ─── SSE parsing ─────────────────────────────────────────────────────────────
+
+async function consumeSSEStream(
+	state: StreamState,
+	reader: ReadableStreamDefaultReader<Uint8Array>,
+): Promise<void> {
+	const decoder = new TextDecoder();
+	let buffer = "";
+
+	while (true) {
+		const { done, value } = await reader.read();
+		if (done) break;
+
+		buffer += decoder.decode(value, { stream: true });
+
+		while (true) {
+			const lineEnd = buffer.indexOf("\n");
+			if (lineEnd === -1) break;
+
+			const line = buffer.substring(0, lineEnd).trim();
+			buffer = buffer.substring(lineEnd + 1);
+
+			if (!line.startsWith("data:")) continue;
+
+			const dataStr = line.slice(5).trim();
+			if (dataStr === "[DONE]") break;
+
+			try {
+				const envelope = JSON.parse(dataStr);
+				if (envelope.statusCodeValue && envelope.statusCodeValue !== 200) {
+					throw new Error(
+						`Upstream status ${envelope.statusCodeValue}: ${envelope.body}`,
+					);
+				}
+
+				const innerStr = envelope.body;
+				if (!innerStr || innerStr === "[DONE]") continue;
+
+				const inner = JSON.parse(innerStr);
+				if (inner.choices && inner.choices.length > 0) {
+					const choice = inner.choices[0];
+					if (choice.delta) {
+						processDelta(state, choice.delta);
+					}
+					if (choice.finish_reason) {
+						state.output.stopReason = choice.finish_reason;
+					}
+				}
+			} catch {
+				// Skip unparseable SSE lines
+			}
+		}
+	}
+}
+
+// ─── Request builder ─────────────────────────────────────────────────────────
+
+async function fetchQoderStream(
+	accessToken: string,
+	qoderModel: string,
+	modelConfig: Record<string, unknown>,
+	normalizedMessages: unknown[],
+	lastUserText: string,
+	systemText: string,
+	maxTokens: number,
+	toolsRaw: unknown,
+	recordID: string,
+	userID: string,
+	name: string,
+	email: string,
+	machineID: string,
+	signal?: AbortSignal,
+): Promise<ReadableStream<Uint8Array>> {
+	const sessionID = stableHash("qoder-session", userID, qoderModel);
+
+	const isReasoning = !!modelConfig.is_reasoning;
+
+	const reqBody: Record<string, unknown> = {
+		request_id: crypto.randomUUID(),
+		request_set_id: recordID,
+		chat_record_id: recordID,
+		session_id: sessionID,
+		stream: true,
+		chat_task: "FREE_INPUT",
+		is_reply: true,
+		is_retry: false,
+		source: 1,
+		version: "3",
+		session_type: "qodercli",
+		agent_id: "agent_common",
+		task_id: "common",
+		code_language: "",
+		chat_prompt: "",
+		image_urls: null,
+		aliyun_user_type: "",
+		system: systemText,
+		messages: normalizedMessages,
+		tools: toolsRaw || [],
+		parameters: { max_tokens: maxTokens },
+		chat_context: {
+			chatPrompt: "",
+			imageUrls: null,
+			extra: {
+				context: [],
+				modelConfig: {
+					key: qoderModel,
+					is_reasoning: isReasoning,
+				},
+				originalContent: lastUserText,
+			},
+			features: [],
+			text: lastUserText,
+		},
+		model_config: modelConfig,
+		business: {
+			product: "cli",
+			version: "1.0.0",
+			type: "agent",
+			stage: "start",
+			id: crypto.randomUUID(),
+			name: lastUserText.substring(0, 30),
+			begin_at: Date.now(),
+		},
+	};
+
+	const bodyBytes = Buffer.from(JSON.stringify(reqBody));
+	const encodedBody = qoderEncodeBody(bodyBytes);
+	const encodedBytes = Buffer.from(encodedBody, "utf8");
+
+	const chatURL =
+		"https://api3.qoder.sh/algo/api/v2/service/pro/sse/agent_chat_generation?FetchKeys=llm_model_result&AgentId=agent_common&Encode=1";
+
+	const headers = buildAuthHeaders(encodedBytes, chatURL, {
+		userID,
+		authToken: accessToken,
+		name,
+		email,
+		machineID,
+	});
+
+	const modelSource = modelConfig.source || "system";
+
+	const response = await fetch(chatURL, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			Accept: "text/event-stream",
+			"Cache-Control": "no-cache",
+			"Accept-Encoding": "identity",
+			"X-Model-Key": qoderModel,
+			"X-Model-Source": modelSource as string,
+			...headers,
+		},
+		body: encodedBytes,
+		signal,
+	});
+
+	if (!response.ok) {
+		const errText = await response.text();
+		throw new Error(
+			`Qoder API request failed: ${response.status} ${response.statusText}. Response: ${errText}`,
+		);
+	}
+
+	const body = response.body;
+	if (!body) throw new Error("No response body");
+	return body;
 }
 
 // ─── Stream handler ──────────────────────────────────────────────────────────
@@ -126,422 +460,172 @@ export function streamQoder(
 	};
 
 	// Run async — AssistantMessageEventStream is a push-based pull stream
-	(async () => {
-		try {
-			const accessToken = options?.apiKey;
-			if (!accessToken) {
-				throw new Error(
-					"Qoder credentials not set. Run /login qoder or set QODER_PERSONAL_ACCESS_TOKEN.",
-				);
-			}
-
-			// Resolve user details from cached credentials
-			const cachedCreds = getCachedCredentials();
-			const userID = cachedCreds?.userID || "qoder-user";
-			const name = cachedCreds?.name || "Qoder User";
-			const email = cachedCreds?.email || "user@qoder.com";
-			const machineID = cachedCreds?.machineID || getMachineId();
-
-			const qoderModel = model.id;
-			const modelConfig = getCachedModelConfig(qoderModel) || {
-				key: qoderModel,
-				is_reasoning:
-					qoderModel === "ultimate" ||
-					qoderModel === "performance" ||
-					qoderModel.includes("dmodel") ||
-					qoderModel.includes("dfmodel"),
-				max_output_tokens: 32768,
-				source: "system",
-			};
-			modelConfig.key = qoderModel;
-
-			const isReasoning = !!modelConfig.is_reasoning;
-			const maxOutputTokens = modelConfig.max_output_tokens || 32768;
-
-			const normalizedMessages = transformMessagesForQoder(context.messages);
-			const systemText = context.systemPrompt || "";
-
-			// Extract the last user message text for the chat context
-			let lastUserText = "";
-			for (let i = normalizedMessages.length - 1; i >= 0; i--) {
-				if (normalizedMessages[i].role === "user") {
-					const content = normalizedMessages[i].content;
-					lastUserText =
-						typeof content === "string"
-							? content
-							: Array.isArray(content)
-								? content.map((c) => ("text" in c ? c.text : "")).join("")
-								: "";
-					break;
-				}
-			}
-
-			const sessionID = stableHash("qoder-session", userID, qoderModel);
-
-			let maxTokens = 32768;
-			if (maxOutputTokens > 0) {
-				maxTokens = maxOutputTokens;
-			}
-			if (options?.maxTokens && options.maxTokens < maxTokens) {
-				maxTokens = options.maxTokens;
-			}
-
-			const toolsRaw =
-				context.tools && context.tools.length > 0
-					? transformTools(context.tools)
-					: undefined;
-			const recordID = stableChatRecordID(
-				qoderModel,
-				normalizedMessages,
-				toolsRaw,
-				maxTokens,
-			);
-
-			// Build the proprietary Qoder request body
-			const reqBody: Record<string, unknown> = {
-				request_id: crypto.randomUUID(),
-				request_set_id: recordID,
-				chat_record_id: recordID,
-				session_id: sessionID,
-				stream: true,
-				chat_task: "FREE_INPUT",
-				is_reply: true,
-				is_retry: false,
-				source: 1,
-				version: "3",
-				session_type: "qodercli",
-				agent_id: "agent_common",
-				task_id: "common",
-				code_language: "",
-				chat_prompt: "",
-				image_urls: null,
-				aliyun_user_type: "",
-				system: systemText,
-				messages: normalizedMessages,
-				tools: toolsRaw || [],
-				parameters: { max_tokens: maxTokens },
-				chat_context: {
-					chatPrompt: "",
-					imageUrls: null,
-					extra: {
-						context: [],
-						modelConfig: {
-							key: qoderModel,
-							is_reasoning: isReasoning,
-						},
-						originalContent: lastUserText,
-					},
-					features: [],
-					text: lastUserText,
-				},
-				model_config: modelConfig,
-				business: {
-					product: "cli",
-					version: "1.0.0",
-					type: "agent",
-					stage: "start",
-					id: crypto.randomUUID(),
-					name: lastUserText.substring(0, 30),
-					begin_at: Date.now(),
-				},
-			};
-
-			const bodyBytes = Buffer.from(JSON.stringify(reqBody));
-			const encodedBody = qoderEncodeBody(bodyBytes);
-			const encodedBytes = Buffer.from(encodedBody, "utf8");
-
-			const chatURL =
-				"https://api3.qoder.sh/algo/api/v2/service/pro/sse/agent_chat_generation?FetchKeys=llm_model_result&AgentId=agent_common&Encode=1";
-
-			const headers = buildAuthHeaders(encodedBytes, chatURL, {
-				userID,
-				authToken: accessToken,
-				name,
-				email,
-				machineID,
-			});
-
-			const modelSource =
-				(modelConfig as Record<string, unknown>).source || "system";
-
-			const response = await fetch(chatURL, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Accept: "text/event-stream",
-					"Cache-Control": "no-cache",
-					"Accept-Encoding": "identity",
-					"X-Model-Key": qoderModel,
-					"X-Model-Source": modelSource as string,
-					...headers,
-				},
-				body: encodedBytes,
-				signal: options?.signal,
-			});
-
-			if (!response.ok) {
-				const errText = await response.text();
-				throw new Error(
-					`Qoder API request failed: ${response.status} ${response.statusText}. Response: ${errText}`,
-				);
-			}
-
-			const reader = response.body?.getReader();
-			if (!reader) throw new Error("No response body");
-			const decoder = new TextDecoder();
-			let buffer = "";
-
-			let contentBlockIndex = -1;
-			let thinkingBlockIndex = -1;
-			const toolCallsState: ToolCallState[] = [];
-
-			const thinkingEnabled =
-				(options?.reasoning as unknown) !== false &&
-				(options?.reasoning as unknown) !== "off";
-			const thinkingParser = thinkingEnabled
-				? new ThinkingTagParser(output, stream)
-				: null;
-
-			stream.push({ type: "start", partial: output });
-
-			// ── SSE parsing loop ──────────────────────────────────
-			while (true) {
-				const { done, value } = await reader.read();
-				if (done) break;
-
-				buffer += decoder.decode(value, { stream: true });
-
-				while (true) {
-					const lineEnd = buffer.indexOf("\n");
-					if (lineEnd === -1) break;
-
-					const line = buffer.substring(0, lineEnd).trim();
-					buffer = buffer.substring(lineEnd + 1);
-
-					if (!line.startsWith("data:")) continue;
-
-					const dataStr = line.slice(5).trim();
-					if (dataStr === "[DONE]") break;
-
-					try {
-						const envelope = JSON.parse(dataStr);
-						if (envelope.statusCodeValue && envelope.statusCodeValue !== 200) {
-							throw new Error(
-								`Upstream status ${envelope.statusCodeValue}: ${envelope.body}`,
-							);
-						}
-
-						const innerStr = envelope.body;
-						if (!innerStr || innerStr === "[DONE]") continue;
-
-						const inner = JSON.parse(innerStr);
-						if (inner.choices && inner.choices.length > 0) {
-							const choice = inner.choices[0];
-							const delta = choice.delta;
-
-							if (delta) {
-								// 1. Reasoning content (API-native)
-								if (delta.reasoning_content) {
-									if (thinkingBlockIndex === -1) {
-										thinkingBlockIndex = output.content.length;
-										output.content.push({
-											type: "thinking",
-											thinking: "",
-										});
-										stream.push({
-											type: "thinking_start",
-											contentIndex: thinkingBlockIndex,
-											partial: output,
-										});
-									}
-									const block = output.content[
-										thinkingBlockIndex
-									] as ThinkingContent;
-									block.thinking += delta.reasoning_content;
-									stream.push({
-										type: "thinking_delta",
-										contentIndex: thinkingBlockIndex,
-										delta: delta.reasoning_content,
-										partial: output,
-									});
-								}
-
-								// 2. Text content
-								if (delta.content) {
-									// End API thinking block if active
-									if (thinkingBlockIndex !== -1) {
-										const block = output.content[
-											thinkingBlockIndex
-										] as ThinkingContent;
-										stream.push({
-											type: "thinking_end",
-											contentIndex: thinkingBlockIndex,
-											content: block.thinking,
-											partial: output,
-										});
-										thinkingBlockIndex = -1;
-									}
-
-									if (thinkingParser) {
-										thinkingParser.processChunk(delta.content);
-									} else {
-										if (contentBlockIndex === -1) {
-											contentBlockIndex = output.content.length;
-											output.content.push({
-												type: "text",
-												text: "",
-											});
-											stream.push({
-												type: "text_start",
-												contentIndex: contentBlockIndex,
-												partial: output,
-											});
-										}
-										const block = output.content[
-											contentBlockIndex
-										] as TextContent;
-										block.text += delta.content;
-										stream.push({
-											type: "text_delta",
-											contentIndex: contentBlockIndex,
-											delta: delta.content,
-											partial: output,
-										});
-									}
-								}
-
-								// 3. Tool calls
-								if (delta.tool_calls && Array.isArray(delta.tool_calls)) {
-									for (const tc of delta.tool_calls) {
-										const idx = tc.index ?? 0;
-										if (!toolCallsState[idx]) {
-											toolCallsState[idx] = {
-												arguments: "",
-												id: "",
-												name: "",
-												contentIndex: 0,
-											};
-										}
-										const state = toolCallsState[idx];
-										if (tc.id) state.id = tc.id;
-										if (tc.function?.name) state.name = tc.function.name;
-										if (tc.function?.arguments) {
-											const argDelta = tc.function.arguments;
-											state.arguments += argDelta;
-
-											if (state.emittedStart === undefined) {
-												state.emittedStart = true;
-												state.contentIndex = output.content.length;
-												const block: ToolCall = {
-													type: "toolCall",
-													id: state.id,
-													name: state.name,
-													arguments: {},
-												};
-												output.content.push(block);
-												stream.push({
-													type: "toolcall_start",
-													contentIndex: state.contentIndex,
-													partial: output,
-												});
-											}
-											stream.push({
-												type: "toolcall_delta",
-												contentIndex: state.contentIndex,
-												delta: argDelta,
-												partial: output,
-											});
-										}
-									}
-								}
-							}
-
-							if (choice.finish_reason) {
-								output.stopReason = choice.finish_reason;
-							}
-						}
-					} catch {
-						// Skip unparseable SSE lines
-					}
-				}
-			}
-
-			// Finalize thinking parser if active
-			if (thinkingParser) {
-				thinkingParser.finalize();
-			}
-
-			// Close any remaining thinking block
-			if (thinkingBlockIndex !== -1) {
-				const block = output.content[thinkingBlockIndex] as ThinkingContent;
-				stream.push({
-					type: "thinking_end",
-					contentIndex: thinkingBlockIndex,
-					content: block.thinking,
-					partial: output,
-				});
-			}
-
-			// Finalize tool calls
-			for (const state of toolCallsState) {
-				if (state?.emittedStart && !state.emittedEnd) {
-					state.emittedEnd = true;
-					let args = {};
-					try {
-						args = JSON.parse(state.arguments || "{}");
-					} catch {
-						// Invalid JSON args — use empty object
-					}
-					const block = output.content[state.contentIndex] as ToolCall;
-					block.arguments = args;
-					stream.push({
-						type: "toolcall_end",
-						contentIndex: state.contentIndex,
-						toolCall: {
-							type: "toolCall",
-							id: state.id,
-							name: state.name,
-							arguments: args,
-						},
-						partial: output,
-					});
-				}
-			}
-
-			if (toolCallsState.length > 0) {
-				output.stopReason = "toolUse";
-			} else if (!output.stopReason || output.stopReason === "stop") {
-				// Only default to "stop" if the API didn't provide a finish_reason
-				output.stopReason = "stop";
-			}
-
-			stream.push({
-				type: "done",
-				reason: output.stopReason as "stop" | "toolUse",
-				message: output,
-			});
-			stream.end();
-		} catch (e: unknown) {
-			const logger = (await import("../../lib/logger.ts")).createLogger(
-				"qoder",
-			);
-			logger.error("stream error", {
-				error: e instanceof Error ? e.message : String(e),
-			});
-			output.stopReason = options?.signal?.aborted ? "aborted" : "error";
-			output.errorMessage = e instanceof Error ? e.message : String(e);
-			stream.push({
-				type: "error",
-				reason: output.stopReason,
-				error: output,
-			});
-			try {
-				stream.end();
-			} catch {
-				// Stream may already be ended
-			}
-		}
-	})();
+	runStream(output, stream, model, context, options);
 
 	return stream;
+}
+
+async function runStream(
+	output: AssistantMessage,
+	stream: AssistantMessageEventStream,
+	model: Model<Api>,
+	context: Context,
+	options: SimpleStreamOptions | undefined,
+): Promise<void> {
+	try {
+		const accessToken = options?.apiKey;
+		if (!accessToken) {
+			throw new Error(
+				"Qoder credentials not set. Run /login qoder or set QODER_PERSONAL_ACCESS_TOKEN.",
+			);
+		}
+
+		const cachedCreds = getCachedCredentials();
+		const userID = cachedCreds?.userID || "qoder-user";
+		const name = cachedCreds?.name || "Qoder User";
+		const email = cachedCreds?.email || "user@qoder.com";
+		const machineID = cachedCreds?.machineID || getMachineId();
+
+		const qoderModel = model.id;
+		const modelConfig = getCachedModelConfig(qoderModel) || {
+			key: qoderModel,
+			is_reasoning: isReasoningModel(qoderModel),
+			max_output_tokens: 32768,
+			source: "system",
+		};
+		modelConfig.key = qoderModel;
+
+		const maxOutputTokens = modelConfig.max_output_tokens || 32768;
+
+		const normalizedMessages = transformMessagesForQoder(context.messages);
+		const systemText = context.systemPrompt || "";
+		const lastUserText = extractLastUserText(normalizedMessages);
+
+		const maxTokens = resolveMaxTokens(maxOutputTokens, options?.maxTokens);
+
+		const toolsRaw =
+			context.tools && context.tools.length > 0
+				? transformTools(context.tools)
+				: undefined;
+		const recordID = stableChatRecordID(
+			qoderModel,
+			normalizedMessages,
+			toolsRaw,
+			maxTokens,
+		);
+
+		// Determine thinking mode
+		const thinkingEnabled = isThinkingEnabled(options?.reasoning);
+		const thinkingParser = thinkingEnabled
+			? new ThinkingTagParser(output, stream)
+			: null;
+
+		const state: StreamState = {
+			output,
+			stream,
+			contentBlockIndex: -1,
+			thinkingBlockIndex: -1,
+			toolCallsState: [],
+			thinkingParser,
+		};
+
+		stream.push({ type: "start", partial: output });
+
+		const reader = await fetchQoderStream(
+			accessToken,
+			qoderModel,
+			modelConfig,
+			normalizedMessages,
+			lastUserText,
+			systemText,
+			maxTokens,
+			toolsRaw,
+			recordID,
+			userID,
+			name,
+			email,
+			machineID,
+			options?.signal,
+		).then((s) => s.getReader());
+
+		await consumeSSEStream(state, reader);
+
+		// Finalize
+		if (thinkingParser) {
+			thinkingParser.finalize();
+		}
+		closeThinkingBlock(state);
+		finalizeToolCalls(state);
+
+		if (state.toolCallsState.length > 0) {
+			output.stopReason = "toolUse";
+		} else if (!output.stopReason || output.stopReason === "stop") {
+			output.stopReason = "stop";
+		}
+
+		stream.push({
+			type: "done",
+			reason: output.stopReason as "stop" | "toolUse",
+			message: output,
+		});
+		stream.end();
+	} catch (e: unknown) {
+		const logger = (await import("../../lib/logger.ts")).createLogger("qoder");
+		logger.error("stream error", {
+			error: e instanceof Error ? e.message : String(e),
+		});
+		output.stopReason = options?.signal?.aborted ? "aborted" : "error";
+		output.errorMessage = e instanceof Error ? e.message : String(e);
+		stream.push({
+			type: "error",
+			reason: output.stopReason,
+			error: output,
+		});
+		try {
+			stream.end();
+		} catch {
+			// Stream may already be ended
+		}
+	}
+}
+
+// ─── Small pure helpers ──────────────────────────────────────────────────────
+
+function isReasoningModel(modelId: string): boolean {
+	return (
+		modelId === "ultimate" ||
+		modelId === "performance" ||
+		modelId.includes("dmodel") ||
+		modelId.includes("dfmodel")
+	);
+}
+
+function extractLastUserText(
+	messages: Array<{ role?: string; content?: unknown }>,
+): string {
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const msg = messages[i];
+		if (msg?.role !== "user") continue;
+		const content = msg.content;
+		if (typeof content === "string") return content;
+		if (Array.isArray(content)) {
+			return content.map((c) => ("text" in c ? c.text : "")).join("");
+		}
+	}
+	return "";
+}
+
+function resolveMaxTokens(maxOutputTokens: number, requested?: number): number {
+	let maxTokens = 32768;
+	if (maxOutputTokens > 0) {
+		maxTokens = maxOutputTokens;
+	}
+	if (requested && requested < maxTokens) {
+		maxTokens = requested;
+	}
+	return maxTokens;
+}
+
+function isThinkingEnabled(reasoning: unknown): boolean {
+	return reasoning !== false && reasoning !== "off";
 }

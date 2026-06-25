@@ -162,6 +162,46 @@ interface QoderModelEntry {
 
 // ─── Cache management ────────────────────────────────────────────────────────
 
+function modelEntryToConfig(
+	entry: QoderModelEntry,
+): ProviderModelConfig | null {
+	const key = entry.key;
+	if (!key || !entry.enable) return null;
+
+	const display = entry.display_name || key;
+	const ctxLen = resolveContextLength(entry);
+	const isVL = !!entry.is_vl;
+	const isReasoning = !!entry.is_reasoning || !!entry.thinking_config;
+	const input: ("text" | "image")[] = isVL ? ["text", "image"] : ["text"];
+
+	return {
+		id: key,
+		name: display,
+		reasoning: isReasoning,
+		input,
+		cost: ZERO_COST,
+		contextWindow: ctxLen,
+		maxTokens: entry.max_output_tokens || 32_768,
+	};
+}
+
+function resolveContextLength(entry: QoderModelEntry): number {
+	let ctxLen = entry.max_input_tokens || 180_000;
+	if (entry.context_config && typeof entry.context_config === "object") {
+		for (const val of Object.values(entry.context_config)) {
+			if (
+				val &&
+				typeof val === "object" &&
+				typeof (val as Record<string, unknown>).token_count === "number"
+			) {
+				const tc = (val as Record<string, number>).token_count;
+				if (tc > ctxLen) ctxLen = tc;
+			}
+		}
+	}
+	return ctxLen;
+}
+
 /** Get models from cache, falling back to static models. */
 export function getCachedModels(): ProviderModelConfig[] {
 	if (existsSync(CACHE_PATH)) {
@@ -183,7 +223,7 @@ export function isCacheStale(): boolean {
 	try {
 		const data = JSON.parse(readFileSync(CACHE_PATH, "utf8"));
 		if (!data || typeof data.updatedAt !== "number") return true;
-		return Date.now() - data.updatedAt > 3600_000; // 1 hour
+		return Date.now() - data.updatedAt > 3_600_000; // 1 hour
 	} catch {
 		return true;
 	}
@@ -228,38 +268,10 @@ export async function updateQoderModelsCache(
 		const configs: Record<string, QoderModelEntry> = {};
 
 		for (const entry of chatModels) {
-			const key = entry.key;
-			if (!key || !entry.enable) continue;
-
-			const display = entry.display_name || key;
-			let ctxLen = entry.max_input_tokens || 180_000;
-			if (entry.context_config && typeof entry.context_config === "object") {
-				for (const configVal of Object.values(entry.context_config)) {
-					if (
-						configVal &&
-						typeof configVal === "object" &&
-						typeof configVal.token_count === "number"
-					) {
-						const tc = configVal.token_count;
-						if (tc > ctxLen) ctxLen = tc;
-					}
-				}
-			}
-			const isVL = !!entry.is_vl;
-			const isReasoning = !!entry.is_reasoning || !!entry.thinking_config;
-			const input: ("text" | "image")[] = isVL ? ["text", "image"] : ["text"];
-
-			configs[key] = entry;
-
-			newModels.push({
-				id: key,
-				name: display,
-				reasoning: isReasoning,
-				input,
-				cost: ZERO_COST,
-				contextWindow: ctxLen,
-				maxTokens: entry.max_output_tokens || 32_768,
-			});
+			const model = modelEntryToConfig(entry);
+			if (!model) continue;
+			configs[model.id] = entry;
+			newModels.push(model);
 		}
 
 		if (newModels.length === 0) return;
