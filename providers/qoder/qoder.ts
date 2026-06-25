@@ -48,6 +48,32 @@ export default async function qoderProvider(pi: ExtensionAPI) {
 	);
 	const stored = { free: freeModels, all: allModels };
 
+	// ── OAuth config (defined before reRegister so it's always available) ──
+	const oauthConfig = {
+		name: "Qoder (Browser OAuth / PAT)",
+		login: async (callbacks: any): Promise<OAuthCredentials> => {
+			const cred = await loginQoder(callbacks);
+
+			// After login, refresh models from API
+			try {
+				const accessToken = cred.access as string;
+				const creds = getCachedCredentials();
+				await refreshModels(
+					accessToken,
+					creds?.userID || "qoder-user",
+					creds?.name || "Qoder User",
+					creds?.email || "user@qoder.com",
+				);
+			} catch {
+				// Best-effort
+			}
+
+			return cred;
+		},
+		refreshToken: refreshQoderToken,
+		getApiKey: (cred: OAuthCredentials) => cred.access,
+	};
+
 	// Re-register function — called by toggle, session refresh, login
 	const reRegister = (models: ProviderModelConfig[]) => {
 		const enhanced = enhanceWithCI(models, PROVIDER_QODER);
@@ -60,49 +86,48 @@ export default async function qoderProvider(pi: ExtensionAPI) {
 		});
 	};
 
+	// ── Helper: refresh models from API and re-register ──
+	const refreshModels = async (
+		accessToken: string,
+		userID: string,
+		name: string,
+		email: string,
+	) => {
+		await updateQoderModelsCache(accessToken, userID, name, email);
+		const fresh = getCachedModels();
+		if (fresh.length > 0) {
+			allModels = fresh;
+			freeModels = fresh.filter((m) =>
+				isFreeModel({ ...m, provider: PROVIDER_QODER }, fresh),
+			);
+			stored.all = allModels;
+			stored.free = freeModels;
+			reRegister(allModels);
+			logger.info(`[qoder] Models refreshed: ${allModels.length}`);
+		}
+	};
+
 	// Register with global toggle system so it participates in /toggle-free
 	registerWithGlobalToggle(PROVIDER_QODER, stored, (m) => reRegister(m), false);
 
+	// If user is already authenticated and cache is stale, refresh at startup
+	// (mirrors kilo/cline pattern: check cache freshness before hitting network)
+	try {
+		const cachedCreds = getCachedCredentials();
+		if (cachedCreds?.access && isCacheStale()) {
+			await refreshModels(
+				cachedCreds.access as string,
+				cachedCreds.userID || "qoder-user",
+				cachedCreds.name || "Qoder User",
+				cachedCreds.email || "user@qoder.com",
+			);
+		}
+	} catch {
+		// Best-effort: fall back to cached / static models
+	}
+
 	// Initial registration
 	reRegister(allModels);
-
-	// ── OAuth config ──────────────────────────────────────────────────────
-	const oauthConfig = {
-		name: "Qoder (Browser OAuth / PAT)",
-		login: async (callbacks: any): Promise<OAuthCredentials> => {
-			const cred = await loginQoder(callbacks);
-
-			// After login, refresh models from API
-			try {
-				const accessToken = cred.access as string;
-				const creds = getCachedCredentials();
-				const userID = creds?.userID || "qoder-user";
-				const name = creds?.name || "Qoder User";
-				const email = creds?.email || "user@qoder.com";
-				await updateQoderModelsCache(accessToken, userID, name, email);
-
-				const fresh = getCachedModels();
-				if (fresh.length > 0) {
-					allModels = fresh;
-					freeModels = fresh.filter((m) =>
-						isFreeModel({ ...m, provider: PROVIDER_QODER }, fresh),
-					);
-					stored.all = allModels;
-					stored.free = freeModels;
-					reRegister(allModels);
-					logger.info(
-						`[qoder] Models refreshed after login: ${allModels.length}`,
-					);
-				}
-			} catch {
-				// Best-effort
-			}
-
-			return cred;
-		},
-		refreshToken: refreshQoderToken,
-		getApiKey: (cred: OAuthCredentials) => cred.access,
-	};
 
 	// Refresh models cache on session_start if stale (>1h old)
 	pi.on("session_start", async (_event, ctx) => {
@@ -111,22 +136,12 @@ export default async function qoderProvider(pi: ExtensionAPI) {
 				await ctx.modelRegistry.getApiKeyForProvider(PROVIDER_QODER);
 			if (!accessToken || !isCacheStale()) return;
 			const creds = getCachedCredentials();
-			const userID = creds?.userID || "qoder-user";
-			const name = creds?.name || "Qoder User";
-			const email = creds?.email || "user@qoder.com";
-			await updateQoderModelsCache(accessToken, userID, name, email);
-
-			const fresh = getCachedModels();
-			if (fresh.length > 0) {
-				allModels = fresh;
-				freeModels = fresh.filter((m) =>
-					isFreeModel({ ...m, provider: PROVIDER_QODER }, fresh),
-				);
-				stored.all = allModels;
-				stored.free = freeModels;
-				reRegister(allModels);
-				logger.info(`[qoder] Cache refreshed: ${allModels.length} models`);
-			}
+			await refreshModels(
+				accessToken,
+				creds?.userID || "qoder-user",
+				creds?.name || "Qoder User",
+				creds?.email || "user@qoder.com",
+			);
 		} catch {
 			// Best-effort: fall back to existing cache / static models
 		}
