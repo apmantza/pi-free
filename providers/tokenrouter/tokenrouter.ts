@@ -112,12 +112,9 @@ function isTokenRouterModel(model: { provider?: string }): boolean {
 
 // =============================================================================
 // Known Free Models
-// TokenRouter doesn't expose pricing via /v1/models, so known-free models
-// are hardcoded. Detected via name suffix also catches `:free`-tagged models.
+// TokenRouter doesn't expose pricing via /v1/models.
+// Known-free detection uses `:free` name suffix for promotional models.
 // =============================================================================
-
-const MINIMAX_M3_ID = "MiniMax-M3";
-const KNOWN_FREE_MODELS = new Set([MINIMAX_M3_ID]);
 const TOKENROUTER_OPENAI_API = "tokenrouter-openai-completions" as const;
 const TOKENROUTER_HIGH_LOAD_RETRY_DELAY_MS = 30_000;
 const MINIMAX_ADAPTIVE_COMPAT: NonNullable<ProviderModelConfig["compat"]> = {
@@ -482,7 +479,7 @@ export function mapTokenRouterModel(
 	const reasoning = isMinimax || isLikelyReasoningModel({ id: model.id, name });
 	const isResponseApi =
 		model.supported_endpoint_types.includes("openai-response");
-	const isKnownFree = KNOWN_FREE_MODELS.has(model.id);
+	const isKnownFree = model.id.toLowerCase().endsWith(":free");
 
 	return {
 		id: model.id,

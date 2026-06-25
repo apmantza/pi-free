@@ -47,16 +47,11 @@ const _logger = createLogger("bai");
 // =============================================================================
 // Known Free Models
 // B.AI doesn't expose pricing via /v1/models, so known-free models are
-// hardcoded. The site currently advertises `MiniMax-M3` as a limited-time
-// free promotional model; we hardcode that alias and any future `:free`
-// suffixed IDs (catches dynamic promotional additions).
+// detected by name suffix. Catches `:free`-tagged models the gateway
+// advertises as promotional.
 // =============================================================================
 
-const BAI_KNOWN_FREE_MODELS = new Set(["minimax-m3", "MiniMax-M3"]);
-
 function isBaiKnownFree(modelId: string): boolean {
-	if (BAI_KNOWN_FREE_MODELS.has(modelId)) return true;
-	// Catch any future `:free` suffixed model the gateway advertises
 	return modelId.toLowerCase().endsWith(":free");
 }
 
