@@ -170,8 +170,8 @@ function modelEntryToConfig(
 
 	const display = entry.display_name || key;
 	const ctxLen = resolveContextLength(entry);
-	const isVL = !!entry.is_vl;
-	const isReasoning = !!entry.is_reasoning || !!entry.thinking_config;
+	const isVL = Boolean(entry.is_vl);
+	const isReasoning = Boolean(entry.is_reasoning) || Boolean(entry.thinking_config);
 	const input: ("text" | "image")[] = isVL ? ["text", "image"] : ["text"];
 
 	return {

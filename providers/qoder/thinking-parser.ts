@@ -216,7 +216,13 @@ export class ThinkingTagParser {
 	private emitThinking(thinking: string): void {
 		if (thinking.length === 0) return;
 		if (this.thinkingBlockIndex === null) {
-			if (this.textBlockIndex !== null) {
+			if (this.textBlockIndex === null) {
+				this.thinkingBlockIndex = this.output.content.length;
+				this.output.content.push({
+					type: "thinking",
+					thinking: "",
+				} as ThinkingContent);
+			} else {
 				// Insert thinking block before the existing text block
 				this.thinkingBlockIndex = this.textBlockIndex;
 				this.output.content.splice(this.thinkingBlockIndex, 0, {
@@ -224,12 +230,6 @@ export class ThinkingTagParser {
 					thinking: "",
 				} as ThinkingContent);
 				this.textBlockIndex = this.textBlockIndex + 1;
-			} else {
-				this.thinkingBlockIndex = this.output.content.length;
-				this.output.content.push({
-					type: "thinking",
-					thinking: "",
-				} as ThinkingContent);
 			}
 			this.stream.push({
 				type: "thinking_start",

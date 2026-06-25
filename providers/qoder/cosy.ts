@@ -57,13 +57,15 @@ export interface CosyCredentials {
 	machineID?: string;
 }
 
-function bodyToUtf8(body: Buffer | string | null): string {
+type BodyInput = Buffer | string | null;
+
+function bodyToUtf8(body: BodyInput): string {
 	if (!body) return "";
 	if (Buffer.isBuffer(body)) return body.toString("utf8");
 	return body;
 }
 
-function bodyToLengthString(body: Buffer | string | null): string {
+function bodyToLengthString(body: BodyInput): string {
 	if (!body) return "0";
 	if (Buffer.isBuffer(body)) return String(body.length);
 	return String(Buffer.from(body).length);
@@ -81,7 +83,20 @@ function rsaEncryptBase64(data: Buffer | string): string {
 	return encrypted.toString("base64");
 }
 
+/**
+ * Encrypt plaintext with AES-128-CBC using the same key for both key and IV.
+ *
+ * NOTE: Using key as IV is insecure in general and would be flagged by static
+ * analysis tools. However, this is a strict requirement of Qoder's COSY protocol
+ * (reverse-engineered from the official CLI). Changing the mode or IV derivation
+ * will cause authentication failures.
+ *
+ * @param plaintext - Data to encrypt
+ * @param keyStr - 16-byte hex key (also used as IV per protocol spec)
+ * @returns Base64-encoded ciphertext
+ */
 function aesEncryptCBCBase64(plaintext: string, keyStr: string): string {
+	// sonar-security: AES-CBC with key-as-IV is protocol-mandatory for Qoder COSY auth
 	const cipher = crypto.createCipheriv(
 		"aes-128-cbc",
 		Buffer.from(keyStr),
@@ -185,8 +200,10 @@ export function buildAuthHeaders(
 
 	const bodyStr = bodyToUtf8(body);
 	const sigInput = `${payloadB64}\n${cosyKey}\n${timestamp}\n${bodyStr}\n${sigPath}`;
+	// sonar-security: MD5 is protocol-mandatory for COSY signature (reverse-engineered from Qoder CLI)
 	const sig = crypto.createHash("md5").update(sigInput).digest("hex");
 
+	// sonar-security: MD5 is protocol-mandatory for COSY body hash (reverse-engineered from Qoder CLI)
 	const bodyHash = crypto
 		.createHash("md5")
 		.update(body || "")

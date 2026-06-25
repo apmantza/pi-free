@@ -107,7 +107,9 @@ function processReasoningDelta(
 			partial: state.output,
 		});
 	}
-	const block = state.output.content[state.thinkingBlockIndex] as ThinkingContent;
+	const block = state.output.content[
+		state.thinkingBlockIndex
+	] as ThinkingContent;
 	block.thinking += reasoningContent;
 	state.stream.push({
 		type: "thinking_delta",
@@ -119,7 +121,9 @@ function processReasoningDelta(
 
 function closeThinkingBlock(state: StreamState): void {
 	if (state.thinkingBlockIndex === -1) return;
-	const block = state.output.content[state.thinkingBlockIndex] as ThinkingContent;
+	const block = state.output.content[
+		state.thinkingBlockIndex
+	] as ThinkingContent;
 	state.stream.push({
 		type: "thinking_end",
 		contentIndex: state.thinkingBlockIndex,
@@ -129,10 +133,7 @@ function closeThinkingBlock(state: StreamState): void {
 	state.thinkingBlockIndex = -1;
 }
 
-function processTextDelta(
-	state: StreamState,
-	text: string,
-): void {
+function processTextDelta(state: StreamState, text: string): void {
 	if (state.thinkingParser) {
 		state.thinkingParser.processChunk(text);
 		return;
@@ -158,7 +159,11 @@ function processTextDelta(
 
 function processToolCallDelta(
 	state: StreamState,
-	tc: { index?: number; id?: string; function?: { name?: string; arguments?: string } },
+	tc: {
+		index?: number;
+		id?: string;
+		function?: { name?: string; arguments?: string };
+	},
 ): void {
 	const idx = tc.index ?? 0;
 	if (!state.toolCallsState[idx]) {
@@ -201,7 +206,10 @@ function processToolCallDelta(
 	}
 }
 
-function processDelta(state: StreamState, delta: Record<string, unknown>): void {
+function processDelta(
+	state: StreamState,
+	delta: Record<string, unknown>,
+): void {
 	// 1. Reasoning content (API-native)
 	if (delta.reasoning_content) {
 		processReasoningDelta(state, delta.reasoning_content as string);
@@ -250,6 +258,42 @@ function finalizeToolCalls(state: StreamState): void {
 
 // ─── SSE parsing ─────────────────────────────────────────────────────────────
 
+function handleSSELine(
+	state: StreamState,
+	line: string,
+): boolean {
+	if (!line.startsWith("data:")) return false;
+
+	const dataStr = line.slice(5).trim();
+	if (dataStr === "[DONE]") return true;
+
+	try {
+		const envelope = JSON.parse(dataStr);
+		if (envelope.statusCodeValue && envelope.statusCodeValue !== 200) {
+			throw new Error(
+				`Upstream status ${envelope.statusCodeValue}: ${envelope.body}`,
+			);
+		}
+
+		const innerStr = envelope.body;
+		if (!innerStr || innerStr === "[DONE]") return false;
+
+		const inner = JSON.parse(innerStr);
+		if (inner.choices && inner.choices.length > 0) {
+			const choice = inner.choices[0];
+			if (choice.delta) {
+				processDelta(state, choice.delta);
+			}
+			if (choice.finish_reason) {
+				state.output.stopReason = choice.finish_reason;
+			}
+		}
+	} catch {
+		// Skip unparseable SSE lines
+	}
+	return false;
+}
+
 async function consumeSSEStream(
 	state: StreamState,
 	reader: ReadableStreamDefaultReader<Uint8Array>,
@@ -270,35 +314,8 @@ async function consumeSSEStream(
 			const line = buffer.substring(0, lineEnd).trim();
 			buffer = buffer.substring(lineEnd + 1);
 
-			if (!line.startsWith("data:")) continue;
-
-			const dataStr = line.slice(5).trim();
-			if (dataStr === "[DONE]") break;
-
-			try {
-				const envelope = JSON.parse(dataStr);
-				if (envelope.statusCodeValue && envelope.statusCodeValue !== 200) {
-					throw new Error(
-						`Upstream status ${envelope.statusCodeValue}: ${envelope.body}`,
-					);
-				}
-
-				const innerStr = envelope.body;
-				if (!innerStr || innerStr === "[DONE]") continue;
-
-				const inner = JSON.parse(innerStr);
-				if (inner.choices && inner.choices.length > 0) {
-					const choice = inner.choices[0];
-					if (choice.delta) {
-						processDelta(state, choice.delta);
-					}
-					if (choice.finish_reason) {
-						state.output.stopReason = choice.finish_reason;
-					}
-				}
-			} catch {
-				// Skip unparseable SSE lines
-			}
+			const done = handleSSELine(state, line);
+			if (done) break;
 		}
 	}
 }
@@ -306,24 +323,27 @@ async function consumeSSEStream(
 // ─── Request builder ─────────────────────────────────────────────────────────
 
 async function fetchQoderStream(
-	accessToken: string,
-	qoderModel: string,
-	modelConfig: Record<string, unknown>,
-	normalizedMessages: unknown[],
-	lastUserText: string,
-	systemText: string,
-	maxTokens: number,
-	toolsRaw: unknown,
-	recordID: string,
-	userID: string,
-	name: string,
-	email: string,
-	machineID: string,
+	setup: StreamSetup,
 	signal?: AbortSignal,
 ): Promise<ReadableStream<Uint8Array>> {
+	const {
+		accessToken,
+		qoderModel,
+		modelConfig,
+		normalizedMessages,
+		lastUserText,
+		systemText,
+		maxTokens,
+		toolsRaw,
+		recordID,
+		userID,
+		name,
+		email,
+		machineID,
+	} = setup;
 	const sessionID = stableHash("qoder-session", userID, qoderModel);
 
-	const isReasoning = !!modelConfig.is_reasoning;
+	const isReasoning = Boolean(modelConfig.is_reasoning);
 
 	const reqBody: Record<string, unknown> = {
 		request_id: crypto.randomUUID(),
@@ -465,6 +485,85 @@ export function streamQoder(
 	return stream;
 }
 
+interface StreamSetup {
+	accessToken: string;
+	qoderModel: string;
+	modelConfig: Record<string, unknown>;
+	normalizedMessages: unknown[];
+	lastUserText: string;
+	systemText: string;
+	maxTokens: number;
+	toolsRaw: unknown;
+	recordID: string;
+	userID: string;
+	name: string;
+	email: string;
+	machineID: string;
+}
+
+function buildStreamSetup(
+	model: Model<Api>,
+	context: Context,
+	options: SimpleStreamOptions | undefined,
+): StreamSetup {
+	const accessToken = options?.apiKey;
+	if (!accessToken) {
+		throw new Error(
+			"Qoder credentials not set. Run /login qoder or set QODER_PERSONAL_ACCESS_TOKEN.",
+		);
+	}
+
+	const cachedCreds = getCachedCredentials();
+	const userID = cachedCreds?.userID || "qoder-user";
+	const name = cachedCreds?.name || "Qoder User";
+	const email = cachedCreds?.email || "user@qoder.com";
+	const machineID = cachedCreds?.machineID || getMachineId();
+
+	const qoderModel = model.id;
+	const modelConfig = getCachedModelConfig(qoderModel) || {
+		key: qoderModel,
+		is_reasoning: isReasoningModel(qoderModel),
+		max_output_tokens: 32768,
+		source: "system",
+	};
+	modelConfig.key = qoderModel;
+
+	const maxOutputTokens = modelConfig.max_output_tokens || 32768;
+
+	const normalizedMessages = transformMessagesForQoder(context.messages);
+	const systemText = context.systemPrompt || "";
+	const lastUserText = extractLastUserText(normalizedMessages);
+
+	const maxTokens = resolveMaxTokens(maxOutputTokens, options?.maxTokens);
+
+	const toolsRaw =
+		context.tools && context.tools.length > 0
+			? transformTools(context.tools)
+			: undefined;
+	const recordID = stableChatRecordID(
+		qoderModel,
+		normalizedMessages,
+		toolsRaw,
+		maxTokens,
+	);
+
+	return {
+		accessToken,
+		qoderModel,
+		modelConfig,
+		normalizedMessages,
+		lastUserText,
+		systemText,
+		maxTokens,
+		toolsRaw,
+		recordID,
+		userID,
+		name,
+		email,
+		machineID,
+	};
+}
+
 async function runStream(
 	output: AssistantMessage,
 	stream: AssistantMessageEventStream,
@@ -473,48 +572,8 @@ async function runStream(
 	options: SimpleStreamOptions | undefined,
 ): Promise<void> {
 	try {
-		const accessToken = options?.apiKey;
-		if (!accessToken) {
-			throw new Error(
-				"Qoder credentials not set. Run /login qoder or set QODER_PERSONAL_ACCESS_TOKEN.",
-			);
-		}
+		const setup = buildStreamSetup(model, context, options);
 
-		const cachedCreds = getCachedCredentials();
-		const userID = cachedCreds?.userID || "qoder-user";
-		const name = cachedCreds?.name || "Qoder User";
-		const email = cachedCreds?.email || "user@qoder.com";
-		const machineID = cachedCreds?.machineID || getMachineId();
-
-		const qoderModel = model.id;
-		const modelConfig = getCachedModelConfig(qoderModel) || {
-			key: qoderModel,
-			is_reasoning: isReasoningModel(qoderModel),
-			max_output_tokens: 32768,
-			source: "system",
-		};
-		modelConfig.key = qoderModel;
-
-		const maxOutputTokens = modelConfig.max_output_tokens || 32768;
-
-		const normalizedMessages = transformMessagesForQoder(context.messages);
-		const systemText = context.systemPrompt || "";
-		const lastUserText = extractLastUserText(normalizedMessages);
-
-		const maxTokens = resolveMaxTokens(maxOutputTokens, options?.maxTokens);
-
-		const toolsRaw =
-			context.tools && context.tools.length > 0
-				? transformTools(context.tools)
-				: undefined;
-		const recordID = stableChatRecordID(
-			qoderModel,
-			normalizedMessages,
-			toolsRaw,
-			maxTokens,
-		);
-
-		// Determine thinking mode
 		const thinkingEnabled = isThinkingEnabled(options?.reasoning);
 		const thinkingParser = thinkingEnabled
 			? new ThinkingTagParser(output, stream)
@@ -531,22 +590,9 @@ async function runStream(
 
 		stream.push({ type: "start", partial: output });
 
-		const reader = await fetchQoderStream(
-			accessToken,
-			qoderModel,
-			modelConfig,
-			normalizedMessages,
-			lastUserText,
-			systemText,
-			maxTokens,
-			toolsRaw,
-			recordID,
-			userID,
-			name,
-			email,
-			machineID,
-			options?.signal,
-		).then((s) => s.getReader());
+		const reader = await fetchQoderStream(setup, options?.signal).then(
+			(s) => s.getReader(),
+		);
 
 		await consumeSSEStream(state, reader);
 

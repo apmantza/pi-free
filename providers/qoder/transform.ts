@@ -94,9 +94,13 @@ export function transformMessagesForQoder(messages: Message[]): QoderMessage[] {
 		if (msg.role === "user") {
 			normalizedMessages.push(transformUserMessage(msg));
 		} else if (msg.role === "assistant") {
-			normalizedMessages.push(transformAssistantMessage(msg as AssistantMessage));
+			normalizedMessages.push(
+				transformAssistantMessage(msg as AssistantMessage),
+			);
 		} else if (msg.role === "toolResult") {
-			normalizedMessages.push(transformToolResultMessage(msg as ToolResultMessage));
+			normalizedMessages.push(
+				transformToolResultMessage(msg as ToolResultMessage),
+			);
 		}
 	}
 	return normalizedMessages;
@@ -137,9 +141,7 @@ function transformUserMessage(msg: Message): QoderMessage {
 	return { role: "user", content };
 }
 
-function transformAssistantMessage(
-	am: AssistantMessage,
-): QoderMessage {
+function transformAssistantMessage(am: AssistantMessage): QoderMessage {
 	let content = "";
 	const toolCalls: QoderToolCall[] = [];
 
@@ -178,9 +180,7 @@ function transformAssistantMessage(
 	return mapped;
 }
 
-function transformToolResultMessage(
-	tr: ToolResultMessage,
-): QoderMessage {
+function transformToolResultMessage(tr: ToolResultMessage): QoderMessage {
 	return {
 		role: "tool",
 		tool_call_id: tr.toolCallId,

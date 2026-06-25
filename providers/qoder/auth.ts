@@ -362,11 +362,7 @@ async function runDeviceFlow(
 				throw new Error("Device token poll returned empty access token");
 			}
 
-			return buildDeviceFlowCredentials(
-				callbacks,
-				tokenData,
-				machineID,
-			);
+			return buildDeviceFlowCredentials(callbacks, tokenData, machineID);
 		} catch (e: unknown) {
 			const err = e as { name?: string };
 			if (err.name === "AbortError" || getSignal()?.aborted) {
