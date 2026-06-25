@@ -18,20 +18,21 @@
  *   QODER_PAT                   — Alias for above
  */
 
-import type { Api, Model, OAuthCredentials } from "@earendil-works/pi-ai";
+import type { Api, OAuthCredentials } from "@earendil-works/pi-ai";
 import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import { BASE_URL_QODER } from "../../constants.ts";
+import { BASE_URL_QODER, PROVIDER_QODER } from "../../constants.ts";
 import {
 	getCachedModels,
 	isCacheStale,
-	staticModels,
 	updateQoderModelsCache,
 } from "./models.ts";
 import { getCachedCredentials, loginQoder, refreshQoderToken } from "./auth.ts";
 import { streamQoder } from "./stream.ts";
+import { enhanceWithCI } from "../../provider-helper.ts";
+import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 
 // =============================================================================
 // Extension Entry Point
@@ -40,57 +41,98 @@ import { streamQoder } from "./stream.ts";
 export default async function qoderProvider(pi: ExtensionAPI) {
 	const logger = (await import("../../lib/logger.ts")).createLogger("qoder");
 
-	// Refresh the models cache on session_start if it's stale (>1h old)
-	// rather than fetching on every message in the stream hot path.
+	// Initial model fetch
+	let allModels: ProviderModelConfig[] = getCachedModels();
+	let freeModels: ProviderModelConfig[] = allModels.filter((m) =>
+		isFreeModel({ ...m, provider: PROVIDER_QODER }, allModels),
+	);
+	const stored = { free: freeModels, all: allModels };
+
+	// Re-register function — called by toggle, session refresh, login
+	const reRegister = (models: ProviderModelConfig[]) => {
+		const enhanced = enhanceWithCI(models, PROVIDER_QODER);
+		pi.registerProvider(PROVIDER_QODER, {
+			baseUrl: BASE_URL_QODER,
+			api: "qoder-api" as Api,
+			models: enhanced,
+			oauth: oauthConfig,
+			streamSimple: streamQoder,
+		});
+	};
+
+	// Register with global toggle system so it participates in /toggle-free
+	registerWithGlobalToggle(PROVIDER_QODER, stored, (m) => reRegister(m), false);
+
+	// Initial registration
+	reRegister(allModels);
+
+	// ── OAuth config ──────────────────────────────────────────────────────
+	const oauthConfig = {
+		name: "Qoder (Browser OAuth / PAT)",
+		login: async (callbacks: any): Promise<OAuthCredentials> => {
+			const cred = await loginQoder(callbacks);
+
+			// After login, refresh models from API
+			try {
+				const accessToken = cred.access as string;
+				const creds = getCachedCredentials();
+				const userID = creds?.userID || "qoder-user";
+				const name = creds?.name || "Qoder User";
+				const email = creds?.email || "user@qoder.com";
+				await updateQoderModelsCache(accessToken, userID, name, email);
+
+				const fresh = getCachedModels();
+				if (fresh.length > 0) {
+					allModels = fresh;
+					freeModels = fresh.filter((m) =>
+						isFreeModel({ ...m, provider: PROVIDER_QODER }, fresh),
+					);
+					stored.all = allModels;
+					stored.free = freeModels;
+					reRegister(allModels);
+					logger.info(
+						`[qoder] Models refreshed after login: ${allModels.length}`,
+					);
+				}
+			} catch {
+				// Best-effort
+			}
+
+			return cred;
+		},
+		refreshToken: refreshQoderToken,
+		getApiKey: (cred: OAuthCredentials) => cred.access,
+	};
+
+	// Refresh models cache on session_start if stale (>1h old)
 	pi.on("session_start", async (_event, ctx) => {
 		try {
-			const accessToken = await ctx.modelRegistry.getApiKeyForProvider("qoder");
+			const accessToken =
+				await ctx.modelRegistry.getApiKeyForProvider(PROVIDER_QODER);
 			if (!accessToken || !isCacheStale()) return;
 			const creds = getCachedCredentials();
 			const userID = creds?.userID || "qoder-user";
 			const name = creds?.name || "Qoder User";
 			const email = creds?.email || "user@qoder.com";
 			await updateQoderModelsCache(accessToken, userID, name, email);
+
+			const fresh = getCachedModels();
+			if (fresh.length > 0) {
+				allModels = fresh;
+				freeModels = fresh.filter((m) =>
+					isFreeModel({ ...m, provider: PROVIDER_QODER }, fresh),
+				);
+				stored.all = allModels;
+				stored.free = freeModels;
+				reRegister(allModels);
+				logger.info(`[qoder] Cache refreshed: ${allModels.length} models`);
+			}
 		} catch {
 			// Best-effort: fall back to existing cache / static models
 		}
 	});
 
-	// ── OAuth config ──────────────────────────────────────────────────────
-	const oauth = {
-		name: "Qoder (Browser OAuth / PAT)",
-		login: loginQoder,
-		refreshToken: refreshQoderToken,
-		getApiKey: (cred: OAuthCredentials) => cred.access,
-		modifyModels: (models: Model<Api>[], _cred: OAuthCredentials) => {
-			const cached = getCachedModels();
-			const nonQoder = models.filter((m: Model<Api>) => m.provider !== "qoder");
-			const modelsToUse = cached.length > 0 ? cached : staticModels;
-			const modifiedQoder = modelsToUse.map(
-				(m) =>
-					({
-						...m,
-						baseUrl: "https://api3.qoder.sh/",
-					}) as Model<Api>,
-			);
-
-			return [...nonQoder, ...modifiedQoder] as Model<Api>[];
-		},
-	};
-
-	// ── Register the provider ─────────────────────────────────────────────
-	// Qoder uses a completely custom API protocol, not OpenAI-compatible.
-	// We register with a custom `api` string and provide a `streamSimple`
-	// handler that implements the full Qoder protocol.
-	pi.registerProvider("qoder", {
-		baseUrl: BASE_URL_QODER,
-		api: "qoder-api" as Api,
-		models: getCachedModels() as unknown as ProviderModelConfig[],
-		oauth: oauth as never,
-		streamSimple: streamQoder,
-	});
-
-	logger.info("[qoder] Provider registered with static model cache");
+	logger.info(`[qoder] Provider registered with ${allModels.length} models`);
 }
 
 // Re-export key symbols for testing
