@@ -18,6 +18,7 @@ import type {
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
 import {
+	getKiloApiKey,
 	getKiloFreeOnly,
 	getKiloShowPaid,
 	PROVIDER_KILO,
@@ -152,7 +153,7 @@ function parseXmlToolCalls(
 const KILO_PROVIDER_CONFIG = {
 	providerId: PROVIDER_KILO,
 	baseUrl: KILO_GATEWAY_BASE,
-	apiKey: "$KILO_API_KEY",
+	apiKey: getKiloApiKey() || "$KILO_API_KEY",
 	headers: {
 		"X-KILOCODE-EDITORNAME": "Pi",
 	},
@@ -172,14 +173,17 @@ function applyKiloCompat<T extends { compat?: ProviderModelConfig["compat"] }>(
 }
 
 export default async function kiloProvider(pi: ExtensionAPI) {
+	// Resolve API key (env var or ~/.pi/free.json)
+	const kiloApiKey = getKiloApiKey();
+
 	// Try to fetch ALL models at startup (like Cline/OpenRouter)
-	// If no API key, this will return free models only
+	// With API key: returns all models; without: returns free-only
 	let allModels: ProviderModelConfig[] = [];
 	let freeModels: ProviderModelConfig[] = [];
 
 	try {
 		// Fetch all models (returns free-only if no auth, all if auth available)
-		allModels = await fetchKiloModels({ freeOnly: false });
+		allModels = await fetchKiloModels({ token: kiloApiKey, freeOnly: false });
 		// Derive free list using isFreeModel with allModels for detection
 		freeModels = allModels.filter((m) =>
 			isFreeModel({ ...m, provider: PROVIDER_KILO }, allModels),
@@ -211,11 +215,12 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 		baseReRegister(applyKiloCompat(models));
 
 	// Register with global toggle system
+	const hasKiloKey = !!process.env.KILO_API_KEY || !!getKiloApiKey();
 	registerWithGlobalToggle(
 		PROVIDER_KILO,
 		stored,
 		reRegister,
-		!!process.env.KILO_API_KEY,
+		hasKiloKey,
 	);
 
 	// OAuth config for Kilo
@@ -283,14 +288,14 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 	const modelsWithCompat = applyKiloCompat(currentModels);
 	pi.registerProvider(PROVIDER_KILO, {
 		baseUrl: KILO_GATEWAY_BASE,
-		apiKey: "$KILO_API_KEY",
+		apiKey: kiloApiKey || "$KILO_API_KEY",
 		api: "openai-completions" as const,
 		headers: {
 			"X-KILOCODE-EDITORNAME": "Pi",
 			"User-Agent": "pi-free-providers",
 		},
 		models: enhanceWithCI(modelsWithCompat),
-		oauth: oauthConfig,
+		...(!!kiloApiKey ? {} : { oauth: oauthConfig }),
 	});
 
 	// Registration complete - models registered silently (use LOG_LEVEL=info to see details)

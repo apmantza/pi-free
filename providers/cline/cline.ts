@@ -19,7 +19,7 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import { getClineShowPaid } from "../../config.ts";
+import { getClineApiKey, getClineShowPaid } from "../../config.ts";
 import { BASE_URL_CLINE, PROVIDER_CLINE } from "../../constants.ts";
 import {
 	DEFAULT_PROVIDER_CACHE_TTL_MS,
@@ -84,6 +84,9 @@ function toApiKey(credentials: OAuthCredentials): string {
 // =============================================================================
 
 export default async function clineProvider(pi: ExtensionAPI) {
+	const clineApiKey = getClineApiKey();
+	const useApiKeyAuth = !!clineApiKey;
+
 	let allModels: ProviderModelConfig[];
 	const cachedModels = loadProviderCache(PROVIDER_CLINE);
 	if (cachedModels && cachedModels.length > 0) {
@@ -114,16 +117,21 @@ export default async function clineProvider(pi: ExtensionAPI) {
 			baseUrl: BASE_URL_CLINE,
 			api: "cline-xml-tools" as const,
 			authHeader: false,
+			apiKey: clineApiKey,
 			headers: buildClineHeaders(),
 			streamSimple: (model, context, options) =>
 				streamClineXml(model as any, context, options, buildClineHeaders()),
 			models: enhanceWithCI(m),
-			oauth: {
-				name: "Cline",
-				login: loginCline,
-				refreshToken: refreshClineToken,
-				getApiKey: toApiKey,
-			},
+			...(useApiKeyAuth
+				? {}
+				: {
+					oauth: {
+						name: "Cline",
+						login: loginCline,
+						refreshToken: refreshClineToken,
+						getApiKey: toApiKey,
+					},
+				}),
 		});
 	};
 
@@ -138,7 +146,8 @@ export default async function clineProvider(pi: ExtensionAPI) {
 		toggleState.applyCurrent(reRegister);
 	};
 
-	registerWithGlobalToggle(PROVIDER_CLINE, stored, (m) => reRegister(m), false);
+	// Register with global toggle system (hasKey=true if API key auth configured)
+	registerWithGlobalToggle(PROVIDER_CLINE, stored, (m) => reRegister(m), useApiKeyAuth);
 	toggleState.applyCurrent(reRegister);
 
 	pi.registerCommand("toggle-cline", {

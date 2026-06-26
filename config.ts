@@ -74,6 +74,8 @@ interface PiFreeConfig {
 	tokenrouter_api_key?: string;
 	bai_api_key?: string;
 	openmodel_api_key?: string;
+	kilo_api_key?: string;
+	cline_api_key?: string;
 	kilo_free_only?: boolean;
 	hidden_models?: string[];
 	free_only?: boolean;
@@ -113,6 +115,8 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	tokenrouter_api_key: "",
 	bai_api_key: "",
 	openmodel_api_key: "",
+	kilo_api_key: "",
+	cline_api_key: "",
 
 	kilo_free_only: false,
 	hidden_models: [],
@@ -511,6 +515,14 @@ export function getBaiApiKey(): string | undefined {
 
 export function getOpenmodelApiKey(): string | undefined {
 	return resolve("OPENMODEL_API_KEY", loadConfigFile().openmodel_api_key);
+}
+
+export function getKiloApiKey(): string | undefined {
+	return resolve("KILO_API_KEY", loadConfigFile().kilo_api_key);
+}
+
+export function getClineApiKey(): string | undefined {
+	return resolve("CLINE_API_KEY", loadConfigFile().cline_api_key);
 }
 
 export function getOllamaApiKey(): string | undefined {
