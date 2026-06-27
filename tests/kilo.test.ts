@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockFetchKiloModels = vi.fn();
 const mockSetupProvider = vi.fn();
 const mockLoginKilo = vi.fn();
+const mockGetKiloApiKey = vi.hoisted(() => vi.fn(() => undefined));
 
 // Mock dependencies before importing the provider
 vi.mock("../providers/kilo/kilo-auth.ts", () => ({
@@ -34,6 +35,7 @@ vi.mock("../lib/registry.ts", () => ({
 vi.mock("../config.ts", () => ({
 	getKiloFreeOnly: vi.fn(() => false),
 	getKiloShowPaid: vi.fn(() => false),
+	getKiloApiKey: () => mockGetKiloApiKey(),
 	PROVIDER_KILO: "kilo",
 }));
 

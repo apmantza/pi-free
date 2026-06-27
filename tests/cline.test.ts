@@ -27,8 +27,11 @@ vi.mock("../lib/util.ts", () => ({
 	logWarning: vi.fn(),
 }));
 
+const mockGetClineApiKey = vi.fn();
+
 vi.mock("../config.ts", () => ({
 	getClineShowPaid: () => mockGetClineShowPaid(),
+	getClineApiKey: () => mockGetClineApiKey(),
 	saveConfig: (...args: unknown[]) => mockSaveConfig(...args),
 }));
 

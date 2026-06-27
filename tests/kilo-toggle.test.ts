@@ -8,10 +8,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockFetchKiloModels = vi.fn();
 const mockRegisterWithGlobalToggle = vi.fn();
 let capturedToggleArgs: any[] = [];
+const mockGetKiloApiKey = vi.hoisted(() => vi.fn(() => undefined));
 
 vi.mock("../config.ts", () => ({
 	getKiloFreeOnly: vi.fn(() => false),
 	getKiloShowPaid: vi.fn(() => false),
+	getKiloApiKey: () => mockGetKiloApiKey(),
 	PROVIDER_KILO: "kilo",
 }));
 
