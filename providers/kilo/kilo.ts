@@ -215,7 +215,7 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 		baseReRegister(applyKiloCompat(models));
 
 	// Register with global toggle system
-	const hasKiloKey = !!process.env.KILO_API_KEY || !!getKiloApiKey();
+	const hasKiloKey = !!kiloApiKey;
 	registerWithGlobalToggle(
 		PROVIDER_KILO,
 		stored,
