@@ -6,7 +6,7 @@
 
 A **Pi extension** (`@earendil-works/pi-coding-agent`) that registers free and paid AI model providers with Pi's model picker. It shows free models by default and lets users toggle per-provider between free-only and all-models view via `/toggle-{provider}` commands.
 
-**Package:** `pi-free` v2.0.9  
+**Package:** `pi-free` v2.2.4  
 **Author:** Apostolos Mantzaris  
 **License:** MIT  
 **Repo:** `github.com/apmantza/pi-free`  
@@ -154,7 +154,7 @@ Debug logging writes to `~/.pi/modelmatch.log`.
 
 | Category    | Providers                                          | Auth              | Notes                            |
 | ----------- | -------------------------------------------------- | ----------------- | -------------------------------- |
-| ✅ Free     | kilo, cline, openrouter, opencode, llm7            | OAuth or none     | Toggle between free/paid         |
+| ✅ Free     | kilo, cline, openrouter, opencode, llm7            | OAuth, API key, or none | Toggle between free/paid         |
 | 🔄 Freemium | ollama-cloud, sambanova, codestral, tokenrouter    | API key           | Free tier with limits            |
 | 💳 Paid     | zenmux, crofai, deepinfra, together, novita, routeway | API key + credits | Trial credits or pay-per-token   |
 | 🔧 Dynamic  | mistral, groq, cerebras, xai, huggingface, fastrouter | API key        | Fetched when key configured      |
@@ -205,6 +205,10 @@ Debug logging writes to `~/.pi/modelmatch.log`.
 | `/logout kilo`       | Kilo         | Clear OAuth credentials                   |
 | `/logout cline`      | Cline        | Clear OAuth credentials                   |
 
+**Authentication notes:**
+
+- **Kilo** and **Cline** support both OAuth (`/login`) and direct API keys. Set `KILO_API_KEY` / `CLINE_API_KEY` (or `kilo_api_key` / `cline_api_key` in `~/.pi/free.json`) to skip OAuth and authenticate directly. When an API key is configured, the provider registers without OAuth and uses the key for model fetching and chat requests.
+
 ---
 
 ## Testing
@@ -226,6 +230,44 @@ Debug logging writes to `~/.pi/modelmatch.log`.
 6. Add tests to `tests/` if there's provider-specific logic worth testing
 
 ---
+
+## Release Workflow
+
+Releases are automated via `.github/workflows/release.yml`.
+
+1. **Update version** in `package.json` (semver: patch for fixes, minor for features, major for breaking changes).
+2. **Update `CHANGELOG.md`** — move content from `[Unreleased]` to a new `## [X.Y.Z] - YYYY-MM-DD` section.
+3. **Update `AGENTS.md`** if architecture, commands, or conventions changed.
+4. **Commit and push to `master`**.
+5. The CI workflow will:
+   - Read the version from `package.json`.
+   - Verify a matching `CHANGELOG.md` entry exists.
+   - Run `check:lockfile`, `audit:prod`, `lint`, `test:run`, `npm publish --dry-run`, tarball verification, and entry smoke-load.
+   - Create and push the `vX.Y.Z` tag.
+   - Extract the curated section from `CHANGELOG.md` via `scripts/changelog-extract.mjs --summary` and use it as the GitHub release body.
+   - Publish the package to npm (only if `NPM_TOKEN` is configured).
+
+Do **not** create the Git tag manually — the workflow creates it automatically on push to `master`.
+
+### Backfilling release notes
+
+To retroactively update existing GitHub releases with curated notes from `CHANGELOG.md`:
+
+```bash
+# dry run
+node scripts/backfill-github-releases.mjs
+
+# actually edit releases
+node scripts/backfill-github-releases.mjs --apply
+
+# full prose instead of summary
+node scripts/backfill-github-releases.mjs --apply --full
+
+# only specific releases
+node scripts/backfill-github-releases.mjs --apply --only v2.2.4,v2.1.1
+```
+
+Requires the `gh` CLI authenticated.
 
 ## Pi Extension API (Key Methods)
 

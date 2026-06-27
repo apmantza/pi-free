@@ -7,11 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.4] - 2026-06-27
+
 ### Added
 
 - **OpenModel AI provider** — Anthropic-compatible LLM gateway at `api.openmodel.ai` (24 models). Merges the public `/web/v1/models` catalog (real per-token pricing via `price_multiplier`, supports flags, max tokens) with the authed `/v1/models` protocol list. Registers only messages-protocol models. The current **DeepSeek V4 Flash Free Event** is automatically detected: `deepseek-v4-flash` has `price_multiplier=0` → free via Route A (no hardcoding required). 6 free models surface under `free_only`: `deepseek-v4-flash` (1M context, MoE), plus 5 DashScope Qwen models whose catalog entries have no per-token pricing. Set `OPENMODEL_API_KEY` or add `openmodel_api_key` to `~/.pi/free.json`. Toggle with `/toggle-openmodel` ([#269](https://github.com/apmantza/pi-free/pull/269)).
 
 - `npm run smoke:openmodel` — Live end-to-end check for the OpenModel Anthropic-Messages wire format. Reads `OPENMODEL_API_KEY` from env or `~/.pi/free.json`; skips with exit 0 when neither is set, exits 1 on any non-200 or malformed response.
+
+- **Kilo and Cline API key authentication** — Both providers now support direct API key auth alongside OAuth. Set `KILO_API_KEY` / `CLINE_API_KEY` (or `kilo_api_key` / `cline_api_key` in `~/.pi/free.json`) to skip the OAuth flow. When a key is configured, the provider registers without OAuth and uses the key for model fetching and chat requests ([#282](https://github.com/apmantza/pi-free/pull/282)).
 
 ### Removed
 

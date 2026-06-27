@@ -147,13 +147,20 @@ jobs:
           git tag "${{ needs.prepare.outputs.tag }}"
           git push origin "${{ needs.prepare.outputs.tag }}"
 
+      - name: Extract release notes from CHANGELOG
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: >-
+          node scripts/changelog-extract.mjs "$VERSION" --summary
+          -o "$RUNNER_TEMP/release-notes.md"
+
       - name: Create GitHub release
         uses: >-
           softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           name: ${{ needs.prepare.outputs.tag }}
-          generate_release_notes: true
+          body_path: ${{ runner.temp }}/release-notes.md
 
   publish-npm:
     runs-on: ubuntu-latest
