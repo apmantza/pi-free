@@ -49,6 +49,14 @@ function gh(args) {
 	return execFileSync("gh", args, { encoding: "utf8" });
 }
 
+// Harden PATH so writable directories can't shadow known tools.
+// npx/execFileSync resolves binaries through PATH; CI runners and shared
+// systems otherwise inherit a modifiable search path.
+if (process.platform !== "win32") {
+	process.env.PATH = 
+		"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
+}
+
 function listReleases(repo) {
 	const args = ["release", "list", "--limit", "200", "--json", "tagName"];
 	if (repo) args.push("--repo", repo);
