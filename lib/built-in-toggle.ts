@@ -16,7 +16,12 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import { getOpencodeShowPaid, getOpenrouterShowPaid } from "../config.ts";
+import {
+	getOpencodeApiKey,
+	getOpencodeShowPaid,
+	getOpenrouterApiKey,
+	getOpenrouterShowPaid,
+} from "../config.ts";
 import { createLogger } from "./logger.ts";
 import {
 	getProviderRegistry,
@@ -25,6 +30,7 @@ import {
 } from "./registry.ts";
 import { wrapSessionStartHandler } from "./session-start-metrics.ts";
 import { createToggleState } from "./toggle-state.ts";
+import { fetchWithTimeout } from "./util.ts";
 import {
 	OPENCODE_DYNAMIC_API,
 	createOpenCodeSessionTracker,
@@ -53,12 +59,33 @@ function getOpenCodeSession() {
 interface BuiltInToggleConfig {
 	id: string;
 	getShowPaid: () => boolean;
+	baseUrl: string;
+	api: Api;
+	getApiKey: () => string | undefined;
 }
 
 const BUILT_IN_TOGGLE_PROVIDERS: BuiltInToggleConfig[] = [
-	{ id: "opencode", getShowPaid: getOpencodeShowPaid },
-	{ id: "opencode-go", getShowPaid: getOpencodeShowPaid },
-	{ id: "openrouter", getShowPaid: getOpenrouterShowPaid },
+	{
+		id: "opencode",
+		getShowPaid: getOpencodeShowPaid,
+		baseUrl: "https://opencode.ai/zen/v1",
+		api: OPENCODE_DYNAMIC_API,
+		getApiKey: getOpencodeApiKey,
+	},
+	{
+		id: "opencode-go",
+		getShowPaid: getOpencodeShowPaid,
+		baseUrl: "https://opencode.ai/zen/go/v1",
+		api: OPENCODE_DYNAMIC_API,
+		getApiKey: getOpencodeApiKey,
+	},
+	{
+		id: "openrouter",
+		getShowPaid: getOpenrouterShowPaid,
+		baseUrl: "https://openrouter.ai/api/v1",
+		api: "openai-completions",
+		getApiKey: getOpenrouterApiKey,
+	},
 ];
 
 // =============================================================================
@@ -138,18 +165,84 @@ function tryCaptureProvider(
 	const allModels = providerModels.map((m: Model<Api>) =>
 		modelToProviderConfig(m, config.id),
 	);
+
+	return createProviderState(pi, config, {
+		allModels,
+		baseUrl: providerModels[0].baseUrl,
+		api: providerModels[0].api,
+		apiKey: getApiKeyEnvForProvider(config.id),
+		source: "captured",
+	});
+}
+
+async function tryDiscoverProvider(
+	pi: ExtensionAPI,
+	config: BuiltInToggleConfig,
+): Promise<BuiltInProviderState | undefined> {
+	const apiKey = config.getApiKey();
+	if (!apiKey) return undefined;
+
+	try {
+		const response = await fetchWithTimeout(
+			`${config.baseUrl}/models`,
+			{
+				headers: {
+					Accept: "application/json",
+					Authorization: `Bearer ${apiKey}`,
+				},
+			},
+			30_000,
+		);
+
+		if (!response.ok) {
+			throw new Error(`HTTP ${response.status} ${response.statusText}`);
+		}
+
+		const body = (await response.json()) as
+			| Array<Record<string, unknown>>
+			| { data?: Array<Record<string, unknown>> };
+		const rawModels = Array.isArray(body) ? body : (body.data ?? []);
+		const allModels = rawModels
+			.map((m) => rawModelToProviderConfig(m, config))
+			.filter((m): m is ProviderModelConfig => m !== undefined);
+
+		if (allModels.length === 0) return undefined;
+
+		return createProviderState(pi, config, {
+			allModels,
+			baseUrl: config.baseUrl,
+			api: config.api,
+			apiKey,
+			source: "discovered",
+		});
+	} catch (err) {
+		_logger.warn(`[built-in-toggle] ${config.id}: on-demand discovery failed`, {
+			error: err instanceof Error ? err.message : String(err),
+		});
+		return undefined;
+	}
+}
+
+function createProviderState(
+	pi: ExtensionAPI,
+	config: BuiltInToggleConfig,
+	options: {
+		allModels: ProviderModelConfig[];
+		baseUrl: string;
+		api: Api;
+		apiKey: string;
+		source: "captured" | "discovered";
+	},
+): BuiltInProviderState {
+	const { allModels, baseUrl, api, apiKey, source } = options;
 	const freeModels = allModels.filter((m: ProviderModelConfig) =>
 		isFreeModel({ ...m, provider: config.id }, allModels),
 	);
 
-	const baseUrl = providerModels[0].baseUrl;
-	const api = providerModels[0].api;
-	const apiKeyEnv = getApiKeyEnvForProvider(config.id);
-
 	const reRegister = (models: ProviderModelConfig[]) => {
 		pi.registerProvider(config.id, {
 			baseUrl,
-			apiKey: apiKeyEnv,
+			apiKey,
 			api: isOpenCodeProvider(config.id) ? OPENCODE_DYNAMIC_API : api,
 			...(isOpenCodeProvider(config.id)
 				? { streamSimple: createOpenCodeStreamSimple(getOpenCodeSession()) }
@@ -171,7 +264,7 @@ function tryCaptureProvider(
 	registerWithGlobalToggle(config.id, stored, reRegister, true);
 
 	_logger.info(
-		`[built-in-toggle] ${config.id}: captured ${allModels.length} models (${freeModels.length} free)`,
+		`[built-in-toggle] ${config.id}: ${source} ${allModels.length} models (${freeModels.length} free)`,
 	);
 
 	return state;
@@ -191,15 +284,21 @@ function registerToggleCommand(
 		handler: async (_args, ctx) => {
 			let state = providerStates.get(config.id);
 			if (!state) {
-				// Models may have loaded after session_start — try on-demand capture
+				// Models may have loaded after session_start — try on-demand capture.
 				state = tryCaptureProvider(pi, config, ctx);
-				if (!state) {
-					ctx.ui.notify(
-						`${config.id}: models not loaded yet. Start a session first.`,
-						"warning",
-					);
-					return;
-				}
+			}
+			if (!state) {
+				// If Pi has not exposed built-in models yet, fetch the provider's
+				// /models endpoint directly so /toggle-opencode works before the
+				// first chat session has populated the model registry.
+				state = await tryDiscoverProvider(pi, config);
+			}
+			if (!state) {
+				ctx.ui.notify(
+					`${config.id}: models not loaded yet and on-demand discovery failed. Check your API key, then try again.`,
+					"warning",
+				);
+				return;
 			}
 
 			const applied = state.toggleState.toggle(state.reRegister);
@@ -247,6 +346,31 @@ function modelToProviderConfig(
 	}
 
 	return base;
+}
+
+function rawModelToProviderConfig(
+	m: Record<string, unknown>,
+	config: BuiltInToggleConfig,
+): (ProviderModelConfig & { _pricingKnown?: boolean }) | undefined {
+	const id = String(m.id ?? "").trim();
+	if (!id) return undefined;
+	const inputModalities = Array.isArray(m.input_modalities)
+		? m.input_modalities
+		: undefined;
+	const supportsImage = inputModalities?.includes("image") === true;
+	return {
+		id,
+		name: String(m.name ?? m.model ?? id),
+		api: isOpenCodeProvider(config.id) ? OPENCODE_DYNAMIC_API : config.api,
+		reasoning: Boolean(m.reasoning ?? false),
+		input: supportsImage ? ["text", "image"] : ["text"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow:
+			((m.context_length ?? m.max_context_length ?? m.context_window) as number) ??
+			128_000,
+		maxTokens: ((m.max_tokens ?? m.max_completion_tokens) as number) ?? 16_384,
+		_pricingKnown: false,
+	};
 }
 
 function getApiKeyEnvForProvider(providerId: string): string {
