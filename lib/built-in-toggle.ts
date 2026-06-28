@@ -101,6 +101,24 @@ interface BuiltInProviderState {
 const providerStates = new Map<string, BuiltInProviderState>();
 let commandsRegistered = false;
 
+const ZERO_COST = Object.freeze({
+	input: 0,
+	output: 0,
+	cacheRead: 0,
+	cacheWrite: 0,
+});
+
+// OpenCode's /models endpoint does not expose real pricing. Use a tiny
+// non-zero sentinel for known non-free models so the model picker does not
+// label every OpenCode model as free. Authoritative free detection still uses
+// _freeKnown/_isFree, not the sentinel amount.
+const UNKNOWN_PAID_COST = Object.freeze({
+	input: 0.000001,
+	output: 0.000001,
+	cacheRead: 0,
+	cacheWrite: 0,
+});
+
 // =============================================================================
 // Setup
 // =============================================================================
@@ -202,9 +220,12 @@ async function tryDiscoverProvider(
 			| Array<Record<string, unknown>>
 			| { data?: Array<Record<string, unknown>> };
 		const rawModels = Array.isArray(body) ? body : (body.data ?? []);
-		const allModels = rawModels
+		const mappedModels = rawModels
 			.map((m) => rawModelToProviderConfig(m, config))
-			.filter((m): m is ProviderModelConfig => m !== undefined);
+			.filter((m): m is ProviderModelConfig & { _pricingKnown?: boolean } =>
+				m !== undefined,
+			);
+		const allModels = applyAuthoritativeFreeFlags(mappedModels, config.id);
 
 		if (allModels.length === 0) return undefined;
 
@@ -364,13 +385,35 @@ function rawModelToProviderConfig(
 		api: isOpenCodeProvider(config.id) ? OPENCODE_DYNAMIC_API : config.api,
 		reasoning: Boolean(m.reasoning ?? false),
 		input: supportsImage ? ["text", "image"] : ["text"],
-		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		cost: ZERO_COST,
 		contextWindow:
-			((m.context_length ?? m.max_context_length ?? m.context_window) as number) ??
-			128_000,
+			((m.context_length ??
+				m.max_context_length ??
+				m.context_window) as number) ?? 128_000,
 		maxTokens: ((m.max_tokens ?? m.max_completion_tokens) as number) ?? 16_384,
 		_pricingKnown: false,
 	};
+}
+
+function applyAuthoritativeFreeFlags(
+	models: Array<ProviderModelConfig & { _pricingKnown?: boolean }>,
+	providerId: string,
+): Array<
+	ProviderModelConfig & {
+		_pricingKnown?: boolean;
+		_freeKnown?: boolean;
+		_isFree?: boolean;
+	}
+> {
+	return models.map((model) => {
+		const isFree = isFreeModel({ ...model, provider: providerId }, models);
+		return {
+			...model,
+			cost: isFree ? ZERO_COST : UNKNOWN_PAID_COST,
+			_freeKnown: true,
+			_isFree: isFree,
+		};
+	});
 }
 
 function getApiKeyEnvForProvider(providerId: string): string {

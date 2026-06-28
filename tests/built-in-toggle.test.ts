@@ -21,8 +21,29 @@ vi.mock("../config.ts", () => ({
 vi.mock("../lib/registry.ts", () => ({
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
 	getProviderRegistry: () => mockProviderRegistry,
-	isFreeModel: (model: { cost?: { input?: number; output?: number } }) =>
-		(model.cost?.input ?? 0) === 0 && (model.cost?.output ?? 0) === 0,
+	isFreeModel: (
+		model: {
+			name: string;
+			cost?: { input?: number; output?: number };
+			_pricingKnown?: boolean;
+			_freeKnown?: boolean;
+			_isFree?: boolean;
+		},
+		allModels?: Array<{
+			cost?: { input?: number; output?: number };
+		}>,
+	) => {
+		if (model._freeKnown === true) return model._isFree === true;
+		const pricingExposed = (allModels ?? []).some(
+			(m) => (m.cost?.input ?? 0) > 0 || (m.cost?.output ?? 0) > 0,
+		);
+		const hasFreeInName = model.name.toLowerCase().includes("free");
+		if (!pricingExposed || model._pricingKnown === false) return hasFreeInName;
+		return (
+			((model.cost?.input ?? 0) === 0 && (model.cost?.output ?? 0) === 0) ||
+			hasFreeInName
+		);
+	},
 	registerWithGlobalToggle: (...args: unknown[]) =>
 		mockRegisterWithGlobalToggle(...args),
 }));
@@ -144,7 +165,7 @@ describe("built-in provider toggles", () => {
 			json: async () => ({
 				data: [
 					{ id: "claude-fable-5", object: "model" },
-					{ id: "gpt-5.5", object: "model" },
+					{ id: "deepseek-v4-flash-free", object: "model" },
 				],
 			}),
 		} as unknown as Response);
@@ -174,10 +195,29 @@ describe("built-in provider toggles", () => {
 				streamSimple: expect.any(Function),
 				models: expect.arrayContaining([
 					expect.objectContaining({ id: "claude-fable-5" }),
-					expect.objectContaining({ id: "gpt-5.5" }),
+					expect.objectContaining({ id: "deepseek-v4-flash-free" }),
 				]),
 			}),
 		);
+		const registeredModels = mockRegisterProvider.mock.calls[0][1].models;
+		const paidModel = registeredModels.find(
+			(m: { id: string }) => m.id === "claude-fable-5",
+		);
+		const freeModel = registeredModels.find(
+			(m: { id: string }) => m.id === "deepseek-v4-flash-free",
+		);
+		expect(paidModel).toMatchObject({
+			_pricingKnown: false,
+			_freeKnown: true,
+			_isFree: false,
+			cost: expect.objectContaining({ input: 0.000001, output: 0.000001 }),
+		});
+		expect(freeModel).toMatchObject({
+			_pricingKnown: false,
+			_freeKnown: true,
+			_isFree: true,
+			cost: expect.objectContaining({ input: 0, output: 0 }),
+		});
 		expect(notify).toHaveBeenCalledWith(
 			"opencode: showing all 2 models",
 			"info",
