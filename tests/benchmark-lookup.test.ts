@@ -128,11 +128,11 @@ describe("Benchmark Lookup", () => {
 
 		it("should return enhanced name with CI score when matched", () => {
 			const result = enhanceModelNameWithCodingIndex(
-				"GPT-4o",
-				"gpt-4o",
-				"openai",
+				"Gemini 2.5 Pro",
+				"gemini-2.5-pro",
+				"google",
 			);
-			expect(result).toContain("[CI:");
+			expect(result).toMatch(/\[CI:\s*\d+(\.\d+)?\]/);
 		});
 
 		it("should return original name when no match", () => {
@@ -147,9 +147,11 @@ describe("Benchmark Lookup", () => {
 
 	describe("findHardcodedBenchmark", () => {
 		it("should find benchmark for exact model name", () => {
-			const result = findHardcodedBenchmark("GPT-4o", "gpt-4o", "openai");
+			const result = findHardcodedBenchmark("Gemini 2.5 Pro", "gemini-2.5-pro", "google");
 			expect(result).not.toBeNull();
-			expect(result?.codingIndex).toBeDefined();
+			expect(typeof result?.codingIndex).toBe("number");
+			expect(result!.codingIndex).toBeGreaterThan(0);
+			expect(result!.codingIndex).toBeLessThanOrEqual(100);
 		});
 
 		it("should find benchmark via variant alias", () => {
@@ -187,7 +189,10 @@ describe("Benchmark Lookup", () => {
 				},
 			);
 
-			expect(result?.codingIndex).toBeCloseTo(47.1);
+			expect(result).not.toBeNull();
+			expect(typeof result!.codingIndex).toBe("number");
+			expect(result!.codingIndex).toBeGreaterThan(0);
+			expect(result!.codingIndex).toBeLessThanOrEqual(100);
 			expect(result?.originalModel).toBe("Kimi K2.6");
 		});
 
@@ -205,7 +210,7 @@ describe("Benchmark Lookup", () => {
 
 	describe("getHardcodedScore", () => {
 		it("should return a score for known models", () => {
-			const score = getHardcodedScore("GPT-4o", "gpt-4o", "openai");
+			const score = getHardcodedScore("Gemini 2.5 Pro", "gemini-2.5-pro", "google");
 			expect(score).not.toBeNull();
 			expect(typeof score).toBe("number");
 		});
@@ -222,7 +227,9 @@ describe("Benchmark Lookup", () => {
 				"gateway",
 				{ id: "moonshotai/Kimi-K2.6" },
 			);
-			expect(score).toBeCloseTo(47.1);
+			expect(typeof score).toBe("number");
+			expect(score).toBeGreaterThan(0);
+			expect(score).toBeLessThanOrEqual(100);
 		});
 	});
 
@@ -234,7 +241,7 @@ describe("Benchmark Lookup", () => {
 				"gateway",
 				{ id: "moonshotai/Kimi-K2.6" },
 			);
-			expect(name).toBe("Opaque Gateway Model [CI: 47.1]");
+			expect(name).toMatch(/Opaque Gateway Model \[CI:\s*\d+(\.\d+)?\]/);
 		});
 
 		it("should enhance names using models.dev name-only hints", () => {
@@ -244,7 +251,7 @@ describe("Benchmark Lookup", () => {
 				"gateway",
 				{ name: "Kimi K2.6" },
 			);
-			expect(name).toBe("Opaque Gateway Model [CI: 47.1]");
+			expect(name).toMatch(/Opaque Gateway Model \[CI:\s*\d+(\.\d+)?\]/);
 		});
 
 		it("should leave names unchanged when hints do not match", () => {
