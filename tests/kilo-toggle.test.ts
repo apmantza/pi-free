@@ -31,6 +31,18 @@ vi.mock("../provider-helper.ts", () => ({
 	enhanceWithCI: (models: unknown[]) => models,
 	createReRegister: vi.fn(() => vi.fn()),
 	createCtxReRegister: vi.fn(() => vi.fn()),
+	// Cold-path simulation matching the real helper with an empty (mocked) cache:
+	// invoke the fetcher, return [] on rejection.
+	loadCachedOrFetchModels: async (
+		_id: string,
+		fetcher: () => Promise<unknown[]>,
+	) => {
+		try {
+			return await fetcher();
+		} catch {
+			return [];
+		}
+	},
 }));
 
 vi.mock("../lib/registry.ts", () => ({
@@ -44,6 +56,16 @@ vi.mock("../lib/registry.ts", () => ({
 vi.mock("../lib/util.ts", () => ({
 	cleanModelName: (name: string) => name,
 	logWarning: vi.fn(),
+}));
+
+vi.mock("../lib/provider-cache.ts", () => ({
+	DEFAULT_PROVIDER_CACHE_TTL_MS: 60 * 60 * 1000,
+	isProviderCacheFresh: () => false,
+	loadProviderCache: () => undefined,
+	saveProviderCache: vi.fn().mockResolvedValue(undefined),
+	saveProviderCacheGuarded: vi.fn().mockResolvedValue(true),
+	clearProviderCache: vi.fn(),
+	clearAllProviderCaches: vi.fn(),
 }));
 
 import kiloProvider from "../providers/kilo/kilo.ts";

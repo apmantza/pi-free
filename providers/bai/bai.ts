@@ -40,7 +40,11 @@ import {
 } from "../../lib/provider-compat.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { cleanModelName, fetchWithRetry } from "../../lib/util.ts";
-import { createReRegister, setupProvider } from "../../provider-helper.ts";
+import {
+	createReRegister,
+	loadCachedOrFetchModels,
+	setupProvider,
+} from "../../provider-helper.ts";
 
 const _logger = createLogger("bai");
 
@@ -176,7 +180,9 @@ export default async function baiProvider(pi: ExtensionAPI) {
 		return;
 	}
 
-	const allModels = await fetchBaiModels(apiKey);
+	const allModels = await loadCachedOrFetchModels(PROVIDER_BAI, () =>
+		fetchBaiModels(apiKey),
+	);
 
 	if (allModels.length === 0) {
 		// Either the API failed (already logged inside fetchBaiModels) or

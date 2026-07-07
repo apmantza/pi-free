@@ -27,7 +27,10 @@ export { HARDCODED_BENCHMARKS, type HardcodedBenchmark };
 
 const LOG_DIR = join(homedir(), ".pi");
 const LOG_FILE = join(LOG_DIR, "modelmatch.log");
-let debugEnabled = true;
+// Debug logging writes one sync appendFileSync per model per attempt — far too
+// expensive to leave on during startup (hundreds–thousands of blocking writes).
+// Opt in via PI_FREE_BENCHMARK_DEBUG=1 (or setDebugLogging(true)).
+let debugEnabled = process.env.PI_FREE_BENCHMARK_DEBUG === "1";
 
 /**
  * Enable/disable debug logging

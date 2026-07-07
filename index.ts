@@ -386,28 +386,36 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 	// Setup model telemetry (tracks real-world performance)
 	setupTelemetry(pi);
 
-	// Load all unique providers
-	// Each provider will register itself with the global toggle system
-	await Promise.allSettled(UNIQUE_PROVIDERS.map((setup) => setup(pi)));
+	// Load all unique providers + dynamic built-in providers CONCURRENTLY.
+	// Running the dynamic phase (e.g. FastRouter) in parallel with the static
+	// providers avoids serializing two independent network windows at startup.
+	// Each provider registers itself with the global toggle system.
+	const dynamicSetup = (async () => {
+		try {
+			const { setupDynamicBuiltInProviders } = await import(
+				"./providers/dynamic-built-in/index.ts"
+			);
+			await setupDynamicBuiltInProviders(pi);
+		} catch (err) {
+			// Dynamic providers are a best-effort enhancement — if the import
+			// or init fails (e.g. upstream API change), continue with the
+			// already-registered static providers rather than failing the whole
+			// extension load. Log full error (message + stack) to the structured
+			// log so the user can investigate, but never block startup.
+			_logger.error(
+				"[pi-free] Dynamic built-in providers failed to load",
+				{
+					error: err instanceof Error ? err.message : String(err),
+					stack: err instanceof Error ? err.stack : undefined,
+				},
+			);
+		}
+	})();
 
-	// Setup dynamic built-in providers (Mistral, Groq, Cerebras, xAI, Hugging Face,
-	// OpenRouter/OpenCode from Pi auth, and FastRouter public model discovery)
-	try {
-		const { setupDynamicBuiltInProviders } = await import(
-			"./providers/dynamic-built-in/index.ts"
-		);
-		await setupDynamicBuiltInProviders(pi);
-	} catch (err) {
-		// Dynamic providers are a best-effort enhancement — if the import
-		// or init fails (e.g. upstream API change), continue with the
-		// already-registered static providers rather than failing the whole
-		// extension load. Log full error (message + stack) to the structured
-		// log so the user can investigate, but never block startup.
-		_logger.error("[pi-free] Dynamic built-in providers failed to load", {
-			error: err instanceof Error ? err.message : String(err),
-			stack: err instanceof Error ? err.stack : undefined,
-		});
-	}
+	await Promise.allSettled([
+		...UNIQUE_PROVIDERS.map((setup) => setup(pi)),
+		dynamicSetup,
+	]);
 
 	// Setup toggles for pi's built-in providers (e.g., OpenCode)
 	setupBuiltInProviderToggles(pi);

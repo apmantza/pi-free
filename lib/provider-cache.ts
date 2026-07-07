@@ -129,6 +129,28 @@ export async function saveProviderCache(
 }
 
 /**
+ * Persist models to the cache, but refuse to overwrite a healthy existing
+ * entry with a drastically smaller list (a transient partial/error response).
+ * Also never caches an empty list. Returns true when the cache was written.
+ */
+export async function saveProviderCacheGuarded(
+	providerId: string,
+	models: ProviderModelConfig[],
+): Promise<boolean> {
+	if (!models || models.length === 0) return false;
+	const existing = getProviderCacheEntry(providerId);
+	const existingCount = existing?.models.length ?? 0;
+	if (existingCount > 0 && models.length < existingCount * 0.5) {
+		_logger.debug(
+			`Not caching ${providerId}: ${models.length} models vs ${existingCount} cached (likely transient shrink)`,
+		);
+		return false;
+	}
+	await saveProviderCache(providerId, models);
+	return true;
+}
+
+/**
  * Clear cached models for a provider.
  */
 export async function clearProviderCache(providerId: string): Promise<void> {

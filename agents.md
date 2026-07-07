@@ -106,6 +106,8 @@ export default async function providerName(pi: ExtensionAPI) {
 }
 ```
 
+**Cache-first loading.** Network-fetching providers register from the disk cache (`~/.pi/provider-cache.json`, 1-hour TTL via `lib/provider-cache.ts`) first and only hit the network on a cold or stale cache, so warm startups make no network calls. The dynamic built-in phase (e.g. FastRouter) runs concurrently with the static providers inside `piFreeEntry`'s single `Promise.allSettled`, not sequentially after it.
+
 ### Free Model Detection (isFreeModel)
 
 Located in `lib/registry.ts`. Uses **adaptive Route A/B detection**:
@@ -124,7 +126,7 @@ This avoids false positives where providers default all costs to 0 without expos
 3. Provider-specific normalization (strip NVIDIA prefixes, Groq suffixes, etc.)
 4. Prefix fallback with base model extraction + size token reordering
 
-Debug logging writes to `~/.pi/modelmatch.log`.
+Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DEBUG=1` (off by default for startup speed).
 
 ### Config Resolution
 
@@ -182,6 +184,7 @@ Debug logging writes to `~/.pi/modelmatch.log`.
 8. **Error handling is graceful** — providers that fail at startup are silently skipped
 9. **Model filtering happens at fetch time** — small models (< 30B, < 70B for NVIDIA) are filtered
 10. **All providers use `enhanceWithCI()`** before registration to add CI scores
+11. **Network-fetching providers are cache-first** (1h TTL via `lib/provider-cache.ts`); the first run after install or after the TTL fetches live, subsequent runs serve cache
 
 ---
 

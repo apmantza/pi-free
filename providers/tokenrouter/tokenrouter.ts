@@ -49,7 +49,11 @@ import {
 } from "../../lib/provider-compat.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { cleanModelName, fetchWithRetry } from "../../lib/util.ts";
-import { enhanceWithCI, setupProvider } from "../../provider-helper.ts";
+import {
+	enhanceWithCI,
+	loadCachedOrFetchModels,
+	setupProvider,
+} from "../../provider-helper.ts";
 
 const _logger = createLogger("tokenrouter");
 
@@ -564,7 +568,9 @@ export default async function tokenRouterProvider(pi: ExtensionAPI) {
 		return;
 	}
 
-	const allModels = await fetchTokenRouterModels(apiKey);
+	const allModels = await loadCachedOrFetchModels(PROVIDER_TOKENROUTER, () =>
+		fetchTokenRouterModels(apiKey),
+	);
 
 	if (allModels.length === 0) {
 		_logger.warn("[tokenrouter] No text chat models available");

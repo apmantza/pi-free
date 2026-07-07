@@ -31,7 +31,11 @@ import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import { getProxyModelCompat } from "../../lib/provider-compat.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
-import { createReRegister, setupProvider } from "../../provider-helper.ts";
+import {
+	createReRegister,
+	loadCachedOrFetchModels,
+	setupProvider,
+} from "../../provider-helper.ts";
 
 const _logger = createLogger("zenmux");
 
@@ -146,7 +150,9 @@ export default async function zenmuxProvider(pi: ExtensionAPI) {
 	}
 
 	// Fetch models
-	const allModels = await fetchZenmuxModels(apiKey);
+	const allModels = await loadCachedOrFetchModels(PROVIDER_ZENMUX, () =>
+		fetchZenmuxModels(apiKey),
+	);
 
 	if (allModels.length === 0) {
 		_logger.warn("[zenmux] No models available");

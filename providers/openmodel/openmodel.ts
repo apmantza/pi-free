@@ -45,7 +45,11 @@ import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import { isLikelyReasoningModel } from "../../lib/provider-compat.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
-import { createReRegister, setupProvider } from "../../provider-helper.ts";
+import {
+	createReRegister,
+	loadCachedOrFetchModels,
+	setupProvider,
+} from "../../provider-helper.ts";
 
 const _logger = createLogger("openmodel");
 
@@ -465,7 +469,9 @@ export default async function openmodelProvider(pi: ExtensionAPI) {
 		return;
 	}
 
-	const allModels = await fetchOpenModelModels(apiKey);
+	const allModels = await loadCachedOrFetchModels(PROVIDER_OPENMODEL, () =>
+		fetchOpenModelModels(apiKey),
+	);
 
 	if (allModels.length === 0) {
 		_logger.warn(

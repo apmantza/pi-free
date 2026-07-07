@@ -50,7 +50,11 @@ import { createProviderProbe } from "../../lib/provider-probe.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
 import { fetchWithRetry, fetchWithTimeout } from "../../lib/util.ts";
-import { createReRegister, setupProvider } from "../../provider-helper.ts";
+import {
+	createReRegister,
+	loadCachedOrFetchModels,
+	setupProvider,
+} from "../../provider-helper.ts";
 
 const _logger = createLogger("together");
 
@@ -150,7 +154,9 @@ export default async function togetherProvider(pi: ExtensionAPI) {
 	}
 
 	// Fetch models
-	const allModels = await fetchTogetherModels(apiKey);
+	const allModels = await loadCachedOrFetchModels(PROVIDER_TOGETHER, () =>
+		fetchTogetherModels(apiKey),
+	);
 
 	if (allModels.length === 0) {
 		_logger.warn("[together] No chat models available");
