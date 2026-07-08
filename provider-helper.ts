@@ -12,6 +12,12 @@ import type {
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
 import { saveConfig } from "./config.ts";
+import {
+	DEFAULT_PROVIDER_CACHE_TTL_MS,
+	isProviderCacheFresh,
+	loadProviderCache,
+	saveProviderCacheGuarded,
+} from "./lib/provider-cache.ts";
 import { createLogger } from "./lib/logger.ts";
 import type { ModelsDevEnrichedMetadata } from "./lib/types.ts";
 import { enhanceModelNameWithCodingIndex } from "./provider-failover/benchmark-lookup.ts";
@@ -99,6 +105,60 @@ export function enhanceWithCI(
 			m.modelsDev,
 		),
 	}));
+}
+
+/**
+ * Cache-first model loader for network-fetching providers.
+ *
+ * - If a fresh, non-empty disk cache exists, return it immediately (no network).
+ * - Otherwise fetch; persist the result unless it looks like a degenerate /
+ *   transiently-shrunk response (poisoning guard), so a flaky API can't wipe a
+ *   good cached list for the TTL window.
+ * - On fetch error, fall back to a stale cache entry if one exists.
+ */
+export async function loadCachedOrFetchModels(
+	providerId: string,
+	fetcher: () => Promise<ProviderModelConfig[]>,
+	options?: { ttlMs?: number },
+): Promise<ProviderModelConfig[]> {
+	const ttlMs = options?.ttlMs ?? DEFAULT_PROVIDER_CACHE_TTL_MS;
+	const cached = loadProviderCache(providerId);
+
+	if (
+		cached &&
+		cached.length > 0 &&
+		isProviderCacheFresh(providerId, ttlMs)
+	) {
+		return cached;
+	}
+
+	let fetched: ProviderModelConfig[] = [];
+	try {
+		fetched = await fetcher();
+	} catch (err) {
+		// Network/discovery failure: keep serving whatever cache we have so the
+		// provider still registers models instead of going empty.
+		if (cached && cached.length > 0) {
+			_logger.info(
+				`[${providerId}] fetch failed; serving ${cached.length} cached models`,
+				{ error: err instanceof Error ? err.message : String(err) },
+			);
+			return cached;
+		}
+		return [];
+	}
+
+	// Persist the fresh list unless it looks like a degenerate /
+	// transiently-shrunk response (poisoning guard, centralized in provider-cache),
+	// so a flaky API can't wipe a good cached list for the TTL window.
+	if (fetched.length > 0) {
+		saveProviderCacheGuarded(providerId, fetched).catch(() => {});
+	} else if (cached && cached.length > 0) {
+		// Empty fetch but we have a cache: keep serving cache.
+		return cached;
+	}
+
+	return fetched;
 }
 
 /**

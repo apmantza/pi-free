@@ -26,12 +26,14 @@ import {
 } from "../../config.ts";
 import { URL_KILO_TOS } from "../../constants.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
+import { saveProviderCacheGuarded } from "../../lib/provider-cache.ts";
 import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
 import { cleanModelName, logWarning } from "../../lib/util.ts";
 import {
 	createCtxReRegister,
 	createReRegister,
 	enhanceWithCI,
+	loadCachedOrFetchModels,
 	type StoredModels,
 } from "../../provider-helper.ts";
 import { loginKilo, refreshKiloToken } from "./kilo-auth.ts";
@@ -176,27 +178,24 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 	// Resolve API key (env var or ~/.pi/free.json)
 	const kiloApiKey = getKiloApiKey();
 
-	// Try to fetch ALL models at startup (like Cline/OpenRouter)
-	// With API key: returns all models; without: returns free-only
-	let allModels: ProviderModelConfig[] = [];
-	let freeModels: ProviderModelConfig[] = [];
-
-	try {
-		// Fetch all models (returns free-only if no auth, all if auth available)
-		allModels = await fetchKiloModels({ token: kiloApiKey, freeOnly: false });
-		// Derive free list using isFreeModel with allModels for detection
-		freeModels = allModels.filter((m) =>
-			isFreeModel({ ...m, provider: PROVIDER_KILO }, allModels),
-		);
-	} catch (error) {
-		logWarning("kilo", "Failed to fetch models at startup", error);
-		// Fallback: try to fetch just free models
-		try {
-			freeModels = await fetchKiloModels({ freeOnly: true });
-		} catch (e) {
-			logWarning("kilo", "Failed to fetch free models", e);
-		}
-	}
+	// Cache-first at startup via the shared helper (mirrors the other fetchers):
+	// serve a fresh cache instantly, else fetch (full → free-only fallback),
+	// else fall back to a stale cache. The session_start handler below keeps
+	// the cache fresh.
+	let allModels: ProviderModelConfig[] = await loadCachedOrFetchModels(
+		PROVIDER_KILO,
+		async () => {
+			try {
+				return await fetchKiloModels({ token: kiloApiKey, freeOnly: false });
+			} catch (error) {
+				logWarning("kilo", "Failed to fetch models at startup", error);
+				return fetchKiloModels({ freeOnly: true });
+			}
+		},
+	);
+	let freeModels: ProviderModelConfig[] = allModels.filter((m) =>
+		isFreeModel({ ...m, provider: PROVIDER_KILO }, allModels),
+	);
 
 	// State tracking
 	const kiloShowPaid = getKiloShowPaid();
@@ -448,6 +447,9 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 						isFreeModel({ ...m, provider: PROVIDER_KILO }, allModels),
 					);
 					stored.free = freeModels;
+
+					// Persist refreshed models to disk cache for fast next startup
+					saveProviderCacheGuarded(PROVIDER_KILO, allModels).catch(() => {});
 
 					// Update global toggle registration
 					const baseCtxReRegister = createCtxReRegister(ctx as any, {

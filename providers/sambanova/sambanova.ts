@@ -38,7 +38,11 @@ import {
 	fetchOpenAICompatibleModels,
 	fetchWithTimeout,
 } from "../../lib/util.ts";
-import { createReRegister, setupProvider } from "../../provider-helper.ts";
+import {
+	createReRegister,
+	loadCachedOrFetchModels,
+	setupProvider,
+} from "../../provider-helper.ts";
 
 const _logger = createLogger("sambanova");
 
@@ -57,11 +61,13 @@ export default async function sambanovaProvider(pi: ExtensionAPI) {
 	}
 
 	// Fetch models via shared OpenAI-compatible helper
-	const allModels = await fetchOpenAICompatibleModels(
-		"sambanova",
-		BASE_URL_SAMBANOVA,
-		apiKey,
-		{ maxTokens: 8_192 },
+	const allModels = await loadCachedOrFetchModels(PROVIDER_SAMBANOVA, () =>
+		fetchOpenAICompatibleModels(
+			"sambanova",
+			BASE_URL_SAMBANOVA,
+			apiKey,
+			{ maxTokens: 8_192 },
+		),
 	);
 
 	if (allModels.length === 0) {

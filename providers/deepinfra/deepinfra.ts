@@ -49,7 +49,11 @@ import { createProviderProbe } from "../../lib/provider-probe.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
 import { fetchWithRetry, fetchWithTimeout } from "../../lib/util.ts";
-import { createReRegister, setupProvider } from "../../provider-helper.ts";
+import {
+	createReRegister,
+	loadCachedOrFetchModels,
+	setupProvider,
+} from "../../provider-helper.ts";
 
 const _logger = createLogger("deepinfra");
 
@@ -163,7 +167,9 @@ export default async function deepinfraProvider(pi: ExtensionAPI) {
 	}
 
 	// Fetch models
-	const allModels = await fetchDeepinfraModels(apiKey);
+	const allModels = await loadCachedOrFetchModels(PROVIDER_DEEPINFRA, () =>
+		fetchDeepinfraModels(apiKey),
+	);
 
 	if (allModels.length === 0) {
 		_logger.warn("[deepinfra] No chat models available");

@@ -8,3 +8,4 @@ node_modules/
 dist/
 *.tsbuildinfo
 .visual-recaps/
+.pi-subagents/

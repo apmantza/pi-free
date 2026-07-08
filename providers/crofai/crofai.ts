@@ -35,7 +35,11 @@ import {
 } from "../../lib/provider-compat.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
-import { createReRegister, setupProvider } from "../../provider-helper.ts";
+import {
+	createReRegister,
+	loadCachedOrFetchModels,
+	setupProvider,
+} from "../../provider-helper.ts";
 
 const _logger = createLogger("crofai");
 
@@ -147,7 +151,9 @@ export default async function crofaiProvider(pi: ExtensionAPI) {
 	}
 
 	// Fetch models
-	const allModels = await fetchCrofaiModels(apiKey);
+	const allModels = await loadCachedOrFetchModels(PROVIDER_CROFAI, () =>
+		fetchCrofaiModels(apiKey),
+	);
 
 	if (allModels.length === 0) {
 		_logger.warn("[crofai] No models available");

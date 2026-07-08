@@ -91,4 +91,54 @@ describe("provider cache", () => {
 		expect(isProviderCacheFresh("invalid", 60_000)).toBe(false);
 		expect(isProviderCacheFresh("future", 60_000)).toBe(false);
 	});
+
+	it("saveProviderCacheGuarded refuses to overwrite a healthy cache with a drastic shrink", async () => {
+		const { saveProviderCache, saveProviderCacheGuarded, loadProviderCache } =
+			await import("../lib/provider-cache.ts");
+		const makeModels = (n: number) =>
+			Array.from({ length: n }, (_, i) => ({
+				id: `m${i}`,
+				name: `M${i}`,
+				reasoning: false,
+				input: ["text"],
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 4096,
+				maxTokens: 2048,
+			}));
+
+		// Seed a healthy 100-model cache.
+		await saveProviderCache("guarded", makeModels(100) as any);
+
+		// A <50% shrink (10 models) must NOT overwrite the cache.
+		const kept = await saveProviderCacheGuarded("guarded", makeModels(10) as any);
+		expect(kept).toBe(false);
+		expect(loadProviderCache("guarded")).toHaveLength(100);
+
+		// A healthy result (80 models, >50%) DOES overwrite.
+		const written = await saveProviderCacheGuarded(
+			"guarded",
+			makeModels(80) as any,
+		);
+		expect(written).toBe(true);
+		expect(loadProviderCache("guarded")).toHaveLength(80);
+	});
+
+	it("saveProviderCacheGuarded never caches an empty list", async () => {
+		const { saveProviderCache, saveProviderCacheGuarded, loadProviderCache } =
+			await import("../lib/provider-cache.ts");
+		await saveProviderCache("empty-guard", [
+			{
+				id: "m0",
+				name: "M0",
+				reasoning: false,
+				input: ["text"],
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 4096,
+				maxTokens: 2048,
+			},
+		] as any);
+		const written = await saveProviderCacheGuarded("empty-guard", [] as any);
+		expect(written).toBe(false);
+		expect(loadProviderCache("empty-guard")).toHaveLength(1);
+	});
 });

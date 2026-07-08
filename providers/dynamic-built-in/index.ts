@@ -45,6 +45,12 @@ import { createLogger } from "../../lib/logger.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import { getProxyModelCompat } from "../../lib/provider-compat.ts";
 import {
+	DEFAULT_PROVIDER_CACHE_TTL_MS,
+	isProviderCacheFresh,
+	loadProviderCache,
+	saveProviderCacheGuarded,
+} from "../../lib/provider-cache.ts";
+import {
 	areAllModelsFresh,
 	getModelsDueForProbe,
 	recordModelProbeResults,
@@ -311,6 +317,23 @@ async function discoverAndRegister(
 	config: DynamicProviderDef,
 	apiKey: string,
 ): Promise<void> {
+	// Cache-first: serve cached models immediately when fresh so dynamic
+	// providers (e.g. always-discovered FastRouter) don't block startup on a
+	// network fetch. On cold/stale cache, fall through to the live discovery
+	// path and persist the result for next startup.
+	const cachedModels = loadProviderCache(config.providerId);
+	if (
+		cachedModels &&
+		cachedModels.length > 0 &&
+		isProviderCacheFresh(config.providerId, DEFAULT_PROVIDER_CACHE_TTL_MS)
+	) {
+		_logger.info(
+			`[dynamic] ${config.providerId}: using ${cachedModels.length} cached models for fast startup`,
+		);
+		await registerProvider(pi, config, cachedModels, apiKey);
+		return;
+	}
+
 	let allModels: ProviderModelConfig[];
 
 	try {
@@ -339,9 +362,16 @@ async function discoverAndRegister(
 			`[dynamic] ${config.providerId}: discovery failed, Pi keeps its defaults`,
 			{ error: error instanceof Error ? error.message : String(error) },
 		);
+		// Fall back to stale cache if discovery fails but a cache entry exists
+		if (cachedModels && cachedModels.length > 0) {
+			await registerProvider(pi, config, cachedModels, apiKey);
+		}
 		return;
 	}
 
+	if (allModels.length > 0) {
+		saveProviderCacheGuarded(config.providerId, allModels).catch(() => {});
+	}
 	await registerProvider(pi, config, allModels, apiKey);
 }
 

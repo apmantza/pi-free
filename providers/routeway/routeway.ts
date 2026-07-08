@@ -45,7 +45,11 @@ import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
 import { cleanModelName, fetchWithRetry } from "../../lib/util.ts";
 import { fetchWithTimeout } from "../../lib/util.ts";
-import { createReRegister, setupProvider } from "../../provider-helper.ts";
+import {
+	createReRegister,
+	loadCachedOrFetchModels,
+	setupProvider,
+} from "../../provider-helper.ts";
 
 const _logger = createLogger("routeway");
 
@@ -303,7 +307,9 @@ export default async function routewayProvider(pi: ExtensionAPI) {
 		return;
 	}
 
-	const allModels = await fetchRoutewayModels(apiKey);
+	const allModels = await loadCachedOrFetchModels(PROVIDER_ROUTEWAY, () =>
+		fetchRoutewayModels(apiKey),
+	);
 
 	if (allModels.length === 0) {
 		_logger.warn("[routeway] No chat models available");

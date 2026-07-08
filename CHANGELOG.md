@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Faster startup (cache-first provider loading)** — extends the cache-first pattern (already used by Cline) to kilo, fastrouter, and all OpenAI-compatible fetchers (tokenrouter, zenmux, crofai, deepinfra, sambanova, together, novita, routeway, bai, openmodel). Providers register from a fresh (1-hour TTL) disk cache and only hit the network on cold/stale cache; the dynamic built-in phase now runs concurrently with the static providers. Measured pi-free warm-cache load cost dropped from ~2.1s to ~70ms.
+- **Coding-Index debug logging is now opt-in** — `~/.pi/modelmatch.log` previously received one synchronous `appendFileSync` per model per match attempt at startup. Now off by default; set `PI_FREE_BENCHMARK_DEBUG=1` to re-enable.
+- **Config reads are memoized** — `~/.pi/free.json` is parsed once and reused while its mtime is unchanged.
+
+### Fixed
+
+- **Cache-poisoning guard** — a transient partial API response (a 200 returning a near-empty list) can no longer overwrite a healthy cached model list; fetches returning < 50% of the cached count keep the existing cache.
+
 ## [2.2.5] - 2026-06-28
 
 ### Fixed

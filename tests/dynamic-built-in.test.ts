@@ -37,6 +37,16 @@ vi.mock("../provider-helper.ts", () => ({
 	enhanceWithCI: (models: unknown[]) => models,
 }));
 
+vi.mock("../lib/provider-cache.ts", () => ({
+	DEFAULT_PROVIDER_CACHE_TTL_MS: 60 * 60 * 1000,
+	isProviderCacheFresh: () => false,
+	loadProviderCache: () => undefined,
+	saveProviderCache: vi.fn().mockResolvedValue(undefined),
+	saveProviderCacheGuarded: vi.fn().mockResolvedValue(true),
+	clearProviderCache: vi.fn(),
+	clearAllProviderCaches: vi.fn(),
+}));
+
 describe("dynamic built-in providers", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
