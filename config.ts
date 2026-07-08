@@ -228,34 +228,36 @@ function restrictConfigFilePermissions(): void {
 
 export function loadConfigFile(): PiFreeConfig {
 	// Return the memoized parse when the file hasn't changed on disk.
+	// Use a single stat result for both the hit check and the cached mtime to
+	// avoid a TOCTOU race between the check and the read.
+	let mtime: number | undefined;
 	try {
-		const mtime = statSync(CONFIG_PATH).mtimeMs;
+		mtime = statSync(CONFIG_PATH).mtimeMs;
 		if (cachedConfig !== null && mtime === cachedConfigMtime) {
-			return cachedConfig;
+			// Return a frozen copy so callers cannot mutate the shared cache.
+			return Object.freeze(cachedConfig) as PiFreeConfig;
 		}
 	} catch {
 		// stat failed (e.g. file removed) — fall through to read+parse below
 		cachedConfig = null;
 	}
+
 	try {
 		const parsed = JSON.parse(
 			readFileSync(CONFIG_PATH, "utf8"),
 			safeJsonReviver,
 		) as PiFreeConfig;
 		cachedConfig = parsed;
-		try {
-			cachedConfigMtime = statSync(CONFIG_PATH).mtimeMs;
-		} catch {
-			cachedConfigMtime = -1;
-		}
-		return parsed;
+		cachedConfigMtime = mtime ?? -1;
+		return Object.freeze(parsed) as PiFreeConfig;
 	} catch (err) {
 		cachedConfig = null;
+		cachedConfigMtime = -1;
 		_logger.error("Could not parse config file — returning empty config", {
 			path: CONFIG_PATH,
 			error: err instanceof Error ? err.message : String(err),
 		});
-		return {};
+		return Object.freeze({}) as PiFreeConfig;
 	}
 }
 

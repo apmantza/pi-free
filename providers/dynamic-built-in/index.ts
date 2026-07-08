@@ -370,7 +370,12 @@ async function discoverAndRegister(
 	}
 
 	if (allModels.length > 0) {
-		saveProviderCacheGuarded(config.providerId, allModels).catch(() => {});
+		saveProviderCacheGuarded(config.providerId, allModels).catch((err) => {
+			_logger.error(
+				`[dynamic] ${config.providerId}: failed to persist provider cache`,
+				{ error: err instanceof Error ? err.message : String(err) },
+			);
+		});
 	}
 	await registerProvider(pi, config, allModels, apiKey);
 }
