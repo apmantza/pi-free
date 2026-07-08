@@ -142,4 +142,24 @@ describe("dynamic built-in providers", () => {
 			}),
 		);
 	});
+
+	it("leaves Pi defaults when no models are available", async () => {
+		mocks.loadCachedOrFetchModels.mockResolvedValue([]);
+
+		const registerProvider = vi.fn();
+		const registerCommand = vi.fn();
+		const on = vi.fn();
+		const pi = {
+			registerProvider,
+			registerCommand,
+			on,
+		} as unknown as ExtensionAPI;
+
+		const { setupDynamicBuiltInProviders } = await import(
+			"../providers/dynamic-built-in/index.ts"
+		);
+		await setupDynamicBuiltInProviders(pi);
+
+		expect(registerProvider).not.toHaveBeenCalled();
+	});
 });
