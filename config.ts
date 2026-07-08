@@ -229,7 +229,7 @@ function restrictConfigFilePermissions(): void {
 export function loadConfigFile(): PiFreeConfig {
 	// Return the memoized parse when the file hasn't changed on disk.
 	// Use a single stat result for both the hit check and the cached mtime to
-	// avoid a TOCTOU race between the check and the read.
+	// reduce the TOCTOU window between the check and the read.
 	let mtime: number | undefined;
 	try {
 		mtime = statSync(CONFIG_PATH).mtimeMs;
@@ -253,10 +253,17 @@ export function loadConfigFile(): PiFreeConfig {
 	} catch (err) {
 		cachedConfig = null;
 		cachedConfigMtime = -1;
-		_logger.error("Could not parse config file — returning empty config", {
-			path: CONFIG_PATH,
-			error: err instanceof Error ? err.message : String(err),
-		});
+		if (err instanceof SyntaxError) {
+			_logger.error("Config file is corrupt (invalid JSON) — returning empty config", {
+				path: CONFIG_PATH,
+				error: err.message,
+			});
+		} else {
+			_logger.error("Could not read config file — returning empty config", {
+				path: CONFIG_PATH,
+				error: err instanceof Error ? err.message : String(err),
+			});
+		}
 		return Object.freeze({}) as PiFreeConfig;
 	}
 }
@@ -268,7 +275,11 @@ export function loadConfigFile(): PiFreeConfig {
 function readRawConfigFile(): string | undefined {
 	try {
 		return readFileSync(CONFIG_PATH, "utf8");
-	} catch {
+	} catch (err) {
+		_logger.warn("Could not read config file", {
+			path: CONFIG_PATH,
+			error: err instanceof Error ? err.message : String(err),
+		});
 		return undefined;
 	}
 }

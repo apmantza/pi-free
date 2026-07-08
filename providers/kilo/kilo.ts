@@ -206,6 +206,14 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 	let showPaidModels = kiloShowPaid;
 	let currentModels = kiloShowPaid && !kiloFreeOnly ? allModels : freeModels;
 
+	if (currentModels.length === 0) {
+		logWarning(
+			"kilo",
+			"No Kilo models available at startup; provider will be empty until models can be fetched",
+			undefined,
+		);
+	}
+
 	// Shared model storage for global toggle
 	const stored: StoredModels = { free: freeModels, all: allModels };
 
