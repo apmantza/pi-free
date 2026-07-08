@@ -45,12 +45,6 @@ import { createLogger } from "../../lib/logger.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import { getProxyModelCompat } from "../../lib/provider-compat.ts";
 import {
-	DEFAULT_PROVIDER_CACHE_TTL_MS,
-	isProviderCacheFresh,
-	loadProviderCache,
-	saveProviderCacheGuarded,
-} from "../../lib/provider-cache.ts";
-import {
 	areAllModelsFresh,
 	getModelsDueForProbe,
 	recordModelProbeResults,
@@ -61,7 +55,7 @@ import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
 import { fetchWithTimeout } from "../../lib/util.ts";
 import { fetchOpenRouterCompatibleModels } from "../model-fetcher.ts";
 import { createToggleState } from "../../lib/toggle-state.ts";
-import { enhanceWithCI } from "../../provider-helper.ts";
+import { enhanceWithCI, loadCachedOrFetchModels } from "../../provider-helper.ts";
 import {
 	OPENCODE_DYNAMIC_API,
 	createOpenCodeSessionTracker,
@@ -317,67 +311,48 @@ async function discoverAndRegister(
 	config: DynamicProviderDef,
 	apiKey: string,
 ): Promise<void> {
-	// Cache-first: serve cached models immediately when fresh so dynamic
-	// providers (e.g. always-discovered FastRouter) don't block startup on a
-	// network fetch. On cold/stale cache, fall through to the live discovery
-	// path and persist the result for next startup.
-	const cachedModels = loadProviderCache(config.providerId);
-	if (
-		cachedModels &&
-		cachedModels.length > 0 &&
-		isProviderCacheFresh(config.providerId, DEFAULT_PROVIDER_CACHE_TTL_MS)
-	) {
+	// Use the shared cache-first loader so dynamic providers (e.g. always-discovered
+	// FastRouter) don't block startup on a network fetch. The helper serves a fresh
+	// cache, falls back to stale cache on failure/empty fetch, and persists the
+	// result for next startup.
+	const models = await loadCachedOrFetchModels(
+		config.providerId,
+		async () => {
+			let allModels: ProviderModelConfig[];
+			if (config.fetchModels) {
+				allModels = await config.fetchModels(apiKey);
+			} else {
+				allModels = await fetchModelsFromEndpoint({
+					providerId: config.providerId,
+					baseUrl: config.baseUrl,
+					apiKey,
+					compat: config.compat,
+					modelDefaults: config.modelDefaults,
+					timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
+				});
+			}
+
+			// Apply DeepSeek proxy compat to matching models. OpenCode headers are
+			// injected per request by createOpenCodeStreamSimple(), not stored here.
+			return allModels.map((m) => ({
+				...m,
+				api: isOpenCodeProvider(config.providerId)
+					? OPENCODE_DYNAMIC_API
+					: m.api,
+				compat: getProxyModelCompat(m) ?? m.compat,
+			}));
+		},
+	);
+
+	if (models.length === 0) {
+		// No usable models and no fallback cache: leave Pi's built-in defaults.
 		_logger.info(
-			`[dynamic] ${config.providerId}: using ${cachedModels.length} cached models for fast startup`,
+			`[dynamic] ${config.providerId}: no models available; Pi keeps its defaults`,
 		);
-		await registerProvider(pi, config, cachedModels, apiKey);
 		return;
 	}
 
-	let allModels: ProviderModelConfig[];
-
-	try {
-		if (config.fetchModels) {
-			allModels = await config.fetchModels(apiKey);
-		} else {
-			allModels = await fetchModelsFromEndpoint({
-				providerId: config.providerId,
-				baseUrl: config.baseUrl,
-				apiKey,
-				compat: config.compat,
-				modelDefaults: config.modelDefaults,
-				timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
-			});
-		}
-
-		// Apply DeepSeek proxy compat to matching models. OpenCode headers are
-		// injected per request by createOpenCodeStreamSimple(), not stored here.
-		allModels = allModels.map((m) => ({
-			...m,
-			api: isOpenCodeProvider(config.providerId) ? OPENCODE_DYNAMIC_API : m.api,
-			compat: getProxyModelCompat(m) ?? m.compat,
-		}));
-	} catch (error) {
-		_logger.info(
-			`[dynamic] ${config.providerId}: discovery failed, Pi keeps its defaults`,
-			{ error: error instanceof Error ? error.message : String(error) },
-		);
-		// Fall back to stale cache if discovery fails but a cache entry exists
-		if (cachedModels && cachedModels.length > 0) {
-			await registerProvider(pi, config, cachedModels, apiKey);
-		}
-		return;
-	}
-
-	if (allModels.length > 0) {
-		saveProviderCacheGuarded(config.providerId, allModels).catch((err) => {
-			_logger.error(
-				`[dynamic] ${config.providerId}: failed to persist provider cache`,
-				{ error: err instanceof Error ? err.message : String(err) },
-			);
-		});
-	}
-	await registerProvider(pi, config, allModels, apiKey);
+	await registerProvider(pi, config, models, apiKey);
 }
 
 // =============================================================================
