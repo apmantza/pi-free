@@ -189,7 +189,10 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 				return await fetchKiloModels({ token: kiloApiKey, freeOnly: false });
 			} catch (error) {
 				logWarning("kilo", "Failed to fetch models at startup", error);
-				return fetchKiloModels({ freeOnly: true });
+				return fetchKiloModels({ freeOnly: true }).catch((err) => {
+					logWarning("kilo", "Failed to fetch free models at startup", err);
+					return [];
+				});
 			}
 		},
 	);
@@ -202,6 +205,14 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 	const kiloFreeOnly = getKiloFreeOnly();
 	let showPaidModels = kiloShowPaid;
 	let currentModels = kiloShowPaid && !kiloFreeOnly ? allModels : freeModels;
+
+	if (currentModels.length === 0) {
+		logWarning(
+			"kilo",
+			"No Kilo models available at startup; provider will be empty until models can be fetched",
+			undefined,
+		);
+	}
 
 	// Shared model storage for global toggle
 	const stored: StoredModels = { free: freeModels, all: allModels };
@@ -294,7 +305,7 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 			"User-Agent": "pi-free-providers",
 		},
 		models: enhanceWithCI(modelsWithCompat),
-		...(!!kiloApiKey ? {} : { oauth: oauthConfig }),
+		...(kiloApiKey ? {} : { oauth: oauthConfig }),
 	});
 
 	// Registration complete - models registered silently (use LOG_LEVEL=info to see details)
@@ -449,7 +460,13 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 					stored.free = freeModels;
 
 					// Persist refreshed models to disk cache for fast next startup
-					saveProviderCacheGuarded(PROVIDER_KILO, allModels).catch(() => {});
+					saveProviderCacheGuarded(PROVIDER_KILO, allModels).catch((err) => {
+						logWarning(
+							"kilo",
+							"Failed to persist refreshed models to cache",
+							err,
+						);
+					});
 
 					// Update global toggle registration
 					const baseCtxReRegister = createCtxReRegister(ctx as any, {

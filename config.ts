@@ -228,34 +228,43 @@ function restrictConfigFilePermissions(): void {
 
 export function loadConfigFile(): PiFreeConfig {
 	// Return the memoized parse when the file hasn't changed on disk.
+	// Use a single stat result for both the hit check and the cached mtime to
+	// reduce the TOCTOU window between the check and the read.
+	let mtime: number | undefined;
 	try {
-		const mtime = statSync(CONFIG_PATH).mtimeMs;
+		mtime = statSync(CONFIG_PATH).mtimeMs;
 		if (cachedConfig !== null && mtime === cachedConfigMtime) {
-			return cachedConfig;
+			// Return a frozen copy so callers cannot mutate the shared cache.
+			return Object.freeze(cachedConfig) as PiFreeConfig;
 		}
 	} catch {
 		// stat failed (e.g. file removed) — fall through to read+parse below
 		cachedConfig = null;
 	}
+
 	try {
 		const parsed = JSON.parse(
 			readFileSync(CONFIG_PATH, "utf8"),
 			safeJsonReviver,
 		) as PiFreeConfig;
 		cachedConfig = parsed;
-		try {
-			cachedConfigMtime = statSync(CONFIG_PATH).mtimeMs;
-		} catch {
-			cachedConfigMtime = -1;
-		}
-		return parsed;
+		cachedConfigMtime = mtime ?? -1;
+		return Object.freeze(parsed) as PiFreeConfig;
 	} catch (err) {
 		cachedConfig = null;
-		_logger.error("Could not parse config file — returning empty config", {
-			path: CONFIG_PATH,
-			error: err instanceof Error ? err.message : String(err),
-		});
-		return {};
+		cachedConfigMtime = -1;
+		if (err instanceof SyntaxError) {
+			_logger.error("Config file is corrupt (invalid JSON) — returning empty config", {
+				path: CONFIG_PATH,
+				error: err.message,
+			});
+		} else {
+			_logger.error("Could not read config file — returning empty config", {
+				path: CONFIG_PATH,
+				error: err instanceof Error ? err.message : String(err),
+			});
+		}
+		return Object.freeze({}) as PiFreeConfig;
 	}
 }
 
@@ -266,7 +275,11 @@ export function loadConfigFile(): PiFreeConfig {
 function readRawConfigFile(): string | undefined {
 	try {
 		return readFileSync(CONFIG_PATH, "utf8");
-	} catch {
+	} catch (err) {
+		_logger.warn("Could not read config file", {
+			path: CONFIG_PATH,
+			error: err instanceof Error ? err.message : String(err),
+		});
 		return undefined;
 	}
 }

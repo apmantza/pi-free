@@ -4,6 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
 	fetchOpenRouterCompatibleModels: vi.fn(),
 	registerWithGlobalToggle: vi.fn(),
+	loadCachedOrFetchModels: vi.fn(
+		async (_id: string, fetcher: () => Promise<unknown[]>) => {
+			try {
+				return await fetcher();
+			} catch {
+				return [];
+			}
+		},
+	),
 }));
 
 vi.mock("../config.ts", () => ({
@@ -35,16 +44,8 @@ vi.mock("../lib/registry.ts", () => ({
 
 vi.mock("../provider-helper.ts", () => ({
 	enhanceWithCI: (models: unknown[]) => models,
-}));
-
-vi.mock("../lib/provider-cache.ts", () => ({
-	DEFAULT_PROVIDER_CACHE_TTL_MS: 60 * 60 * 1000,
-	isProviderCacheFresh: () => false,
-	loadProviderCache: () => undefined,
-	saveProviderCache: vi.fn().mockResolvedValue(undefined),
-	saveProviderCacheGuarded: vi.fn().mockResolvedValue(true),
-	clearProviderCache: vi.fn(),
-	clearAllProviderCaches: vi.fn(),
+	loadCachedOrFetchModels: (id: string, fetcher: () => Promise<unknown[]>) =>
+		mocks.loadCachedOrFetchModels(id, fetcher),
 }));
 
 describe("dynamic built-in providers", () => {
@@ -103,5 +104,62 @@ describe("dynamic built-in providers", () => {
 				models: [expect.objectContaining({ id: "free-model" })],
 			}),
 		);
+	});
+
+	it("registers cached models without fetching when the cache is warm", async () => {
+		mocks.loadCachedOrFetchModels.mockResolvedValue([
+			{
+				id: "cached-model",
+				name: "Cached Free Model",
+				reasoning: false,
+				input: ["text"],
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 128000,
+				maxTokens: 4096,
+			},
+		]);
+
+		const registerProvider = vi.fn();
+		const registerCommand = vi.fn();
+		const on = vi.fn();
+		const pi = {
+			registerProvider,
+			registerCommand,
+			on,
+		} as unknown as ExtensionAPI;
+
+		const { setupDynamicBuiltInProviders } = await import(
+			"../providers/dynamic-built-in/index.ts"
+		);
+		await setupDynamicBuiltInProviders(pi);
+
+		expect(mocks.fetchOpenRouterCompatibleModels).not.toHaveBeenCalled();
+		expect(registerProvider).toHaveBeenCalledWith(
+			"fastrouter",
+			expect.objectContaining({
+				apiKey: "$FASTROUTER_API_KEY",
+				models: [expect.objectContaining({ id: "cached-model" })],
+			}),
+		);
+	});
+
+	it("leaves Pi defaults when no models are available", async () => {
+		mocks.loadCachedOrFetchModels.mockResolvedValue([]);
+
+		const registerProvider = vi.fn();
+		const registerCommand = vi.fn();
+		const on = vi.fn();
+		const pi = {
+			registerProvider,
+			registerCommand,
+			on,
+		} as unknown as ExtensionAPI;
+
+		const { setupDynamicBuiltInProviders } = await import(
+			"../providers/dynamic-built-in/index.ts"
+		);
+		await setupDynamicBuiltInProviders(pi);
+
+		expect(registerProvider).not.toHaveBeenCalled();
 	});
 });

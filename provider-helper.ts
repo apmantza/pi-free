@@ -152,7 +152,11 @@ export async function loadCachedOrFetchModels(
 	// transiently-shrunk response (poisoning guard, centralized in provider-cache),
 	// so a flaky API can't wipe a good cached list for the TTL window.
 	if (fetched.length > 0) {
-		saveProviderCacheGuarded(providerId, fetched).catch(() => {});
+		saveProviderCacheGuarded(providerId, fetched).catch((err) => {
+			_logger.error(`[${providerId}] failed to persist provider cache`, {
+				error: err instanceof Error ? err.message : String(err),
+			});
+		});
 	} else if (cached && cached.length > 0) {
 		// Empty fetch but we have a cache: keep serving cache.
 		return cached;
