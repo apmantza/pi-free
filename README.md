@@ -74,7 +74,7 @@ First run creates `~/.pi/free.json` automatically. Add keys there or use environ
 | Category | Providers |
 |---|---|
 | ✅ **Free** | Kilo, Cline, OpenRouter, OpenCode, LLM7, OpenModel, TokenRouter (1 free) |
-| 🔄 **Freemium** | Ollama Cloud, SambaNova, Codestral, AgentRouter |
+| 🔄 **Freemium** | Ollama Cloud, SambaNova, AgentRouter |
 | 💳 **Paid** | ZenMux, CrofAI, DeepInfra, Together, Novita, Routeway, b.ai |
 | 🔧 **Dynamic** | Mistral, Groq, Cerebras, xAI, Hugging Face, FastRouter |
 

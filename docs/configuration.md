@@ -17,7 +17,6 @@ pi-free reads settings from `~/.pi/free.json` (auto-created on first run).
 {
   "ollama_api_key": "YOUR_KEY",
   "mistral_api_key": "YOUR_KEY",
-  "codestral_api_key": "YOUR_KEY",
   "deepinfra_api_key": "YOUR_KEY",
   "sambanova_api_key": "YOUR_KEY",
   "llm7_api_key": "YOUR_KEY",

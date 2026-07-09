@@ -16,7 +16,6 @@ export const PROVIDER_QWEN = "qwen";
 export const PROVIDER_MODAL = "modal";
 export const PROVIDER_ZENMUX = "zenmux";
 export const PROVIDER_CROFAI = "crofai";
-export const PROVIDER_CODESTRAL = "codestral";
 export const PROVIDER_LLM7 = "llm7";
 export const PROVIDER_DEEPINFRA = "deepinfra";
 export const PROVIDER_SAMBANOVA = "sambanova";
@@ -42,7 +41,6 @@ export const ALL_UNIQUE_PROVIDERS = [
 	PROVIDER_OLLAMA,
 	PROVIDER_ZENMUX,
 	PROVIDER_CROFAI,
-	PROVIDER_CODESTRAL,
 	PROVIDER_LLM7,
 	PROVIDER_DEEPINFRA,
 	PROVIDER_SAMBANOVA,
@@ -68,7 +66,6 @@ export const BASE_URL_QWEN =
 	"https://dashscope.aliyuncs.com/compatible-mode/v1";
 export const BASE_URL_ZENMUX = "https://zenmux.ai/api/v1";
 export const BASE_URL_CROFAI = "https://crof.ai/v1";
-export const BASE_URL_CODESTRAL = "https://codestral.mistral.ai/v1";
 export const BASE_URL_LLM7 = "https://api.llm7.io/v1";
 export const BASE_URL_DEEPINFRA = "https://api.deepinfra.com/v1/openai";
 export const BASE_URL_SAMBANOVA = "https://api.sambanova.ai/v1";

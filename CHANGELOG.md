@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Cache-poisoning guard** — a transient partial API response (a 200 returning a near-empty list) can no longer overwrite a healthy cached model list; fetches returning < 50% of the cached count keep the existing cache.
 
+### Removed
+
+- **Codestral provider** — removed the Codestral provider (`codestral.mistral.ai`). Codestral's free tier is no longer available; use `MISTRAL_API_KEY` with pi's built-in dynamic Mistral provider instead.
+
 ## [2.2.5] - 2026-06-28
 
 ### Fixed

@@ -27,7 +27,6 @@ Run `/toggle-{provider}` to switch between free-only and all models. Your prefer
 | `/toggle-cline` | Cline | ✅ free |
 | `/toggle-ollama` | Ollama Cloud | 🔄 freemium |
 | `/toggle-sambanova` | SambaNova | 🔄 freemium |
-| `/toggle-codestral` | Codestral | 🔄 freemium |
 | `/toggle-llm7` | LLM7 | ✅ free |
 | `/toggle-novita` | Novita AI | 💳 paid |
 | `/toggle-routeway` | Routeway AI | 💳 paid |
