@@ -11,13 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Faster startup (~30x)** — warm-cache load dropped from ~2.1s to ~70ms: providers now serve from a 1-hour disk cache and fetch live only on cold/stale cache. Extends the cache-first pattern (already used by Cline) to kilo, fastrouter, and all OpenAI-compatible fetchers (tokenrouter, zenmux, crofai, deepinfra, sambanova, together, novita, routeway, bai, openmodel); the dynamic built-in phase runs concurrently with the static providers.
-- **Coding-Index debug logging is now opt-in** — `~/.pi/modelmatch.log` previously received one synchronous `appendFileSync` per model per match attempt at startup. Now off by default; set `PI_FREE_BENCHMARK_DEBUG=1` to re-enable.
-- **Config reads are memoized** — `~/.pi/free.json` is parsed once and reused while its mtime is unchanged.
+- **Faster startup (~30x)** — warm-cache load dropped from ~2.1s to ~70ms: providers now serve from a 1-hour disk cache and fetch live only on cold/stale cache. Extends the cache-first pattern (already used by Cline) to kilo, fastrouter, and all OpenAI-compatible fetchers (tokenrouter, zenmux, crofai, deepinfra, sambanova, together, novita, routeway, bai, openmodel); the dynamic built-in phase runs concurrently with the static providers. Thanks @lmilojevicc
+- **Coding-Index debug logging is now opt-in** — `~/.pi/modelmatch.log` previously received one synchronous `appendFileSync` per model per match attempt at startup. Now off by default; set `PI_FREE_BENCHMARK_DEBUG=1` to re-enable. Thanks @lmilojevicc
+- **Config reads are memoized** — `~/.pi/free.json` is parsed once and reused while its mtime is unchanged. Thanks @lmilojevicc
 
 ### Fixed
 
-- **Cache-poisoning guard** — a transient partial API response (a 200 returning a near-empty list) can no longer overwrite a healthy cached model list; fetches returning < 50% of the cached count keep the existing cache.
+- **Cache-poisoning guard** — a transient partial API response (a 200 returning a near-empty list) can no longer overwrite a healthy cached model list; fetches returning < 50% of the cached count keep the existing cache. Thanks @lmilojevicc
 
 ### Removed
 
