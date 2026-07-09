@@ -112,20 +112,6 @@ Free tier: 20-480 RPM, 400-9600 RPD (no credit card). Models include Llama 3.3 7
 export SAMBANOVA_API_KEY="..."
 ```
 
-### Codestral
-
-Mistral's code-focused model via `codestral.mistral.ai`.
-
-- Free Experiment plan: 2 req/min, 500K tokens/min, 1B tokens/month
-- No credit card — phone verification only
-- Sign up at [console.mistral.ai/codestral](https://console.mistral.ai/codestral)
-
-```bash
-export CODESTRAL_API_KEY="..."
-```
-
-**Note:** Codestral uses Mistral's SDK (`mistral-conversations` API type), not OpenAI-completions.
-
 ### AgentRouter
 
 Free public-welfare gateway with 5 Claude models (Anthropic-compatible access). Requires API key.

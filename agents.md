@@ -48,7 +48,6 @@ index.ts                          ← Extension entry point (piFreeEntry)
       ├─ sambanova/sambanova.ts   ← SambaNova (free tier)
       ├─ zenmux/zenmux.ts         ← ZenMux AI gateway (paid)
       ├─ crofai/crofai.ts         ← CrofAI (paid)
-      ├─ codestral/codestral.ts   ← Codestral (free tier)
       ├─ llm7/llm7.ts             ← LLM7 (free default/fast selectors)
       ├─ deepinfra/deepinfra.ts   ← DeepInfra ($5 trial credit)
       ├─ together/together.ts     ← Together AI (paid credits)
@@ -157,7 +156,7 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 | Category    | Providers                                          | Auth              | Notes                            |
 | ----------- | -------------------------------------------------- | ----------------- | -------------------------------- |
 | ✅ Free     | kilo, cline, openrouter, opencode, llm7            | OAuth, API key, or none | Toggle between free/paid         |
-| 🔄 Freemium | ollama-cloud, sambanova, codestral, tokenrouter    | API key           | Free tier with limits            |
+| 🔄 Freemium | ollama-cloud, sambanova, tokenrouter    | API key           | Free tier with limits            |
 | 💳 Paid     | zenmux, crofai, deepinfra, together, novita, routeway | API key + credits | Trial credits or pay-per-token   |
 | 🔧 Dynamic  | mistral, groq, cerebras, xai, huggingface, fastrouter | API key        | Fetched when key configured      |
 
