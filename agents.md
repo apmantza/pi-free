@@ -6,7 +6,7 @@
 
 A **Pi extension** (`@earendil-works/pi-coding-agent`) that registers free and paid AI model providers with Pi's model picker. It shows free models by default and lets users toggle per-provider between free-only and all-models view via `/toggle-{provider}` commands.
 
-**Package:** `pi-free` v2.2.4  
+**Package:** `pi-free` v2.2.7
 **Author:** Apostolos Mantzaris  
 **License:** MIT  
 **Repo:** `github.com/apmantza/pi-free`  
@@ -216,7 +216,7 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 
 ## Testing
 
-- **Framework:** Vitest (`vitest` v4.1.5)
+- **Framework:** Vitest (`vitest` v4.1.10)
 - **Run:** `npm test` (watch), `npm run test:run` (once)
 - **Tests:** `tests/*.test.ts` — covers registry, toggle state, config, model detection, provider compat
 - Tests use `vi.fn()` mocks for ExtensionAPI
