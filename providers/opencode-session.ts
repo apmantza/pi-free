@@ -238,7 +238,9 @@ function resolvePiAiExportTarget(
 		const prefix = pattern.slice(2, -1);
 		if (subpath.startsWith(prefix)) {
 			const target = getTarget(entry);
-			if (target) return target.replace("*", subpath.slice(prefix.length));
+			if (target) {
+				return target.replaceAll("*", subpath.slice(prefix.length));
+			}
 		}
 	}
 
