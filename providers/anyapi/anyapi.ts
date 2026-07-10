@@ -25,6 +25,7 @@ import {
 	PROVIDER_ANYAPI,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
+import { loadProviderCache } from "../../lib/provider-cache.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import { fetchWithRetry, mapOpenRouterModel } from "../../lib/util.ts";
@@ -60,10 +61,13 @@ interface AnyApiModel {
 	isFree?: boolean;
 }
 
+const ANYAPI_METADATA_VERSION = 1;
+
 type AnyApiProviderModel = ProviderModelConfig & {
 	_pricingKnown?: boolean;
 	_freeKnown?: boolean;
 	_isFree?: boolean;
+	_anyapiMetadataVersion?: number;
 };
 
 function hasPricing(model: AnyApiModel): boolean {
@@ -186,10 +190,19 @@ async function fetchAnyApiModels(
 
 	_logger.info(`[anyapi] Fetched ${models.length} text models`);
 
-	const enriched = await safeEnrichModelsWithModelsDev(models, {
-		providerId: PROVIDER_ANYAPI,
-	});
-	return applyHidden(enriched, PROVIDER_ANYAPI) as AnyApiProviderModel[];
+	// AnyAPI's /models response omits context and output limits for its
+	// catalog. Use the global models.dev catalog so canonical model IDs such
+	// as qwen/qwen3-coder:free do not fall back to the generic 4096-token
+	// defaults in mapOpenRouterModel. The AnyAPI-scoped models.dev entry only
+	// contains a small paid subset and does not cover the free catalog.
+	const enriched = await safeEnrichModelsWithModelsDev(models);
+	return applyHidden(
+		enriched.map((model) => ({
+			...model,
+			_anyapiMetadataVersion: ANYAPI_METADATA_VERSION,
+		})),
+		PROVIDER_ANYAPI,
+	) as AnyApiProviderModel[];
 }
 
 export default async function anyapiProvider(pi: ExtensionAPI) {
@@ -199,8 +212,18 @@ export default async function anyapiProvider(pi: ExtensionAPI) {
 		return;
 	}
 
-	const allModels = await loadCachedOrFetchModels(PROVIDER_ANYAPI, () =>
-		fetchAnyApiModels(apiKey),
+	const cachedModels = loadProviderCache(PROVIDER_ANYAPI) as
+		| AnyApiProviderModel[]
+		| undefined;
+	const needsMetadataMigration = cachedModels?.some(
+		(model) => model._anyapiMetadataVersion !== ANYAPI_METADATA_VERSION,
+	);
+	const allModels = await loadCachedOrFetchModels(
+		PROVIDER_ANYAPI,
+		() => fetchAnyApiModels(apiKey),
+		// Force one refresh for caches written before context metadata was added;
+		// subsequent warm startups continue using the normal one-hour cache.
+		needsMetadataMigration ? { ttlMs: -1 } : undefined,
 	);
 	if (allModels.length === 0) {
 		_logger.warn("[anyapi] No text models available");
