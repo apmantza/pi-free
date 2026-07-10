@@ -24,6 +24,7 @@ pi-free reads settings from `~/.pi/free.json` (auto-created on first run).
   "crofai_api_key": "YOUR_KEY",
   "routeway_api_key": "sk-...",
   "tokenrouter_api_key": "YOUR_KEY",
+  "anyapi_api_key": "YOUR_KEY",
   "bai_api_key": "YOUR_KEY",
   "openmodel_api_key": "YOUR_KEY",
   "novita_api_key": "YOUR_KEY",

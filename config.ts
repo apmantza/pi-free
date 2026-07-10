@@ -18,6 +18,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import {
+	PROVIDER_ANYAPI,
 	PROVIDER_BAI,
 	PROVIDER_CLINE,
 	PROVIDER_FASTROUTER,
@@ -38,6 +39,7 @@ import {
 	PROVIDER_NOVITA,
 } from "./constants.ts";
 export {
+	PROVIDER_ANYAPI,
 	PROVIDER_BAI,
 	PROVIDER_CLINE,
 	PROVIDER_FASTROUTER,
@@ -78,6 +80,7 @@ interface PiFreeConfig {
 	routeway_api_key?: string;
 	fastrouter_api_key?: string;
 	tokenrouter_api_key?: string;
+	anyapi_api_key?: string;
 	bai_api_key?: string;
 	openmodel_api_key?: string;
 	kilo_api_key?: string;
@@ -98,6 +101,7 @@ interface PiFreeConfig {
 	routeway_show_paid?: boolean;
 	fastrouter_show_paid?: boolean;
 	tokenrouter_show_paid?: boolean;
+	anyapi_show_paid?: boolean;
 	bai_show_paid?: boolean;
 	openmodel_show_paid?: boolean;
 	openrouter_show_paid?: boolean;
@@ -118,6 +122,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	routeway_api_key: "",
 	fastrouter_api_key: "",
 	tokenrouter_api_key: "",
+	anyapi_api_key: "",
 	bai_api_key: "",
 	openmodel_api_key: "",
 	kilo_api_key: "",
@@ -139,6 +144,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	routeway_show_paid: false,
 	fastrouter_show_paid: false,
 	tokenrouter_show_paid: false,
+	anyapi_show_paid: false,
 	bai_show_paid: false,
 	openmodel_show_paid: false,
 	openrouter_show_paid: false,
@@ -345,6 +351,7 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 		prefix: "TOKENROUTER",
 		showPaidKey: "tokenrouter_show_paid",
 	},
+	{ id: PROVIDER_ANYAPI, prefix: "ANYAPI", showPaidKey: "anyapi_show_paid" },
 	{ id: PROVIDER_BAI, prefix: "BAI", showPaidKey: "bai_show_paid" },
 	{
 		id: PROVIDER_OPENMODEL,
@@ -444,6 +451,10 @@ export function getTokenrouterShowPaid(): boolean {
 	);
 }
 
+export function getAnyapiShowPaid(): boolean {
+	return resolveBool("ANYAPI_SHOW_PAID", loadConfigFile().anyapi_show_paid);
+}
+
 export function getBaiShowPaid(): boolean {
 	return resolveBool("BAI_SHOW_PAID", loadConfigFile().bai_show_paid);
 }
@@ -539,6 +550,10 @@ export function getFastrouterApiKey(): string | undefined {
 
 export function getTokenrouterApiKey(): string | undefined {
 	return resolve("TOKENROUTER_API_KEY", loadConfigFile().tokenrouter_api_key);
+}
+
+export function getAnyapiApiKey(): string | undefined {
+	return resolve("ANYAPI_API_KEY", loadConfigFile().anyapi_api_key);
 }
 
 export function getBaiApiKey(): string | undefined {

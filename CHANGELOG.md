@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Pi 0.80 compatibility** — update the Pi SDK peer requirements to `>=0.80.0` and refresh the development toolchain dependencies.
+- **AnyAPI provider** — add AnyAPI's OpenAI-compatible gateway with dynamic model discovery, free-model filtering, a 100K-token daily free plan, and `/toggle-anyapi` for switching to the full catalog.
 
 ## [2.2.6] - 2026-07-09
 

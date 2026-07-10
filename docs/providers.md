@@ -87,6 +87,16 @@ export TOKENROUTER_API_KEY="..."
 
 ## 🔄 Freemium Providers
 
+### AnyAPI
+
+Free plan with 100K ANY tokens per day and no credit card. AnyAPI is an OpenAI-compatible gateway with explicitly free models plus paid models.
+
+```bash
+export ANYAPI_API_KEY="..."
+```
+
+Use `/toggle-anyapi` to switch between free models and the full catalog. Details: [anyapi.ai/pricing](https://anyapi.ai/pricing).
+
 ### Ollama Cloud
 
 Usage-based free tier, resets every 5 hours + 7 days.
@@ -110,14 +120,6 @@ Free tier: 20-480 RPM, 400-9600 RPD (no credit card). Models include Llama 3.3 7
 
 ```bash
 export SAMBANOVA_API_KEY="..."
-```
-
-### AgentRouter
-
-Free public-welfare gateway with 5 Claude models (Anthropic-compatible access). Requires API key.
-
-```bash
-export AGENTROUTER_API_KEY="..."
 ```
 
 ---

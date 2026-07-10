@@ -23,6 +23,7 @@ export const PROVIDER_TOGETHER = "together";
 export const PROVIDER_NOVITA = "novita";
 export const PROVIDER_ROUTEWAY = "routeway";
 export const PROVIDER_TOKENROUTER = "tokenrouter";
+export const PROVIDER_ANYAPI = "anyapi";
 export const PROVIDER_BAI = "bai";
 export const PROVIDER_OPENMODEL = "openmodel";
 export const PROVIDER_QODER = "qoder";
@@ -48,6 +49,7 @@ export const ALL_UNIQUE_PROVIDERS = [
 	PROVIDER_NOVITA,
 	PROVIDER_ROUTEWAY,
 	PROVIDER_TOKENROUTER,
+	PROVIDER_ANYAPI,
 	PROVIDER_BAI,
 	PROVIDER_OPENMODEL,
 	PROVIDER_QODER,
@@ -73,6 +75,7 @@ export const BASE_URL_TOGETHER = "https://api.together.xyz/v1";
 export const BASE_URL_NOVITA = "https://api.novita.ai/openai/v1";
 export const BASE_URL_ROUTEWAY = "https://api.routeway.ai/v1";
 export const BASE_URL_TOKENROUTER = "https://api.tokenrouter.com/v1";
+export const BASE_URL_ANYAPI = "https://api.anyapi.ai/v1";
 export const BASE_URL_BAI = "https://api.b.ai/v1";
 /**
  * OpenModel is registered with `api: "anthropic-messages"`. The pi-ai
