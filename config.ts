@@ -249,10 +249,13 @@ export function loadConfigFile(): PiFreeConfig {
 		cachedConfig = null;
 		cachedConfigMtime = -1;
 		if (err instanceof SyntaxError) {
-			_logger.error("Config file is corrupt (invalid JSON) — returning empty config", {
-				path: CONFIG_PATH,
-				error: err.message,
-			});
+			_logger.error(
+				"Config file is corrupt (invalid JSON) — returning empty config",
+				{
+					path: CONFIG_PATH,
+					error: err.message,
+				},
+			);
 		} else {
 			_logger.error("Could not read config file — returning empty config", {
 				path: CONFIG_PATH,

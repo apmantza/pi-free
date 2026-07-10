@@ -26,10 +26,8 @@ import type {
 	SimpleStreamOptions,
 	ThinkingContent,
 } from "@earendil-works/pi-ai";
-import {
-	createAssistantMessageEventStream,
-	streamSimpleOpenAICompletions,
-} from "@earendil-works/pi-ai";
+import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
+import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import {
 	getTokenrouterApiKey,
 	getTokenrouterShowPaid,
@@ -56,6 +54,7 @@ import {
 } from "../../provider-helper.ts";
 
 const _logger = createLogger("tokenrouter");
+const streamSimpleOpenAICompletions = openAICompletionsApi().streamSimple;
 
 // =============================================================================
 // Reasoning cleanup
@@ -335,7 +334,7 @@ function createTokenRouterOpenAIStream(
 ): AssistantMessageEventStream {
 	const forcePatch = isTokenRouterMinimaxModel(model.id);
 	return streamSimpleOpenAICompletions(
-		{ ...model, api: "openai-completions" },
+		{ ...model, api: "openai-completions" } as Model<"openai-completions">,
 		context,
 		{
 			...options,

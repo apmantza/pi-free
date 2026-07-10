@@ -56,15 +56,15 @@
 		"smoke:openmodel": "tsx scripts/smoke-openmodel-wire-format.ts"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-ai": "^0.79.8",
-		"@earendil-works/pi-coding-agent": "^0.79.8",
-		"@earendil-works/pi-tui": "^0.79.8"
+		"@earendil-works/pi-ai": ">=0.80.0",
+		"@earendil-works/pi-coding-agent": ">=0.80.0",
+		"@earendil-works/pi-tui": ">=0.80.0"
 	},
 	"devDependencies": {
-		"@vitest/ui": "^4.1.5",
-		"tsx": "^4.0.0",
+		"@vitest/ui": "^4.1.10",
+		"tsx": "^4.23.0",
 		"typescript": "^6.0.3",
-		"vitest": "^4.1.5"
+		"vitest": "^4.1.10"
 	},
 	"pi": {
 		"extensions": [
