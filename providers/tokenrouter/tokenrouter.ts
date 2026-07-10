@@ -27,7 +27,7 @@ import type {
 	ThinkingContent,
 } from "@earendil-works/pi-ai";
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
-import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
+import { openAICompletionsApi } from "@earendil-works/pi-ai/compat";
 import {
 	getTokenrouterApiKey,
 	getTokenrouterShowPaid,
