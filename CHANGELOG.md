@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Pi 0.80 compatibility** — update the Pi SDK peer requirements to `>=0.80.0` and refresh the development toolchain dependencies.
+
 ## [2.2.6] - 2026-07-09
 
 ### Changed

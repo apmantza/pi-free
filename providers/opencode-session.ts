@@ -10,6 +10,7 @@ import type {
 	AssistantMessageEventStream,
 	Context,
 	Model,
+	ProviderHeaders,
 	SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
 import type { ProviderConfig } from "@earendil-works/pi-coding-agent";
@@ -83,8 +84,8 @@ export type OpenCodeSessionTracker = ReturnType<
 
 export function createOpenCodeHeaders(
 	tracker: OpenCodeSessionTracker,
-	existingHeaders?: Record<string, string>,
-): Record<string, string> {
+	existingHeaders?: ProviderHeaders,
+): ProviderHeaders {
 	return {
 		...existingHeaders,
 		...OPENCODE_STATIC_HEADERS,
@@ -115,17 +116,30 @@ type StreamSimpleFn<TApi extends Api> = (
 	options?: SimpleStreamOptions,
 ) => AssistantMessageEventStream;
 
-type AnthropicStreamModule = {
-	streamSimpleAnthropic: StreamSimpleFn<"anthropic-messages">;
+type StreamSimpleModule<TApi extends Api> = {
+	streamSimple?: StreamSimpleFn<TApi>;
+	[key: string]: unknown;
 };
 
-type OpenAICompletionsStreamModule = {
-	streamSimpleOpenAICompletions: StreamSimpleFn<"openai-completions">;
-};
+type AnthropicStreamModule = StreamSimpleModule<"anthropic-messages">;
+type OpenAICompletionsStreamModule = StreamSimpleModule<"openai-completions">;
+
+function getStreamSimple<TApi extends Api>(
+	module: StreamSimpleModule<TApi>,
+	legacyExport: string,
+): StreamSimpleFn<TApi> {
+	const streamSimple = module.streamSimple ?? module[legacyExport];
+	if (typeof streamSimple !== "function") {
+		throw new Error(
+			`Pi AI module does not export ${legacyExport} or streamSimple`,
+		);
+	}
+	return streamSimple as StreamSimpleFn<TApi>;
+}
 
 const piAiSubpathCache = new Map<string, Promise<unknown>>();
 
-async function importPiAiSubpath<T>(subpath: string): Promise<T> {
+function importPiAiSubpath<T>(subpath: string): Promise<T> {
 	const specifier = `@earendil-works/pi-ai/${subpath}`;
 	const cached = piAiSubpathCache.get(specifier) as Promise<T> | undefined;
 	if (cached) return cached;
@@ -157,6 +171,9 @@ async function importPiAiRootFallback<T>(
 ): Promise<T | undefined> {
 	const subpath = specifier.replace("@earendil-works/pi-ai/", "");
 	const requiredExport: Record<string, string> = {
+		"api/anthropic-messages": "streamSimpleAnthropic",
+		"api/openai-completions": "streamSimpleOpenAICompletions",
+		// Keep compatibility with pre-0.80 Pi AI packages.
 		anthropic: "streamSimpleAnthropic",
 		"openai-completions": "streamSimpleOpenAICompletions",
 	};
@@ -199,6 +216,37 @@ function findPiAiPackageDir(requireBase: string): string | undefined {
 	return undefined;
 }
 
+function resolvePiAiExportTarget(
+	exportsMap: Record<string, unknown> | undefined,
+	subpath: string,
+): string | undefined {
+	if (!exportsMap) return undefined;
+
+	const getTarget = (entry: unknown): string | undefined => {
+		if (typeof entry === "string") return entry;
+		if (!entry || typeof entry !== "object") return undefined;
+		const conditions = entry as Record<string, unknown>;
+		const target = conditions.import ?? conditions.default;
+		return typeof target === "string" ? target : undefined;
+	};
+
+	const exactTarget = getTarget(exportsMap[`./${subpath}`]);
+	if (exactTarget) return exactTarget;
+
+	for (const [pattern, entry] of Object.entries(exportsMap)) {
+		if (!pattern.endsWith("/*")) continue;
+		const prefix = pattern.slice(2, -1);
+		if (subpath.startsWith(prefix)) {
+			const target = getTarget(entry);
+			if (target) {
+				return target.replaceAll("*", subpath.slice(prefix.length));
+			}
+		}
+	}
+
+	return undefined;
+}
+
 function resolvePiAiSubpathFromPackage(specifier: string): string | undefined {
 	const subpath = specifier.replace("@earendil-works/pi-ai/", "");
 	const candidates = [process.argv[1], import.meta.url].filter(
@@ -212,11 +260,8 @@ function resolvePiAiSubpathFromPackage(specifier: string): string | undefined {
 			const pkg = JSON.parse(
 				readFileSync(join(pkgDir, "package.json"), "utf-8"),
 			);
-			const exportEntry = pkg.exports?.[`./${subpath}`];
-			const targetPath = exportEntry?.import ?? exportEntry?.default;
-			if (typeof targetPath === "string") {
-				return join(pkgDir, targetPath);
-			}
+			const targetPath = resolvePiAiExportTarget(pkg.exports, subpath);
+			if (targetPath) return join(pkgDir, targetPath);
 		} catch {
 			// Try the next resolution base.
 		}
@@ -367,8 +412,12 @@ export function createOpenCodeStreamSimple(
 		void (async () => {
 			try {
 				if (isAnthropicOpenCodeEndpoint(model)) {
-					const { streamSimpleAnthropic } =
-						await importPiAiSubpath<AnthropicStreamModule>("anthropic");
+					const streamSimpleAnthropic = getStreamSimple(
+						await importPiAiSubpath<AnthropicStreamModule>(
+							"api/anthropic-messages",
+						),
+						"streamSimpleAnthropic",
+					);
 					await pipeStream(
 						stream,
 						streamSimpleAnthropic(
@@ -383,10 +432,12 @@ export function createOpenCodeStreamSimple(
 					return;
 				}
 
-				const { streamSimpleOpenAICompletions } =
+				const streamSimpleOpenAICompletions = getStreamSimple(
 					await importPiAiSubpath<OpenAICompletionsStreamModule>(
-						"openai-completions",
-					);
+						"api/openai-completions",
+					),
+					"streamSimpleOpenAICompletions",
+				);
 				await pipeStream(
 					stream,
 					streamSimpleOpenAICompletions(

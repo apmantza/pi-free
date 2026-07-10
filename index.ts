@@ -400,13 +400,10 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 			// already-registered static providers rather than failing the whole
 			// extension load. Log full error (message + stack) to the structured
 			// log so the user can investigate, but never block startup.
-			_logger.error(
-				"[pi-free] Dynamic built-in providers failed to load",
-				{
-					error: err instanceof Error ? err.message : String(err),
-					stack: err instanceof Error ? err.stack : undefined,
-				},
-			);
+			_logger.error("[pi-free] Dynamic built-in providers failed to load", {
+				error: err instanceof Error ? err.message : String(err),
+				stack: err instanceof Error ? err.stack : undefined,
+			});
 		}
 	})();
 
