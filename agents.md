@@ -52,6 +52,7 @@ index.ts                          ← Extension entry point (piFreeEntry)
       ├─ deepinfra/deepinfra.ts   ← DeepInfra ($5 trial credit)
       ├─ together/together.ts     ← Together AI (paid credits)
       ├─ tokenrouter/tokenrouter.ts ← TokenRouter API gateway (paid + free models)
+      ├─ anyapi/anyapi.ts         ← AnyAPI gateway (free plan + free models)
       ├─ qwen/qwen.ts             ← Qwen (deprecated, free tier removed)
       ├─ model-fetcher.ts         ← Shared OpenRouter-compatible model fetching
       ├─ opencode-session.ts      ← OpenCode session handling
@@ -156,7 +157,7 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 | Category    | Providers                                          | Auth              | Notes                            |
 | ----------- | -------------------------------------------------- | ----------------- | -------------------------------- |
 | ✅ Free     | kilo, cline, openrouter, opencode, llm7            | OAuth, API key, or none | Toggle between free/paid         |
-| 🔄 Freemium | ollama-cloud, sambanova, tokenrouter    | API key           | Free tier with limits            |
+| 🔄 Freemium | anyapi, ollama-cloud, sambanova, tokenrouter | API key           | Free tier with limits            |
 | 💳 Paid     | zenmux, crofai, deepinfra, together, novita, routeway | API key + credits | Trial credits or pay-per-token   |
 | 🔧 Dynamic  | mistral, groq, cerebras, xai, huggingface, fastrouter | API key        | Fetched when key configured      |
 

@@ -35,6 +35,27 @@ function configPath(): string {
 	return join(home, ".pi", "free.json");
 }
 
+function parseMockJson(value: unknown): Record<string, unknown> {
+	try {
+		if (typeof value !== "string") {
+			throw new TypeError("mock JSON value is not a string");
+		}
+		const parsed: unknown = JSON.parse(value);
+		if (
+			parsed === null ||
+			typeof parsed !== "object" ||
+			Array.isArray(parsed)
+		) {
+			throw new TypeError("mock JSON value is not an object");
+		}
+		return parsed as Record<string, unknown>;
+	} catch (error) {
+		throw new Error(
+			`Invalid mock JSON: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
+}
+
 // Fresh modules, env, and mock fs state for each test
 beforeEach(async () => {
 	vi.unstubAllEnvs();
@@ -266,7 +287,7 @@ describe("config persistence", () => {
 
 		const lastCall =
 			writeFileSync.mock.calls[writeFileSync.mock.calls.length - 1];
-		const written = JSON.parse(lastCall[1]);
+		const written = parseMockJson(lastCall[1]);
 		expect(written.free_only).toBe(false);
 		expect(written.nvidia_api_key).toBe("existing");
 	});
@@ -282,7 +303,7 @@ describe("config persistence", () => {
 
 		const lastCall =
 			writeFileSync.mock.calls[writeFileSync.mock.calls.length - 1];
-		const written = JSON.parse(lastCall[1]);
+		const written = parseMockJson(lastCall[1]);
 		expect(written.free_only).toBe(true);
 		expect(written.nvidia_api_key).toBe("new-key");
 	});
@@ -305,7 +326,7 @@ describe("updateConfig", () => {
 
 		const lastCall =
 			writeFileSync.mock.calls[writeFileSync.mock.calls.length - 1];
-		const written = JSON.parse(lastCall[1]);
+		const written = parseMockJson(lastCall[1]);
 		expect(written.hidden_models).toEqual(["a/b", "c/d"]);
 		expect(written.nvidia_api_key).toBe("keep");
 	});
@@ -332,7 +353,7 @@ describe("updateConfig", () => {
 
 		// Read the final state of the file
 		const finalRaw = __mockData.get(configPath());
-		const final = JSON.parse(finalRaw);
+		const final = parseMockJson(finalRaw);
 		// Both updates must be present, in some order
 		expect(final.hidden_models).toContain("initial");
 		expect(final.hidden_models).toContain("deepinfra/x");
@@ -352,7 +373,7 @@ describe("updateConfig", () => {
 		// writeFileSync should not have been called (file is corrupt)
 		const lastCall = writeFileSync.mock.calls.at(-1);
 		if (lastCall) {
-			const written = JSON.parse(lastCall[1]);
+			const written = parseMockJson(lastCall[1]);
 			expect(written.nvidia_api_key).not.toBe("should-not-write");
 		}
 	});

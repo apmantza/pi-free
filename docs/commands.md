@@ -30,9 +30,9 @@ Run `/toggle-{provider}` to switch between free-only and all models. Your prefer
 | `/toggle-llm7` | LLM7 | ✅ free |
 | `/toggle-novita` | Novita AI | 💳 paid |
 | `/toggle-routeway` | Routeway AI | 💳 paid |
-| `/toggle-tokenrouter` | TokenRouter | 💳 paid |
+| `/toggle-tokenrouter` | TokenRouter | 🔄 freemium |
+| `/toggle-anyapi` | AnyAPI | 🔄 freemium |
 | `/toggle-openmodel` | OpenModel | ✅ free |
-| `/toggle-agentrouter` | AgentRouter | 🔄 freemium |
 | `/toggle-zenmux` | ZenMux | 💳 paid |
 | `/toggle-crofai` | CrofAI | 💳 paid |
 | `/toggle-deepinfra` | DeepInfra | 💳 trial |
