@@ -8,22 +8,13 @@
  * already fresh within the TTL window.
  */
 
-import {
-	afterEach,
-	beforeEach,
-	describe,
-	expect,
-	it,
-	vi,
-} from "vitest";
-import { existsSync, mkdtempSync, unlinkSync } from "node:fs";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 
-const tempDir = mkdtempSync(
-	join(tmpdir(), "pi-free-provider-probe-test-"),
-);
+const tempDir = mkdtempSync(join(tmpdir(), "pi-free-provider-probe-test-"));
 
 function makeModel(id: string): ProviderModelConfig {
 	return {
@@ -53,12 +44,8 @@ describe("createProviderProbe", () => {
 	});
 
 	it("autoProbeHandler does not invoke probeModel when cache is fresh", async () => {
-		const { createProviderProbe } = await import(
-			"../lib/provider-probe.ts"
-		);
-		const { recordModelProbeResults } = await import(
-			"../lib/probe-cache.ts"
-		);
+		const { createProviderProbe } = await import("../lib/provider-probe.ts");
+		const { recordModelProbeResults } = await import("../lib/probe-cache.ts");
 
 		// Pre-populate the cache so every model is already fresh.
 		await recordModelProbeResults("test-provider", [
@@ -87,9 +74,7 @@ describe("createProviderProbe", () => {
 	});
 
 	it("autoProbeHandler invokes probeModel when cache is missing", async () => {
-		const { createProviderProbe } = await import(
-			"../lib/provider-probe.ts"
-		);
+		const { createProviderProbe } = await import("../lib/provider-probe.ts");
 
 		const probeModel = vi.fn(async () => "ok" as const);
 		const probe = createProviderProbe({
@@ -113,12 +98,8 @@ describe("createProviderProbe", () => {
 	});
 
 	it("autoProbeHandler invokes probeModel when some models are stale", async () => {
-		const { createProviderProbe } = await import(
-			"../lib/provider-probe.ts"
-		);
-		const { recordModelProbeResults } = await import(
-			"../lib/probe-cache.ts"
-		);
+		const { createProviderProbe } = await import("../lib/provider-probe.ts");
+		const { recordModelProbeResults } = await import("../lib/probe-cache.ts");
 
 		// Mark "a" fresh, leave "b" uncached.
 		await recordModelProbeResults("test-provider-stale", [
@@ -148,9 +129,7 @@ describe("createProviderProbe", () => {
 	});
 
 	it("autoProbeHandler only fires once per process (idempotent)", async () => {
-		const { createProviderProbe } = await import(
-			"../lib/provider-probe.ts"
-		);
+		const { createProviderProbe } = await import("../lib/provider-probe.ts");
 
 		const probeModel = vi.fn(async () => "ok" as const);
 		const probe = createProviderProbe({
@@ -173,12 +152,8 @@ describe("createProviderProbe", () => {
 	});
 
 	it("run() respects useCache=false even when cache is fresh", async () => {
-		const { createProviderProbe } = await import(
-			"../lib/provider-probe.ts"
-		);
-		const { recordModelProbeResults } = await import(
-			"../lib/probe-cache.ts"
-		);
+		const { createProviderProbe } = await import("../lib/provider-probe.ts");
+		const { recordModelProbeResults } = await import("../lib/probe-cache.ts");
 
 		await recordModelProbeResults("test-provider-force", [
 			{ modelId: "a", status: "ok" },
@@ -224,9 +199,7 @@ describe("areAllModelsFresh", () => {
 	});
 
 	it("returns false when a model is missing from cache", async () => {
-		const { areAllModelsFresh } = await import(
-			"../lib/probe-cache.ts"
-		);
+		const { areAllModelsFresh } = await import("../lib/probe-cache.ts");
 
 		expect(areAllModelsFresh("test-empty-provider", ["a"])).toBe(false);
 	});

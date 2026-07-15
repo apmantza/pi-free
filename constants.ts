@@ -11,9 +11,6 @@ export const PROVIDER_KILO = "kilo";
 export const PROVIDER_CLINE = "cline";
 export const PROVIDER_CLOUDFLARE = "cloudflare";
 export const PROVIDER_OLLAMA = "ollama-cloud";
-/** @deprecated Qwen provider is deprecated. The 1,000 req/day free tier is no longer available. */
-export const PROVIDER_QWEN = "qwen";
-export const PROVIDER_MODAL = "modal";
 export const PROVIDER_ZENMUX = "zenmux";
 export const PROVIDER_CROFAI = "crofai";
 export const PROVIDER_LLM7 = "llm7";
@@ -36,9 +33,6 @@ export const PROVIDER_FASTROUTER = "fastrouter";
 export const ALL_UNIQUE_PROVIDERS = [
 	PROVIDER_KILO,
 	PROVIDER_CLINE,
-	/** @deprecated Qwen free tier no longer available */
-	PROVIDER_QWEN,
-	PROVIDER_MODAL,
 	PROVIDER_OLLAMA,
 	PROVIDER_ZENMUX,
 	PROVIDER_CROFAI,
@@ -63,9 +57,6 @@ export const BASE_URL_KILO = "https://api.kilo.ai/api/gateway";
 export const BASE_URL_CLOUDFLARE = "https://api.cloudflare.com/client/v4";
 export const BASE_URL_OLLAMA = "https://ollama.com/v1"; // OpenAI-compatible API endpoint
 export const BASE_URL_CLINE = "https://api.cline.bot/api/v1";
-export const BASE_URL_MODAL = "https://api.us-west-2.modal.direct/v1";
-export const BASE_URL_QWEN =
-	"https://dashscope.aliyuncs.com/compatible-mode/v1";
 export const BASE_URL_ZENMUX = "https://zenmux.ai/api/v1";
 export const BASE_URL_CROFAI = "https://crof.ai/v1";
 export const BASE_URL_LLM7 = "https://api.llm7.io/v1";
@@ -95,8 +86,6 @@ export const BASE_URL_OPENROUTER = "https://openrouter.ai/api/v1";
 export const URL_MODELS_DEV = "https://models.dev/api.json";
 export const URL_KILO_TOS = "https://kilo.ai/terms";
 export const URL_CLINE_TOS = "https://cline.bot/tos";
-export const URL_QWEN_TOS = "https://terms.alicloud.com/";
-export const URL_MODAL_TOS = "https://modal.com/terms";
 
 // =============================================================================
 // Cline auth

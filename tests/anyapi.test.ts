@@ -6,12 +6,12 @@ import {
 
 describe("AnyAPI free model detection", () => {
 	it("recognizes the provider's explicit free flag", () => {
-		expect(
-			isAnyApiFreeModel({ id: "provider/model", isFree: true }),
-		).toBe(true);
-		expect(
-			isAnyApiFreeModel({ id: "provider/model", isFree: false }),
-		).toBe(false);
+		expect(isAnyApiFreeModel({ id: "provider/model", isFree: true })).toBe(
+			true,
+		);
+		expect(isAnyApiFreeModel({ id: "provider/model", isFree: false })).toBe(
+			false,
+		);
 	});
 
 	it("recognizes free labels in model ids or names", () => {

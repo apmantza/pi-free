@@ -53,7 +53,6 @@ index.ts                          ← Extension entry point (piFreeEntry)
       ├─ together/together.ts     ← Together AI (paid credits)
       ├─ tokenrouter/tokenrouter.ts ← TokenRouter API gateway (paid + free models)
       ├─ anyapi/anyapi.ts         ← AnyAPI gateway (free plan + free models)
-      ├─ qwen/qwen.ts             ← Qwen (deprecated, free tier removed)
       ├─ model-fetcher.ts         ← Shared OpenRouter-compatible model fetching
       ├─ opencode-session.ts      ← OpenCode session handling
       └─ dynamic-built-in/        ← Dynamic fetchers for Mistral, Groq, Cerebras, xAI, HF
