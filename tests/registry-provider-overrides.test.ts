@@ -1,7 +1,4 @@
-import type {
-	ExtensionAPI,
-	ProviderModelConfig,
-} from "@earendil-works/pi-coding-agent";
+import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({

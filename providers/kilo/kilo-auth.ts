@@ -10,10 +10,7 @@ import {
 	KILO_POLL_INTERVAL_MS,
 	KILO_TOKEN_EXPIRATION_MS,
 } from "../../constants.ts";
-import { createLogger } from "../../lib/logger.ts";
 import { openBrowser } from "../../lib/open-browser.ts";
-
-const _logger = createLogger("kilo-auth");
 
 const KILO_API_BASE = process.env.KILO_API_URL || "https://api.kilo.ai";
 const DEVICE_AUTH_ENDPOINT = `${KILO_API_BASE}/api/device-auth/codes`;

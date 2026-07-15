@@ -5,7 +5,6 @@
  * global filter application, and pricing detection.
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
 import {
 	applyGlobalFilter,
@@ -54,8 +53,6 @@ function makeFreeModel(id: string, name?: string): ProviderModelConfig {
 function makePaidModel(id: string, name?: string): ProviderModelConfig {
 	return makeModel(id, makeCost(1, 2), name);
 }
-
-const mockPi = {} as ExtensionAPI;
 
 // =============================================================================
 // registerWithGlobalToggle
