@@ -812,8 +812,4 @@ export async function updateConfig(
 	}
 }
 
-export function getConfig(): PiFreeConfig {
-	return loadConfigFile();
-}
-
 // =============================================================================
