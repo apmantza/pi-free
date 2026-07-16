@@ -269,7 +269,7 @@ describe("API key getters", () => {
 });
 
 // =============================================================================
-// saveConfig / loadConfigFile / getConfig
+// saveConfig / loadConfigFile
 // =============================================================================
 
 describe("config persistence", () => {
@@ -413,7 +413,6 @@ describe("config re-exports", () => {
 			"getOllamaApiKey",
 			"saveConfig",
 			"updateConfig",
-			"getConfig",
 			"applyHidden",
 		];
 		for (const name of getters) {
