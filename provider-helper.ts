@@ -336,7 +336,8 @@ export function setupProvider(
 			if (tosShown || ctx.model?.provider !== providerId) return;
 			tosShown = true;
 			if (config.hasKey) return;
-			const cred = ctx.modelRegistry.authStorage.get(providerId);
+			const authStorage = (ctx as any).modelRegistry?.authStorage;
+			const cred = authStorage?.get(providerId);
 			if (cred?.type === "oauth") return;
 			ctx.ui.notify(
 				`Using ${providerId} free models. Set API key for paid access. Terms: ${tosUrl}`,
