@@ -16,6 +16,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	createCtxReRegister,
 	createReRegister,
+	getStoredProviderCredential,
+	isOAuthCredential,
 	registerOpenAICompatible,
 } from "../provider-helper.ts";
 
@@ -34,6 +36,21 @@ function makeFakePi(): {
 	});
 	return { registerProvider, calls };
 }
+
+describe("optional auth storage compatibility", () => {
+	it("returns undefined when Pi omits authStorage", () => {
+		expect(getStoredProviderCredential({ modelRegistry: {} }, "kilo")).toBeUndefined();
+		expect(getStoredProviderCredential({}, "kilo")).toBeUndefined();
+	});
+
+	it("reads credentials when authStorage is available", () => {
+		const credential = { type: "oauth", access: "token" };
+		const ctx = { modelRegistry: { authStorage: { get: vi.fn(() => credential) } } };
+		expect(getStoredProviderCredential(ctx, "kilo")).toBe(credential);
+		expect(isOAuthCredential(credential)).toBe(true);
+		expect(isOAuthCredential({ type: "api_key" })).toBe(false);
+	});
+});
 
 describe("OpenAICompatibleConfig.api", () => {
 	describe("registerOpenAICompatible", () => {
