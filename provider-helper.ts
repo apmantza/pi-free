@@ -24,6 +24,37 @@ import { enhanceModelNameWithCodingIndex } from "./provider-failover/benchmark-l
 
 const _logger = createLogger("provider-helper");
 
+interface AuthStorageLike {
+	get(providerId: string): unknown;
+}
+
+interface ContextWithOptionalAuthStorage {
+	modelRegistry?: {
+		authStorage?: AuthStorageLike;
+	};
+}
+
+/**
+ * Read a provider credential when running against Pi versions that expose
+ * authStorage on the extension context. Newer Pi versions may omit it.
+ */
+export function getStoredProviderCredential(
+	ctx: unknown,
+	providerId: string,
+): unknown {
+	if (!ctx || typeof ctx !== "object") return undefined;
+	const context = ctx as ContextWithOptionalAuthStorage;
+	return context.modelRegistry?.authStorage?.get(providerId);
+}
+
+export function isOAuthCredential(
+	credential: unknown,
+): credential is { type: "oauth"; access: string } {
+	if (!credential || typeof credential !== "object") return false;
+	const candidate = credential as { type?: unknown; access?: unknown };
+	return candidate.type === "oauth" && typeof candidate.access === "string";
+}
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -336,9 +367,8 @@ export function setupProvider(
 			if (tosShown || ctx.model?.provider !== providerId) return;
 			tosShown = true;
 			if (config.hasKey) return;
-			const authStorage = (ctx as any).modelRegistry?.authStorage;
-			const cred = authStorage?.get(providerId);
-			if (cred?.type === "oauth") return;
+			const cred = getStoredProviderCredential(ctx, providerId);
+			if (isOAuthCredential(cred)) return;
 			ctx.ui.notify(
 				`Using ${providerId} free models. Set API key for paid access. Terms: ${tosUrl}`,
 				"info",

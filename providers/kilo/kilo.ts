@@ -33,6 +33,8 @@ import {
 	createCtxReRegister,
 	createReRegister,
 	enhanceWithCI,
+	getStoredProviderCredential,
+	isOAuthCredential,
 	loadCachedOrFetchModels,
 	type StoredModels,
 } from "../../provider-helper.ts";
@@ -344,9 +346,8 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 		// ToS notice (once)
 		if (tosShown) return;
 		tosShown = true;
-		const authStorage = (ctx as any).modelRegistry?.authStorage;
-		const cred = authStorage?.get(PROVIDER_KILO);
-		if (cred?.type === "oauth") return;
+		const cred = getStoredProviderCredential(ctx, PROVIDER_KILO);
+		if (isOAuthCredential(cred)) return;
 		const paidCount = allModels.length - freeModels.length;
 		if (paidCount > 0) {
 			ctx.ui.notify(
@@ -443,9 +444,8 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 	pi.on(
 		"session_start",
 		wrapSessionStartHandler("kilo", (_event, ctx) => {
-			const authStorage = (ctx as any).modelRegistry?.authStorage;
-			const cred = authStorage?.get(PROVIDER_KILO);
-			if (cred?.type !== "oauth" || refreshInFlight) return Promise.resolve();
+			const cred = getStoredProviderCredential(ctx, PROVIDER_KILO);
+			if (!isOAuthCredential(cred) || refreshInFlight) return Promise.resolve();
 
 			refreshInFlight = fetchKiloModels({ token: cred.access, freeOnly: false })
 				.then((newModels) => {
