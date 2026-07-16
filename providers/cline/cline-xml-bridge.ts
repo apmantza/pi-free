@@ -8,8 +8,8 @@ import type {
 	ToolCall,
 	ToolResultMessage,
 	Usage,
-} from "@earendil-works/pi-ai";
-import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
+} from "@earendil-works/pi-ai/compat";
+import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/compat";
 import { BASE_URL_CLINE, PROVIDER_CLINE } from "../../constants.ts";
 
 const DEFAULT_USAGE: Usage = {

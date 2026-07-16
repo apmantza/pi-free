@@ -1,4 +1,4 @@
-import type { Context, Model, Tool } from "@earendil-works/pi-ai";
+import type { Context, Model, Tool } from "@earendil-works/pi-ai/compat";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	__test__,

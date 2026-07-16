@@ -14,8 +14,8 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { Model, OAuthCredentials, ToolCall } from "@earendil-works/pi-ai";
-import { Type } from "@earendil-works/pi-ai";
+import type { Model, OAuthCredentials, ToolCall } from "@earendil-works/pi-ai/compat";
+import { Type } from "@earendil-works/pi-ai/compat";
 import { BASE_URL_CLINE, PROVIDER_CLINE } from "../constants.ts";
 import { refreshClineToken } from "../providers/cline/cline-auth.ts";
 import { streamClineXml } from "../providers/cline/cline-xml-bridge.ts";

@@ -18,7 +18,7 @@ import { join } from "node:path";
 import type {
 	OAuthCredentials,
 	OAuthLoginCallbacks,
-} from "@earendil-works/pi-ai";
+} from "@earendil-works/pi-ai/compat";
 import { getMachineId } from "./cosy.ts";
 
 // ─── Constants ───────────────────────────────────────────────────────────────

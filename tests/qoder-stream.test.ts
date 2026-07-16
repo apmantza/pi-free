@@ -5,7 +5,7 @@
 import type {
 	AssistantMessage,
 	AssistantMessageEvent,
-} from "@earendil-works/pi-ai";
+} from "@earendil-works/pi-ai/compat";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 interface MockStreamShape {
@@ -25,7 +25,7 @@ const mockLogger = vi.hoisted(() => ({
 
 const mockGetCachedModelConfig = vi.hoisted(() => vi.fn());
 
-vi.mock("@earendil-works/pi-ai", async () => {
+vi.mock("@earendil-works/pi-ai/compat", async () => {
 	class MockStream implements MockStreamShape {
 		events: AssistantMessageEvent[] = [];
 		ended = false;

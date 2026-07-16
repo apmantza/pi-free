@@ -11,7 +11,7 @@
  * Usage: /toggle-opencode
  */
 
-import type { Api, Model } from "@earendil-works/pi-ai";
+import type { Api, Model } from "@earendil-works/pi-ai/compat";
 import type {
 	ExtensionAPI,
 	ProviderModelConfig,

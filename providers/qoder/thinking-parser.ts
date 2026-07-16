@@ -15,7 +15,7 @@ import type {
 	AssistantMessageEventStream,
 	TextContent,
 	ThinkingContent,
-} from "@earendil-works/pi-ai";
+} from "@earendil-works/pi-ai/compat";
 
 const THINKING_TAG_VARIANTS: Array<{ open: string; close: string }> = [
 	{ open: "<thinking>", close: "</thinking>" },

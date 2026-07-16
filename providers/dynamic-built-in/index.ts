@@ -22,7 +22,7 @@
  * OpenAI is intentionally skipped per user request.
  */
 
-import type { Api } from "@earendil-works/pi-ai";
+import type { Api } from "@earendil-works/pi-ai/compat";
 import type {
 	ExtensionAPI,
 	ProviderModelConfig,
