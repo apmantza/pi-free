@@ -20,7 +20,7 @@
  *   QODER_PAT                   — Alias for above
  */
 
-import type { Api, OAuthCredentials } from "@earendil-works/pi-ai";
+import type { Api, OAuthCredentials } from "@earendil-works/pi-ai/compat";
 import type {
 	ExtensionAPI,
 	ProviderModelConfig,

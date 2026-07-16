@@ -25,8 +25,8 @@ import type {
 	Model,
 	SimpleStreamOptions,
 	ThinkingContent,
-} from "@earendil-works/pi-ai";
-import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
+} from "@earendil-works/pi-ai/compat";
+import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/compat";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/compat";
 import {
 	getTokenrouterApiKey,

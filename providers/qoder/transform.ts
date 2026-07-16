@@ -16,7 +16,7 @@ import type {
 	Tool,
 	ToolCall,
 	ToolResultMessage,
-} from "@earendil-works/pi-ai";
+} from "@earendil-works/pi-ai/compat";
 
 /** OpenAI-style tool definition sent to the Qoder API. */
 interface QoderTool {

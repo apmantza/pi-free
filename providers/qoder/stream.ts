@@ -21,8 +21,8 @@ import type {
 	TextContent,
 	ThinkingContent,
 	ToolCall,
-} from "@earendil-works/pi-ai";
-import * as PiAi from "@earendil-works/pi-ai";
+} from "@earendil-works/pi-ai/compat";
+import * as PiAi from "@earendil-works/pi-ai/compat";
 import { BASE_URL_QODER } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { getCachedModelConfig, staticModels } from "./models.ts";

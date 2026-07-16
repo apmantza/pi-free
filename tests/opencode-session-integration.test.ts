@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import type { Model, Api, Context } from "@earendil-works/pi-ai";
+import type { Model, Api, Context } from "@earendil-works/pi-ai/compat";
 import {
 	createOpenCodeStreamSimple,
 	createOpenCodeSessionTracker,
@@ -150,7 +150,18 @@ ${testScript}
 			encoding: "utf-8",
 		});
 
-		const results = JSON.parse(output.trim());
+		let results: Array<{
+			subpath: string;
+			resolved: string | null;
+			fallbackOk: boolean;
+		}>;
+		try {
+			results = JSON.parse(output.trim()) as typeof results;
+		} catch (error) {
+			throw new Error("Invalid JSON from Pi AI subpath probe", {
+				cause: error,
+			});
+		}
 		for (const r of results) {
 			// The direct import may resolve when the test runner exposes the project
 			// node_modules; the package-relative fallback must work either way.
@@ -233,7 +244,17 @@ console.log(JSON.stringify({
 			cwd: tempDir,
 			encoding: "utf-8",
 		});
-		const result = JSON.parse(output.trim());
+		let result: {
+			direct: { ok: boolean; message: string };
+			fallbackOk: boolean;
+		};
+		try {
+			result = JSON.parse(output.trim()) as typeof result;
+		} catch (error) {
+			throw new Error("Invalid JSON from Pi AI fallback probe", {
+				cause: error,
+			});
+		}
 		expect(result.direct.ok).toBe(false);
 		expect(result.fallbackOk).toBe(true);
 	});

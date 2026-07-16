@@ -12,7 +12,7 @@ import type {
 	Model,
 	ProviderHeaders,
 	SimpleStreamOptions,
-} from "@earendil-works/pi-ai";
+} from "@earendil-works/pi-ai/compat";
 import type { ProviderConfig } from "@earendil-works/pi-coding-agent";
 
 export const OPENCODE_DYNAMIC_API = "opencode-dynamic" as const;

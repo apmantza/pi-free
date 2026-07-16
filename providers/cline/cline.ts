@@ -14,7 +14,7 @@
  *   # Models appear immediately; run /login cline to start chatting
  */
 
-import type { OAuthCredentials } from "@earendil-works/pi-ai";
+import type { OAuthCredentials } from "@earendil-works/pi-ai/compat";
 import type {
 	ExtensionAPI,
 	ProviderModelConfig,
