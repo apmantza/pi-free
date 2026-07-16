@@ -679,7 +679,7 @@ export function applyHidden<T extends { id: string }>(
 export function saveConfig(updates: Partial<PiFreeConfig>): void {
 	try {
 		// Read the raw file content — never use loadConfigFile() here because
-		// if the file is unparseable, loadConfigFile() returns {} which would
+		// if the file is unparsable, loadConfigFile() returns {} which would
 		// cause us to write a partial config and WIPE all existing keys.
 		const raw = readRawConfigFile();
 		if (raw === undefined) {
@@ -737,14 +737,14 @@ class ConfigLock {
 	private promise: Promise<void> = Promise.resolve();
 
 	async acquire(): Promise<() => void> {
-		let release: () => void;
+		let release: () => void = () => {};
 		const newPromise = new Promise<void>((resolve) => {
 			release = resolve;
 		});
 		const previous = this.promise;
 		this.promise = previous.then(() => newPromise);
 		await previous;
-		return release!;
+		return release;
 	}
 }
 
