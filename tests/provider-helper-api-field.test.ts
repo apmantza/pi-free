@@ -16,7 +16,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	createCtxReRegister,
 	createReRegister,
-	getStoredProviderCredential,
+	isCurrentModelOAuth,
 	isOAuthCredential,
 	registerOpenAICompatible,
 } from "../provider-helper.ts";
@@ -37,17 +37,22 @@ function makeFakePi(): {
 	return { registerProvider, calls };
 }
 
-describe("optional auth storage compatibility", () => {
-	it("returns undefined when Pi omits authStorage", () => {
-		expect(getStoredProviderCredential({ modelRegistry: {} }, "kilo")).toBeUndefined();
-		expect(getStoredProviderCredential({}, "kilo")).toBeUndefined();
+describe("ModelRegistry OAuth compatibility", () => {
+	it("returns false when Pi omits OAuth status APIs", () => {
+		expect(isCurrentModelOAuth({ modelRegistry: {} })).toBe(false);
+		expect(isCurrentModelOAuth({})).toBe(false);
 	});
 
-	it("reads credentials when authStorage is available", () => {
-		const credential = { type: "oauth", access: "token" };
-		const ctx = { modelRegistry: { authStorage: { get: vi.fn(() => credential) } } };
-		expect(getStoredProviderCredential(ctx, "kilo")).toBe(credential);
-		expect(isOAuthCredential(credential)).toBe(true);
+	it("uses ModelRegistry.isUsingOAuth when available", () => {
+		const model = { provider: "kilo", id: "free-model" };
+		const isUsingOAuth = vi.fn(() => true);
+		const ctx = { model, modelRegistry: { isUsingOAuth } };
+		expect(isCurrentModelOAuth(ctx)).toBe(true);
+		expect(isUsingOAuth).toHaveBeenCalledWith(model);
+	});
+
+	it("validates stored OAuth credentials", () => {
+		expect(isOAuthCredential({ type: "oauth", access: "token" })).toBe(true);
 		expect(isOAuthCredential({ type: "api_key" })).toBe(false);
 	});
 });

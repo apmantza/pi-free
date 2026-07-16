@@ -13,9 +13,10 @@
  */
 
 import type { Api, Model, OAuthCredentials } from "@earendil-works/pi-ai/compat";
-import type {
-	ExtensionAPI,
-	ProviderModelConfig,
+import {
+	readStoredCredential,
+	type ExtensionAPI,
+	type ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
 import {
 	getKiloApiKey,
@@ -33,7 +34,6 @@ import {
 	createCtxReRegister,
 	createReRegister,
 	enhanceWithCI,
-	getStoredProviderCredential,
 	isOAuthCredential,
 	loadCachedOrFetchModels,
 	type StoredModels,
@@ -346,7 +346,7 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 		// ToS notice (once)
 		if (tosShown) return;
 		tosShown = true;
-		const cred = getStoredProviderCredential(ctx, PROVIDER_KILO);
+		const cred = readStoredCredential(PROVIDER_KILO);
 		if (isOAuthCredential(cred)) return;
 		const paidCount = allModels.length - freeModels.length;
 		if (paidCount > 0) {
@@ -444,7 +444,7 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 	pi.on(
 		"session_start",
 		wrapSessionStartHandler("kilo", (_event, ctx) => {
-			const cred = getStoredProviderCredential(ctx, PROVIDER_KILO);
+			const cred = readStoredCredential(PROVIDER_KILO);
 			if (!isOAuthCredential(cred) || refreshInFlight) return Promise.resolve();
 
 			refreshInFlight = fetchKiloModels({ token: cred.access, freeOnly: false })

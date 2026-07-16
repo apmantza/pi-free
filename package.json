@@ -56,9 +56,9 @@
 		"smoke:openmodel": "tsx scripts/smoke-openmodel-wire-format.ts"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-ai": ">=0.80.0",
-		"@earendil-works/pi-coding-agent": ">=0.80.0",
-		"@earendil-works/pi-tui": ">=0.80.0"
+		"@earendil-works/pi-ai": ">=0.80.8",
+		"@earendil-works/pi-coding-agent": ">=0.80.8",
+		"@earendil-works/pi-tui": ">=0.80.8"
 	},
 	"devDependencies": {
 		"@vitest/ui": "^4.1.10",
