@@ -17,10 +17,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "22"
 
@@ -29,7 +29,8 @@ jobs:
 
       - name: Update benchmark data
         env:
-          ARTIFICIAL_ANALYSIS_API_KEY: ${{ secrets.ARTIFICIAL_ANALYSIS_API_KEY }}
+          ARTIFICIAL_ANALYSIS_API_KEY: >-
+            ${{ secrets.ARTIFICIAL_ANALYSIS_API_KEY }}
         run: node --import tsx scripts/update-benchmarks.ts
 
       - name: Check for changes
@@ -43,15 +44,19 @@ jobs:
 
       - name: Create Pull Request
         if: steps.check-changes.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        # v8.1.1
+        uses: >-
+          peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1
         with:
           token: ${{ secrets.PAT_TOKEN }}
-          commit-message: "chore: update benchmark data from Artificial Analysis"
+          commit-message: >-
+            chore: update benchmark data from Artificial Analysis
           title: "chore: update benchmark data from Artificial Analysis"
           body: |
             ## Automated Benchmark Update
 
-            This PR updates the hardcoded benchmark data with fresh scores from [Artificial Analysis](https://artificialanalysis.ai).
+            This PR updates the hardcoded benchmark data with fresh scores from
+            [Artificial Analysis](https://artificialanalysis.ai).
 
             ### Changes
             - Updated `provider-failover/hardcoded-benchmarks.ts`
