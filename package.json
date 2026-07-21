@@ -1,6 +1,6 @@
 {
 	"name": "pi-free",
-	"version": "2.2.7",
+	"version": "2.2.8",
 	"type": "module",
 	"description": "AI model providers for Pi with free model filtering and dynamic model fetching",
 	"keywords": [

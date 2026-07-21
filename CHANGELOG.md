@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.8] - 2026-07-21
+
 ### Changed
 
 - **Lazy benchmark loading** — replaced ~10k lines of eagerly-imported `benchmarks-chunk-*.ts` files with a lazily-loaded `benchmarks.json` catalog, reducing module parse cost at startup (#315, #316, #320).
@@ -14,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Benchmark regexes hoisted** — regexes previously compiled inside hot loops in `benchmark-lookup.ts` are now compiled once at module level (#318).
 - **Ollama capabilities cached** — `/api/show` is now only fetched for models not already in the provider cache, avoiding redundant per-model capability probes (#327).
 - **CI uses `npm ci`** — switched CI install step from `npm install` to `npm ci` for deterministic builds and correct lockfile-pinned dependency resolution.
+- **Dead export cleanup** — removed 10 unused exports from `constants.ts` and `lib/types.ts` (leftover from provider removals).
 
 ### Fixed
 
@@ -26,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Handler duplication on reload** — global event handlers (`setupTelemetry`, `setupQuotaMonitoring`) are now guarded against duplicate registration when the extension is reloaded (#325).
 - **Empty provider warning** — `loadCachedOrFetchModels` now logs at `warn` level when a provider registers with 0 models due to fetch failure and empty cache (#323).
 - **Atomic probe config writes** — Ollama and Routeway probes now use `updateConfig()` instead of the non-atomic `loadConfigFile()` + `saveConfig()` pattern, preventing concurrent probes from overwriting each other's `hidden_models` updates (#319).
+- **Guarded JSON.parse calls** — `benchmarks.json` load and SSE chunk parsing now catch and log malformed data instead of crashing (#339).
 - **npm audit vulnerabilities** — pinned `brace-expansion@5.0.7` and `protobufjs@7.6.5` to fix GHSA-3jxr-9vmj-r5cp and GHSA-j3f2-48v5-ccww from peer-dep transitive dependencies.
 
 ## [2.2.7] - 2026-07-10
