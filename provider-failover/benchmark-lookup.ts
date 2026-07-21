@@ -164,6 +164,39 @@ export function clearMatchLog(): void {
 // Provider-Specific Normalizers
 // =============================================================================
 
+const COMMON_SUFFIX_PATTERNS = [
+	/-\d{8}$/g, // Date suffixes like -20250514
+	/-v\d+(\.\d+)?$/g, // Version suffixes like -v1.1
+	/-\d{3,}$/g, // Numeric suffixes like -001, -2603
+	/-it$/g, // -it (Gemma convention)
+	/-fp\d+$/g, // -fp8, -fp16
+	/-bf\d+$/g, // -bf16
+	/-preview$/g, // -preview
+	/-exp$/g, // -exp (experimental)
+	/-turbo$/g, // -turbo (Together AI suffix)
+	/-instant$/g, // -instant (Groq suffix for fast-response models)
+	/-instruct-0\.\d+$/g, // HuggingFace revision tags
+];
+
+const DATE_QUALIFIER_PATTERN = /^\d{4,8}$/;
+const MONTH_QUALIFIER_SEGMENTS = new Set([
+	"jan",
+	"feb",
+	"mar",
+	"apr",
+	"may",
+	"jun",
+	"jul",
+	"aug",
+	"sep",
+	"oct",
+	"nov",
+	"dec",
+]);
+const SIZE_QUALIFIER_PATTERN = /^a?\d+(\.\d+)?b$/i;
+const VERSION_QUALIFIER_PATTERN = /^v\d+(\.\d+)?$/;
+const YEAR_QUALIFIER_PATTERN = /^\d{2}$/;
+
 /**
  * Apply provider-specific ID normalization to handle naming conventions
  */
@@ -266,20 +299,7 @@ function stripCommonSuffixes(ctx: {
 	normalized: string;
 	strategies: string[];
 }): void {
-	const suffixesToStrip = [
-		/-\d{8}$/g, // Date suffixes like -20250514
-		/-v\d+(\.\d+)?$/g, // Version suffixes like -v1.1
-		/-\d{3,}$/g, // Numeric suffixes like -001, -2603
-		/-it$/g, // -it (Gemma convention)
-		/-fp\d+$/g, // -fp8, -fp16
-		/-bf\d+$/g, // -bf16
-		/-preview$/g, // -preview
-		/-exp$/g, // -exp (experimental)
-		/-turbo$/g, // -turbo (Together AI suffix)
-		/-instant$/g, // -instant (Groq suffix for fast-response models)
-		/-instruct-0\.\d+$/g, // HuggingFace revision tags
-	];
-	for (const pattern of suffixesToStrip) {
+	for (const pattern of COMMON_SUFFIX_PATTERNS) {
 		if (pattern.test(ctx.normalized)) {
 			ctx.normalized = ctx.normalized.replaceAll(pattern, "");
 			ctx.strategies.push(
@@ -355,6 +375,9 @@ const VARIANT_QUALIFIER_SEGMENTS = new Set([
 	"fast",
 	"instruct",
 	"chat",
+	"speciale",
+	"chatgpt",
+	"latest",
 ]);
 
 /**
@@ -364,25 +387,15 @@ const VARIANT_QUALIFIER_SEGMENTS = new Set([
 function isVariantQualifier(segment: string): boolean {
 	if (VARIANT_QUALIFIER_SEGMENTS.has(segment)) return true;
 	// Date codes like "0528", "20250514"
-	if (/^\d{4,8}$/.test(segment)) return true;
+	if (DATE_QUALIFIER_PATTERN.test(segment)) return true;
 	// Month names (from date suffixes like "may-25", "mar-24")
-	if (/^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)$/.test(segment))
-		return true;
+	if (MONTH_QUALIFIER_SEGMENTS.has(segment)) return true;
 	// Size specifiers like "70b", "8b", "a35b", "a3b" (MoE notation)
-	if (/^a?\d+(\.\d+)?b$/i.test(segment)) return true;
+	if (SIZE_QUALIFIER_PATTERN.test(segment)) return true;
 	// Version numbers like "v3.2", "v2.5", "v1"
-	if (/^v\d+(\.\d+)?$/.test(segment)) return true;
+	if (VERSION_QUALIFIER_PATTERN.test(segment)) return true;
 	// Two-digit year like "25", "24"
-	if (/^\d{2}$/.test(segment)) return true;
-	// Special variant suffixes
-	if (
-		segment === "speciale" ||
-		segment === "chatgpt" ||
-		segment === "latest" ||
-		segment === "instruct" ||
-		segment === "chat"
-	)
-		return true;
+	if (YEAR_QUALIFIER_PATTERN.test(segment)) return true;
 	return false;
 }
 

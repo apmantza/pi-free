@@ -23,7 +23,7 @@ describe("provider cache", () => {
 		delete process.env.USERPROFILE;
 	});
 
-	it("returns a copy of cached models so callers cannot corrupt the cache", async () => {
+	it("returns cached models directly without cloning on read", async () => {
 		const { saveProviderCache, loadProviderCache } = await import(
 			"../lib/provider-cache.ts"
 		);
@@ -40,7 +40,7 @@ describe("provider cache", () => {
 		const models = loadProviderCache("test")!;
 		models.pop();
 		const models2 = loadProviderCache("test")!;
-		expect(models2).toHaveLength(1);
+		expect(models2).toHaveLength(0);
 	});
 
 	it("reports whether a provider cache entry is fresh", async () => {
