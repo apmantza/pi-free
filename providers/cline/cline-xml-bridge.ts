@@ -1037,9 +1037,24 @@ function parseXmlToolCalls(
 	}
 
 	pushTextFragment(textParts, sourceText.slice(cursor));
+	const allToolCalls = [...fnResult.toolCalls, ...toolCalls];
+
+	// Warn if the raw text appears to contain tool XML tags but no tool calls
+	// were parsed — this can indicate a model using an unrecognised tag variant.
+	if (allToolCalls.length === 0) {
+		const TOOL_XML_RE =
+			/<(read_file|write_to_file|replace_in_file|execute_command|list_files|search_files|browser_action|ask_followup_question|attempt_completion)\b/;
+		if (TOOL_XML_RE.test(rawText)) {
+			_logger.warn(
+				"parseXmlToolCalls: raw text contains tool XML tags but no tool calls were parsed",
+				{ preview: rawText.slice(0, 200) },
+			);
+		}
+	}
+
 	return {
 		text: textParts.join("\n\n").trim(),
-		toolCalls: [...fnResult.toolCalls, ...toolCalls],
+		toolCalls: allToolCalls,
 	};
 }
 

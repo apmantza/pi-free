@@ -24,6 +24,9 @@ import { enhanceModelNameWithCodingIndex } from "./provider-failover/benchmark-l
 
 const _logger = createLogger("provider-helper");
 
+/** Tracks consecutive persistence failures per provider for escalation logging. */
+const _persistFailCount = new Map<string, number>();
+
 interface ContextWithOAuthStatus {
 	model?: unknown;
 	modelRegistry?: {
@@ -175,11 +178,29 @@ export async function loadCachedOrFetchModels(
 	// transiently-shrunk response (poisoning guard, centralized in provider-cache),
 	// so a flaky API can't wipe a good cached list for the TTL window.
 	if (fetched.length > 0) {
-		saveProviderCacheGuarded(providerId, fetched).catch((err) => {
-			_logger.error(`[${providerId}] failed to persist provider cache`, {
-				error: err instanceof Error ? err.message : String(err),
+		saveProviderCacheGuarded(providerId, fetched)
+			.then(() => {
+				_persistFailCount.delete(providerId);
+			})
+			.catch((err) => {
+				const count = (_persistFailCount.get(providerId) ?? 0) + 1;
+				_persistFailCount.set(providerId, count);
+				const logData = {
+					error: err instanceof Error ? err.message : String(err),
+					consecutiveFailures: count,
+				};
+				if (count >= 3) {
+					_logger.error(
+						`[${providerId}] failed to persist provider cache (${count} consecutive failures)`,
+						logData,
+					);
+				} else {
+					_logger.warn(
+						`[${providerId}] failed to persist provider cache`,
+						logData,
+					);
+				}
 			});
-		});
 	} else if (cached && cached.length > 0) {
 		// Empty fetch but we have a cache: keep serving cache.
 		return cached;

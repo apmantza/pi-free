@@ -436,11 +436,9 @@ export async function loginCline(
 	}
 }
 
-export async function refreshClineToken(
+async function attemptClineTokenRefresh(
 	credentials: OAuthCredentials,
 ): Promise<OAuthCredentials> {
-	if (credentials.expires > Date.now()) return credentials;
-
 	const res = await fetch(`${BASE_URL_CLINE}/auth/refresh`, {
 		method: "POST",
 		headers: buildClineHeaders(),
@@ -451,9 +449,8 @@ export async function refreshClineToken(
 	});
 
 	if (!res.ok) {
-		logger.warn("Cline token refresh failed", { status: res.status });
 		throw new Error(
-			"Cline token refresh failed. Run /login cline to re-authenticate.",
+			`Cline token refresh failed with status ${res.status}`,
 		);
 	}
 
@@ -463,11 +460,9 @@ export async function refreshClineToken(
 	};
 
 	if (!data?.success || !data.data) {
-		logger.warn("Invalid Cline refresh response", {
-			success: data?.success,
-			hasData: !!data?.data,
-		});
-		throw new Error("Invalid refresh response");
+		throw new Error(
+			`Invalid Cline refresh response (success=${data?.success}, hasData=${!!data?.data})`,
+		);
 	}
 
 	return {
@@ -475,4 +470,32 @@ export async function refreshClineToken(
 		refresh: data.data.refreshToken ?? credentials.refresh,
 		expires: parseExpiresAt(data.data.expiresAt),
 	};
+}
+
+export async function refreshClineToken(
+	credentials: OAuthCredentials,
+): Promise<OAuthCredentials> {
+	if (credentials.expires > Date.now()) return credentials;
+
+	try {
+		return await attemptClineTokenRefresh(credentials);
+	} catch (firstErr) {
+		logger.warn("Cline token refresh failed, retrying in 1 s", {
+			error: firstErr instanceof Error ? firstErr.message : String(firstErr),
+		});
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+		try {
+			return await attemptClineTokenRefresh(credentials);
+		} catch (secondErr) {
+			logger.warn("Cline token refresh failed after retry", {
+				error:
+					secondErr instanceof Error
+						? secondErr.message
+						: String(secondErr),
+			});
+			throw new Error(
+				"Cline token refresh failed. Run /login cline to re-authenticate.",
+			);
+		}
+	}
 }
