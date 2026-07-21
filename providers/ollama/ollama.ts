@@ -442,7 +442,7 @@ async function runOllamaProbe(
 	const config = loadConfigFile();
 	const existingHidden = new Set(config.hidden_models ?? []);
 	for (const id of notFound) existingHidden.add(`${PROVIDER_OLLAMA}/${id}`);
-	saveConfig({
+	await saveConfig({
 		hidden_models: Array.from(existingHidden),
 	});
 

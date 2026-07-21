@@ -20,6 +20,10 @@ vi.mock("node:fs", () => {
 	const mockData = new Map<string, string>();
 	return {
 		appendFileSync: vi.fn(),
+		chmodSync: vi.fn(),
+		copyFileSync: vi.fn((src: string, dest: string) => {
+			mockData.set(dest, mockData.get(src) ?? "");
+		}),
 		existsSync: vi.fn((path: string) => mockData.has(path)),
 		mkdirSync: vi.fn(),
 		readFileSync: vi.fn((path: string) => mockData.get(path) ?? ""),
@@ -283,7 +287,7 @@ describe("config persistence", () => {
 		);
 
 		const { saveConfig } = await import("../config.ts");
-		saveConfig({ free_only: false });
+		await saveConfig({ free_only: false });
 
 		const lastCall =
 			writeFileSync.mock.calls[writeFileSync.mock.calls.length - 1];
@@ -299,7 +303,7 @@ describe("config persistence", () => {
 		__mockData.set(configPath(), JSON.stringify({ free_only: true }));
 
 		const { saveConfig } = await import("../config.ts");
-		saveConfig({ nvidia_api_key: "new-key" });
+		await saveConfig({ nvidia_api_key: "new-key" });
 
 		const lastCall =
 			writeFileSync.mock.calls[writeFileSync.mock.calls.length - 1];
@@ -361,21 +365,25 @@ describe("updateConfig", () => {
 		expect(final.hidden_models).toHaveLength(3);
 	});
 
-	it("refuses to update a corrupt config file", async () => {
+	it("backs up a corrupt config file and applies the update to a fresh template", async () => {
 		vi.stubEnv("HOME", "/tmp");
 		const fs = await import("node:fs");
-		const { __mockData, writeFileSync } = fs as any;
+		const { __mockData, copyFileSync } = fs as any;
 		__mockData.set(configPath(), "not json {{{");
 
 		const { updateConfig } = await import("../config.ts");
-		await updateConfig(() => ({ nvidia_api_key: "should-not-write" }));
+		await updateConfig(() => ({ nvidia_api_key: "recovered-write" }));
 
-		// writeFileSync should not have been called (file is corrupt)
-		const lastCall = writeFileSync.mock.calls.at(-1);
-		if (lastCall) {
-			const written = parseMockJson(lastCall[1]);
-			expect(written.nvidia_api_key).not.toBe("should-not-write");
-		}
+		// Original bytes preserved in a timestamped backup
+		const backupCall = copyFileSync.mock.calls.at(-1);
+		expect(backupCall).toBeDefined();
+		expect(backupCall[0]).toBe(configPath());
+		expect(String(backupCall[1])).toContain(".bak-");
+		expect(__mockData.get(backupCall[1])).toBe("not json {{{");
+
+		// The update proceeds against a fresh template
+		const written = parseMockJson(__mockData.get(configPath()));
+		expect(written.nvidia_api_key).toBe("recovered-write");
 	});
 });
 
