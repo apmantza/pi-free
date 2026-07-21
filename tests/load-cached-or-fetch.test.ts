@@ -5,6 +5,12 @@ const mocks = vi.hoisted(() => ({
 	loadProviderCache: vi.fn(),
 	isProviderCacheFresh: vi.fn(),
 	saveProviderCacheGuarded: vi.fn(),
+	logger: {
+		info: vi.fn(),
+		warn: vi.fn(),
+		error: vi.fn(),
+		debug: vi.fn(),
+	},
 }));
 
 vi.mock("../lib/provider-cache.ts", () => ({
@@ -13,6 +19,10 @@ vi.mock("../lib/provider-cache.ts", () => ({
 	loadProviderCache: mocks.loadProviderCache,
 	saveProviderCacheGuarded: mocks.saveProviderCacheGuarded,
 	saveProviderCache: vi.fn(),
+}));
+
+vi.mock("../lib/logger.ts", () => ({
+	createLogger: () => mocks.logger,
 }));
 
 const cachedModels = [
@@ -28,6 +38,9 @@ describe("loadCachedOrFetchModels", () => {
 		mocks.loadProviderCache.mockReset();
 		mocks.isProviderCacheFresh.mockReset();
 		mocks.saveProviderCacheGuarded.mockReset();
+		mocks.logger.info.mockReset();
+		mocks.logger.warn.mockReset();
+		mocks.logger.error.mockReset();
 	});
 
 	it("returns a fresh cache without calling the fetcher", async () => {
@@ -73,7 +86,7 @@ describe("loadCachedOrFetchModels", () => {
 		expect(mocks.saveProviderCacheGuarded).not.toHaveBeenCalled();
 	});
 
-	it("returns an empty list when the fetcher throws and no cache exists", async () => {
+	it("returns an empty list and logs a warn when the fetcher throws and no cache exists", async () => {
 		mocks.loadProviderCache.mockReturnValue(undefined);
 		mocks.isProviderCacheFresh.mockReturnValue(false);
 		const fetcher = vi.fn().mockRejectedValue(new Error("network down"));
@@ -83,6 +96,13 @@ describe("loadCachedOrFetchModels", () => {
 
 		expect(result).toEqual([]);
 		expect(mocks.saveProviderCacheGuarded).not.toHaveBeenCalled();
+		// Warn log must be emitted so the user sees a clear message in the log file.
+		expect(mocks.logger.warn).toHaveBeenCalledWith(
+			expect.stringContaining(
+				"registered with 0 models — fetch failed and no cache available",
+			),
+			expect.objectContaining({ error: "network down" }),
+		);
 	});
 
 	it("serves the stale cache when a fetch returns an empty list", async () => {
