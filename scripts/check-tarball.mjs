@@ -83,6 +83,7 @@ const required = [
 	"package/config.ts",
 	"package/constants.ts",
 	"package/provider-helper.ts",
+	"package/provider-failover/benchmarks.json",
 	"package/README.md",
 	"package/CHANGELOG.md",
 	"package/LICENSE",
