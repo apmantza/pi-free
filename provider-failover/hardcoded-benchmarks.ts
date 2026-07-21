@@ -6,6 +6,9 @@
  */
 
 import { readFileSync } from "node:fs";
+import { createLogger } from "../lib/logger.ts";
+
+const _logger = createLogger("hardcoded-benchmarks");
 
 export interface HardcodedBenchmark {
 	codingIndex?: number;
@@ -33,9 +36,19 @@ let benchmarkCache: BenchmarkMap | undefined;
 
 function loadBenchmarks(): BenchmarkMap {
 	if (!benchmarkCache) {
-		benchmarkCache = JSON.parse(
-			readFileSync(new URL("./benchmarks.json", import.meta.url), "utf8"),
-		) as BenchmarkMap;
+		try {
+			benchmarkCache = JSON.parse(
+				readFileSync(
+					new URL("./benchmarks.json", import.meta.url),
+					"utf8",
+				),
+			) as BenchmarkMap;
+		} catch (err) {
+			_logger.warn("Failed to load benchmarks.json; benchmark scoring disabled", {
+				error: err instanceof Error ? err.message : String(err),
+			});
+			benchmarkCache = {};
+		}
 	}
 	return benchmarkCache;
 }
