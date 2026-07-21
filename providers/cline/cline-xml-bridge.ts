@@ -1184,7 +1184,13 @@ async function* parseSse(response: Response): AsyncGenerator<ClineXmlChunk> {
 			if (!trimmed.startsWith("data:")) continue;
 			const data = trimmed.slice("data:".length).trim();
 			if (!data || data === "[DONE]") continue;
-			yield JSON.parse(data) as ClineXmlChunk;
+			try {
+				yield JSON.parse(data) as ClineXmlChunk;
+			} catch {
+				_logger.warn("Malformed SSE JSON chunk skipped", {
+					preview: data.slice(0, 120),
+				});
+			}
 		}
 	}
 }
