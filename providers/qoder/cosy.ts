@@ -201,10 +201,12 @@ export function buildAuthHeaders(
 	const bodyStr = bodyToUtf8(body);
 	const sigInput = `${payloadB64}\n${cosyKey}\n${timestamp}\n${bodyStr}\n${sigPath}`;
 	// sonar-security: MD5 is protocol-mandatory for COSY signature (reverse-engineered from Qoder CLI)
+	// pi-lens-ignore: ts-weak-hash
 	const sig = crypto.createHash("md5").update(sigInput).digest("hex");
 
 	// sonar-security: MD5 is protocol-mandatory for COSY body hash (reverse-engineered from Qoder CLI)
 	const bodyHash = crypto
+		// pi-lens-ignore: ts-weak-hash
 		.createHash("md5")
 		.update(body || "")
 		.digest("hex");
