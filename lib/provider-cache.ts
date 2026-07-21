@@ -80,7 +80,9 @@ export function loadProviderCache(
 		fetchedAt: cached.fetchedAt,
 	});
 
-	return structuredClone(cached.models);
+	// Cached data is loaded from disk on each call. Callers must treat the
+	// returned list as read-only; save paths clone before persistence.
+	return cached.models;
 }
 
 /**

@@ -178,6 +178,7 @@ async function concurrentMap<T, R>(
 					results[index] = { status: "rejected", reason };
 				}
 			}
+			return undefined;
 		}),
 	);
 	return results;
@@ -319,7 +320,11 @@ function assembleModels(
 // Fetch all models (orchestrates /v1/models + /api/show)
 // =============================================================================
 
-async function fetchAllModels(apiKey: string): Promise<ProviderModelConfig[]> {
+async function fetchAllModels(
+	apiKey: string,
+	cachedModels: ProviderModelConfig[] = loadProviderCache(PROVIDER_OLLAMA) ??
+		[],
+): Promise<ProviderModelConfig[]> {
 	// Step 1: Get model IDs
 	const modelIds = await fetchModelIds(apiKey);
 	_logger.info(
@@ -334,12 +339,16 @@ async function fetchAllModels(apiKey: string): Promise<ProviderModelConfig[]> {
 		return true;
 	});
 
-	// Step 3: Fetch per-model details concurrently
+	// Step 3: Reuse derived capabilities for models already in the cache.
+	// The model list expires hourly, but /api/show capabilities are retained
+	// until a model disappears and is later discovered as new.
+	const cachedById = new Map(cachedModels.map((model) => [model.id, model]));
+	const newCandidateIds = candidateIds.filter((id) => !cachedById.has(id));
 	let succeeded = 0;
 	let failed = 0;
 
 	const detailResults = await concurrentMap(
-		candidateIds,
+		newCandidateIds,
 		DETAIL_CONCURRENCY,
 		async (id) => {
 			try {
@@ -352,10 +361,10 @@ async function fetchAllModels(apiKey: string): Promise<ProviderModelConfig[]> {
 			} finally {
 				if (
 					(succeeded + failed) % 10 === 0 ||
-					succeeded + failed === candidateIds.length
+					succeeded + failed === newCandidateIds.length
 				) {
 					_logger.debug(
-						`[ollama-cloud] Detail progress: ${succeeded + failed}/${candidateIds.length} (${failed} failed)`,
+						`[ollama-cloud] Detail progress: ${succeeded + failed}/${newCandidateIds.length} (${failed} failed)`,
 					);
 				}
 			}
@@ -376,12 +385,17 @@ async function fetchAllModels(apiKey: string): Promise<ProviderModelConfig[]> {
 			(failed ? ` (${failed} failed)` : ""),
 	);
 
-	if (Object.keys(raw).length === 0) {
+	// Step 5: Assemble new models and merge them with cached capabilities in the
+	// API's current order. Existing cached models are not re-requested.
+	const freshModels = assembleModels(raw);
+	const freshById = new Map(freshModels.map((model) => [model.id, model]));
+	const models = candidateIds
+		.map((id) => cachedById.get(id) ?? freshById.get(id))
+		.filter((model): model is ProviderModelConfig => model !== undefined);
+
+	if (models.length === 0) {
 		throw new Error("Failed to fetch any model details");
 	}
-
-	// Step 5: Assemble into Pi model configs
-	const models = assembleModels(raw);
 
 	// Step 6: Apply user-configured hidden models
 	return applyHidden(models, PROVIDER_OLLAMA);
@@ -448,7 +462,10 @@ async function runOllamaProbe(
 
 	// Re-fetch and re-register so hidden models disappear immediately
 	try {
-		const fresh = await fetchAllModels(apiKey);
+		const fresh = await fetchAllModels(
+			apiKey,
+			loadProviderCache(PROVIDER_OLLAMA),
+		);
 		await saveProviderCache(PROVIDER_OLLAMA, fresh);
 		applyModels(fresh);
 	} catch {
@@ -527,7 +544,10 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 	// ── Background refresh ─────────────────────────────────────────
 	async function refreshModels(): Promise<ProviderModelConfig[]> {
 		try {
-			const freshModels = await fetchAllModels(apiKey!);
+			const freshModels = await fetchAllModels(
+				apiKey!,
+				loadProviderCache(PROVIDER_OLLAMA),
+			);
 			await saveProviderCache(PROVIDER_OLLAMA, freshModels);
 			return freshModels;
 		} catch (error) {
@@ -546,7 +566,10 @@ export default async function ollamaProvider(pi: ExtensionAPI) {
 		handler: async (_args: string, ctx: ExtensionCommandContext) => {
 			ctx.ui.notify("Refreshing Ollama Cloud models…", "info");
 			try {
-				const fresh = await fetchAllModels(apiKey!);
+				const fresh = await fetchAllModels(
+					apiKey!,
+					loadProviderCache(PROVIDER_OLLAMA),
+				);
 				await saveProviderCache(PROVIDER_OLLAMA, fresh);
 				applyModelList(fresh);
 				ctx.ui.notify(

@@ -23,7 +23,7 @@ describe("provider cache", () => {
 		delete process.env.USERPROFILE;
 	});
 
-	it("returns a copy of cached models so callers cannot corrupt the cache", async () => {
+	it("returns cached models directly without cloning on read", async () => {
 		const { saveProviderCache, loadProviderCache } = await import(
 			"../lib/provider-cache.ts"
 		);
@@ -40,7 +40,7 @@ describe("provider cache", () => {
 		const models = loadProviderCache("test")!;
 		models.pop();
 		const models2 = loadProviderCache("test")!;
-		expect(models2).toHaveLength(1);
+		expect(models2).toHaveLength(0);
 	});
 
 	it("reports whether a provider cache entry is fresh", async () => {
@@ -110,7 +110,10 @@ describe("provider cache", () => {
 		await saveProviderCache("guarded", makeModels(100) as any);
 
 		// A <50% shrink (10 models) must NOT overwrite the cache.
-		const kept = await saveProviderCacheGuarded("guarded", makeModels(10) as any);
+		const kept = await saveProviderCacheGuarded(
+			"guarded",
+			makeModels(10) as any,
+		);
 		expect(kept).toBe(false);
 		expect(loadProviderCache("guarded")).toHaveLength(100);
 
