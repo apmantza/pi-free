@@ -12,7 +12,10 @@
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { createLogger } from "../lib/logger.ts";
 import type { ModelMatchHints } from "../lib/types.ts";
+
+const _logger = createLogger("benchmark-lookup");
 import {
 	HARDCODED_BENCHMARKS,
 	type HardcodedBenchmark,
@@ -132,8 +135,10 @@ function logDebug(entry: {
 			.join("|");
 
 		appendFileSync(LOG_FILE, `${line}\n`);
-	} catch {
-		// Silently fail - don't break functionality for logging issues
+	} catch (err) {
+		_logger.warn("Debug log write failed", {
+			error: err instanceof Error ? err.message : String(err),
+		});
 	}
 }
 
@@ -155,8 +160,10 @@ export function clearMatchLog(): void {
 				"timestamp|provider|modelId|modelName|action|strategy|normalizedId|matchKey|codingIndex|details\n",
 			);
 		}
-	} catch {
-		// Ignore errors
+	} catch (err) {
+		_logger.warn("Failed to clear match log", {
+			error: err instanceof Error ? err.message : String(err),
+		});
 	}
 }
 
@@ -894,8 +901,10 @@ export function getMatchingStats(): {
 		for (const line of content.split("\n").slice(1)) {
 			parseLogLine(stats, line);
 		}
-	} catch {
-		// Return empty stats on error
+	} catch (err) {
+		_logger.warn("Failed to read match log stats", {
+			error: err instanceof Error ? err.message : String(err),
+		});
 	}
 
 	return { ...stats, matchRate: computeMatchRate(stats) };

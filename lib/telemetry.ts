@@ -76,19 +76,41 @@ const TELEMETRY_FILE = resolveSafeDataFile(
 );
 const MAX_RECENT_CALLS = 50;
 
-// In-flight tracking: keyed by "provider/model", value is start timestamp.
-// TTL: 1 hour — anything older is stale (the matching recordModelCall
-// never fired, e.g. the agent was killed mid-call) and gets reaped
-// on the next startModelCall/recordModelCall.
-const _inFlight = new Map<string, number>();
+/** Latency samples above this threshold are discarded as implausible. */
+const MAX_SANE_LATENCY_MS = 10 * 60 * 1000; // 10 minutes
+
+// In-flight tracking: keyed by a unique call id, value is
+// { key: "provider/model", startTime: timestamp }.
+// Entries are reaped after 1 hour (the matching recordModelCall never fired,
+// e.g. the agent was killed mid-call).
+interface InFlightEntry {
+	key: string;
+	startTime: number;
+}
+const _inFlight = new Map<string, InFlightEntry>();
 const _IN_FLIGHT_TTL_MS = 60 * 60 * 1000;
 
+let _callIdCounter = 0;
+
 function reapStaleInFlight(now: number): void {
-	for (const [key, start] of _inFlight) {
-		if (now - start > _IN_FLIGHT_TTL_MS) {
-			_inFlight.delete(key);
+	for (const [id, entry] of _inFlight) {
+		if (now - entry.startTime > _IN_FLIGHT_TTL_MS) {
+			_logger.info("Reaped stale in-flight telemetry entry", {
+				callId: id,
+				key: entry.key,
+				ageMs: now - entry.startTime,
+			});
+			_inFlight.delete(id);
 		}
 	}
+}
+
+// =============================================================================
+// Key construction — single source of truth for provider/model keys
+// =============================================================================
+
+function telemetryKey(provider: string, model: string): string {
+	return `${provider}/${model}`;
 }
 
 // =============================================================================
@@ -165,7 +187,7 @@ function deriveModelTelemetry(
 
 async function addEntry(entry: TelemetryEntry): Promise<void> {
 	await _store.update((store) => {
-		const modelKey = `${entry.provider}/${entry.model}`;
+		const modelKey = telemetryKey(entry.provider, entry.model);
 
 		const existing: TelemetryEntry[] =
 			store.models[modelKey]?.recentCalls ?? [];
@@ -203,7 +225,7 @@ export function getModelTelemetry(
 	provider: string,
 	model: string,
 ): ModelTelemetry | null {
-	return _store.load().models[`${provider}/${model}`] ?? null;
+	return _store.load().models[telemetryKey(provider, model)] ?? null;
 }
 
 /**
@@ -259,14 +281,15 @@ export function getProviderTelemetry(provider: string): {
 }
 
 /**
- * Mark a model call as started (records the start timestamp).
- * Call this from before_agent_start or model_select.
+ * Mark a model call as started and return a unique call id.
+ * Pass this id to {@link recordModelCall} to pair the start/end correctly.
  */
-export function startModelCall(provider: string, model: string): void {
-	const key = `${provider}/${model}`;
+export function startModelCall(provider: string, model: string): string {
 	const now = Date.now();
 	reapStaleInFlight(now);
-	_inFlight.set(key, now);
+	const callId = `${telemetryKey(provider, model)}:${now}:${++_callIdCounter}`;
+	_inFlight.set(callId, { key: telemetryKey(provider, model), startTime: now });
+	return callId;
 }
 
 /** Options for {@link recordModelCall} */
@@ -280,6 +303,8 @@ export interface RecordModelCallOptions {
  * Record a completed model call with its usage data.
  * Call this from turn_end when the message is an AssistantMessage.
  *
+ * @param callId - The call id returned by {@link startModelCall}, or undefined
+ *   if no matching start was recorded.
  * @param provider - The provider ID
  * @param model - The model ID
  * @param usage - Token usage { input, output, totalTokens }
@@ -287,6 +312,7 @@ export interface RecordModelCallOptions {
  * @param options - Options object ({@link RecordModelCallOptions})
  */
 export async function recordModelCall(
+	callId: string | undefined,
 	provider: string,
 	model: string,
 	usage: { input: number; output: number; totalTokens: number },
@@ -294,10 +320,34 @@ export async function recordModelCall(
 	options: RecordModelCallOptions,
 ): Promise<void> {
 	const { success, stopReason, errorMessage } = options;
-	const key = `${provider}/${model}`;
-	const startTime = _inFlight.get(key) ?? Date.now();
-	const latencyMs = Date.now() - startTime;
-	_inFlight.delete(key);
+	const now = Date.now();
+
+	let latencyMs: number;
+	if (callId && _inFlight.has(callId)) {
+		const entry = _inFlight.get(callId)!;
+		latencyMs = now - entry.startTime;
+		_inFlight.delete(callId);
+	} else {
+		// No matching start — record 0 latency rather than a bogus value.
+		latencyMs = 0;
+		_logger.info("recordModelCall: no matching startModelCall", {
+			callId: callId ?? "(none)",
+			provider,
+			model,
+		});
+	}
+
+	// Discard implausibly long latency samples (e.g. system was suspended).
+	if (latencyMs > MAX_SANE_LATENCY_MS) {
+		_logger.info("Discarding implausible latency sample", {
+			callId,
+			provider,
+			model,
+			latencyMs,
+			thresholdMs: MAX_SANE_LATENCY_MS,
+		});
+		latencyMs = 0;
+	}
 
 	const totalTokens = usage.totalTokens || usage.input + usage.output;
 	const tokensPerSecond =
@@ -306,7 +356,7 @@ export async function recordModelCall(
 			: 0;
 
 	const entry: TelemetryEntry = {
-		timestamp: Date.now(),
+		timestamp: now,
 		provider,
 		model,
 		success,
@@ -322,7 +372,7 @@ export async function recordModelCall(
 
 	await addEntry(entry);
 
-	_logger.info(`Telemetry: ${provider}/${model}`, {
+	_logger.info(`Telemetry: ${telemetryKey(provider, model)}`, {
 		latencyMs,
 		totalTokens,
 		tokensPerSecond,
