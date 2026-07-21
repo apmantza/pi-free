@@ -77,6 +77,22 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 const _logger = createLogger("pi-free");
 
 // =============================================================================
+// Initialization Guard
+// =============================================================================
+
+/**
+ * Module-level flag that prevents global event handlers from being registered
+ * more than once. When the extension host reloads an extension it calls the
+ * default export again in the same module scope, which would otherwise cause
+ * handlers registered by setupQuotaMonitoring() and setupTelemetry() to
+ * accumulate and fire multiple times per event.
+ *
+ * pi.on() returns void (no unsubscribe function), so the only safe guard is
+ * skipping re-registration on the second and subsequent calls.
+ */
+let _handlersRegistered = false;
+
+// =============================================================================
 // Global Commands
 // =============================================================================
 
@@ -388,14 +404,29 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 	const globalFreeOnly = getGlobalFreeOnly();
 	_logger.info(`[pi-free] Initializing (global free-only: ${globalFreeOnly})`);
 
-	// Setup global commands first
-	setupGlobalCommands(pi);
+	// Guard: only register global event handlers once per module lifetime.
+	// On extension reload the module scope is preserved but this function is
+	// called again, which would accumulate duplicate handlers for quota
+	// monitoring and telemetry. Commands and provider registrations are
+	// idempotent (the runtime replaces them), but pi.on() is additive with
+	// no unsubscribe API, so we skip the registration block entirely on
+	// subsequent calls.
+	if (!_handlersRegistered) {
+		_handlersRegistered = true;
 
-	// Setup quota monitoring (passive, no extra API calls)
-	setupQuotaMonitoring(pi);
+		// Setup global commands first
+		setupGlobalCommands(pi);
 
-	// Setup model telemetry (tracks real-world performance)
-	setupTelemetry(pi);
+		// Setup quota monitoring (passive, no extra API calls)
+		setupQuotaMonitoring(pi);
+
+		// Setup model telemetry (tracks real-world performance)
+		setupTelemetry(pi);
+	} else {
+		_logger.info(
+			"[pi-free] Skipping global handler registration (already registered)",
+		);
+	}
 
 	// Load all unique providers + dynamic built-in providers CONCURRENTLY.
 	// Running the dynamic phase (e.g. FastRouter) in parallel with the static
