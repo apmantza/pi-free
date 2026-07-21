@@ -19,17 +19,16 @@ import type {
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
 import {
+	applyHidden,
 	getRoutewayApiKey,
 	getRoutewayShowPaid,
-	loadConfigFile,
-	saveConfig,
+	updateConfig,
 } from "../../config.ts";
 import {
 	BASE_URL_ROUTEWAY,
 	DEFAULT_FETCH_TIMEOUT_MS,
 	PROVIDER_ROUTEWAY,
 } from "../../constants.ts";
-import { applyHidden } from "../../config.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import {
@@ -275,11 +274,14 @@ async function runRoutewayProbe(
 		return [];
 	}
 
-	// Auto-hide broken models in config (provider-scoped)
-	const cfg = loadConfigFile();
-	const existingHidden = new Set(cfg.hidden_models ?? []);
-	for (const id of broken) existingHidden.add(`${PROVIDER_ROUTEWAY}/${id}`);
-	await saveConfig({ hidden_models: Array.from(existingHidden) });
+	// Auto-hide broken models in config (provider-scoped).
+	// Use updateConfig for atomic RMW to prevent concurrent probes from
+	// clobbering each other's hidden_models.
+	await updateConfig((cfg) => {
+		const existingHidden = new Set(cfg.hidden_models ?? []);
+		for (const id of broken) existingHidden.add(`${PROVIDER_ROUTEWAY}/${id}`);
+		return { hidden_models: Array.from(existingHidden) };
+	});
 
 	// Re-register so hidden models disappear immediately
 	const filtered = await fetchRoutewayModels(apiKey);
@@ -390,16 +392,15 @@ export default async function routewayProvider(pi: ExtensionAPI) {
 			const modelsToTest = allModels;
 			ctx.ui.notify(`Probing ${modelsToTest.length} Routeway models…`, "info");
 
-			await runRoutewayProbe(apiKey, modelsToTest, stored, reRegister);
-
-			// Check if any were hidden (re-read config)
-			const cfgAfter = loadConfigFile();
-			const newHidden = (cfgAfter.hidden_models ?? []).filter((h) =>
-				h.startsWith(`${PROVIDER_ROUTEWAY}/`),
+			const broken = await runRoutewayProbe(
+				apiKey,
+				modelsToTest,
+				stored,
+				reRegister,
 			);
-			if (newHidden.length > 0) {
+			if (broken.length > 0) {
 				ctx.ui.notify(
-					`Found ${newHidden.length} broken models (auto-hidden):\n${newHidden.join("\n")}`,
+					`Found ${broken.length} broken models (auto-hidden):\n${broken.map((id) => `${PROVIDER_ROUTEWAY}/${id}`).join("\n")}`,
 					"warning",
 				);
 			} else {
