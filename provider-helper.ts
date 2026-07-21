@@ -171,6 +171,10 @@ export async function loadCachedOrFetchModels(
 			);
 			return cached;
 		}
+		_logger.warn(
+			`[${providerId}] registered with 0 models — fetch failed and no cache available`,
+			{ error: err instanceof Error ? err.message : String(err) },
+		);
 		return [];
 	}
 
