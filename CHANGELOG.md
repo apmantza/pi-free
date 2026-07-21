@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Lazy benchmark loading** — replaced ~10k lines of eagerly-imported `benchmarks-chunk-*.ts` files with a lazily-loaded `benchmarks.json` catalog, reducing module parse cost at startup (#315, #316, #320).
+- **Provider cache reads no longer clone** — removed `structuredClone` from provider cache reads while keeping write-side cloning and the poisoning guard (#317).
+- **Benchmark regexes hoisted** — regexes previously compiled inside hot loops in `benchmark-lookup.ts` are now compiled once at module level (#318).
+- **Ollama capabilities cached** — `/api/show` is now only fetched for models not already in the provider cache, avoiding redundant per-model capability probes (#327).
+- **CI uses `npm ci`** — switched CI install step from `npm install` to `npm ci` for deterministic builds and correct lockfile-pinned dependency resolution.
+
+### Fixed
+
+- **Config write safety** — a corrupt `~/.pi/free.json` no longer blocks all config writes; the original file is backed up with a timestamp and reset from template. `saveConfig` is now async and serialised through `ConfigLock` to prevent concurrent writes from clobbering each other (#321, #324).
+- **Telemetry call-id tracking** — replaced key-based in-flight tracking with unique call ids, preventing provider-id drift between start/record and TTL reaping from corrupting latency. Latency samples over 10 minutes are discarded (#322).
+- **Structured logging for silent failures** — added `createLogger` and warn-level logging to cline-xml-bridge streaming errors, cline-auth token refresh failures, and benchmark-lookup debug FS operations that were previously silently swallowed (#326).
+- **OAuth refresh retry** — `refreshClineToken` now retries once (1s delay) before throwing, with structured logging on both attempts (#326).
+- **Persistence failure escalation** — consecutive provider cache write failures escalate from `warn` to `error` after 3+ failures (#326).
+- **XML tool parse warning** — `parseXmlToolCalls` now warns when raw text contains tool XML tags but no tool calls are parsed (#326).
+- **Handler duplication on reload** — global event handlers (`setupTelemetry`, `setupQuotaMonitoring`) are now guarded against duplicate registration when the extension is reloaded (#325).
+- **Empty provider warning** — `loadCachedOrFetchModels` now logs at `warn` level when a provider registers with 0 models due to fetch failure and empty cache (#323).
+- **Atomic probe config writes** — Ollama and Routeway probes now use `updateConfig()` instead of the non-atomic `loadConfigFile()` + `saveConfig()` pattern, preventing concurrent probes from overwriting each other's `hidden_models` updates (#319).
+- **npm audit vulnerabilities** — pinned `brace-expansion@5.0.7` and `protobufjs@7.6.5` to fix GHSA-3jxr-9vmj-r5cp and GHSA-j3f2-48v5-ccww from peer-dep transitive dependencies.
+
 ## [2.2.7] - 2026-07-10
 
 ### Added
