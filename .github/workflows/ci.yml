@@ -22,7 +22,7 @@ jobs:
           node-version: "22"
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Lockfile in sync with package.json
         run: npm run check:lockfile
@@ -47,7 +47,7 @@ jobs:
           node-version: "22"
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Run tests
         run: npm run test:run
@@ -69,7 +69,7 @@ jobs:
           node-version: "22"
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Pack tarball
         run: npm pack
