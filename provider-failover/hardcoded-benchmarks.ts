@@ -1,25 +1,12 @@
 /**
- * Hardcoded benchmark data from Artificial Analysis
- * Updated monthly via GitHub Actions
- * Last updated: 2026-04-06
+ * Hardcoded benchmark data from Artificial Analysis.
  *
- * This file contains cached benchmark scores so users don't need API keys.
- * Scores are Artificial Analysis Intelligence Index (0-70 scale)
- * Normalized to 0-100 for our ranking system.
- *
- * Data is split into chunk files (benchmarks-chunk-*.ts) to keep files
- * under the 3000-line limit. This file re-exports the merged result.
- *
- * To update: Run scripts/update-benchmarks.ts with ARTIFICIAL_ANALYSIS_API_KEY
- * The script auto-updates this file's imports and spread when chunk count changes.
+ * The generated JSON is loaded synchronously on first access so importing the
+ * provider extension does not parse the benchmark catalog during startup.
  */
 
-import { BENCHMARKS_CHUNK_0 } from "./benchmarks-chunk-0.ts";
-import { BENCHMARKS_CHUNK_1 } from "./benchmarks-chunk-1.ts";
-import { BENCHMARKS_CHUNK_2 } from "./benchmarks-chunk-2.ts";
-import { BENCHMARKS_CHUNK_3 } from "./benchmarks-chunk-3.ts";
-import { BENCHMARKS_CHUNK_4 } from "./benchmarks-chunk-4.ts";
-import { BENCHMARKS_CHUNK_5 } from "./benchmarks-chunk-5.ts";
+import { readFileSync } from "node:fs";
+
 export interface HardcodedBenchmark {
 	codingIndex?: number;
 	mathIndex?: number;
@@ -40,15 +27,37 @@ export interface HardcodedBenchmark {
 	originalModel?: string;
 }
 
+type BenchmarkMap = Record<string, HardcodedBenchmark>;
+
+let benchmarkCache: BenchmarkMap | undefined;
+
+function loadBenchmarks(): BenchmarkMap {
+	if (!benchmarkCache) {
+		benchmarkCache = JSON.parse(
+			readFileSync(new URL("./benchmarks.json", import.meta.url), "utf8"),
+		) as BenchmarkMap;
+	}
+	return benchmarkCache;
+}
+
 /**
- * Merged benchmark data from all chunk files.
- * Keys are normalized model names (lowercase, no special chars).
+ * Lazily loaded benchmark map. The proxy preserves the historical object API
+ * while deferring JSON parsing until a benchmark lookup actually needs it.
  */
-export const HARDCODED_BENCHMARKS: Record<string, HardcodedBenchmark> = {
-	...BENCHMARKS_CHUNK_0,
-	...BENCHMARKS_CHUNK_1,
-	...BENCHMARKS_CHUNK_2,
-	...BENCHMARKS_CHUNK_3,
-	...BENCHMARKS_CHUNK_4,
-	...BENCHMARKS_CHUNK_5,
-};
+export const HARDCODED_BENCHMARKS: BenchmarkMap = new Proxy(
+	{} as BenchmarkMap,
+	{
+		get(_target, property, receiver) {
+			return Reflect.get(loadBenchmarks(), property, receiver);
+		},
+		has(_target, property) {
+			return Reflect.has(loadBenchmarks(), property);
+		},
+		ownKeys() {
+			return Reflect.ownKeys(loadBenchmarks());
+		},
+		getOwnPropertyDescriptor(_target, property) {
+			return Reflect.getOwnPropertyDescriptor(loadBenchmarks(), property);
+		},
+	},
+);

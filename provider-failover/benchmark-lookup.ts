@@ -21,6 +21,52 @@ import {
 // Re-export the type and data so callers can migrate imports here
 export { HARDCODED_BENCHMARKS, type HardcodedBenchmark };
 
+type BenchmarkEntry = [string, HardcodedBenchmark];
+
+type BenchmarkIndex = {
+	exact: Map<string, HardcodedBenchmark>;
+	variants: Map<string, BenchmarkEntry[]>;
+};
+
+let benchmarkEntries: BenchmarkEntry[] | undefined;
+let benchmarkIndex: BenchmarkIndex | undefined;
+
+function getBenchmarkEntries(): BenchmarkEntry[] {
+	return (benchmarkEntries ??= Object.entries(
+		HARDCODED_BENCHMARKS,
+	) as BenchmarkEntry[]);
+}
+
+/**
+ * Build the prefix index once, after the lazy benchmark catalog is first
+ * needed. Every model prefix is indexed so a lookup only visits variants of
+ * that base model instead of the whole catalog.
+ */
+function getBenchmarkIndex(): BenchmarkIndex {
+	if (benchmarkIndex) return benchmarkIndex;
+
+	const exact = new Map<string, HardcodedBenchmark>();
+	const variants = new Map<string, BenchmarkEntry[]>();
+	for (const entry of getBenchmarkEntries()) {
+		const [key, data] = entry;
+		exact.set(key, data);
+
+		const segments = key.split("-");
+		for (let end = 1; end < segments.length; end++) {
+			const prefix = segments.slice(0, end).join("-");
+			const candidates = variants.get(prefix);
+			if (candidates) {
+				candidates.push(entry);
+			} else {
+				variants.set(prefix, [entry]);
+			}
+		}
+	}
+
+	benchmarkIndex = { exact, variants };
+	return benchmarkIndex;
+}
+
 // =============================================================================
 // Debug Logging
 // =============================================================================
@@ -393,38 +439,31 @@ function findBestVariantByPrefix(
 	originalId?: string,
 ): HardcodedBenchmark | null {
 	const prefixKey = baseId + "-";
-	const candidates: { key: string; data: HardcodedBenchmark }[] = [];
+	const { exact, variants } = getBenchmarkIndex();
+	const exactMatch = exact.get(baseId);
 
-	for (const [key, data] of Object.entries(HARDCODED_BENCHMARKS) as [
-		string,
-		HardcodedBenchmark,
-	][]) {
-		// Exact match
-		if (key === baseId) {
-			if (data.codingIndex !== undefined) {
-				logDebug({
-					provider,
-					modelId: originalId || baseId,
-					modelName: "",
-					action: "match",
-					strategy: "exact-prefix-match",
-					matchKey: key,
-					codingIndex: data.codingIndex,
-				});
-				return data;
-			}
-			continue;
-		}
+	if (exactMatch?.codingIndex !== undefined) {
+		logDebug({
+			provider,
+			modelId: originalId || baseId,
+			modelName: "",
+			action: "match",
+			strategy: "exact-prefix-match",
+			matchKey: baseId,
+			codingIndex: exactMatch.codingIndex,
+		});
+		return exactMatch;
+	}
 
-		// Prefix match: key starts with baseId + "-"
+	const candidates: BenchmarkEntry[] = [];
+	for (const entry of variants.get(baseId) ?? []) {
+		const [key] = entry;
+		// Check that the first segment after the prefix is a qualifier
+		// (prevents gpt-4o → gpt-4o-mini cross-model matches)
 		if (key.startsWith(prefixKey)) {
-			// Check that the first segment after the prefix is a qualifier
-			// (prevents gpt-4o → gpt-4o-mini cross-model matches)
 			const remainder = key.slice(prefixKey.length);
 			const firstSegment = remainder.split("-")[0]!;
-			if (isVariantQualifier(firstSegment)) {
-				candidates.push({ key, data });
-			}
+			if (isVariantQualifier(firstSegment)) candidates.push(entry);
 		}
 	}
 
@@ -432,13 +471,13 @@ function findBestVariantByPrefix(
 
 	// Pick the candidate with the highest codingIndex
 	candidates.sort((a, b) => {
-		const ciA = a.data.codingIndex ?? -1;
-		const ciB = b.data.codingIndex ?? -1;
+		const ciA = a[1].codingIndex ?? -1;
+		const ciB = b[1].codingIndex ?? -1;
 		return ciB - ciA;
 	});
 
 	// Only return if the best candidate has a codingIndex
-	if (candidates[0]!.data.codingIndex !== undefined) {
+	if (candidates[0]![1].codingIndex !== undefined) {
 		logDebug({
 			provider,
 			modelId: originalId || baseId,
@@ -446,11 +485,11 @@ function findBestVariantByPrefix(
 			action: "match",
 			strategy: "variant-prefix-match",
 			normalizedId: baseId,
-			matchKey: candidates[0]!.key,
-			codingIndex: candidates[0]!.data.codingIndex,
+			matchKey: candidates[0]![0],
+			codingIndex: candidates[0]![1].codingIndex,
 			details: `${candidates.length} candidates`,
 		});
-		return candidates[0]!.data;
+		return candidates[0]![1];
 	}
 
 	return null;
@@ -560,10 +599,7 @@ function tryDirectSubstringMatch(
 	// uses a different separator convention in the model ID.
 	let bestKey: string | null = null;
 	let bestData: HardcodedBenchmark | null = null;
-	for (const [key, data] of Object.entries(HARDCODED_BENCHMARKS) as [
-		string,
-		HardcodedBenchmark,
-	][]) {
+	for (const [key, data] of getBenchmarkEntries()) {
 		if (search.includes(key.toLowerCase())) {
 			if (bestKey === null || key.length > bestKey.length) {
 				bestKey = key;
@@ -635,10 +671,7 @@ function tryProviderNormalizedMatch(
 		normalizedId: normalized,
 	});
 
-	for (const [key, data] of Object.entries(HARDCODED_BENCHMARKS) as [
-		string,
-		HardcodedBenchmark,
-	][]) {
+	for (const [key, data] of getBenchmarkEntries()) {
 		if (normalized.includes(key.toLowerCase())) {
 			logDebug({
 				provider,

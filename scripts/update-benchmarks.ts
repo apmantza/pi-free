@@ -5,11 +5,11 @@
  * This fetches fresh data from Artificial Analysis API and updates
  * provider-failover/benchmarks-chunk-*.ts files.
  *
- * Also auto-updates provider-failover/hardcoded-benchmarks.ts to import
- * the correct number of chunk files.
+ * Also writes provider-failover/benchmarks.json, the lazily loaded runtime
+ * catalog used by provider-failover/hardcoded-benchmarks.ts.
  */
 
-import { readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const API_KEY = process.env.ARTIFICIAL_ANALYSIS_API_KEY;
@@ -130,6 +130,33 @@ ${entries.join("\n")}
 `;
 }
 
+function generateBenchmarkJson(models: AAModel[]): Record<string, unknown> {
+	const today = new Date().toISOString().split("T")[0];
+	const benchmarks: Record<string, unknown> = {};
+
+	for (const model of models) {
+		const e = model.evaluations;
+		const benchmark: Record<string, unknown> = {
+			contextWindow: model.context_window || 8192,
+			supportsReasoning: model.supports_reasoning || false,
+			supportsVision: model.supports_vision || false,
+			lastUpdated: today,
+			originalModel: model.name.replaceAll(/[\n\r]/g, "_"),
+		};
+		const addNumber = (key: string, value: number | null): void => {
+			if (value !== null) benchmark[key] = Number(value.toFixed(3));
+		};
+		addNumber("codingIndex", e.artificial_analysis_coding_index);
+		addNumber("mathIndex", e.artificial_analysis_math_index);
+		addNumber("mmluPro", e.mmlu_pro);
+		addNumber("gpqa", e.gpqa);
+		addNumber("hle", e.hle);
+		benchmarks[normalizeModelName(model.name)] = benchmark;
+	}
+
+	return benchmarks;
+}
+
 function generateBenchmarksChunks(models: AAModel[]): void {
 	const today = new Date().toISOString().split("T")[0];
 
@@ -212,62 +239,13 @@ function generateBenchmarksChunks(models: AAModel[]): void {
 		chunkIndex++;
 	}
 
-	// Auto-update hardcoded-benchmarks.ts to match the new chunk count
-	const mainFile = join(OUTPUT_DIR, "hardcoded-benchmarks.ts");
-	const mainContent = readFileSync(mainFile, "utf-8");
-	const currentChunks = new Set(
-		Array.from(mainContent.matchAll(/BENCHMARKS_CHUNK_(\d+)/g), (m) => m[1]),
-	).size;
-	if (currentChunks !== chunkIndex) {
-		console.log(
-			`\n🔄 Updating hardcoded-benchmarks.ts: ${currentChunks} chunks → ${chunkIndex} chunks`,
-		);
-
-		// Generate new import lines
-		const chunkImports: string[] = [];
-		for (let i = 0; i < chunkIndex; i++) {
-			chunkImports.push(
-				`import { BENCHMARKS_CHUNK_${i} } from "./benchmarks-chunk-${i}.ts";`,
-			);
-		}
-		const newImportSection = chunkImports.join("\n");
-
-		// Generate new spread lines for the export
-		const chunkSpreads: string[] = [];
-		for (let i = 0; i < chunkIndex; i++) {
-			chunkSpreads.push(`\t...BENCHMARKS_CHUNK_${i},`);
-		}
-		const newSpreadSection = chunkSpreads.join("\n");
-
-		// Replace import block (string-based, no ReDoS-prone regex)
-		const importStart = mainContent.indexOf("import { BENCHMARKS_CHUNK_0");
-		const importEnd = mainContent.indexOf("\nexport interface");
-		let updatedContent = mainContent;
-		if (importStart !== -1 && importEnd !== -1) {
-			updatedContent =
-				mainContent.slice(0, importStart) +
-				newImportSection +
-				mainContent.slice(importEnd);
-		}
-
-		// Replace spread block (string-based, no ReDoS-prone regex)
-		const spreadStart = updatedContent.indexOf("\t...BENCHMARKS_CHUNK_0,");
-		const spreadEnd = updatedContent.indexOf("\t};");
-		const finalContent =
-			spreadStart !== -1 && spreadEnd !== -1
-				? updatedContent.slice(0, spreadStart) +
-					newSpreadSection +
-					"\n" +
-					updatedContent.slice(spreadEnd)
-				: updatedContent;
-
-		writeFileSync(mainFile, finalContent, "utf-8");
-		console.log(
-			`  ✅ Updated hardcoded-benchmarks.ts with ${chunkIndex} chunk imports`,
-		);
-	}
-
-	console.log(`\n✅ Generated ${chunkIndex} chunk files in ${OUTPUT_DIR}/`);
+	const jsonFile = join(OUTPUT_DIR, "benchmarks.json");
+	writeFileSync(
+		jsonFile,
+		`${JSON.stringify(generateBenchmarkJson(scoredModels), null, "\t")}\n`,
+		"utf-8",
+	);
+	console.log(`\n✅ Generated ${chunkIndex} chunk files and ${jsonFile}`);
 }
 
 async function main() {
@@ -280,7 +258,7 @@ async function main() {
 		console.log("\n📝 Next steps:");
 		console.log("  1. Review the chunk file changes");
 		console.log(
-			"  2. Verify hardcoded-benchmarks.ts imports — auto-updated if chunk count changed",
+			"  2. Verify hardcoded-benchmarks.ts and benchmarks.json",
 		);
 		console.log("  3. Run tests: npm run test:run");
 		console.log("  4. Commit and push");

@@ -25,13 +25,16 @@ const _logger = createLogger("model-metadata");
 
 type ThinkingLevelMap = NonNullable<ProviderModelConfig["thinkingLevelMap"]>;
 type ModelCompat = NonNullable<ProviderModelConfig["compat"]>;
+type ModelsDevMeta = Record<string, ModelsDevModel>;
+type ModelsDevMetaIndex = Map<string, ModelsDevModel>;
+type CatalogCache = {
+	expiresAt: number;
+	promise: Promise<Record<string, ModelsDevProvider>>;
+	allModels?: ModelsDevMeta;
+	indexes: WeakMap<ModelsDevMeta, ModelsDevMetaIndex>;
+};
 
-let catalogCache:
-	| {
-			expiresAt: number;
-			promise: Promise<Record<string, ModelsDevProvider>>;
-	  }
-	| undefined;
+let catalogCache: CatalogCache | undefined;
 
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
@@ -78,24 +81,26 @@ async function fetchModelsDevCatalog(): Promise<
 	return {};
 }
 
-function getModelsDevCatalog(): Promise<Record<string, ModelsDevProvider>> {
+function getModelsDevCatalogCache(): CatalogCache {
 	const now = Date.now();
 	if (catalogCache && catalogCache.expiresAt > now) {
-		return catalogCache.promise;
+		return catalogCache;
 	}
 
-	const promise = fetchModelsDevCatalog().catch((error) => {
-		catalogCache = undefined;
+	const cache: CatalogCache = {
+		expiresAt: now + MODELS_DEV_CACHE_TTL_MS,
+		promise: Promise.resolve({}),
+		indexes: new WeakMap(),
+	};
+	cache.promise = fetchModelsDevCatalog().catch((error) => {
+		if (catalogCache === cache) catalogCache = undefined;
 		_logger.warn("Failed to load models.dev metadata", {
 			error: errorMessage(error),
 		});
 		return {};
 	});
-	catalogCache = {
-		expiresAt: now + MODELS_DEV_CACHE_TTL_MS,
-		promise,
-	};
-	return promise;
+	catalogCache = cache;
+	return cache;
 }
 
 function collectAllModels(
@@ -142,14 +147,15 @@ function findProviderModels(
 
 export async function fetchModelsDevMeta(
 	providerId?: string,
-): Promise<Record<string, ModelsDevModel>> {
-	const catalog = await getModelsDevCatalog();
+): Promise<ModelsDevMeta> {
+	const cache = getModelsDevCatalogCache();
+	const catalog = await cache.promise;
 	if (providerId) {
 		const scopedModels = findProviderModels(catalog, providerId);
 		if (scopedModels) return scopedModels;
 	}
 
-	return collectAllModels(catalog);
+	return (cache.allModels ??= collectAllModels(catalog));
 }
 
 function normalizeModelKey(id: string): string {
@@ -160,15 +166,25 @@ function normalizeModelKey(id: string): string {
 		.replace(/-free$/, "");
 }
 
-function buildModelMetaIndex(
-	meta: Record<string, ModelsDevModel>,
-): Map<string, ModelsDevModel> {
+function buildModelMetaIndex(meta: ModelsDevMeta): ModelsDevMetaIndex {
 	const index = new Map<string, ModelsDevModel>();
 	for (const [key, model] of Object.entries(meta)) {
 		for (const value of [key, model.id, key.split("/").pop()]) {
 			if (value) index.set(normalizeModelKey(value), model);
 		}
 	}
+	return index;
+}
+
+function getModelMetaIndex(meta: ModelsDevMeta): ModelsDevMetaIndex {
+	const cache = catalogCache;
+	if (!cache) return buildModelMetaIndex(meta);
+
+	const cached = cache.indexes.get(meta);
+	if (cached) return cached;
+
+	const index = buildModelMetaIndex(meta);
+	cache.indexes.set(meta, index);
 	return index;
 }
 
@@ -354,7 +370,7 @@ export async function enrichModelsWithModelsDev<T extends ProviderModelConfig>(
 	if (Object.keys(meta).length === 0) return models;
 
 	const ctx: EnrichmentContext = {
-		index: buildModelMetaIndex(meta),
+		index: getModelMetaIndex(meta),
 		fallbackContextWindows: new Set(
 			options.fallbackContextWindows ?? [DEFAULT_CONTEXT_WINDOW, 4096],
 		),
