@@ -26,8 +26,7 @@ import {
 	applyHidden,
 	getOllamaApiKey,
 	getOllamaShowPaid,
-	loadConfigFile,
-	saveConfig,
+	updateConfig,
 } from "../../config.ts";
 import {
 	BASE_URL_OLLAMA,
@@ -452,12 +451,13 @@ async function runOllamaProbe(
 		return [];
 	}
 
-	// Auto-hide 403 models in config (provider-scoped)
-	const config = loadConfigFile();
-	const existingHidden = new Set(config.hidden_models ?? []);
-	for (const id of notFound) existingHidden.add(`${PROVIDER_OLLAMA}/${id}`);
-	await saveConfig({
-		hidden_models: Array.from(existingHidden),
+	// Auto-hide 403 models in config (provider-scoped).
+	// Use updateConfig for atomic RMW to prevent concurrent probes from
+	// clobbering each other's hidden_models.
+	await updateConfig((cfg) => {
+		const existingHidden = new Set(cfg.hidden_models ?? []);
+		for (const id of notFound) existingHidden.add(`${PROVIDER_OLLAMA}/${id}`);
+		return { hidden_models: Array.from(existingHidden) };
 	});
 
 	// Re-fetch and re-register so hidden models disappear immediately
