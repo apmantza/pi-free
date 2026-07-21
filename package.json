@@ -55,6 +55,10 @@
 		"smoke:cline": "tsx scripts/smoke-cline-xml-bridge.ts",
 		"smoke:openmodel": "tsx scripts/smoke-openmodel-wire-format.ts"
 	},
+	"overrides": {
+		"brace-expansion": "^5.0.7",
+		"protobufjs": "^7.6.5"
+	},
 	"peerDependencies": {
 		"@earendil-works/pi-ai": ">=0.80.8",
 		"@earendil-works/pi-coding-agent": ">=0.80.8",
@@ -62,6 +66,8 @@
 	},
 	"devDependencies": {
 		"@vitest/ui": "^4.1.10",
+		"brace-expansion": "^5.0.7",
+		"protobufjs": "^7.6.5",
 		"tsx": "^4.23.0",
 		"typescript": "^7.0.2",
 		"vitest": "^4.1.10"
