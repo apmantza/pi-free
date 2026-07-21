@@ -322,7 +322,8 @@ function assembleModels(
 
 async function fetchAllModels(
 	apiKey: string,
-	cachedModels: ProviderModelConfig[] = loadProviderCache(PROVIDER_OLLAMA) ?? [],
+	cachedModels: ProviderModelConfig[] = loadProviderCache(PROVIDER_OLLAMA) ??
+		[],
 ): Promise<ProviderModelConfig[]> {
 	// Step 1: Get model IDs
 	const modelIds = await fetchModelIds(apiKey);
@@ -461,7 +462,10 @@ async function runOllamaProbe(
 
 	// Re-fetch and re-register so hidden models disappear immediately
 	try {
-		const fresh = await fetchAllModels(apiKey, loadProviderCache(PROVIDER_OLLAMA));
+		const fresh = await fetchAllModels(
+			apiKey,
+			loadProviderCache(PROVIDER_OLLAMA),
+		);
 		await saveProviderCache(PROVIDER_OLLAMA, fresh);
 		applyModels(fresh);
 	} catch {

@@ -110,7 +110,10 @@ describe("provider cache", () => {
 		await saveProviderCache("guarded", makeModels(100) as any);
 
 		// A <50% shrink (10 models) must NOT overwrite the cache.
-		const kept = await saveProviderCacheGuarded("guarded", makeModels(10) as any);
+		const kept = await saveProviderCacheGuarded(
+			"guarded",
+			makeModels(10) as any,
+		);
 		expect(kept).toBe(false);
 		expect(loadProviderCache("guarded")).toHaveLength(100);
 
