@@ -79,7 +79,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.meta.outputs.needs_npm_publish == 'true'
-        run: npm ci --no-audit --no-fund --ignore-scripts
+        run: npm ci --no-audit --no-fund
 
       - name: Lockfile in sync with package.json
         if: steps.meta.outputs.needs_npm_publish == 'true'
@@ -190,7 +190,7 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund --ignore-scripts
+        run: npm ci --no-audit --no-fund
 
       - name: Publish to npm (trusted publishing)
         run: npm publish
