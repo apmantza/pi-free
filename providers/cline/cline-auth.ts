@@ -451,6 +451,7 @@ export async function refreshClineToken(
 	});
 
 	if (!res.ok) {
+		logger.warn("Cline token refresh failed", { status: res.status });
 		throw new Error(
 			"Cline token refresh failed. Run /login cline to re-authenticate.",
 		);
@@ -462,6 +463,10 @@ export async function refreshClineToken(
 	};
 
 	if (!data?.success || !data.data) {
+		logger.warn("Invalid Cline refresh response", {
+			success: data?.success,
+			hasData: !!data?.data,
+		});
 		throw new Error("Invalid refresh response");
 	}
 

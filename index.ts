@@ -294,6 +294,11 @@ function setupQuotaMonitoring(pi: ExtensionAPI) {
 // =============================================================================
 
 function setupTelemetry(pi: ExtensionAPI) {
+	// Tracks the most recent call id per provider/model so turn_end can
+	// pair with the correct startModelCall. Calls are serialized per model
+	// in practice, so the last id is the correct one.
+	const pendingCallIds = new Map<string, string>();
+
 	// Only track telemetry for FREE models (uses same isFreeModel logic as model filtering)
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	(pi as any).on("before_agent_start", (_event: any, ctx: any) => {
@@ -303,7 +308,8 @@ function setupTelemetry(pi: ExtensionAPI) {
 		const model = ctx.model?.id;
 		if (provider && model) {
 			try {
-				startModelCall(provider, model);
+				const callId = startModelCall(provider, model);
+				pendingCallIds.set(`${provider}/${model}`, callId);
 			} catch (err) {
 				// Telemetry is best-effort — never break the agent flow
 				_logger.warn("telemetry startModelCall failed", {
@@ -341,6 +347,10 @@ function setupTelemetry(pi: ExtensionAPI) {
 		const model = msg.model || ctx.model?.id;
 		if (!provider || !model) return;
 
+		const callKey = `${provider}/${model}`;
+		const callId = pendingCallIds.get(callKey);
+		pendingCallIds.delete(callKey);
+
 		const usage = msg.usage;
 		const inputTokens = usage?.input ?? 0;
 		const outputTokens = usage?.output ?? 0;
@@ -350,6 +360,7 @@ function setupTelemetry(pi: ExtensionAPI) {
 
 		try {
 			await recordModelCall(
+				callId,
 				provider,
 				model,
 				{ input: inputTokens, output: outputTokens, totalTokens },

@@ -30,11 +30,67 @@ describe("telemetry", () => {
 		const usage = { input: 1, output: 2, totalTokens: 3 };
 		const opts = { success: true };
 		await Promise.all([
-			recordModelCall("p", "m", usage, 0, opts),
-			recordModelCall("p", "m", usage, 0, opts),
-			recordModelCall("p", "m", usage, 0, opts),
+			recordModelCall(undefined, "p", "m", usage, 0, opts),
+			recordModelCall(undefined, "p", "m", usage, 0, opts),
+			recordModelCall(undefined, "p", "m", usage, 0, opts),
 		]);
 		const t = getModelTelemetry("p", "m");
 		expect(t?.totalCalls).toBe(3);
+	});
+
+	it("pairs start and record via call id with correct latency", async () => {
+		const { startModelCall, recordModelCall, getModelTelemetry } =
+			await import("../lib/telemetry.ts");
+
+		const callId = startModelCall("prov", "mdl");
+		expect(typeof callId).toBe("string");
+
+		const usage = { input: 10, output: 20, totalTokens: 30 };
+		await recordModelCall(callId, "prov", "mdl", usage, 0, {
+			success: true,
+		});
+
+		const t = getModelTelemetry("prov", "mdl");
+		expect(t?.totalCalls).toBe(1);
+		// Latency should be >= 0 (near-instant in test)
+		expect(t?.recentCalls[0]?.latencyMs).toBeGreaterThanOrEqual(0);
+	});
+
+	it("records 0 latency when no matching startModelCall exists", async () => {
+		const { recordModelCall, getModelTelemetry } = await import(
+			"../lib/telemetry.ts"
+		);
+		const usage = { input: 5, output: 5, totalTokens: 10 };
+		await recordModelCall(undefined, "x", "y", usage, 0, {
+			success: true,
+		});
+
+		const t = getModelTelemetry("x", "y");
+		expect(t?.recentCalls[0]?.latencyMs).toBe(0);
+	});
+
+	it("discards implausibly long latency samples", async () => {
+		const { startModelCall, recordModelCall, getModelTelemetry } =
+			await import("../lib/telemetry.ts");
+
+		const callId = startModelCall("slow", "model");
+
+		// Simulate a system suspend by faking the in-flight start time
+		// (reach into the module's internals via the returned callId structure)
+		// Instead, we use vi.spyOn to override Date.now for the record call
+		const realNow = Date.now();
+		vi.spyOn(Date, "now").mockReturnValue(realNow + 15 * 60 * 1000); // 15 min later
+
+		const usage = { input: 1, output: 1, totalTokens: 2 };
+		await recordModelCall(callId, "slow", "model", usage, 0, {
+			success: true,
+		});
+
+		vi.restoreAllMocks();
+
+		const t = getModelTelemetry("slow", "model");
+		// Latency should be clamped to 0 (discarded as implausible)
+		expect(t?.recentCalls[0]?.latencyMs).toBe(0);
+		expect(t?.recentCalls[0]?.tokensPerSecond).toBe(0);
 	});
 });

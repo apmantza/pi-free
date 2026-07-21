@@ -10,7 +10,10 @@ import type {
 	Usage,
 } from "@earendil-works/pi-ai/compat";
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/compat";
+import { createLogger } from "../../lib/logger.ts";
 import { BASE_URL_CLINE, PROVIDER_CLINE } from "../../constants.ts";
+
+const _logger = createLogger("cline-xml-bridge");
 
 const DEFAULT_USAGE: Usage = {
 	input: 0,
@@ -1482,6 +1485,11 @@ export function streamClineXml(
 			assistant.stopReason = options?.signal?.aborted ? "aborted" : "error";
 			assistant.errorMessage =
 				error instanceof Error ? error.message : String(error);
+			_logger.warn("Cline XML streaming error", {
+				model: model?.id,
+				stopReason: assistant.stopReason,
+				error: assistant.errorMessage,
+			});
 			stream.push({
 				type: "error",
 				reason: assistant.stopReason,
