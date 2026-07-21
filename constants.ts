@@ -9,7 +9,6 @@
 
 export const PROVIDER_KILO = "kilo";
 export const PROVIDER_CLINE = "cline";
-export const PROVIDER_CLOUDFLARE = "cloudflare";
 export const PROVIDER_OLLAMA = "ollama-cloud";
 export const PROVIDER_ZENMUX = "zenmux";
 export const PROVIDER_CROFAI = "crofai";
@@ -30,31 +29,10 @@ export const PROVIDER_OPENROUTER = "openrouter";
 export const PROVIDER_OPENCODE = "opencode";
 export const PROVIDER_FASTROUTER = "fastrouter";
 
-export const ALL_UNIQUE_PROVIDERS = [
-	PROVIDER_KILO,
-	PROVIDER_CLINE,
-	PROVIDER_OLLAMA,
-	PROVIDER_ZENMUX,
-	PROVIDER_CROFAI,
-	PROVIDER_LLM7,
-	PROVIDER_DEEPINFRA,
-	PROVIDER_SAMBANOVA,
-	PROVIDER_TOGETHER,
-	PROVIDER_NOVITA,
-	PROVIDER_ROUTEWAY,
-	PROVIDER_TOKENROUTER,
-	PROVIDER_ANYAPI,
-	PROVIDER_BAI,
-	PROVIDER_OPENMODEL,
-	PROVIDER_QODER,
-] as const;
-
 // =============================================================================
 // Provider base URLs
 // =============================================================================
 
-export const BASE_URL_KILO = "https://api.kilo.ai/api/gateway";
-export const BASE_URL_CLOUDFLARE = "https://api.cloudflare.com/client/v4";
 export const BASE_URL_OLLAMA = "https://ollama.com/v1"; // OpenAI-compatible API endpoint
 export const BASE_URL_CLINE = "https://api.cline.bot/api/v1";
 export const BASE_URL_ZENMUX = "https://zenmux.ai/api/v1";
@@ -85,7 +63,6 @@ export const BASE_URL_OPENROUTER = "https://openrouter.ai/api/v1";
 
 export const URL_MODELS_DEV = "https://models.dev/api.json";
 export const URL_KILO_TOS = "https://kilo.ai/terms";
-export const URL_CLINE_TOS = "https://cline.bot/tos";
 
 // =============================================================================
 // Cline auth
