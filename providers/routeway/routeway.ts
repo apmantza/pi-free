@@ -279,7 +279,7 @@ async function runRoutewayProbe(
 	const cfg = loadConfigFile();
 	const existingHidden = new Set(cfg.hidden_models ?? []);
 	for (const id of broken) existingHidden.add(`${PROVIDER_ROUTEWAY}/${id}`);
-	saveConfig({ hidden_models: Array.from(existingHidden) });
+	await saveConfig({ hidden_models: Array.from(existingHidden) });
 
 	// Re-register so hidden models disappear immediately
 	const filtered = await fetchRoutewayModels(apiKey);

@@ -11,6 +11,7 @@
 
 import {
 	chmodSync,
+	copyFileSync,
 	existsSync,
 	readFileSync,
 	statSync,
@@ -170,10 +171,18 @@ function ensureConfigFile(): void {
 					readFileSync(CONFIG_PATH, "utf8"),
 				) as PiFreeConfig;
 			} catch (_parseErr) {
-				// File exists but is corrupt — DO NOT overwrite it.
-				// The user needs to fix or delete it manually.
-				_logger.error(
-					"Config file exists but is corrupt — refusing to overwrite. Fix or delete ~/.pi/free.json.",
+				// File exists but is corrupt — back it up and write a fresh
+				// template so the extension can start. The original bytes are
+				// preserved in the timestamped backup for recovery.
+				backupCorruptConfigFile();
+				writeFileSync(
+					CONFIG_PATH,
+					`${JSON.stringify(CONFIG_TEMPLATE, null, 2)}\n`,
+					"utf8",
+				);
+				restrictConfigFilePermissions();
+				_logger.warn(
+					"Config file was corrupt and has been reset from template; backup preserved",
 					{ path: CONFIG_PATH },
 				);
 				return;
@@ -225,6 +234,35 @@ function restrictConfigFilePermissions(): void {
 	}
 }
 
+function backupCorruptConfigFile(): void {
+	try {
+		const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+		const backupPath = `${CONFIG_PATH}.bak-${timestamp}`;
+		copyFileSync(CONFIG_PATH, backupPath);
+		restrictConfigFilePermissionsForPath(backupPath);
+		_logger.warn(
+			"Config file is corrupt; a backup was created before the next write.",
+			{ path: CONFIG_PATH, backupPath },
+		);
+	} catch (err) {
+		_logger.warn("Could not back up corrupt config file", {
+			path: CONFIG_PATH,
+			error: err instanceof Error ? err.message : String(err),
+		});
+	}
+}
+
+function restrictConfigFilePermissionsForPath(path: string): void {
+	try {
+		chmodSync(path, 0o600);
+	} catch (err) {
+		_logger.warn("Could not restrict config backup permissions to 0600", {
+			path,
+			error: err instanceof Error ? err.message : String(err),
+		});
+	}
+}
+
 export function loadConfigFile(): PiFreeConfig {
 	// Return the memoized parse when the file hasn't changed on disk.
 	// Use a single stat result for both the hit check and the cached mtime to
@@ -253,8 +291,9 @@ export function loadConfigFile(): PiFreeConfig {
 		cachedConfig = null;
 		cachedConfigMtime = -1;
 		if (err instanceof SyntaxError) {
-			_logger.error(
-				"Config file is corrupt (invalid JSON) — returning empty config",
+			backupCorruptConfigFile();
+			_logger.warn(
+				"Config file is corrupt (invalid JSON) — returning empty config; a backup was created",
 				{
 					path: CONFIG_PATH,
 					error: err.message,
@@ -676,7 +715,10 @@ export function applyHidden<T extends { id: string }>(
 // Persistence
 // =============================================================================
 
-export function saveConfig(updates: Partial<PiFreeConfig>): void {
+export async function saveConfig(
+	updates: Partial<PiFreeConfig>,
+): Promise<void> {
+	const release = await _configLock.acquire();
 	try {
 		// Read the raw file content — never use loadConfigFile() here because
 		// if the file is unparsable, loadConfigFile() returns {} which would
@@ -690,6 +732,7 @@ export function saveConfig(updates: Partial<PiFreeConfig>): void {
 				`${JSON.stringify(merged, null, 2)}\n`,
 				"utf8",
 			);
+			restrictConfigFilePermissions();
 			_logger.info("Config saved (new file)", {
 				path: CONFIG_PATH,
 				keys: Object.keys(updates),
@@ -697,25 +740,27 @@ export function saveConfig(updates: Partial<PiFreeConfig>): void {
 			return;
 		}
 
-		let existing: PiFreeConfig;
+		let base: PiFreeConfig;
 		try {
-			existing = JSON.parse(raw, safeJsonReviver) as PiFreeConfig;
+			base = JSON.parse(raw, safeJsonReviver) as PiFreeConfig;
 		} catch (parseErr) {
-			// File exists but is corrupt. REFUSE to overwrite it with a partial
-			// config — that would permanently destroy the user's keys.
-			_logger.error(
-				"REFUSING to save config — existing file is corrupt. Fix or delete ~/.pi/free.json manually.",
+			// File exists but is corrupt. Back it up first, then write a fresh
+			// config so the user's original bytes are preserved for recovery.
+			backupCorruptConfigFile();
+			base = { ...CONFIG_TEMPLATE };
+			_logger.warn(
+				"Config file was corrupt; a backup was created and the next save will overwrite it",
 				{
 					path: CONFIG_PATH,
 					error:
 						parseErr instanceof Error ? parseErr.message : String(parseErr),
 				},
 			);
-			return;
 		}
 
-		const merged = { ...existing, ...updates };
+		const merged = { ...base, ...updates };
 		writeFileSync(CONFIG_PATH, `${JSON.stringify(merged, null, 2)}\n`, "utf8");
+		restrictConfigFilePermissions();
 		_logger.info("Config saved", {
 			path: CONFIG_PATH,
 			keys: Object.keys(updates),
@@ -725,6 +770,8 @@ export function saveConfig(updates: Partial<PiFreeConfig>): void {
 			path: CONFIG_PATH,
 			error: err instanceof Error ? err.message : String(err),
 		});
+	} finally {
+		release();
 	}
 }
 
@@ -755,8 +802,9 @@ const _configLock = new ConfigLock();
  * receives the current parsed config and returns the partial updates to
  * merge. Concurrent calls are serialised by an internal lock.
  *
- * If the config file is corrupt, the updater is NOT called and the file
- * is left untouched (matches saveConfig's safety behaviour).
+ * If the config file is corrupt, a backup is created first and the updater
+ * is applied to a fresh template (the original bytes are preserved for
+ * recovery).
  */
 export async function updateConfig(
 	updater: (current: PiFreeConfig) => Partial<PiFreeConfig>,
@@ -773,6 +821,7 @@ export async function updateConfig(
 				`${JSON.stringify(merged, null, 2)}\n`,
 				"utf8",
 			);
+			restrictConfigFilePermissions();
 			_logger.info("Config updated (new file)", {
 				path: CONFIG_PATH,
 				keys: Object.keys(updated),
@@ -784,20 +833,24 @@ export async function updateConfig(
 		try {
 			existing = JSON.parse(raw, safeJsonReviver) as PiFreeConfig;
 		} catch (parseErr) {
-			_logger.error(
-				"REFUSING to update config — existing file is corrupt. Fix or delete ~/.pi/free.json manually.",
+			// File exists but is corrupt. Back it up first, then continue with
+			// the template as the base so the requested update can proceed.
+			backupCorruptConfigFile();
+			existing = { ...CONFIG_TEMPLATE };
+			_logger.warn(
+				"Config file was corrupt; a backup was created and the update will overwrite it",
 				{
 					path: CONFIG_PATH,
 					error:
 						parseErr instanceof Error ? parseErr.message : String(parseErr),
 				},
 			);
-			return;
 		}
 
 		const updated = updater(existing);
 		const merged = { ...existing, ...updated };
 		writeFileSync(CONFIG_PATH, `${JSON.stringify(merged, null, 2)}\n`, "utf8");
+		restrictConfigFilePermissions();
 		_logger.info("Config updated", {
 			path: CONFIG_PATH,
 			keys: Object.keys(updated),

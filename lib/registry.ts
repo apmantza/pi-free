@@ -222,7 +222,7 @@ export function applyGlobalFilter(
 	options: { force?: boolean } = {},
 ): void {
 	globalFreeOnly = freeOnly;
-	saveConfig({ free_only: freeOnly });
+	void saveConfig({ free_only: freeOnly });
 
 	for (const [providerId, entry] of providerRegistry) {
 		try {

@@ -12,7 +12,11 @@
  *   # Free models visible immediately; /login kilo for paid access
  */
 
-import type { Api, Model, OAuthCredentials } from "@earendil-works/pi-ai/compat";
+import type {
+	Api,
+	Model,
+	OAuthCredentials,
+} from "@earendil-works/pi-ai/compat";
 import {
 	readStoredCredential,
 	type ExtensionAPI,
@@ -312,7 +316,7 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 		description: "Toggle between free and all Kilo models",
 		handler: async (_args, ctx) => {
 			showPaidModels = !showPaidModels;
-			saveConfig({ kilo_show_paid: showPaidModels });
+			await saveConfig({ kilo_show_paid: showPaidModels });
 
 			// Determine which models to show
 			const modelsToShow =

@@ -151,11 +151,7 @@ export async function loadCachedOrFetchModels(
 	const ttlMs = options?.ttlMs ?? DEFAULT_PROVIDER_CACHE_TTL_MS;
 	const cached = loadProviderCache(providerId);
 
-	if (
-		cached &&
-		cached.length > 0 &&
-		isProviderCacheFresh(providerId, ttlMs)
-	) {
+	if (cached && cached.length > 0 && isProviderCacheFresh(providerId, ttlMs)) {
 		return cached;
 	}
 
@@ -304,7 +300,7 @@ export function setupProvider(
 
 				// Persist to config file
 				const configKey = getShowPaidConfigKey(providerId);
-				saveConfig({ [configKey]: currentShowPaid });
+				await saveConfig({ [configKey]: currentShowPaid });
 
 				// Re-register with appropriate model set
 				if (currentShowPaid) {
