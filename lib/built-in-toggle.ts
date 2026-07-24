@@ -35,6 +35,7 @@ import {
 	OPENCODE_DYNAMIC_API,
 	createOpenCodeSessionTracker,
 	createOpenCodeStreamSimple,
+	ensureOpenCodeApiProviderRegistered,
 	isOpenCodeProvider,
 } from "../providers/opencode-session.ts";
 
@@ -261,6 +262,11 @@ function createProviderState(
 	);
 
 	const reRegister = (models: ProviderModelConfig[]) => {
+		// Ensure the opencode-dynamic API is registered in compat's global
+		// registry so fallback code paths (compat streamSimple) can resolve it.
+		if (isOpenCodeProvider(config.id)) {
+			ensureOpenCodeApiProviderRegistered(getOpenCodeSession());
+		}
 		pi.registerProvider(config.id, {
 			baseUrl,
 			apiKey,
