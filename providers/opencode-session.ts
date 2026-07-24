@@ -481,7 +481,7 @@ export function ensureOpenCodeApiProviderRegistered(
 	if (_apiProviderRegistrationSourceId) return;
 
 	const streamFn = createOpenCodeStreamSimple(tracker);
-	const sourceId = `pi-free-opencode-${Math.random().toString(36).slice(2, 8)}`;
+	const sourceId = `pi-free-opencode-${randomBytes(4).toString("hex")}`;
 
 	// registerApiProvider expects { api, stream, streamSimple }. Both
 	// stream and streamSimple return async-iterable streams; using the
