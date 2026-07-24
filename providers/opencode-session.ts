@@ -13,6 +13,7 @@ import type {
 	ProviderHeaders,
 	SimpleStreamOptions,
 } from "@earendil-works/pi-ai/compat";
+import { registerApiProvider } from "@earendil-works/pi-ai/compat";
 import type { ProviderConfig } from "@earendil-works/pi-coding-agent";
 
 export const OPENCODE_DYNAMIC_API = "opencode-dynamic" as const;
@@ -458,6 +459,45 @@ export function createOpenCodeStreamSimple(
 
 		return stream as unknown as AssistantMessageEventStream;
 	};
+}
+
+// ── Compat API registry safety net ─────────────────────────────────────────
+// The opencode-dynamic API is not a pi-ai built-in. If compat.js's
+// streamSimple() is ever called directly with a model using this API
+// (e.g. as a default-stream fallback after reload), it throws
+// "No API provider registered for api: opencode-dynamic".
+// Registering the API here ensures the compat path also works.
+
+let _apiProviderRegistrationSourceId: string | undefined;
+
+/**
+ * Register the opencode-dynamic API in compat's global API registry
+ * so that fallback code paths (compat streamSimple) can resolve it.
+ * Safe to call multiple times — registers once per tracker instance.
+ */
+export function ensureOpenCodeApiProviderRegistered(
+	tracker: OpenCodeSessionTracker,
+): void {
+	if (_apiProviderRegistrationSourceId) return;
+
+	const streamFn = createOpenCodeStreamSimple(tracker);
+	const sourceId = `pi-free-opencode-${randomBytes(4).toString("hex")}`;
+
+	// registerApiProvider expects { api, stream, streamSimple }. Both
+	// stream and streamSimple return async-iterable streams; using the
+	// same implementation for both is safe — the compat wrappers only
+	// validate model.api and forward the call.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	registerApiProvider(
+		{
+			api: OPENCODE_DYNAMIC_API,
+			stream: streamFn as any,
+			streamSimple: streamFn,
+		},
+		sourceId,
+	);
+
+	_apiProviderRegistrationSourceId = sourceId;
 }
 
 /**
