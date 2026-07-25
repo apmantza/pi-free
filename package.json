@@ -57,7 +57,13 @@
 		"smoke:openmodel": "tsx scripts/smoke-openmodel-wire-format.ts"
 	},
 	"overrides": {
-		"brace-expansion": "^5.0.7",
+		"brace-expansion": "^5.0.8",
+		"@earendil-works/pi-coding-agent": {
+			"brace-expansion": "^5.0.8",
+			"minimatch": {
+				"brace-expansion": "^5.0.8"
+			}
+		},
 		"protobufjs": "^7.6.5"
 	},
 	"peerDependencies": {
@@ -67,7 +73,7 @@
 	},
 	"devDependencies": {
 		"@vitest/ui": "^4.1.10",
-		"brace-expansion": "^5.0.7",
+		"brace-expansion": "^5.0.8",
 		"protobufjs": "^7.6.5",
 		"tsx": "^4.23.0",
 		"typescript": "^7.0.2",

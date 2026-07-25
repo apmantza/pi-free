@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Removed pi-free's duplicate OpenRouter model provider; Pi's built-in OpenRouter provider is now used, including Pi-managed OAuth. `/toggle-openrouter` preserves Pi's authentication while filtering models.
+
 ## [2.2.8] - 2026-07-21
 
 ### Changed
