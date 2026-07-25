@@ -27,6 +27,7 @@ function readAuthFile(): Record<string, unknown> {
 	if (!fs.existsSync(AUTH_PATH)) {
 		throw new Error(`Missing auth file: ${AUTH_PATH}`);
 	}
+	// pi-lens-ignore: ast-grep:unchecked-throwing-call
 	return JSON.parse(fs.readFileSync(AUTH_PATH, "utf8")) as Record<
 		string,
 		unknown
@@ -164,6 +165,7 @@ async function main(): Promise<void> {
 
 	console.log(`Cline XML bridge live smoke: ${models.length} model(s)`);
 	for (const modelId of models) {
+		// pi-lens-ignore: await-in-loop
 		await smokeModel(modelId, apiKey);
 	}
 	console.log("Cline XML bridge live smoke passed.");

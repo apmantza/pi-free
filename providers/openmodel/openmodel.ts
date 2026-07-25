@@ -371,6 +371,7 @@ async function fetchOpenModelWebCatalog(
 		}
 		page += 1;
 		// Be polite to the public endpoint — small delay between pages.
+		// pi-lens-ignore: ast-grep, await-in-loop
 		await new Promise((resolve) =>
 			setTimeout(resolve, OPENMODEL_PAGINATION_DELAY_MS),
 		);

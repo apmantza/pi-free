@@ -327,6 +327,7 @@ async function runDeviceFlow(
 
 	for (let attempt = 0; attempt < maxAttempts; attempt++) {
 		if (getSignal()?.aborted) throw new Error("Login cancelled");
+		// pi-lens-ignore: await-in-loop
 		await abortableDelay(pollInterval, getSignal());
 
 		try {

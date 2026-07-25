@@ -116,6 +116,7 @@ export async function loginKilo(
 	const deadline = Date.now() + expiresIn * 1000;
 	while (Date.now() < deadline) {
 		if (callbacks.signal?.aborted) throw new Error("Login cancelled");
+		// pi-lens-ignore: await-in-loop
 		await abortableSleep(KILO_POLL_INTERVAL_MS, callbacks.signal);
 
 		const result = await pollDeviceAuth(code);
