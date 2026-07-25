@@ -72,6 +72,7 @@
 		"@earendil-works/pi-tui": ">=0.80.8"
 	},
 	"devDependencies": {
+		"@vitest/coverage-v8": "^4.1.10",
 		"@vitest/ui": "^4.1.10",
 		"brace-expansion": "^5.0.8",
 		"protobufjs": "^7.6.5",
