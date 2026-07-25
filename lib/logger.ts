@@ -52,6 +52,12 @@ function shouldLog(level: LogLevel, minLevel: LogLevel): boolean {
 	return LOG_LEVELS[level] >= LOG_LEVELS[minLevel];
 }
 
+function sanitizeLogText(value: string): string {
+	return value.replace(/[\u0000-\u001f\u007f]/g, (character) =>
+		`\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`,
+	);
+}
+
 function formatMessage(entry: LogEntry): string {
 	let data = "";
 	if (entry.data) {
@@ -61,7 +67,7 @@ function formatMessage(entry: LogEntry): string {
 			data = " [unserializable-data]";
 		}
 	}
-	return `[${entry.timestamp}] [${entry.level.toUpperCase()}] [${entry.namespace}] ${entry.message}${data}`;
+	return `[${entry.timestamp}] [${entry.level.toUpperCase()}] [${sanitizeLogText(entry.namespace)}] ${sanitizeLogText(entry.message)}${data}`;
 }
 
 const LOG_PATH = resolveSafeDataFile(process.env.PI_FREE_LOG_PATH, "free.log");
