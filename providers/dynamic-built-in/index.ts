@@ -15,7 +15,6 @@
  * - cerebras (CEREBRAS_API_KEY)
  * - xai (XAI_API_KEY)
  * - opencode (OPENCODE_API_KEY from auth.json)
- * - openrouter (OPENROUTER_API_KEY from auth.json)
  * - fastrouter (always discovered, FASTROUTER_API_KEY)
  * - huggingface (HF_TOKEN - optional, special-cased API shape)
  *
@@ -36,8 +35,6 @@ import {
 	getMistralApiKey,
 	getOpencodeApiKey,
 	getOpencodeShowPaid,
-	getOpenrouterApiKey,
-	getOpenrouterShowPaid,
 	getXaiApiKey,
 } from "../../config.ts";
 import { DEFAULT_FETCH_TIMEOUT_MS } from "../../constants.ts";
@@ -55,7 +52,10 @@ import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
 import { fetchWithTimeout } from "../../lib/util.ts";
 import { fetchOpenRouterCompatibleModels } from "../model-fetcher.ts";
 import { createToggleState } from "../../lib/toggle-state.ts";
-import { enhanceWithCI, loadCachedOrFetchModels } from "../../provider-helper.ts";
+import {
+	enhanceWithCI,
+	loadCachedOrFetchModels,
+} from "../../provider-helper.ts";
 import {
 	OPENCODE_DYNAMIC_API,
 	createOpenCodeSessionTracker,
@@ -286,21 +286,6 @@ const DYNAMIC_PROVIDERS: DynamicProviderDef[] = [
 				),
 		},
 	},
-	{
-		providerId: "openrouter",
-		getApiKey: getOpenrouterApiKey,
-		baseUrl: "https://openrouter.ai/api/v1",
-		api: "openai-completions",
-		defaultShowPaid: getOpenrouterShowPaid,
-		// OpenRouter returns full pricing — use its dedicated fetcher
-		fetchModels: (apiKey) =>
-			fetchOpenRouterCompatibleModels({
-				providerId: "openrouter",
-				baseUrl: "https://openrouter.ai/api/v1",
-				apiKey,
-				freeOnly: false,
-			}),
-	},
 ];
 
 // =============================================================================
@@ -316,34 +301,29 @@ async function discoverAndRegister(
 	// FastRouter) don't block startup on a network fetch. The helper serves a fresh
 	// cache, falls back to stale cache on failure/empty fetch, and persists the
 	// result for next startup.
-	const models = await loadCachedOrFetchModels(
-		config.providerId,
-		async () => {
-			let allModels: ProviderModelConfig[];
-			if (config.fetchModels) {
-				allModels = await config.fetchModels(apiKey);
-			} else {
-				allModels = await fetchModelsFromEndpoint({
-					providerId: config.providerId,
-					baseUrl: config.baseUrl,
-					apiKey,
-					compat: config.compat,
-					modelDefaults: config.modelDefaults,
-					timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
-				});
-			}
+	const models = await loadCachedOrFetchModels(config.providerId, async () => {
+		let allModels: ProviderModelConfig[];
+		if (config.fetchModels) {
+			allModels = await config.fetchModels(apiKey);
+		} else {
+			allModels = await fetchModelsFromEndpoint({
+				providerId: config.providerId,
+				baseUrl: config.baseUrl,
+				apiKey,
+				compat: config.compat,
+				modelDefaults: config.modelDefaults,
+				timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
+			});
+		}
 
-			// Apply DeepSeek proxy compat to matching models. OpenCode headers are
-			// injected per request by createOpenCodeStreamSimple(), not stored here.
-			return allModels.map((m) => ({
-				...m,
-				api: isOpenCodeProvider(config.providerId)
-					? OPENCODE_DYNAMIC_API
-					: m.api,
-				compat: getProxyModelCompat(m) ?? m.compat,
-			}));
-		},
-	);
+		// Apply DeepSeek proxy compat to matching models. OpenCode headers are
+		// injected per request by createOpenCodeStreamSimple(), not stored here.
+		return allModels.map((m) => ({
+			...m,
+			api: isOpenCodeProvider(config.providerId) ? OPENCODE_DYNAMIC_API : m.api,
+			compat: getProxyModelCompat(m) ?? m.compat,
+		}));
+	});
 
 	if (models.length === 0) {
 		// No usable models and no fallback cache: leave Pi's built-in defaults.

@@ -19,7 +19,6 @@ import type {
 import {
 	getOpencodeApiKey,
 	getOpencodeShowPaid,
-	getOpenrouterApiKey,
 	getOpenrouterShowPaid,
 } from "../config.ts";
 import { createLogger } from "./logger.ts";
@@ -62,7 +61,7 @@ interface BuiltInToggleConfig {
 	getShowPaid: () => boolean;
 	baseUrl: string;
 	api: Api;
-	getApiKey: () => string | undefined;
+	getApiKey?: () => string | undefined;
 }
 
 const BUILT_IN_TOGGLE_PROVIDERS: BuiltInToggleConfig[] = [
@@ -85,7 +84,6 @@ const BUILT_IN_TOGGLE_PROVIDERS: BuiltInToggleConfig[] = [
 		getShowPaid: getOpenrouterShowPaid,
 		baseUrl: "https://openrouter.ai/api/v1",
 		api: "openai-completions",
-		getApiKey: getOpenrouterApiKey,
 	},
 ];
 
@@ -197,8 +195,18 @@ function tryCaptureProvider(
 async function tryDiscoverProvider(
 	pi: ExtensionAPI,
 	config: BuiltInToggleConfig,
+	ctx: {
+		modelRegistry?: {
+			getApiKeyForProvider?: (
+				providerId: string,
+			) => Promise<string | undefined>;
+		};
+	},
 ): Promise<BuiltInProviderState | undefined> {
-	const apiKey = config.getApiKey();
+	const apiKey =
+		config.id === "openrouter"
+			? await ctx.modelRegistry?.getApiKeyForProvider?.(config.id)
+			: config.getApiKey?.();
 	if (!apiKey) return undefined;
 
 	try {
@@ -223,8 +231,9 @@ async function tryDiscoverProvider(
 		const rawModels = Array.isArray(body) ? body : (body.data ?? []);
 		const mappedModels = rawModels
 			.map((m) => rawModelToProviderConfig(m, config))
-			.filter((m): m is ProviderModelConfig & { _pricingKnown?: boolean } =>
-				m !== undefined,
+			.filter(
+				(m): m is ProviderModelConfig & { _pricingKnown?: boolean } =>
+					m !== undefined,
 			);
 		const allModels = applyAuthoritativeFreeFlags(mappedModels, config.id);
 
@@ -234,7 +243,8 @@ async function tryDiscoverProvider(
 			allModels,
 			baseUrl: config.baseUrl,
 			api: config.api,
-			apiKey,
+			// Keep Pi-managed OpenRouter OAuth intact after discovery.
+			apiKey: config.id === "openrouter" ? undefined : apiKey,
 			source: "discovered",
 		});
 	} catch (err) {
@@ -252,7 +262,7 @@ function createProviderState(
 		allModels: ProviderModelConfig[];
 		baseUrl: string;
 		api: Api;
-		apiKey: string;
+		apiKey?: string;
 		source: "captured" | "discovered";
 	},
 ): BuiltInProviderState {
@@ -269,7 +279,7 @@ function createProviderState(
 		}
 		pi.registerProvider(config.id, {
 			baseUrl,
-			apiKey,
+			...(apiKey !== undefined ? { apiKey } : {}),
 			api: isOpenCodeProvider(config.id) ? OPENCODE_DYNAMIC_API : api,
 			...(isOpenCodeProvider(config.id)
 				? { streamSimple: createOpenCodeStreamSimple(getOpenCodeSession()) }
@@ -318,7 +328,7 @@ function registerToggleCommand(
 				// If Pi has not exposed built-in models yet, fetch the provider's
 				// /models endpoint directly so /toggle-opencode works before the
 				// first chat session has populated the model registry.
-				state = await tryDiscoverProvider(pi, config);
+				state = await tryDiscoverProvider(pi, config, ctx);
 			}
 			if (!state) {
 				ctx.ui.notify(
@@ -422,11 +432,13 @@ function applyAuthoritativeFreeFlags(
 	});
 }
 
-function getApiKeyEnvForProvider(providerId: string): string {
+function getApiKeyEnvForProvider(providerId: string): string | undefined {
+	// OpenRouter is Pi's built-in provider. Do not supply an apiKey here:
+	// re-registerProvider merges only defined fields, so omitting it preserves
+	// Pi-managed OAuth credentials from /login openrouter (and refresh support).
 	const envMap: Record<string, string> = {
 		opencode: "$OPENCODE_API_KEY",
 		"opencode-go": "$OPENCODE_API_KEY",
-		openrouter: "$OPENROUTER_API_KEY",
 	};
-	return envMap[providerId] || `$${providerId.toUpperCase()}_API_KEY`;
+	return envMap[providerId];
 }

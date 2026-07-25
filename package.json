@@ -61,9 +61,9 @@
 		"protobufjs": "^7.6.5"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-ai": ">=0.80.8",
-		"@earendil-works/pi-coding-agent": ">=0.80.8",
-		"@earendil-works/pi-tui": ">=0.80.8"
+		"@earendil-works/pi-ai": ">=0.82.0",
+		"@earendil-works/pi-coding-agent": ">=0.82.0",
+		"@earendil-works/pi-tui": ">=0.82.0"
 	},
 	"devDependencies": {
 		"@vitest/ui": "^4.1.10",

@@ -144,6 +144,48 @@ describe("built-in provider toggles", () => {
 		);
 	});
 
+	it("preserves Pi-managed OpenRouter OAuth when toggling captured models", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		const models = [
+			{
+				provider: "openrouter",
+				id: "free-model",
+				name: "Free Model",
+				api: "openai-completions",
+				reasoning: false,
+				input: ["text"],
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 128000,
+				maxTokens: 4096,
+				baseUrl: "https://openrouter.ai/api/v1",
+			},
+			{
+				provider: "openrouter",
+				id: "paid-model",
+				name: "Paid Model",
+				api: "openai-completions",
+				reasoning: false,
+				input: ["text"],
+				cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 128000,
+				maxTokens: 4096,
+				baseUrl: "https://openrouter.ai/api/v1",
+			},
+		];
+
+		await handlers.session_start(
+			{},
+			{ modelRegistry: { getAvailable: () => models } },
+		);
+		await commands["toggle-openrouter"]({}, { ui: { notify: vi.fn() } });
+
+		expect(mockRegisterProvider).toHaveBeenLastCalledWith(
+			"openrouter",
+			expect.not.objectContaining({ apiKey: expect.anything() }),
+		);
+	});
+
 	it("skips fallback capture for providers already registered dynamically", () => {
 		mockProviderRegistry.set("opencode", {});
 		mockProviderRegistry.set("opencode-go", {});
