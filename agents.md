@@ -6,7 +6,7 @@
 
 A **Pi extension** (`@earendil-works/pi-coding-agent`) that registers free and paid AI model providers with Pi's model picker. It shows free models by default and lets users toggle per-provider between free-only and all-models view via `/toggle-{provider}` commands.
 
-**Package:** `pi-free` v2.2.7
+**Package:** `pi-free` v2.2.9
 **Author:** Apostolos Mantzaris  
 **License:** MIT  
 **Repo:** `github.com/apmantza/pi-free`  
@@ -37,7 +37,7 @@ index.ts                          ← Extension entry point (piFreeEntry)
   ├─ provider-failover/           ← Benchmark lookup (Coding Index scores)
   │   ├─ benchmark-lookup.ts      ← Multi-strategy benchmark matching + debug logging
   │   ├─ hardcoded-benchmarks.ts  ← Benchmark data
-  │   └─ benchmarks-chunk-*.ts    ← Split benchmark data files
+  │   └─ benchmarks.json           ← Lazy-loaded benchmark catalog
   │
   └─ providers/                   ← Per-provider extensions (each exports default async fn)
       ├─ kilo/kilo.ts             ← Kilo Gateway (OAuth, free + paid)
@@ -55,6 +55,9 @@ index.ts                          ← Extension entry point (piFreeEntry)
       ├─ anyapi/anyapi.ts         ← AnyAPI gateway (free plan + free models)
       ├─ model-fetcher.ts         ← Shared OpenRouter-compatible model fetching
       ├─ opencode-session.ts      ← OpenCode session handling
+      ├─ openmodel/openmodel.ts   ← OpenModel Anthropic-compatible gateway
+      ├─ qoder/                   ← Qoder/Cosy OAuth and streaming provider
+      ├─ bai/bai.ts               ← BAI gateway provider
       └─ dynamic-built-in/        ← Dynamic fetchers for Mistral, Groq, Cerebras, xAI, HF
           └─ index.ts
 
@@ -105,7 +108,7 @@ export default async function providerName(pi: ExtensionAPI) {
 }
 ```
 
-**Cache-first loading.** Network-fetching providers register from the disk cache (`~/.pi/provider-cache.json`, 1-hour TTL via `lib/provider-cache.ts`) first and only hit the network on a cold or stale cache, so warm startups make no network calls. The dynamic built-in phase (e.g. FastRouter) runs concurrently with the static providers inside `piFreeEntry`'s single `Promise.allSettled`, not sequentially after it.
+**Cache-first loading.** Network-fetching extension providers register from the disk cache (`~/.pi/provider-cache.json`, 1-hour TTL via `lib/provider-cache.ts`) first and only hit the network on a cold or stale cache, so warm startups make no network calls. The dynamic built-in phase (including publicly discoverable FastRouter) runs concurrently with the static providers inside `piFreeEntry`'s single `Promise.allSettled`, not sequentially after it. OpenRouter is owned by Pi and is not dynamically registered by pi-free.
 
 ### Free Model Detection (isFreeModel)
 
@@ -156,9 +159,9 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 | Category    | Providers                                          | Auth              | Notes                            |
 | ----------- | -------------------------------------------------- | ----------------- | -------------------------------- |
 | ✅ Free     | kilo, cline, openrouter, opencode, llm7            | OAuth, API key, or none | Toggle between free/paid         |
-| 🔄 Freemium | anyapi, ollama-cloud, sambanova, tokenrouter | API key           | Free tier with limits            |
-| 💳 Paid     | zenmux, crofai, deepinfra, together, novita, routeway | API key + credits | Trial credits or pay-per-token   |
-| 🔧 Dynamic  | mistral, groq, cerebras, xai, huggingface, fastrouter | API key        | Fetched when key configured      |
+| 🔄 Freemium | anyapi, ollama-cloud, sambanova, tokenrouter       | API key                | Free tier with limits            |
+| 💳 Paid     | zenmux, crofai, deepinfra, together, novita, routeway, qoder, bai, openmodel | API key, OAuth, or credits | Trial credits or pay-per-token |
+| 🔧 Dynamic  | mistral, groq, cerebras, xai, huggingface, fastrouter | API key             | Fetched when configured or publicly discoverable |
 
 ---
 
@@ -183,7 +186,7 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 8. **Error handling is graceful** — providers that fail at startup are silently skipped
 9. **Model filtering happens at fetch time** — small models (< 30B, < 70B for NVIDIA) are filtered
 10. **All providers use `enhanceWithCI()`** before registration to add CI scores
-11. **Network-fetching providers are cache-first** (1h TTL via `lib/provider-cache.ts`); the first run after install or after the TTL fetches live, subsequent runs serve cache
+11. **Network-fetching extension providers are cache-first** (1h TTL via `lib/provider-cache.ts`); the first run after install or after the TTL fetches live, subsequent runs serve cache. Pi's built-in OpenRouter provider is not managed by this cache.
 
 ---
 
@@ -246,8 +249,8 @@ Releases are automated via `.github/workflows/release.yml`.
    - Verify a matching `CHANGELOG.md` entry exists.
    - Run `check:lockfile`, `audit:prod`, `lint`, `test:run`, `npm publish --dry-run`, tarball verification, and entry smoke-load.
    - Create and push the `vX.Y.Z` tag.
-   - Extract the curated section from `CHANGELOG.md` via `scripts/changelog-extract.mjs --summary` and use it as the GitHub release body.
-   - Publish the package to npm (only if `NPM_TOKEN` is configured).
+   - Extract the curated section from `CHANGELOG.md` via `scripts/changelog-extract.mjs --summary` and use it as the GitHub release body. Release-note bullets must use the `- **Title** — description` format for the summary extractor to include them.
+   - Publish the package to npm through trusted publishing/OIDC; no `NPM_TOKEN` secret is required.
 
 Do **not** create the Git tag manually — the workflow creates it automatically on push to `master`.
 
@@ -293,4 +296,5 @@ pi.on(event, handler); // Subscribe to events
 - `ctx.ui.notify(message, type)` — Show notification (`"info" | "warning" | "error"`)
 - `ctx.ui.setStatus(key, value)` — Set status bar text
 - `ctx.model?.provider` — Currently selected model's provider
-- `ctx.modelRegistry.authStorage.get(providerId)` — Get OAuth credentials
+- `ctx.modelRegistry.isUsingOAuth(ctx.model)` — Check whether the active model uses OAuth
+- `ctx.modelRegistry.getApiKeyForProvider(providerId)` — Resolve the provider credential for on-demand authenticated requests
