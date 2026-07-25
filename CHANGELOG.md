@@ -11,16 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Removed pi-free's duplicate OpenRouter model provider; Pi's built-in OpenRouter provider is now used, including Pi-managed OAuth. `/toggle-openrouter` preserves Pi's authentication while filtering models.
-- Updated dependency lockfile overrides for the latest security fixes required by CI audits.
+- **Built-in OpenRouter provider** — Removed pi-free's duplicate OpenRouter model provider; Pi's built-in provider now owns model discovery and Pi-managed OAuth.
+- **Dependency security overrides** — Updated dependency lockfile overrides for the latest security fixes required by CI audits.
 
 ### Fixed
 
-- Fixed the OpenRouter toggle so re-registering filtered models does not replace Pi-managed API-key or OAuth credentials.
+- **OpenRouter authentication preservation** — Fixed the OpenRouter toggle so re-registering filtered models does not replace Pi-managed API-key or OAuth credentials.
 
 ### Contributors
 
-- [@kuuhaku-00](https://github.com/kuuhaku-00) — contributed fixes for the `opencode-dynamic` compatibility registry and cryptographically secure source IDs in [PR #341](https://github.com/apmantza/pi-free/pull/341).
+- **[@kuuhaku-00](https://github.com/kuuhaku-00)** — contributed the fixes in [PR #341](https://github.com/apmantza/pi-free/pull/341).
 
 ## [2.2.8] - 2026-07-21
 
