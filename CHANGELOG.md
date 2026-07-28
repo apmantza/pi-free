@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.10] - 2026-07-28
+
+### Fixed
+
+- **Context window fallback for dynamic providers** — models fetched from endpoints that omit context-length fields (e.g. OpenCode) no longer stick at the generic 128K default. A new `enrichFromNativeCatalog()` fallback patches context windows and max tokens from Pi's build-time model catalog (`@earendil-works/pi-ai`), which is local, synchronous, and always available. Fixes `deepseek-v4-pro` showing 128K instead of 1M under `opencode-go` (#347).
+
 ## [2.2.9] - 2026-07-25
 
 ### Changed
