@@ -39,7 +39,10 @@ import {
 } from "../../config.ts";
 import { DEFAULT_FETCH_TIMEOUT_MS } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
-import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
+import {
+	enrichFromNativeCatalog,
+	safeEnrichModelsWithModelsDev,
+} from "../../lib/model-metadata.ts";
 import { getProxyModelCompat } from "../../lib/provider-compat.ts";
 import {
 	areAllModelsFresh,
@@ -143,9 +146,14 @@ async function fetchModelsFromEndpoint(
 		} satisfies ProviderModelConfig & { _pricingKnown?: boolean };
 	});
 
-	return await safeEnrichModelsWithModelsDev(models, {
+	const enriched = await safeEnrichModelsWithModelsDev(models, {
 		providerId: opts.providerId,
 	});
+
+	// Final fallback: fill context windows from Pi's build-time native catalog
+	// for any model still carrying the generic 128K default (e.g. OpenCode's API
+	// exposes no context-length fields and models.dev may be unreachable).
+	return enrichFromNativeCatalog(enriched, opts.providerId);
 }
 
 // =============================================================================
