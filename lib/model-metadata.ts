@@ -1,4 +1,5 @@
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
+import { getBuiltinModels } from "@earendil-works/pi-ai/providers/all";
 import { DEFAULT_FETCH_TIMEOUT_MS, URL_MODELS_DEV } from "../constants.ts";
 import { createLogger } from "./logger.ts";
 import { getProxyModelCompat } from "./provider-compat.ts";
@@ -407,4 +408,66 @@ export async function safeEnrichModelsWithModelsDev<
 	} catch {
 		return models;
 	}
+}
+
+// =============================================================================
+// Native catalog fallback (Pi's build-time models.dev snapshot)
+// =============================================================================
+
+const NATIVE_FALLBACK_CONTEXT_WINDOWS = new Set([DEFAULT_CONTEXT_WINDOW, 4096]);
+const NATIVE_FALLBACK_MAX_TOKENS = new Set([DEFAULT_MAX_TOKENS, 4096]);
+
+/**
+ * Fill context windows / max tokens from Pi's built-time native catalog
+ * (shipped in `@earendil-works/pi-ai`) for models still carrying a generic
+ * fallback value after the models.dev enrichment pass. Synchronous, local,
+ * always available — no network required.
+ */
+export function enrichFromNativeCatalog<T extends ProviderModelConfig>(
+	models: T[],
+	providerId: string,
+): T[] {
+	if (models.length === 0) return models;
+
+	let nativeModels: Array<{
+		id: string;
+		contextWindow: number;
+		maxTokens: number;
+	}>;
+	try {
+		// providerId is a dynamic string; the catalog lookup is safe at runtime
+		// (returns [] for unknown providers) but the type is a literal union.
+		nativeModels = getBuiltinModels(
+			providerId as Parameters<typeof getBuiltinModels>[0],
+		) as typeof nativeModels;
+	} catch {
+		return models;
+	}
+	if (nativeModels.length === 0) return models;
+
+	const nativeById = new Map(nativeModels.map((m) => [m.id, m]));
+
+	let patched = 0;
+	const result = models.map((model) => {
+		if (!NATIVE_FALLBACK_CONTEXT_WINDOWS.has(model.contextWindow)) return model;
+		const native = nativeById.get(model.id);
+		if (!native) return model;
+
+		patched++;
+		return {
+			...model,
+			contextWindow: native.contextWindow,
+			maxTokens: NATIVE_FALLBACK_MAX_TOKENS.has(model.maxTokens)
+				? native.maxTokens
+				: model.maxTokens,
+		};
+	});
+
+	if (patched > 0) {
+		_logger.info(
+			`[native-catalog] ${providerId}: patched ${patched}/${models.length} models from Pi's native catalog`,
+		);
+	}
+
+	return result;
 }
