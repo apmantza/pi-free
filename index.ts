@@ -45,7 +45,6 @@ import kilo from "./providers/kilo/kilo.ts";
 import llm7 from "./providers/llm7/llm7.ts";
 import deepinfra from "./providers/deepinfra/deepinfra.ts";
 import sambanova from "./providers/sambanova/sambanova.ts";
-import together from "./providers/together/together.ts";
 import novita from "./providers/novita/novita.ts";
 import routeway from "./providers/routeway/routeway.ts";
 import tokenRouter from "./providers/tokenrouter/tokenrouter.ts";
@@ -73,7 +72,6 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 	llm7,
 	deepinfra,
 	sambanova,
-	together,
 	novita,
 	routeway,
 	tokenRouter,

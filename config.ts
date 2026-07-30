@@ -36,7 +36,6 @@ import {
 	PROVIDER_LLM7,
 	PROVIDER_DEEPINFRA,
 	PROVIDER_SAMBANOVA,
-	PROVIDER_TOGETHER,
 	PROVIDER_NOVITA,
 } from "./constants.ts";
 export {
@@ -74,7 +73,6 @@ interface PiFreeConfig {
 	llm7_api_key?: string;
 	deepinfra_api_key?: string;
 	sambanova_api_key?: string;
-	together_api_key?: string;
 	novita_api_key?: string;
 	routeway_api_key?: string;
 	fastrouter_api_key?: string;
@@ -95,7 +93,6 @@ interface PiFreeConfig {
 	llm7_show_paid?: boolean;
 	deepinfra_show_paid?: boolean;
 	sambanova_show_paid?: boolean;
-	together_show_paid?: boolean;
 	novita_show_paid?: boolean;
 	routeway_show_paid?: boolean;
 	fastrouter_show_paid?: boolean;
@@ -116,7 +113,6 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	llm7_api_key: "",
 	deepinfra_api_key: "",
 	sambanova_api_key: "",
-	together_api_key: "",
 	novita_api_key: "",
 	routeway_api_key: "",
 	fastrouter_api_key: "",
@@ -138,7 +134,6 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	llm7_show_paid: false,
 	deepinfra_show_paid: false,
 	sambanova_show_paid: false,
-	together_show_paid: false,
 	novita_show_paid: false,
 	routeway_show_paid: false,
 	fastrouter_show_paid: false,
@@ -372,11 +367,6 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 		prefix: "SAMBANOVA",
 		showPaidKey: "sambanova_show_paid",
 	},
-	{
-		id: PROVIDER_TOGETHER,
-		prefix: "TOGETHER",
-		showPaidKey: "together_show_paid",
-	},
 	{ id: PROVIDER_NOVITA, prefix: "NOVITA", showPaidKey: "novita_show_paid" },
 	{
 		id: PROVIDER_ROUTEWAY,
@@ -467,10 +457,6 @@ export function getSambanovaShowPaid(): boolean {
 		"SAMBANOVA_SHOW_PAID",
 		loadConfigFile().sambanova_show_paid,
 	);
-}
-
-export function getTogetherShowPaid(): boolean {
-	return resolveBool("TOGETHER_SHOW_PAID", loadConfigFile().together_show_paid);
 }
 
 export function getNovitaShowPaid(): boolean {
@@ -567,10 +553,6 @@ export function getDeepinfraApiKey(): string | undefined {
 
 export function getSambanovaApiKey(): string | undefined {
 	return resolve("SAMBANOVA_API_KEY", loadConfigFile().sambanova_api_key);
-}
-
-export function getTogetherApiKey(): string | undefined {
-	return resolve("TOGETHER_AI_API_KEY", loadConfigFile().together_api_key);
 }
 
 export function getNovitaApiKey(): string | undefined {
