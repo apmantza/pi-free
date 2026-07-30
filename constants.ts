@@ -77,6 +77,27 @@ export const CLINE_AUTH_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 /** Timeout for fetch operations */
 export const DEFAULT_FETCH_TIMEOUT_MS: number = 10_000;
 
+/**
+ * Hard upper bound on how long a startup model-list fetch may block the
+ * extension factory — and therefore Pi session start, which awaits the async
+ * factory before flushing provider registrations.
+ *
+ * On a cold/stale cache a provider's own fetch+retry budget can run for tens
+ * of seconds against an unresponsive API (measured up to ~66s with several
+ * keyed providers). We stop *waiting* after this deadline and fall back to the
+ * stale cache (or an empty list on a true cold start), refreshing on a later
+ * session_start. Healthy fetches complete in well under a second, so this only
+ * ever trips on a degraded network. Overridable via
+ * PI_FREE_STARTUP_FETCH_TIMEOUT_MS (milliseconds).
+ */
+export const STARTUP_FETCH_DEADLINE_MS: number = (() => {
+	const raw = Number.parseInt(
+		process.env.PI_FREE_STARTUP_FETCH_TIMEOUT_MS ?? "",
+		10,
+	);
+	return Number.isFinite(raw) && raw > 0 ? raw : 8_000;
+})();
+
 export const KILO_POLL_INTERVAL_MS = 3_000;
 export const KILO_TOKEN_EXPIRATION_MS = 365 * 24 * 60 * 60 * 1000; // 1 year
 

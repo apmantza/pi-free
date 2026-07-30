@@ -7,6 +7,7 @@ import {
 	logWarning,
 	mapOpenRouterModel,
 	parseModelResponse,
+	withFetchDeadline,
 } from "../lib/util.ts";
 
 describe("Utility Functions", () => {
@@ -427,6 +428,35 @@ describe("Utility Functions", () => {
 			expect(result.ok).toBe(false);
 			expect(result.status).toBe(400);
 			expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+		});
+	});
+
+	describe("withFetchDeadline", () => {
+		it("resolves with the wrapped value when it settles before the deadline", async () => {
+			await expect(
+				withFetchDeadline(Promise.resolve("ok"), 1_000, "test"),
+			).resolves.toBe("ok");
+		});
+
+		it("rejects with a timeout error when the deadline fires first", async () => {
+			const never = new Promise<void>(() => {});
+			await expect(withFetchDeadline(never, 20, "test")).rejects.toThrow(
+				"test timed out after 20ms",
+			);
+		});
+
+		it("propagates the wrapped rejection when it settles before the deadline", async () => {
+			await expect(
+				withFetchDeadline(Promise.reject(new Error("boom")), 1_000, "test"),
+			).rejects.toThrow("boom");
+		});
+
+		it("is a passthrough when the deadline is non-positive", async () => {
+			const p = Promise.resolve("passthrough");
+			expect(withFetchDeadline(p, 0, "test")).toBe(p);
+			await expect(withFetchDeadline(p, -1, "test")).resolves.toBe(
+				"passthrough",
+			);
 		});
 	});
 });

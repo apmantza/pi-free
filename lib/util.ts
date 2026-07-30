@@ -122,6 +122,41 @@ export async function fetchWithRetry(
 	throw lastError;
 }
 
+/**
+ * Race a promise against a wall-clock deadline.
+ *
+ * Used to bound how long startup model-list fetches may block the extension
+ * factory. If the deadline fires first, the returned promise rejects with a
+ * timeout error so callers fall back to their stale cache (or an empty list).
+ *
+ * The underlying promise is NOT cancelled — it keeps running until its own
+ * internal timeout/abort closes the socket — but we stop waiting on it. This
+ * is intentional: a model-list fetch that outlives the deadline simply has its
+ * result discarded, and the next session_start retries. The timer is always
+ * cleared on settlement so it never holds the event loop open.
+ *
+ * A non-positive or non-finite `timeoutMs` disables the deadline (passthrough).
+ */
+export function withFetchDeadline<T>(
+	promise: Promise<T>,
+	timeoutMs: number,
+	label = "fetch",
+): Promise<T> {
+	if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return promise;
+
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const deadline = new Promise<never>((_resolve, reject) => {
+		timer = setTimeout(
+			() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)),
+			timeoutMs,
+		);
+	});
+
+	return Promise.race([promise, deadline]).finally(() => {
+		if (timer !== undefined) clearTimeout(timer);
+	}) as Promise<T>;
+}
+
 // =============================================================================
 // Shared API Response Parsing
 // =============================================================================
