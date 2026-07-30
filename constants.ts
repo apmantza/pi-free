@@ -15,7 +15,6 @@ export const PROVIDER_CROFAI = "crofai";
 export const PROVIDER_LLM7 = "llm7";
 export const PROVIDER_DEEPINFRA = "deepinfra";
 export const PROVIDER_SAMBANOVA = "sambanova";
-export const PROVIDER_TOGETHER = "together";
 export const PROVIDER_NOVITA = "novita";
 export const PROVIDER_ROUTEWAY = "routeway";
 export const PROVIDER_TOKENROUTER = "tokenrouter";
@@ -40,7 +39,6 @@ export const BASE_URL_CROFAI = "https://crof.ai/v1";
 export const BASE_URL_LLM7 = "https://api.llm7.io/v1";
 export const BASE_URL_DEEPINFRA = "https://api.deepinfra.com/v1/openai";
 export const BASE_URL_SAMBANOVA = "https://api.sambanova.ai/v1";
-export const BASE_URL_TOGETHER = "https://api.together.xyz/v1";
 export const BASE_URL_NOVITA = "https://api.novita.ai/openai/v1";
 export const BASE_URL_ROUTEWAY = "https://api.routeway.ai/v1";
 export const BASE_URL_TOKENROUTER = "https://api.tokenrouter.com/v1";
@@ -107,5 +105,10 @@ export const KILO_TOKEN_EXPIRATION_MS = 365 * 24 * 60 * 60 * 1000; // 1 year
 // - zen/opencode: use pi's built-in with OPENCODE_API_KEY
 // - go/opencode-go: use pi's built-in with OPENCODE_API_KEY
 // - mistral: use pi's built-in with MISTRAL_API_KEY
+// - groq: use pi's built-in with GROQ_API_KEY
+// - cerebras: use pi's built-in with CEREBRAS_API_KEY
+// - xai: use pi's built-in with XAI_API_KEY
+// - huggingface: use pi's built-in with HF_TOKEN
+// - together: use pi's built-in with TOGETHER_API_KEY (pi-free used TOGETHER_AI_API_KEY)
 // - ollama: add to ~/.pi/agent/models.json as custom provider
 // =============================================================================

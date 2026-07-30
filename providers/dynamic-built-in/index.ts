@@ -10,14 +10,12 @@
  * dynamic providers must register before setup returns.
  *
  * Providers handled:
- * - mistral (MISTRAL_API_KEY)
- * - groq (GROQ_API_KEY)
- * - cerebras (CEREBRAS_API_KEY)
- * - xai (XAI_API_KEY)
  * - opencode (OPENCODE_API_KEY from auth.json)
+ * - opencode-go (OPENCODE_API_KEY from auth.json)
  * - fastrouter (always discovered, FASTROUTER_API_KEY)
- * - huggingface (HF_TOKEN - optional, special-cased API shape)
  *
+ * mistral, groq, cerebras, xai, and huggingface are now Pi built-in
+ * providers with identical env vars; pi-free no longer re-fetches them.
  * OpenAI is intentionally skipped per user request.
  */
 
@@ -27,15 +25,10 @@ import type {
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
 import {
-	getCerebrasApiKey,
 	getFastrouterApiKey,
 	getFastrouterShowPaid,
-	getGroqApiKey,
-	getHfToken,
-	getMistralApiKey,
 	getOpencodeApiKey,
 	getOpencodeShowPaid,
-	getXaiApiKey,
 } from "../../config.ts";
 import { DEFAULT_FETCH_TIMEOUT_MS } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
@@ -157,49 +150,6 @@ async function fetchModelsFromEndpoint(
 }
 
 // =============================================================================
-// Hugging Face (special-cased: non-standard API shape)
-// =============================================================================
-
-async function fetchHuggingFaceModels(
-	apiKey?: string,
-): Promise<ProviderModelConfig[]> {
-	const headers: Record<string, string> = {
-		"Content-Type": "application/json",
-	};
-	if (apiKey) {
-		headers.Authorization = `Bearer ${apiKey}`;
-	}
-
-	const response = await fetch(
-		"https://api-inference.huggingface.co/models?pipeline_tag=text-generation&limit=50",
-		{ headers, signal: AbortSignal.timeout(DEFAULT_FETCH_TIMEOUT_MS) },
-	);
-
-	if (!response.ok) {
-		throw new Error(`Hugging Face API error: ${response.status}`);
-	}
-
-	const body = (await response.json()) as Array<{
-		id: string;
-		modelId?: string;
-	}>;
-
-	const models = Array.isArray(body) ? body.slice(0, 50) : [];
-	return models.map((m): ProviderModelConfig => {
-		const id = m.id || m.modelId || "unknown";
-		return {
-			id,
-			name: id.split("/").pop() || "Unknown",
-			reasoning: false,
-			input: ["text"],
-			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-			contextWindow: 4096,
-			maxTokens: 2048,
-		};
-	});
-}
-
-// =============================================================================
 // Provider Definitions
 // =============================================================================
 
@@ -231,35 +181,6 @@ interface DynamicProviderDef {
 }
 
 const DYNAMIC_PROVIDERS: DynamicProviderDef[] = [
-	{
-		providerId: "mistral",
-		getApiKey: getMistralApiKey,
-		baseUrl: "https://api.mistral.ai/v1",
-		api: "openai-completions",
-		defaultShowPaid: false,
-		modelDefaults: { contextWindow: 32_768, maxTokens: 16_384 },
-	},
-	{
-		providerId: "groq",
-		getApiKey: getGroqApiKey,
-		baseUrl: "https://api.groq.com/openai/v1",
-		api: "openai-completions",
-		defaultShowPaid: false,
-	},
-	{
-		providerId: "cerebras",
-		getApiKey: getCerebrasApiKey,
-		baseUrl: "https://api.cerebras.ai/v1",
-		api: "openai-completions",
-		defaultShowPaid: false,
-	},
-	{
-		providerId: "xai",
-		getApiKey: getXaiApiKey,
-		baseUrl: "https://api.x.ai/v1",
-		api: "openai-completions",
-		defaultShowPaid: false,
-	},
 	{
 		providerId: "opencode",
 		getApiKey: getOpencodeApiKey,
@@ -443,32 +364,6 @@ async function runOpenCodeProbe(
 
 	await recordModelProbeResults(providerId, cacheableResults);
 	return broken;
-}
-
-async function discoverAndRegisterHF(
-	pi: ExtensionAPI,
-	apiKey: string,
-): Promise<void> {
-	const config: DynamicProviderDef = {
-		providerId: "huggingface",
-		getApiKey: getHfToken,
-		baseUrl: "https://api-inference.huggingface.co",
-		api: "openai-completions",
-		defaultShowPaid: false,
-	};
-
-	let allModels: ProviderModelConfig[];
-	try {
-		allModels = await fetchHuggingFaceModels(apiKey);
-	} catch (error) {
-		_logger.info(
-			"[dynamic] huggingface: discovery failed, Pi keeps its defaults",
-			{ error: error instanceof Error ? error.message : String(error) },
-		);
-		return;
-	}
-
-	await registerProvider(pi, config, allModels, apiKey);
 }
 
 // =============================================================================
@@ -664,11 +559,6 @@ export async function setupDynamicBuiltInProviders(
 		const apiKey = config.getApiKey();
 		if (!apiKey) continue;
 		fetchers.push(discoverAndRegister(pi, config, apiKey));
-	}
-
-	const hfKey = getHfToken();
-	if (hfKey) {
-		fetchers.push(discoverAndRegisterHF(pi, hfKey));
 	}
 
 	// FastRouter: always discovered (model listing needs no auth), but Pi

@@ -150,14 +150,6 @@ $5 one-time trial credit, no credit card. ~5M tokens, expires after 90 days. 60 
 export DEEPINFRA_TOKEN="..."
 ```
 
-### Together AI
-
-$1 one-time trial credit, no credit card. 200+ open-source models. 60 RPM.
-
-```bash
-export TOGETHER_AI_API_KEY="..."
-```
-
 ### Novita
 
 100+ open-source models, OpenAI-compatible, 3 free models.
@@ -190,11 +182,6 @@ Fetched only when the corresponding API key is configured.
 
 | Provider | Env Var | Config Key |
 |---|---|---|
-| Mistral | `MISTRAL_API_KEY` | `mistral_api_key` |
-| Groq | `GROQ_API_KEY` | `groq_api_key` |
-| Cerebras | `CEREBRAS_API_KEY` | `cerebras_api_key` |
-| xAI | `XAI_API_KEY` | `xai_api_key` |
-| Hugging Face | `HF_TOKEN` | `huggingface_api_key` |
 | OpenRouter | `OPENROUTER_API_KEY` | (uses Pi auth) |
 | FastRouter | always discovered | `fastrouter_api_key` |
 

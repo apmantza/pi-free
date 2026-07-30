@@ -45,7 +45,6 @@ import kilo from "./providers/kilo/kilo.ts";
 import llm7 from "./providers/llm7/llm7.ts";
 import deepinfra from "./providers/deepinfra/deepinfra.ts";
 import sambanova from "./providers/sambanova/sambanova.ts";
-import together from "./providers/together/together.ts";
 import novita from "./providers/novita/novita.ts";
 import routeway from "./providers/routeway/routeway.ts";
 import tokenRouter from "./providers/tokenrouter/tokenrouter.ts";
@@ -73,7 +72,6 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 	llm7,
 	deepinfra,
 	sambanova,
-	together,
 	novita,
 	routeway,
 	tokenRouter,
@@ -146,15 +144,6 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 			const lines = ["📊 Pi-Free Providers:", ""];
 			const registry = getProviderRegistry();
 
-			// Providers known to not expose pricing via API (all models show as "free")
-			// OpenRouter and OpenCode expose actual pricing
-			const noPricingApi = new Set([
-				"mistral",
-				"xai",
-				"huggingface",
-				"groq",
-				"cerebras",
-			]);
 			// Freemium providers - all models share a free tier quota
 			const freemiumProviders = new Set(["sambanova", "ollama-cloud"]);
 			// Trial credit providers - one-time credits, otherwise paid
@@ -172,11 +161,6 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 				} else if (trialCreditProviders.has(id)) {
 					// Trial credit: one-time credits, otherwise paid
 					lines.push(`${indicator} ${id}: ${all} models ($5 trial credit)`);
-				} else if (noPricingApi.has(id)) {
-					// Provider doesn't expose pricing - can't determine free vs paid
-					lines.push(
-						`${indicator} ${id}: ${all} models (pricing not exposed by API)`,
-					);
 				} else if (paid === 0 && free > 0) {
 					// All models are actually free
 					lines.push(`${indicator} ${id}: ${free} free models`);
