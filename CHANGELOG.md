@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Startup observability** — New `lib/startup-timing.ts` times the phases of `piFreeEntry` and each provider's setup duration (monotonic `performance.now()`, best-effort, negligible overhead). A structured summary (total entry time, per-provider timings slowest-first, cache-vs-network counts, failures) is logged once at the end of startup and surfaced via the new `/free-startup` command.
+- **Startup benchmark script** — `scripts/bench-startup.ts` times the `piFreeEntry` factory (the exact work Pi awaits) under warm-cache, cold-cache, and network-degraded conditions in a sandboxed `HOME` with a mocked `fetch`, so startup regressions can be measured rather than guessed. Run with `npx tsx scripts/bench-startup.ts <warm|cold|fastcold>`.
+
+### Changed
+
+- **Non-blocking file logging** — the structured logger (`lib/logger.ts`) now writes through a lazily-opened buffered append stream and ensures the log directory once, instead of a synchronous `appendFileSync` plus a directory check on every line. Removes ~15–20ms of synchronous disk I/O from warm startup (logging now adds ~0ms to the factory); log format, destination, and levels are unchanged, with a synchronous fallback if streams are unavailable.
+
+### Fixed
+
+- **Cold-cache startup stall** — pi-free's extension factory awaits every provider model fetch, so on a cold or stale cache an unresponsive provider API could block Pi session start for tens of seconds (measured up to ~66s with several keyed providers). Startup model fetches are now bounded by an 8s deadline (`STARTUP_FETCH_DEADLINE_MS`, override with `PI_FREE_STARTUP_FETCH_TIMEOUT_MS`); on timeout a provider serves its stale cache — or an empty list on a true cold start — and refreshes on the next `session_start`. Worst-case cold startup drops from ~66s to ~8s; warm-cache startup (no network) is unaffected.
 
 ## [2.2.10] - 2026-07-28
 
