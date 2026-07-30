@@ -16,7 +16,7 @@ When you install pi-free, it:
 
 1. **Registers free-tier providers** — Kilo, Cline, LLM7, OpenModel, TokenRouter, AnyAPI, and more
 2. **Captures Pi's built-in providers** with free/paid toggles — OpenCode, OpenRouter
-3. **Fetches models dynamically** — ZenMux, CrofAI, Mistral, Groq, Cerebras, xAI, Hugging Face when API keys are configured
+3. **Fetches models dynamically** — ZenMux, CrofAI, FastRouter when API keys are configured
 4. **Filters to show only free models by default** — paid models hidden until explicitly toggled on
 5. **Provides per-provider toggle commands** — `/toggle-{provider}` switches free ↔ all immediately
 6. **Handles authentication** — OAuth flows open your browser; API keys from `~/.pi/free.json` or env vars
@@ -76,8 +76,8 @@ First run creates `~/.pi/free.json` automatically. Add keys there or use environ
 |---|---|
 | ✅ **Free** | Kilo, Cline, OpenRouter, OpenCode, LLM7, OpenModel, TokenRouter (1 free) |
 | 🔄 **Freemium** | AnyAPI, Ollama Cloud, SambaNova |
-| 💳 **Paid** | ZenMux, CrofAI, DeepInfra, Together, Novita, Routeway, b.ai |
-| 🔧 **Dynamic** | Mistral, Groq, Cerebras, xAI, Hugging Face, FastRouter |
+| 💳 **Paid** | ZenMux, CrofAI, DeepInfra, Novita, Routeway, b.ai |
+| 🔧 **Dynamic** | FastRouter |
 
 **Full catalog and setup instructions:** [docs/providers.md](docs/providers.md)
 

@@ -16,7 +16,6 @@ pi-free reads settings from `~/.pi/free.json` (auto-created on first run).
 ```json
 {
   "ollama_api_key": "YOUR_KEY",
-  "mistral_api_key": "YOUR_KEY",
   "deepinfra_api_key": "YOUR_KEY",
   "sambanova_api_key": "YOUR_KEY",
   "llm7_api_key": "YOUR_KEY",
@@ -27,15 +26,13 @@ pi-free reads settings from `~/.pi/free.json` (auto-created on first run).
   "anyapi_api_key": "YOUR_KEY",
   "bai_api_key": "YOUR_KEY",
   "openmodel_api_key": "YOUR_KEY",
-  "novita_api_key": "YOUR_KEY",
-  "together_api_key": "YOUR_KEY"
+  "novita_api_key": "YOUR_KEY"
 }
 ```
 
 Or use environment variables (same names, uppercase):
 
 ```bash
-export MISTRAL_API_KEY="..."
 export OLLAMA_API_KEY="..."
 ```
 

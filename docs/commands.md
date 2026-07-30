@@ -36,13 +36,7 @@ Run `/toggle-{provider}` to switch between free-only and all models. Your prefer
 | `/toggle-zenmux` | ZenMux | 💳 paid |
 | `/toggle-crofai` | CrofAI | 💳 paid |
 | `/toggle-deepinfra` | DeepInfra | 💳 trial |
-| `/toggle-together` | Together AI | 💳 trial |
 | `/toggle-fastrouter` | FastRouter | 🔧 dynamic |
-| `/toggle-mistral` | Mistral | 🔧 dynamic |
-| `/toggle-groq` | Groq | 🔧 dynamic |
-| `/toggle-cerebras` | Cerebras | 🔧 dynamic |
-| `/toggle-xai` | xAI | 🔧 dynamic |
-| `/toggle-huggingface` | Hugging Face | 🔧 dynamic |
 
 **Notes:**
 
@@ -76,7 +70,6 @@ Test models for errors and auto-hide broken ones. All probes use a **24-hour cac
 | `/probe-opencode-go` | OpenCode Go | Test for expired free promotions (report only) |
 | `/probe-deepinfra` | DeepInfra | Test for 404/5xx errors, auto-hide |
 | `/probe-sambanova` | SambaNova | Test for 404/5xx errors, auto-hide |
-| `/probe-together` | Together AI | Test for 404/5xx errors, auto-hide |
 | `/probe-novita` | Novita AI | Test for 404/5xx errors, auto-hide |
 
 **How probes work:**

@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Non-blocking file logging** — the structured logger (`lib/logger.ts`) now writes through a lazily-opened buffered append stream and ensures the log directory once, instead of a synchronous `appendFileSync` plus a directory check on every line. Removes ~15–20ms of synchronous disk I/O from warm startup (logging now adds ~0ms to the factory); log format, destination, and levels are unchanged, with a synchronous fallback if streams are unavailable.
 
+### Removed
+
+- **Together AI provider** — Retired pi-free's `together` provider (including its `/probe-together` command). Pi 0.83 ships a built-in `together` provider, and because `pi.registerProvider()` with a built-in ID silently overrides the built-in, pi-free's registration was an accidental hard collision: setting pi-free's `TOGETHER_AI_API_KEY` silently replaced Pi's native Together catalog. Migrate to Pi's built-in provider by setting `TOGETHER_API_KEY` instead (note the renamed variable).
+- **Dynamic fetchers for Mistral, Groq, Cerebras, xAI, and Hugging Face** — Retired the five `providers/dynamic-built-in` fetchers (and their `/toggle-mistral`, `/toggle-groq`, `/toggle-cerebras`, `/toggle-xai`, `/toggle-huggingface` commands). Pi now ships these as native built-in providers keyed on the identical env vars (`MISTRAL_API_KEY`, `GROQ_API_KEY`, `CEREBRAS_API_KEY`, `XAI_API_KEY`, `HF_TOKEN`), so the fetchers were dormant redundancy that shadowed Pi's native catalogs; no env-var migration is needed. The OpenCode, OpenCode Go, and FastRouter fetchers are unchanged. A free-filter toggle port for these built-ins (à la OpenRouter) is a possible follow-up.
+
 ### Fixed
 
 - **Cold-cache startup stall** — pi-free's extension factory awaits every provider model fetch, so on a cold or stale cache an unresponsive provider API could block Pi session start for tens of seconds (measured up to ~66s with several keyed providers). Startup model fetches are now bounded by an 8s deadline (`STARTUP_FETCH_DEADLINE_MS`, override with `PI_FREE_STARTUP_FETCH_TIMEOUT_MS`); on timeout a provider serves its stale cache — or an empty list on a true cold start — and refreshes on the next `session_start`. Worst-case cold startup drops from ~66s to ~8s; warm-cache startup (no network) is unaffected.

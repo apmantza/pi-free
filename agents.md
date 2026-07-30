@@ -51,7 +51,6 @@ index.ts                          ← Extension entry point (piFreeEntry)
       ├─ crofai/crofai.ts         ← CrofAI (paid)
       ├─ llm7/llm7.ts             ← LLM7 (free default/fast selectors)
       ├─ deepinfra/deepinfra.ts   ← DeepInfra ($5 trial credit)
-      ├─ together/together.ts     ← Together AI (paid credits)
       ├─ tokenrouter/tokenrouter.ts ← TokenRouter API gateway (paid + free models)
       ├─ anyapi/anyapi.ts         ← AnyAPI gateway (free plan + free models)
       ├─ model-fetcher.ts         ← Shared OpenRouter-compatible model fetching
@@ -59,7 +58,7 @@ index.ts                          ← Extension entry point (piFreeEntry)
       ├─ openmodel/openmodel.ts   ← OpenModel Anthropic-compatible gateway
       ├─ qoder/                   ← Qoder/Cosy OAuth and streaming provider
       ├─ bai/bai.ts               ← BAI gateway provider
-      └─ dynamic-built-in/        ← Dynamic fetchers for Mistral, Groq, Cerebras, xAI, HF
+      └─ dynamic-built-in/        ← Dynamic fetchers for OpenCode, OpenCode Go, FastRouter
           └─ index.ts
 
 tests/                            ← Vitest test suite
@@ -161,8 +160,8 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 | ----------- | -------------------------------------------------- | ----------------- | -------------------------------- |
 | ✅ Free     | kilo, cline, openrouter, opencode, llm7            | OAuth, API key, or none | Toggle between free/paid         |
 | 🔄 Freemium | anyapi, ollama-cloud, sambanova, tokenrouter       | API key                | Free tier with limits            |
-| 💳 Paid     | zenmux, crofai, deepinfra, together, novita, routeway, qoder, bai, openmodel | API key, OAuth, or credits | Trial credits or pay-per-token |
-| 🔧 Dynamic  | mistral, groq, cerebras, xai, huggingface, fastrouter | API key             | Fetched when configured or publicly discoverable |
+| 💳 Paid     | zenmux, crofai, deepinfra, novita, routeway, qoder, bai, openmodel | API key, OAuth, or credits | Trial credits or pay-per-token |
+| 🔧 Dynamic  | opencode, opencode-go, fastrouter | API key             | Fetched when configured or publicly discoverable |
 
 ---
 
@@ -207,7 +206,6 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 | `/probe-opencode-go` | OpenCode (Go)| Test all models, report expired free    |
 | `/probe-routeway`    | RouteWay     | Test all models, auto-hide broken        |
 | `/probe-sambanova`   | SambaNova    | Test all models, auto-hide broken        |
-| `/probe-together`    | Together     | Test all models, auto-hide broken        |
 | `/login kilo`        | Kilo         | Start OAuth flow                          |
 | `/login cline`       | Cline        | Start OAuth flow                          |
 | `/logout kilo`       | Kilo         | Clear OAuth credentials                   |
