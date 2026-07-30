@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Startup observability** — New `lib/startup-timing.ts` times the phases of `piFreeEntry` and each provider's setup duration (monotonic `performance.now()`, best-effort, negligible overhead). A structured summary (total entry time, per-provider timings slowest-first, cache-vs-network counts, failures) is logged once at the end of startup and surfaced via the new `/free-startup` command.
+
 ## [2.2.10] - 2026-07-28
 
 ### Fixed

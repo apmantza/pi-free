@@ -22,6 +22,7 @@ index.ts                          ← Extension entry point (piFreeEntry)
   ├─ lib/toggle-state.ts          ← Generic toggle state machine (free ↔ all)
   ├─ lib/built-in-toggle.ts       ← Toggles for Pi's built-in providers (opencode, openrouter)
   ├─ lib/quota-monitor.ts         ← Rate-limit header extraction → status bar
+  ├─ lib/startup-timing.ts        ← Startup phase + per-provider timing observability
   ├─ lib/logger.ts                ← Structured logging (console + ~/.pi/free.log)
   ├─ lib/json-persistence.ts      ← Generic JSON/JSONL file stores
   ├─ lib/model-detection.ts       ← Model family grouping, name normalization
@@ -196,6 +197,7 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 | -------------------- | ------------ | ----------------------------------------- |
 | `/toggle-free`       | Global       | Toggle free-only mode for ALL providers   |
 | `/free-providers`    | Global       | Show free/paid counts for all providers   |
+| `/free-startup`      | Global       | Show last startup timing breakdown        |
 | `/toggle-{provider}` | Per-provider | Toggle between free and all models        |
 | `/probe-deepinfra`   | DeepInfra    | Test all models, auto-hide broken       |
 | `/probe-novita`      | Novita       | Test all models, auto-hide broken        |

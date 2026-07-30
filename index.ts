@@ -23,6 +23,15 @@ import {
 	clearTelemetry,
 } from "./lib/telemetry.ts";
 import {
+	beginStartup,
+	endPhase,
+	finalizeStartup,
+	formatStartupSummary,
+	logStartupSummary,
+	startPhase,
+	timeProvider,
+} from "./lib/startup-timing.ts";
+import {
 	applyGlobalFilter,
 	getGlobalFreeOnly,
 	getProviderRegistry,
@@ -254,6 +263,15 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 			ctx.ui.notify("Telemetry data cleared", "info");
 		},
 	});
+
+	// /free-startup — Show the last startup timing breakdown
+	pi.registerCommand("free-startup", {
+		description:
+			"Show pi-free startup timing (total, slowest providers, cache/network, failures)",
+		handler: async (_args, ctx) => {
+			ctx.ui.notify(formatStartupSummary(), "info");
+		},
+	});
 }
 
 // =============================================================================
@@ -401,6 +419,9 @@ function setupTelemetry(pi: ExtensionAPI) {
 // =============================================================================
 
 export default async function piFreeEntry(pi: ExtensionAPI) {
+	// Begin timing this startup run (best-effort, negligible overhead).
+	beginStartup();
+
 	const globalFreeOnly = getGlobalFreeOnly();
 	_logger.info(`[pi-free] Initializing (global free-only: ${globalFreeOnly})`);
 
@@ -411,6 +432,7 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 	// idempotent (the runtime replaces them), but pi.on() is additive with
 	// no unsubscribe API, so we skip the registration block entirely on
 	// subsequent calls.
+	startPhase("global-handlers");
 	if (!_handlersRegistered) {
 		_handlersRegistered = true;
 
@@ -427,6 +449,7 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 			"[pi-free] Skipping global handler registration (already registered)",
 		);
 	}
+	endPhase("global-handlers");
 
 	// Load all unique providers + dynamic built-in providers CONCURRENTLY.
 	// Running the dynamic phase (e.g. FastRouter) in parallel with the static
@@ -451,19 +474,37 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 		}
 	})();
 
+	// Time each provider setup individually so slow providers are visible in
+	// the startup summary. timeProvider rethrows, so Promise.allSettled keeps
+	// its exact never-throws semantics.
+	startPhase("providers");
+	const providerSetups = UNIQUE_PROVIDERS.map((setup) => {
+		const name = (setup.name || "provider").replace(/Provider$/, "");
+		return timeProvider(name, () => setup(pi));
+	});
+
 	await Promise.allSettled([
-		...UNIQUE_PROVIDERS.map((setup) => setup(pi)),
-		dynamicSetup,
+		...providerSetups,
+		timeProvider("dynamic-built-in", () => dynamicSetup),
 	]);
+	endPhase("providers");
 
 	// Setup toggles for pi's built-in providers (e.g., OpenCode)
+	startPhase("built-in-toggles");
 	setupBuiltInProviderToggles(pi);
+	endPhase("built-in-toggles");
 
 	// Apply initial global filter if free-only mode is enabled
+	startPhase("global-filter");
 	if (globalFreeOnly) {
 		_logger.info("[pi-free] Applying initial free-only filter");
 		applyGlobalFilter(true);
 	}
+	endPhase("global-filter");
+
+	// Finalize timing and emit the observability summary (best-effort).
+	finalizeStartup();
+	logStartupSummary();
 
 	const registry = getProviderRegistry();
 	_logger.info(`[pi-free] Loaded with ${registry.size} providers`);
