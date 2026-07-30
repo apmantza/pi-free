@@ -595,31 +595,6 @@ export function getOllamaApiKey(): string | undefined {
 	return resolve("OLLAMA_API_KEY", loadConfigFile().ollama_api_key);
 }
 
-/** Mistral is pi's built-in provider — key comes from env var only. */
-export function getMistralApiKey(): string | undefined {
-	return process.env.MISTRAL_API_KEY;
-}
-
-/** Groq is pi's built-in provider — key comes from env var only. */
-export function getGroqApiKey(): string | undefined {
-	return process.env.GROQ_API_KEY;
-}
-
-/** Cerebras is pi's built-in provider — key comes from env var only. */
-export function getCerebrasApiKey(): string | undefined {
-	return process.env.CEREBRAS_API_KEY;
-}
-
-/** xAI is pi's built-in provider — key comes from env var only. */
-export function getXaiApiKey(): string | undefined {
-	return process.env.XAI_API_KEY;
-}
-
-/** HuggingFace is pi's built-in provider — token comes from env var only. */
-export function getHfToken(): string | undefined {
-	return process.env.HF_TOKEN;
-}
-
 /**
  * Read an API key from ~/.pi/agent/auth.json.
  * Pi stores built-in provider keys there (opencode, openrouter, etc.).

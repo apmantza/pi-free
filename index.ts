@@ -144,15 +144,6 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 			const lines = ["📊 Pi-Free Providers:", ""];
 			const registry = getProviderRegistry();
 
-			// Providers known to not expose pricing via API (all models show as "free")
-			// OpenRouter and OpenCode expose actual pricing
-			const noPricingApi = new Set([
-				"mistral",
-				"xai",
-				"huggingface",
-				"groq",
-				"cerebras",
-			]);
 			// Freemium providers - all models share a free tier quota
 			const freemiumProviders = new Set(["sambanova", "ollama-cloud"]);
 			// Trial credit providers - one-time credits, otherwise paid
@@ -170,11 +161,6 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 				} else if (trialCreditProviders.has(id)) {
 					// Trial credit: one-time credits, otherwise paid
 					lines.push(`${indicator} ${id}: ${all} models ($5 trial credit)`);
-				} else if (noPricingApi.has(id)) {
-					// Provider doesn't expose pricing - can't determine free vs paid
-					lines.push(
-						`${indicator} ${id}: ${all} models (pricing not exposed by API)`,
-					);
 				} else if (paid === 0 && free > 0) {
 					// All models are actually free
 					lines.push(`${indicator} ${id}: ${free} free models`);

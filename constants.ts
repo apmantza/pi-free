@@ -105,6 +105,10 @@ export const KILO_TOKEN_EXPIRATION_MS = 365 * 24 * 60 * 60 * 1000; // 1 year
 // - zen/opencode: use pi's built-in with OPENCODE_API_KEY
 // - go/opencode-go: use pi's built-in with OPENCODE_API_KEY
 // - mistral: use pi's built-in with MISTRAL_API_KEY
+// - groq: use pi's built-in with GROQ_API_KEY
+// - cerebras: use pi's built-in with CEREBRAS_API_KEY
+// - xai: use pi's built-in with XAI_API_KEY
+// - huggingface: use pi's built-in with HF_TOKEN
 // - together: use pi's built-in with TOGETHER_API_KEY (pi-free used TOGETHER_AI_API_KEY)
 // - ollama: add to ~/.pi/agent/models.json as custom provider
 // =============================================================================
