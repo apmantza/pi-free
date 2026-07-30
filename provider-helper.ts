@@ -12,6 +12,7 @@ import type {
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
 import { saveConfig } from "./config.ts";
+import { STARTUP_FETCH_DEADLINE_MS } from "./constants.ts";
 import {
 	DEFAULT_PROVIDER_CACHE_TTL_MS,
 	isProviderCacheFresh,
@@ -20,6 +21,7 @@ import {
 } from "./lib/provider-cache.ts";
 import { createLogger } from "./lib/logger.ts";
 import type { ModelsDevEnrichedMetadata } from "./lib/types.ts";
+import { withFetchDeadline } from "./lib/util.ts";
 import { enhanceModelNameWithCodingIndex } from "./provider-failover/benchmark-lookup.ts";
 
 const _logger = createLogger("provider-helper");
@@ -149,7 +151,7 @@ export function enhanceWithCI(
 export async function loadCachedOrFetchModels(
 	providerId: string,
 	fetcher: () => Promise<ProviderModelConfig[]>,
-	options?: { ttlMs?: number },
+	options?: { ttlMs?: number; fetchTimeoutMs?: number },
 ): Promise<ProviderModelConfig[]> {
 	const ttlMs = options?.ttlMs ?? DEFAULT_PROVIDER_CACHE_TTL_MS;
 	const cached = loadProviderCache(providerId);
@@ -158,9 +160,15 @@ export async function loadCachedOrFetchModels(
 		return cached;
 	}
 
+	// Bound the network wait so an unresponsive provider API cannot stall Pi
+	// session start (the factory awaits this). On timeout the rejection flows
+	// into the same fallback as a fetch error: serve the stale cache, or an
+	// empty list on a true cold start, and refresh on a later session_start.
+	const deadlineMs = options?.fetchTimeoutMs ?? STARTUP_FETCH_DEADLINE_MS;
+
 	let fetched: ProviderModelConfig[] = [];
 	try {
-		fetched = await fetcher();
+		fetched = await withFetchDeadline(fetcher(), deadlineMs, providerId);
 	} catch (err) {
 		// Network/discovery failure: keep serving whatever cache we have so the
 		// provider still registers models instead of going empty.

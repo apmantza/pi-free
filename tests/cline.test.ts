@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../constants.ts", () => ({
 	BASE_URL_CLINE: "https://api.cline.bot/api/v1",
 	PROVIDER_CLINE: "cline",
+	STARTUP_FETCH_DEADLINE_MS: 8_000,
 }));
 
 vi.mock("../lib/registry.ts", () => ({
@@ -25,6 +26,8 @@ const mockIsProviderCacheFresh = vi.fn();
 
 vi.mock("../lib/util.ts", () => ({
 	logWarning: vi.fn(),
+	// Passthrough: test fetchers settle immediately, so the deadline is inert.
+	withFetchDeadline: (p: Promise<unknown>) => p,
 }));
 
 const mockGetClineApiKey = vi.fn();

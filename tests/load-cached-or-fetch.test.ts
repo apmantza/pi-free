@@ -117,4 +117,23 @@ describe("loadCachedOrFetchModels", () => {
 		// An empty fetch must not be persisted (would wipe the cache).
 		expect(mocks.saveProviderCacheGuarded).not.toHaveBeenCalled();
 	});
+
+	it("falls back to the stale cache when the fetcher exceeds the startup deadline", async () => {
+		mocks.loadProviderCache.mockReturnValue(cachedModels);
+		mocks.isProviderCacheFresh.mockReturnValue(false);
+		// A fetcher that never resolves (simulates a hung provider API). The
+		// startup deadline must stop us waiting and serve the stale cache so a
+		// dead API cannot stall Pi session start.
+		const fetcher = vi.fn().mockReturnValue(new Promise(() => {}));
+		const { loadCachedOrFetchModels } = await import("../provider-helper.ts");
+
+		const result = await loadCachedOrFetchModels("test", fetcher, {
+			fetchTimeoutMs: 30,
+		});
+
+		expect(fetcher).toHaveBeenCalledTimes(1);
+		expect(result).toBe(cachedModels);
+		// A timed-out fetch must not poison the cache.
+		expect(mocks.saveProviderCacheGuarded).not.toHaveBeenCalled();
+	});
 });

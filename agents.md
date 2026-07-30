@@ -188,6 +188,7 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 9. **Model filtering happens at fetch time** — small models (< 30B, < 70B for NVIDIA) are filtered
 10. **All providers use `enhanceWithCI()`** before registration to add CI scores
 11. **Network-fetching extension providers are cache-first** (1h TTL via `lib/provider-cache.ts`); the first run after install or after the TTL fetches live, subsequent runs serve cache. Pi's built-in OpenRouter provider is not managed by this cache.
+12. **Startup model fetches are deadline-bounded** — `loadCachedOrFetchModels` (and Cline's fetch) wrap the network fetch in `STARTUP_FETCH_DEADLINE_MS` (8s, override `PI_FREE_STARTUP_FETCH_TIMEOUT_MS`) via `withFetchDeadline` in `lib/util.ts`. On a cold/stale cache a dead provider API cannot stall Pi session start; the deadline falls back to the stale cache (or an empty list on a true cold start) and refreshes on `session_start`. Warm cache never touches the network.
 
 ---
 
@@ -222,6 +223,7 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 
 - **Framework:** Vitest (`vitest` v4.1.10)
 - **Run:** `npm test` (watch), `npm run test:run` (once)
+- **Startup perf:** `npx tsx scripts/bench-startup.ts <warm|cold|fastcold>` times the `piFreeEntry` factory in a sandboxed `HOME` with a mocked `fetch` (warm = realistic steady state, cold = dead APIs worst case). Run in a loop for stable numbers.
 - **Tests:** `tests/*.test.ts` — covers registry, toggle state, config, model detection, provider compat
 - Tests use `vi.fn()` mocks for ExtensionAPI
 

@@ -20,7 +20,11 @@ import type {
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
 import { getClineApiKey, getClineShowPaid } from "../../config.ts";
-import { BASE_URL_CLINE, PROVIDER_CLINE } from "../../constants.ts";
+import {
+	BASE_URL_CLINE,
+	PROVIDER_CLINE,
+	STARTUP_FETCH_DEADLINE_MS,
+} from "../../constants.ts";
 import {
 	DEFAULT_PROVIDER_CACHE_TTL_MS,
 	isProviderCacheFresh,
@@ -30,7 +34,7 @@ import {
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
 import { createToggleState } from "../../lib/toggle-state.ts";
-import { logWarning } from "../../lib/util.ts";
+import { logWarning, withFetchDeadline } from "../../lib/util.ts";
 import { enhanceWithCI } from "../../provider-helper.ts";
 import { loginCline, refreshClineToken } from "./cline-auth.ts";
 import { fetchClineModels } from "./cline-models.ts";
@@ -92,7 +96,14 @@ export default async function clineProvider(pi: ExtensionAPI) {
 	if (cachedModels && cachedModels.length > 0) {
 		allModels = cachedModels;
 	} else {
-		allModels = await fetchClineModels(false).catch((err) => {
+		// Bound the fetch so an unresponsive Cline API cannot stall Pi session
+		// start on a true cold cache; a timeout falls through to an empty list
+		// (Cline has no bundled fallback models) and refreshes later.
+		allModels = await withFetchDeadline(
+			fetchClineModels(false),
+			STARTUP_FETCH_DEADLINE_MS,
+			"cline",
+		).catch((err) => {
 			logWarning("cline", "Failed to fetch models at startup", err);
 			return [];
 		});
