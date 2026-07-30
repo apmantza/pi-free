@@ -90,7 +90,9 @@ function monotonicNow(): number {
 }
 
 function makeRunId(): string {
-	return Math.random().toString(36).slice(2, 10);
+	// CSPRNG-backed (Sonar S2245: avoid Math.random()). The ID is only a log
+	// correlation tag, so the first 8 hex chars of a UUID are ample.
+	return crypto.randomUUID().slice(0, 8);
 }
 
 function freshState(): StartupState {
@@ -307,44 +309,54 @@ export function getStartupSummary(): StartupSummary {
  * string suitable for `ctx.ui.notify`. Mirrors the style of `/free-providers`
  * and `/free-telemetry`.
  */
+/** Render the phase block (slowest-first). Empty array when no phases. */
+function renderPhaseLines(phases: PhaseTiming[]): string[] {
+	if (phases.length === 0) {
+		return [];
+	}
+	const sorted = [...phases].sort((a, b) => b.durationMs - a.durationMs);
+	const lines = ["Phases:"];
+	for (const p of sorted) {
+		lines.push(`  ${p.name.padEnd(20)} ${String(p.durationMs).padStart(6)}ms`);
+	}
+	lines.push("");
+	return lines;
+}
+
+/** Render the per-provider block (slowest-first, capped). Empty when none. */
+function renderProviderLines(
+	providers: ProviderTiming[],
+	maxProviders: number,
+): string[] {
+	if (providers.length === 0) {
+		return [];
+	}
+	const lines = ["Providers (slowest first):"];
+	for (const p of providers.slice(0, maxProviders)) {
+		const name =
+			p.provider.length > 24 ? p.provider.slice(0, 21) + "..." : p.provider;
+		const status = p.success ? "ok" : "FAILED";
+		lines.push(
+			`  ${name.padEnd(24)} ${String(p.durationMs).padStart(6)}ms  ${status}`,
+		);
+	}
+	if (providers.length > maxProviders) {
+		lines.push(`  …and ${providers.length - maxProviders} more`);
+	}
+	lines.push("");
+	return lines;
+}
+
 export function formatStartupSummary(maxProviders = 15): string {
 	const s = getStartupSummary();
-	const lines: string[] = [];
-
-	lines.push(`⏱  Pi-Free Startup: ${s.totalMs}ms (run ${s.runId})`);
-	lines.push("");
-
-	// Phases, slowest-first for quick scanning.
-	const phases = [...s.phases].sort((a, b) => b.durationMs - a.durationMs);
-	if (phases.length > 0) {
-		lines.push("Phases:");
-		for (const p of phases) {
-			lines.push(`  ${p.name.padEnd(20)} ${String(p.durationMs).padStart(6)}ms`);
-		}
-		lines.push("");
-	}
-
-	// Per-provider timings, slowest-first.
-	if (s.providers.length > 0) {
-		lines.push("Providers (slowest first):");
-		for (const p of s.providers.slice(0, maxProviders)) {
-			const name =
-				p.provider.length > 24 ? p.provider.slice(0, 21) + "..." : p.provider;
-			const status = p.success ? "ok" : "FAILED";
-			lines.push(
-				`  ${name.padEnd(24)} ${String(p.durationMs).padStart(6)}ms  ${status}`,
-			);
-		}
-		if (s.providers.length > maxProviders) {
-			lines.push(`  …and ${s.providers.length - maxProviders} more`);
-		}
-		lines.push("");
-	}
-
-	lines.push(
+	const lines: string[] = [
+		`⏱  Pi-Free Startup: ${s.totalMs}ms (run ${s.runId})`,
+		"",
+		...renderPhaseLines(s.phases),
+		...renderProviderLines(s.providers, maxProviders),
 		`Cache: ${s.cacheHits} hits / ${s.networkFetches} network fetches` +
 			(s.networkMsTotal > 0 ? ` (${s.networkMsTotal}ms)` : ""),
-	);
+	];
 
 	if (s.failures.length > 0) {
 		lines.push(`Failures: ${s.failures.join(", ")}`);

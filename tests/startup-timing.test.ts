@@ -157,10 +157,10 @@ describe("startup-timing", () => {
 		);
 		beginStartup();
 		await timeProvider("first", () => sleep(1));
-		expect(getStartupSummary().providers.length).toBe(1);
+		expect(getStartupSummary().providers).toHaveLength(1);
 
 		beginStartup();
-		expect(getStartupSummary().providers.length).toBe(0);
+		expect(getStartupSummary().providers).toHaveLength(0);
 		expect(getStartupSummary().cacheHits).toBe(0);
 	});
 });
