@@ -6,11 +6,11 @@
 
 A **Pi extension** (`@earendil-works/pi-coding-agent`) that registers free and paid AI model providers with Pi's model picker. It shows free models by default and lets users toggle per-provider between free-only and all-models view via `/toggle-{provider}` commands.
 
-**Package:** `pi-free` v2.2.9
+**Package:** `pi-free` v2.2.10
 **Author:** Apostolos Mantzaris  
 **License:** MIT  
 **Repo:** `github.com/apmantza/pi-free`  
-**Peer deps:** `@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`
+**Peer deps:** `@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui` (all `>=0.81.0` — the native `createProvider` / `registerProvider(provider)` surface)
 
 ---
 
@@ -41,7 +41,10 @@ index.ts                          ← Extension entry point (piFreeEntry)
   │   └─ benchmarks.json           ← Lazy-loaded benchmark catalog
   │
   └─ providers/                   ← Per-provider extensions (each exports default async fn)
-      ├─ kilo/kilo.ts             ← Kilo Gateway (OAuth, free + paid)
+      ├─ kilo/kilo.ts             ← Kilo Gateway (native createProvider port: auth + refreshModels)
+      ├─ kilo/kilo-provider.ts    ← assembles the native Provider (offline-init store + toggle view)
+      ├─ kilo/kilo-auth.ts        ← native ProviderAuth (API key + OAuth device flow)
+      ├─ kilo/kilo-models.ts      ← catalog fetch + Model conversion + compat shaping
       ├─ cline/cline.ts           ← Cline bot (OAuth, message reshaping for Cline API)
       ├─ novita/novita.ts         ← Novita AI (paid credits)
       ├─ ollama/ollama.ts         ← Ollama Cloud (usage-based free tier, 403 probing)
@@ -108,7 +111,26 @@ export default async function providerName(pi: ExtensionAPI) {
 }
 ```
 
-**Cache-first loading.** Network-fetching extension providers register from the disk cache (`~/.pi/provider-cache.json`, 1-hour TTL via `lib/provider-cache.ts`) first and only hit the network on a cold or stale cache, so warm startups make no network calls. The dynamic built-in phase (including publicly discoverable FastRouter) runs concurrently with the static providers inside `piFreeEntry`'s single `Promise.allSettled`, not sequentially after it. OpenRouter is owned by Pi and is not dynamically registered by pi-free.
+**Cache-first loading.** Network-fetching extension providers register from the disk cache (`~/.pi/provider-cache.json`, 1-hour TTL via `lib/provider-cache.ts`) first and only hit the network on a cold or stale cache, so warm startups make no network calls. The dynamic built-in phase (including publicly discoverable FastRouter) runs concurrently with the static providers inside `piFreeEntry`'s single `Promise.allSettled`, not sequentially after it. OpenRouter is owned by Pi and is not dynamically registered by pi-free. **Kilo is the exception**: it uses Pi's native models store (`~/.pi/agent/models-store.json`) via `refreshModels`, not `lib/provider-cache.ts` (see below).
+
+### Native `createProvider` providers (reference: Kilo)
+
+Kilo is the reference port to Pi's modern provider API (Pi `>=0.81.0`). Instead of the legacy `registerProvider(id, { baseUrl, apiKey, models, oauth })` form, it builds a native pi-ai `Provider` object and registers it via the single-argument `registerProvider(provider)`. Pi then owns credential refresh, background model refresh (4h throttle, abortable), and offline initialization — so the extension factory performs **no network I/O** for Kilo and no longer owns any of Pi's startup critical path.
+
+```
+providers/kilo/kilo-provider.ts   ← createKiloProvider(): assembles the Provider
+providers/kilo/kilo-auth.ts       ← native ProviderAuth (apiKey + OAuth device flow)
+providers/kilo/kilo-models.ts     ← fetchKiloCatalog + toKiloModel(s) + compat shaping
+providers/kilo/kilo.ts            ← factory: register, toggle wiring, XML-leak handler
+```
+
+Key points of the pattern (the recipe for porting other unique providers):
+
+- The `Provider` is assembled **directly against the public `Provider` interface** (the same shape `createProvider()` returns) rather than via the `createProvider` helper: that helper unconditionally merges its stored dynamic overlay on top of the static baseline on every refresh, which would clobber pi-free's re-registration based free/paid toggle. Assembling directly keeps `getModels()` returning exactly the catalog pi-free chose to show.
+- `refreshModels(context)`: always `await context.store.read()` first (offline init — `allowNetwork:false` stops here); when `allowNetwork:true`, fetch with `context.credential` (Pi refreshes OAuth before calling), honor `context.signal`, retain the previous list on an empty/failed fetch (poisoning guard), then `context.store.write({ models, checkedAt })`. No internal freshness gating — Pi owns the throttle and `force` (`pi update --models`), so the two never double-throttle.
+- Native `auth`: `apiKey.resolve` returns `credential?.key ?? getKiloApiKey()` (ambient env/config); `oauth` implements `login(interaction)` (device flow via `interaction.notify`), `refresh(credential)` (Kilo tokens are long-lived; expired → throw, re-login fixes), and `toAuth(credential)` → `{ apiKey: credential.access }`. Credentials persist to `~/.pi/agent/auth.json` — the same store the legacy `/login kilo` already used, so existing OAuth users need no migration.
+- The free/paid toggle stays on `registerWithGlobalToggle`: its `reRegister(models)` calls `setView(models)` and re-registers the **same** native provider object (upsert by id), which republishes the chosen catalog without dropping native auth. This keeps `/toggle-kilo` and the global `/toggle-free` working. Native `filterModels` is a possible follow-up but was not adopted because it must compose with the cross-provider global toggle.
+- Because the dev lockfile can lag the declared peer minimum, `kilo.ts` registers through a small documented `NativeRegistrar` type bridge; the source type-checks against both the pinned dev snapshot and the declared `>=0.81.0` runtime.
 
 ### Free Model Detection (isFreeModel)
 
@@ -170,7 +192,9 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 - **Config:** `~/.pi/free.json` (auto-created)
 - **Extension log:** `~/.pi/free.log`
 - **Model match log:** `~/.pi/modelmatch.log`
-- **Provider cache:** `~/.pi/provider-cache.json`
+- **Provider cache:** `~/.pi/provider-cache.json` (all cache-first providers except Kilo)
+- **Native models store:** `~/.pi/agent/models-store.json` (Kilo, owned by Pi)
+- **Native auth store:** `~/.pi/agent/auth.json` (Kilo OAuth/API key, owned by Pi)
 
 ---
 
@@ -186,7 +210,7 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 8. **Error handling is graceful** — providers that fail at startup are silently skipped
 9. **Model filtering happens at fetch time** — small models (< 30B, < 70B for NVIDIA) are filtered
 10. **All providers use `enhanceWithCI()`** before registration to add CI scores
-11. **Network-fetching extension providers are cache-first** (1h TTL via `lib/provider-cache.ts`); the first run after install or after the TTL fetches live, subsequent runs serve cache. Pi's built-in OpenRouter provider is not managed by this cache.
+11. **Network-fetching extension providers are cache-first** (1h TTL via `lib/provider-cache.ts`); the first run after install or after the TTL fetches live, subsequent runs serve cache. Pi's built-in OpenRouter provider is not managed by this cache. **Kilo is the exception** — it is a native `createProvider` provider that uses Pi's models store + `refreshModels` (see “Native createProvider providers”).
 12. **Startup model fetches are deadline-bounded** — `loadCachedOrFetchModels` (and Cline's fetch) wrap the network fetch in `STARTUP_FETCH_DEADLINE_MS` (8s, override `PI_FREE_STARTUP_FETCH_TIMEOUT_MS`) via `withFetchDeadline` in `lib/util.ts`. On a cold/stale cache a dead provider API cannot stall Pi session start; the deadline falls back to the stale cache (or an empty list on a true cold start) and refreshes on `session_start`. Warm cache never touches the network.
 
 ---
