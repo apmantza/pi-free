@@ -21,6 +21,13 @@ vi.mock("node:fs", () => {
 	return {
 		appendFileSync: vi.fn(),
 		chmodSync: vi.fn(),
+		// Minimal no-op append stream so the (buffered) logger can open a stream
+		// without touching the real filesystem during config tests.
+		createWriteStream: vi.fn(() => ({
+			write: vi.fn(),
+			on: vi.fn(),
+			end: vi.fn(),
+		})),
 		copyFileSync: vi.fn((src: string, dest: string) => {
 			mockData.set(dest, mockData.get(src) ?? "");
 		}),

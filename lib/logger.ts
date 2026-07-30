@@ -8,8 +8,12 @@
  * - Disable file logging: PI_FREE_FILE_LOG=false
  */
 
-import { appendFileSync } from "node:fs";
-import { join } from "node:path";
+import {
+	appendFileSync,
+	createWriteStream,
+	type WriteStream,
+} from "node:fs";
+import { dirname } from "node:path";
 import { ensureDir, resolveSafeDataFile } from "./paths.ts";
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
@@ -73,10 +77,61 @@ function formatMessage(entry: LogEntry): string {
 const LOG_PATH = resolveSafeDataFile(process.env.PI_FREE_LOG_PATH, "free.log");
 const FILE_LOG_ENABLED = process.env.PI_FREE_FILE_LOG !== "false";
 
+// File logging is buffered through a lazily-opened append stream so startup
+// (which emits many log lines) does not pay a synchronous open+write+close —
+// plus an existsSync — on every single line. The log directory is ensured once,
+// not per line. If a stream cannot be opened (e.g. fs streams are absent under
+// a test mock), we fall back to a single synchronous append per line so logs
+// are never silently dropped.
+let logStream: WriteStream | null = null;
+let logDirEnsured = false;
+let logStreamUnavailable = false;
+
+function ensureLogDirOnce(): void {
+	if (logDirEnsured) return;
+	ensureDir(dirname(LOG_PATH));
+	logDirEnsured = true;
+}
+
+function getLogStream(): WriteStream | null {
+	if (logStream) return logStream;
+	if (logStreamUnavailable) return null;
+	if (typeof createWriteStream !== "function") {
+		// fs.createWriteStream missing (e.g. a minimal test mock) — use fallback.
+		logStreamUnavailable = true;
+		return null;
+	}
+	try {
+		ensureLogDirOnce();
+		const stream = createWriteStream(LOG_PATH, {
+			flags: "a",
+			encoding: "utf8",
+		});
+		stream.on("error", (err) => {
+			console.error("Failed to write to log file:", err);
+			logStreamUnavailable = true;
+			logStream = null;
+		});
+		logStream = stream;
+		return logStream;
+	} catch (err) {
+		console.error("Failed to open log file stream:", err);
+		logStreamUnavailable = true;
+		return null;
+	}
+}
+
 function appendToFile(line: string): void {
 	if (!FILE_LOG_ENABLED) return;
+	const stream = getLogStream();
+	if (stream) {
+		stream.write(`${line}\n`);
+		return;
+	}
+	// Fallback: a single synchronous append (used only when streams are
+	// unavailable). Still ensures the directory just once.
 	try {
-		ensureDir(join(LOG_PATH, ".."));
+		ensureLogDirOnce();
 		appendFileSync(LOG_PATH, `${line}\n`, "utf8");
 	} catch (err) {
 		console.error("Failed to write to log file:", err);
