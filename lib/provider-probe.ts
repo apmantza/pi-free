@@ -82,6 +82,7 @@ export interface ProviderProbe {
 	autoProbeHandler: (
 		apiKey: string,
 		models: ProviderModelConfig[],
+		onBroken?: (brokenIds: string[]) => void,
 	) => () => void;
 }
 
@@ -208,6 +209,7 @@ export function createProviderProbe(
 	const autoProbeHandler: ProviderProbe["autoProbeHandler"] = (
 		apiKey,
 		models,
+		onBroken,
 	) => {
 		let done = false;
 		return () => {
@@ -228,7 +230,7 @@ export function createProviderProbe(
 			}
 
 			_logger.info(`[probe] Starting lazy auto-probe for ${providerId}...`);
-			run(apiKey, models, { useCache: true }).catch((err) => {
+			run(apiKey, models, { useCache: true, onBroken }).catch((err) => {
 				_logger.warn(`[probe] ${providerId}: auto-probe failed`, {
 					error: err instanceof Error ? err.message : String(err),
 				});

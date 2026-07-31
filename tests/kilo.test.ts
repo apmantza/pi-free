@@ -114,6 +114,7 @@ describe("Kilo extension wiring", () => {
 			mockStored,
 			expect.any(Function),
 			false,
+			{ native: true },
 		);
 	});
 
@@ -125,6 +126,7 @@ describe("Kilo extension wiring", () => {
 			mockStored,
 			expect.any(Function),
 			true,
+			{ native: true },
 		);
 	});
 

@@ -9,7 +9,7 @@
  *   - native `auth` (apiKey only — LLM7 has no OAuth flow) persisted to
  *     ~/.pi/agent/auth.json; always resolves so the keyless public catalog
  *     stays visible (see llm7-auth.ts)
- *   - sync `getModels()` returning the catalog pi-free chose to show
+ *   - sync `getModels()` returning the complete catalog; Pi applies `filterModels`
  *   - `refreshModels(context)`:
  *       allowNetwork:false → restore from context.store only (fast offline init)
  *       allowNetwork:true  → build the STATIC selector catalog locally (no
@@ -24,10 +24,9 @@
  * The object is assembled directly against the public `Provider` interface (the
  * exact shape `createProvider()` returns) rather than through the `createProvider`
  * helper: that helper unconditionally merges its stored dynamic overlay on top of
- * the static baseline on every refresh, which would clobber pi-free's
- * re-registration based free/paid toggle. Assembling directly keeps `getModels()`
- * returning precisely the view pi-free selected while still using the native
- * store and auth.
+ * the static baseline on every refresh. The complete catalog stays in
+ * `getModels()` and the shared `filterModels` policy selects the current view
+ * while still using the native store and auth.
  *
  * Pi owns refresh throttling and the `force` flag (`pi update --models`); this
  * module performs no freshness gating of its own so the two never double-throttle.
@@ -43,8 +42,9 @@ import { openAICompletionsApi } from "@earendil-works/pi-ai/compat";
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { getLlm7ShowPaid } from "../../config.ts";
 import { BASE_URL_LLM7, PROVIDER_LLM7 } from "../../constants.ts";
-import { getGlobalFreeOnly, isFreeModel } from "../../lib/registry.ts";
+import { isFreeModel } from "../../lib/registry.ts";
 import {
+	filterNativeModels,
 	persistNativeProviderModels,
 	restoreNativeProviderModels,
 } from "../../lib/native-provider.ts";
@@ -78,26 +78,10 @@ export function createLlm7Provider(): Llm7NativeProvider {
 	// StoredModels (ProviderModelConfig[]) for registerWithGlobalToggle; the
 	// runtime values are full Model objects, which are assignable.
 	const stored: StoredModels = { free: [], all: [] };
-	let currentView: Llm7Model[] = [];
 
-	/**
-	 * Which catalog the current toggle state wants to show. Mirrors
-	 * applyGlobalFilter's decision so the offline-init initial view matches what
-	 * the global free/paid toggle would select. LLM7 has no per-provider
-	 * free-only override — only the persisted show_paid flag.
-	 */
-	function decideView(): ProviderModelConfig[] {
-		// Global free-only off → show everything.
-		if (!getGlobalFreeOnly()) {
-			return stored.all.length > 0 ? stored.all : stored.free;
-		}
-		// Global free-only on → free, unless per-provider show_paid is persisted.
-		const showPaid = getLlm7ShowPaid();
-		return showPaid && stored.all.length > 0 ? stored.all : stored.free;
-	}
-
-	function setView(models: ProviderModelConfig[]): void {
-		currentView = toLlm7Models(models);
+	function setView(_models: ProviderModelConfig[]): void {
+		// Re-registration invalidates Pi's filtered availability snapshot; the
+		// complete catalog remains in stored.all.
 	}
 
 	function ingest(
@@ -106,7 +90,6 @@ export function createLlm7Provider(): Llm7NativeProvider {
 	): void {
 		stored.all = toLlm7Models(enhanceWithCI(all));
 		stored.free = toLlm7Models(enhanceWithCI(free));
-		setView(decideView());
 	}
 
 	async function refreshModels(context: RefreshModelsContext): Promise<void> {
@@ -118,7 +101,6 @@ export function createLlm7Provider(): Llm7NativeProvider {
 				stored.free = storedModels.filter((model) =>
 					isFreeModel({ ...model, provider: PROVIDER_LLM7 }, storedModels),
 				);
-				setView(decideView());
 			},
 		);
 
@@ -153,7 +135,13 @@ export function createLlm7Provider(): Llm7NativeProvider {
 			"User-Agent": "pi-free-providers",
 		},
 		auth: llm7Auth,
-		getModels: () => currentView,
+		getModels: () =>
+			(stored.all.length > 0 ? stored.all : stored.free) as Llm7Model[],
+		filterModels: (models) =>
+			filterNativeModels(PROVIDER_LLM7, models, {
+				showPaid: getLlm7ShowPaid(),
+				freeModels: stored.free,
+			}),
 		refreshModels,
 		stream: (model, context, options) =>
 			streams.stream(model, context, options),

@@ -16,16 +16,13 @@ import type {
 import { getTokenrouterApiKey, getTokenrouterShowPaid } from "../../config.ts";
 import { BASE_URL_TOKENROUTER, PROVIDER_TOKENROUTER } from "../../constants.ts";
 import {
+	filterNativeModels,
 	refreshNativeProviderModels,
 	registerNativeProvider,
 	registerNativeProviderRefresh,
 	registerNativeProviderToggle,
 } from "../../lib/native-provider.ts";
-import {
-	getGlobalFreeOnly,
-	isFreeModel,
-	registerWithGlobalToggle,
-} from "../../lib/registry.ts";
+import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { loadProviderCache } from "../../lib/provider-cache.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { tokenRouterAuth } from "./tokenrouter-auth.ts";
@@ -95,18 +92,10 @@ export function createTokenRouterProvider(
 	) ?? [],
 ): TokenRouterNativeProvider {
 	const stored: StoredModels = { free: [], all: [] };
-	let currentView: TokenRouterNativeModel[] = [];
 
-	function decideView(): ProviderModelConfig[] {
-		if (!getGlobalFreeOnly()) {
-			return stored.all.length > 0 ? stored.all : stored.free;
-		}
-		const showPaid = getTokenrouterShowPaid();
-		return showPaid && stored.all.length > 0 ? stored.all : stored.free;
-	}
-
-	function setView(models: ProviderModelConfig[]): void {
-		currentView = toTokenRouterModels(models);
+	function setView(_models: ProviderModelConfig[]): void {
+		// Re-registration invalidates Pi's filtered availability snapshot; the
+		// complete catalog remains in stored.all.
 	}
 
 	function ingest(
@@ -117,7 +106,6 @@ export function createTokenRouterProvider(
 		stored.free = toTokenRouterModels(
 			enhanceWithCI(free, PROVIDER_TOKENROUTER),
 		);
-		setView(decideView());
 	}
 
 	if (initialModels.length > 0) {
@@ -126,7 +114,6 @@ export function createTokenRouterProvider(
 		);
 		stored.all = all;
 		stored.free = classifyFreeModels(all);
-		setView(decideView());
 	}
 
 	async function refreshModels(context: RefreshModelsContext): Promise<void> {
@@ -136,7 +123,6 @@ export function createTokenRouterProvider(
 			(storedModels: TokenRouterNativeModel[]) => {
 				stored.all = storedModels;
 				stored.free = classifyFreeModels(storedModels);
-				setView(decideView());
 			},
 			async () => {
 				const token = credentialToken(context.credential);
@@ -147,7 +133,6 @@ export function createTokenRouterProvider(
 			(models) => {
 				stored.all = models;
 				stored.free = classifyFreeModels(models);
-				setView(decideView());
 			},
 		);
 	}
@@ -158,7 +143,13 @@ export function createTokenRouterProvider(
 		baseUrl: BASE_URL_TOKENROUTER,
 		headers: { "User-Agent": "pi-free-providers" },
 		auth: tokenRouterAuth,
-		getModels: () => currentView,
+		getModels: () =>
+			(stored.all.length > 0 ? stored.all : stored.free) as TokenRouterNativeModel[],
+		filterModels: (models) =>
+			filterNativeModels(PROVIDER_TOKENROUTER, models, {
+				showPaid: getTokenrouterShowPaid(),
+				freeModels: stored.free,
+			}),
 		refreshModels,
 		stream: (model, context, options) =>
 			deps.streamSimple(model, context, options),
@@ -186,6 +177,7 @@ export function registerTokenRouterProvider(
 		stored,
 		reRegister,
 		Boolean(getTokenrouterApiKey()),
+		{ native: true },
 	);
 	registerNativeProviderToggle(pi, {
 		providerId: PROVIDER_TOKENROUTER,

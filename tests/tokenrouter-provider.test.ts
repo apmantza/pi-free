@@ -21,6 +21,7 @@ vi.mock("../config.ts", () => ({
 
 vi.mock("../lib/registry.ts", () => ({
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
+	getGlobalFreeOnlyForced: () => false,
 	isFreeModel: (model: { id: string }) => model.id.endsWith(":free"),
 	registerWithGlobalToggle: vi.fn(),
 }));
@@ -166,7 +167,8 @@ describe("createTokenRouterProvider", () => {
 		await provider.refreshModels?.(context(store));
 
 		expect(mockFetchWithRetry).not.toHaveBeenCalled();
-		expect(provider.getModels().map((item) => item.id)).toEqual(["free:free"]);
+		expect(provider.getModels().map((item) => item.id)).toEqual(["free:free", "paid"]);
+		expect(provider.filterModels!(provider.getModels(), undefined).map((item) => item.id)).toEqual(["free:free"]);
 	});
 
 	it("fetches with the stored key and persists the native catalog", async () => {
@@ -216,6 +218,10 @@ describe("createTokenRouterProvider", () => {
 		expect(stored.free).toHaveLength(1);
 		expect(written).toHaveLength(1);
 		expect(provider.getModels().map((item) => item.id)).toEqual([
+			"free-model:free",
+			"paid-model",
+		]);
+		expect(provider.filterModels!(provider.getModels(), undefined).map((item) => item.id)).toEqual([
 			"free-model:free",
 		]);
 	});

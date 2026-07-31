@@ -233,4 +233,20 @@ describe("applyGlobalFilter", () => {
 		expect(() => applyGlobalFilter(true)).not.toThrow();
 		expect(goodReRegister).toHaveBeenCalledTimes(1);
 	});
+
+	it("invalidates native providers even when the free catalog is empty", () => {
+		const reRegister = vi.fn();
+		const all = [makePaidModel("paid")];
+		registerWithGlobalToggle(
+			"af-native",
+			{ free: [], all },
+			reRegister,
+			true,
+			{ native: true },
+		);
+
+		applyGlobalFilter(true, { force: true });
+
+		expect(reRegister).toHaveBeenCalledWith([]);
+	});
 });

@@ -83,7 +83,9 @@ export default async function llm7Provider(pi: ExtensionAPI) {
 	};
 
 	const hasLlm7Key = !!getLlm7ApiKey();
-	registerWithGlobalToggle(PROVIDER_LLM7, stored, reRegister, hasLlm7Key);
+	registerWithGlobalToggle(PROVIDER_LLM7, stored, reRegister, hasLlm7Key, {
+		native: true,
+	});
 
 	registerNativeProviderToggle(pi, {
 		providerId: PROVIDER_LLM7,

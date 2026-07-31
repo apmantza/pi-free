@@ -26,6 +26,7 @@ vi.mock("../config.ts", () => ({
 
 vi.mock("../lib/registry.ts", () => ({
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
+	getGlobalFreeOnlyForced: () => false,
 	registerWithGlobalToggle: vi.fn(),
 }));
 

@@ -10,11 +10,16 @@ import type {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetGlobalFreeOnly = vi.hoisted(() => vi.fn(() => true));
+const mockGetGlobalFreeOnlyForced = vi.hoisted(() => vi.fn(() => false));
 const mockSaveConfig = vi.hoisted(() => vi.fn(async () => undefined));
 
-vi.mock("../config.ts", () => ({ saveConfig: mockSaveConfig }));
+vi.mock("../config.ts", () => ({
+	saveConfig: mockSaveConfig,
+	applyHidden: (models: unknown[]) => models,
+}));
 vi.mock("../lib/registry.ts", () => ({
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
+	getGlobalFreeOnlyForced: () => mockGetGlobalFreeOnlyForced(),
 	isFreeModel: (model: { name: string }) => /free/i.test(model.name),
 	registerWithGlobalToggle: vi.fn(),
 }));
@@ -101,6 +106,7 @@ const options = {
 beforeEach(() => {
 	vi.clearAllMocks();
 	mockGetGlobalFreeOnly.mockReturnValue(true);
+	mockGetGlobalFreeOnlyForced.mockReturnValue(false);
 });
 
 describe("createNativeApiKeyAuth", () => {
@@ -151,15 +157,41 @@ describe("createNativeOpenAIProvider", () => {
 		expect(handle.provider.getModels()[0].provider).toBe("test-native");
 	});
 
+	it("keeps the complete catalog and filters it without replacing the provider", () => {
+		const handle = createNativeOpenAIProvider(options);
+		expect(handle.provider.getModels().map((item) => item.id)).toEqual([
+			"free",
+			"paid",
+		]);
+		expect(
+			handle.provider
+				.filterModels!(handle.provider.getModels(), undefined)
+				.map((item) => item.id),
+		).toEqual(["free"]);
+
+		mockGetGlobalFreeOnly.mockReturnValue(false);
+		expect(
+			handle.provider
+				.filterModels!(handle.provider.getModels(), undefined)
+				.map((item) => item.id),
+		).toEqual(["free", "paid"]);
+
+		mockGetGlobalFreeOnly.mockReturnValue(true);
+		mockGetGlobalFreeOnlyForced.mockReturnValue(true);
+		expect(
+			handle.provider
+				.filterModels!(handle.provider.getModels(), undefined)
+				.map((item) => item.id),
+		).toEqual(["free"]);
+	});
+
 	it("fetches with the effective key and persists native models", async () => {
 		const controller = new AbortController();
-		const fetchModels = vi.fn(
-			async (key: string, signal?: AbortSignal) => {
-				expect(key).toBe("stored-key");
-				expect(signal).toBe(controller.signal);
-				return [model("fresh-free", "Fresh free")];
-			},
-		);
+		const fetchModels = vi.fn(async (key: string, signal?: AbortSignal) => {
+			expect(key).toBe("stored-key");
+			expect(signal).toBe(controller.signal);
+			return [model("fresh-free", "Fresh free")];
+		});
 		const { store, written } = makeStore();
 		const handle = createNativeOpenAIProvider({
 			...options,
@@ -168,10 +200,10 @@ describe("createNativeOpenAIProvider", () => {
 
 		await handle.provider.refreshModels?.(
 			context(store, {
-			allowNetwork: true,
-			credential: { type: "api_key", key: "stored-key" },
-			signal: controller.signal,
-		}),
+				allowNetwork: true,
+				credential: { type: "api_key", key: "stored-key" },
+				signal: controller.signal,
+			}),
 		);
 
 		expect(fetchModels).toHaveBeenCalledOnce();

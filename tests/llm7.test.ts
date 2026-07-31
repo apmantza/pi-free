@@ -41,6 +41,7 @@ vi.mock("../lib/registry.ts", () => ({
 		mockRegisterWithGlobalToggle(...args);
 	},
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
+	getGlobalFreeOnlyForced: () => false,
 	isFreeModel: (m: { cost?: { input?: number } }) => (m.cost?.input ?? 0) === 0,
 }));
 
@@ -166,11 +167,13 @@ describe("LLM7 factory wiring", () => {
 		// Re-registration reused the SAME native provider object (auth preserved).
 		expect(mockRegisterProvider).toHaveBeenCalledWith(provider);
 
-		// Global /toggle-free showing free -> reRegister(stored.free).
+		// Global /toggle-free showing free invalidates the same provider object;
+		// Pi's filterModels applies the free view to the complete catalog.
 		reRegister(stored.free);
 		expect(provider.getModels().map((m: { id: string }) => m.id)).toEqual([
 			"default",
 			"fast",
+			"pro",
 		]);
 	});
 
@@ -198,7 +201,8 @@ describe("LLM7 factory wiring", () => {
 			"info",
 		);
 
-		// Second toggle: all -> free.
+		// Second toggle: all -> free. The complete catalog remains registered;
+		// Pi's filterModels applies the free view.
 		mockGetLlm7ShowPaid.mockReturnValue(true);
 		notify.mockClear();
 		await call[1].handler({}, { ui: { notify } });
@@ -206,6 +210,7 @@ describe("LLM7 factory wiring", () => {
 		expect(provider.getModels().map((m: { id: string }) => m.id)).toEqual([
 			"default",
 			"fast",
+			"pro",
 		]);
 		expect(notify).toHaveBeenCalledWith(
 			expect.stringContaining("showing 2 free models"),

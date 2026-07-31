@@ -39,6 +39,7 @@ export default async function zenmuxProvider(pi: ExtensionAPI) {
 		stored,
 		reRegister,
 		Boolean(getZenmuxApiKey()),
+		{ native: true },
 	);
 	registerNativeProviderToggle(pi, {
 		providerId: PROVIDER_ZENMUX,

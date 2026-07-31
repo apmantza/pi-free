@@ -209,7 +209,9 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 	};
 
 	const hasKiloKey = !!getKiloApiKey();
-	registerWithGlobalToggle(PROVIDER_KILO, stored, reRegister, hasKiloKey);
+	registerWithGlobalToggle(PROVIDER_KILO, stored, reRegister, hasKiloKey, {
+		native: true,
+	});
 
 	registerNativeProviderToggle(pi, {
 		providerId: PROVIDER_KILO,

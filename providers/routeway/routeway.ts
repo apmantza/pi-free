@@ -18,12 +18,7 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import {
-	applyHidden,
-	getRoutewayApiKey,
-	getRoutewayShowPaid,
-	updateConfig,
-} from "../../config.ts";
+import { applyHidden, getRoutewayApiKey, getRoutewayShowPaid } from "../../config.ts";
 import {
 	BASE_URL_ROUTEWAY,
 	DEFAULT_FETCH_TIMEOUT_MS,
@@ -35,20 +30,14 @@ import {
 	getProxyModelCompat,
 	isLikelyReasoningModel,
 } from "../../lib/provider-compat.ts";
+import { createOpenAIAvailabilityProbe } from "../../lib/provider-probe.ts";
 import {
-	areAllModelsFresh,
-	getModelsDueForProbe,
-	recordModelProbeResults,
-} from "../../lib/probe-cache.ts";
-import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
-import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
+	registerNativeAvailabilityProbe,
+	registerNativeOpenAIProvider,
+} from "../../lib/native-provider.ts";
+import { loadProviderCache, saveProviderCache } from "../../lib/provider-cache.ts";
 import { cleanModelName, fetchWithRetry } from "../../lib/util.ts";
-import { fetchWithTimeout } from "../../lib/util.ts";
-import {
-	createReRegister,
-	loadCachedOrFetchModels,
-	setupProvider,
-} from "../../provider-helper.ts";
+import { routewayAuth } from "./routeway-auth.ts";
 
 const _logger = createLogger("routeway");
 
@@ -109,7 +98,7 @@ function mapRoutewayModel(
 	const outputCost = parsePricePerToken(model.pricing?.output);
 	const cacheRead = parsePricePerToken(model.pricing?.caching?.read);
 	const cacheWrite = parsePricePerToken(model.pricing?.caching?.write);
-	const hasPricing = !!(model.pricing?.input || model.pricing?.output);
+	const hasPricing = Boolean(model.pricing?.input || model.pricing?.output);
 	const reasoning =
 		model.capabilities?.reasoning === true ||
 		(model.supported_parameters ?? []).includes("reasoning_effort") ||
@@ -136,6 +125,7 @@ function mapRoutewayModel(
 
 async function fetchRoutewayModels(
 	apiKey: string,
+	signal?: AbortSignal,
 ): Promise<ProviderModelConfig[]> {
 	_logger.info("[routeway] Fetching models from Routeway API...");
 
@@ -148,6 +138,7 @@ async function fetchRoutewayModels(
 					Accept: "application/json",
 					"Content-Type": "application/json",
 				},
+				signal,
 			},
 			3,
 			1000,
@@ -178,239 +169,40 @@ async function fetchRoutewayModels(
 }
 
 // =============================================================================
-// Probe
-// =============================================================================
-
-async function probeRoutewayModel(
-	apiKey: string,
-	modelId: string,
-): Promise<"ok" | "broken" | "unknown"> {
-	try {
-		const response = await fetchWithTimeout(
-			`${BASE_URL_ROUTEWAY}/chat/completions`,
-			{
-				method: "POST",
-				headers: {
-					Authorization: `Bearer ${apiKey}`,
-					"Content-Type": "application/json",
-					"User-Agent": "pi-free-providers",
-				},
-				body: JSON.stringify({
-					model: modelId,
-					messages: [{ role: "user", content: "hi" }],
-					max_tokens: 1,
-				}),
-			},
-			10000, // 10 second timeout
-		);
-
-		// 5xx = upstream server error (model unavailable)
-		if (response.status >= 500) return "broken";
-		// 404 = model not found / not provisioned
-		if (response.status === 404) return "broken";
-		// 429 = rate limited (model works)
-		if (response.status === 429) return "ok";
-		// 401 = auth issue (model exists, key issue)
-		if (response.status === 401) return "ok";
-		// 400 = bad request (model exists, param issue)
-		if (response.status === 400) return "ok";
-		// 200 = success
-		if (response.ok) return "ok";
-		return "ok";
-	} catch {
-		return "unknown";
-	}
-}
-
-async function runRoutewayProbe(
-	apiKey: string,
-	modelsToTest: ProviderModelConfig[],
-	stored: { free: ProviderModelConfig[]; all: ProviderModelConfig[] },
-	reRegister: (models: ProviderModelConfig[]) => void,
-	options: { useCache?: boolean } = {},
-): Promise<string[]> {
-	const modelIdsToProbe = options.useCache
-		? new Set(
-				getModelsDueForProbe(
-					PROVIDER_ROUTEWAY,
-					modelsToTest.map((m) => m.id),
-				),
-			)
-		: undefined;
-	const probeCandidates = modelIdsToProbe
-		? modelsToTest.filter((m) => modelIdsToProbe.has(m.id))
-		: modelsToTest;
-
-	if (probeCandidates.length === 0) {
-		_logger.info("Auto-probe: Routeway probe cache is fresh");
-		return [];
-	}
-
-	const broken: string[] = [];
-	const cacheableResults: Array<{ modelId: string; status: "ok" | "broken" }> =
-		[];
-	const batchSize = 5;
-
-	for (let i = 0; i < probeCandidates.length; i += batchSize) {
-		const batch = probeCandidates.slice(i, i + batchSize);
-		const results = await Promise.all(
-			batch.map(async (m) => {
-				const status = await probeRoutewayModel(apiKey, m.id);
-				return { id: m.id, status };
-			}),
-		);
-		for (const r of results) {
-			if (r.status === "broken") broken.push(r.id);
-			if (r.status !== "unknown") {
-				cacheableResults.push({ modelId: r.id, status: r.status });
-			}
-		}
-	}
-
-	await recordModelProbeResults(PROVIDER_ROUTEWAY, cacheableResults);
-
-	if (broken.length === 0) {
-		_logger.info("Auto-probe: all checked Routeway models are routable");
-		return [];
-	}
-
-	// Auto-hide broken models in config (provider-scoped).
-	// Use updateConfig for atomic RMW to prevent concurrent probes from
-	// clobbering each other's hidden_models.
-	await updateConfig((cfg) => {
-		const existingHidden = new Set(cfg.hidden_models ?? []);
-		for (const id of broken) existingHidden.add(`${PROVIDER_ROUTEWAY}/${id}`);
-		return { hidden_models: Array.from(existingHidden) };
-	});
-
-	// Re-register so hidden models disappear immediately
-	const filtered = await fetchRoutewayModels(apiKey);
-	stored.free = filtered;
-	stored.all = filtered;
-	reRegister(filtered);
-
-	_logger.info(
-		`Auto-probe: found ${broken.length} broken models (auto-hidden)`,
-	);
-	return broken;
-}
-
-// =============================================================================
 // Extension Entry Point
 // =============================================================================
 
-export default async function routewayProvider(pi: ExtensionAPI) {
-	const apiKey = getRoutewayApiKey();
-
-	if (!apiKey) {
-		_logger.info(
-			"[routeway] Skipping — ROUTEWAY_API_KEY not set. Sign up at https://routeway.ai/",
-		);
-		return;
-	}
-
-	const allModels = await loadCachedOrFetchModels(PROVIDER_ROUTEWAY, () =>
-		fetchRoutewayModels(apiKey),
-	);
-
-	if (allModels.length === 0) {
-		_logger.warn("[routeway] No chat models available");
-		return;
-	}
-
-	const freeModels = allModels.filter((m) =>
-		isFreeModel({ ...m, provider: PROVIDER_ROUTEWAY }, allModels),
-	);
-	const stored = { free: freeModels, all: allModels };
-
-	_logger.info(
-		`[routeway] Registered ${allModels.length} models (${freeModels.length} free)`,
-	);
-
-	const reRegister = createReRegister(pi, {
+export default function routewayProvider(pi: ExtensionAPI): Promise<void> {
+	const initialModels = loadProviderCache(PROVIDER_ROUTEWAY) ?? [];
+	const handle = registerNativeOpenAIProvider(pi, {
 		providerId: PROVIDER_ROUTEWAY,
+		name: "Routeway",
 		baseUrl: BASE_URL_ROUTEWAY,
-		apiKey,
+		auth: routewayAuth,
+		getApiKey: getRoutewayApiKey,
+		getShowPaid: getRoutewayShowPaid,
+		initialModels,
+		fetchModels: async (apiKey, signal) => {
+			const models = await fetchRoutewayModels(apiKey, signal);
+			if (models.length > 0) await saveProviderCache(PROVIDER_ROUTEWAY, models);
+			return models;
+		},
+		tosUrl: "https://routeway.ai/terms",
 	});
 
-	registerWithGlobalToggle(PROVIDER_ROUTEWAY, stored, reRegister, true);
-
-	setupProvider(
-		pi,
-		{
+	const apiKey = getRoutewayApiKey();
+	if (apiKey) {
+		const probe = createOpenAIAvailabilityProbe(
+			PROVIDER_ROUTEWAY,
+			BASE_URL_ROUTEWAY,
+		);
+		registerNativeAvailabilityProbe(pi, {
 			providerId: PROVIDER_ROUTEWAY,
-			initialShowPaid: getRoutewayShowPaid(),
-			tosUrl: "https://routeway.ai/terms",
-			reRegister: (models, _stored) => {
-				if (_stored) {
-					stored.free = _stored.free;
-					stored.all = _stored.all;
-				}
-				reRegister(models);
-			},
-		},
-		stored,
-	);
-
-	// ── Lazy auto-probe on first session_start ──────────────────────
-	let _autoProbeDone = false;
-	pi.on(
-		"session_start",
-		wrapSessionStartHandler("routeway", async () => {
-			if (_autoProbeDone || !apiKey) return;
-			_autoProbeDone = true;
-			if (
-				areAllModelsFresh(
-					PROVIDER_ROUTEWAY,
-					allModels.map((m) => m.id),
-				)
-			) {
-				_logger.info("Auto-probe: Routeway probe cache is fresh");
-				return;
-			}
-			_logger.info("Starting lazy auto-probe of Routeway models...");
-			runRoutewayProbe(apiKey, allModels, stored, reRegister, {
-				useCache: true,
-			}).catch((err) => {
-				_logger.warn("Auto-probe failed", {
-					error: err instanceof Error ? err.message : String(err),
-				});
-			});
-		}),
-	);
-
-	// ── Probe command: test all registered models for 5xx ─────────────
-	pi.registerCommand("probe-routeway", {
-		description:
-			"Test all Routeway models for server errors and auto-hide broken ones",
-		handler: async (_args, ctx) => {
-			if (!apiKey) {
-				ctx.ui.notify("ROUTEWAY_API_KEY not set", "error");
-				return;
-			}
-
-			const modelsToTest = allModels;
-			ctx.ui.notify(`Probing ${modelsToTest.length} Routeway models…`, "info");
-
-			const broken = await runRoutewayProbe(
-				apiKey,
-				modelsToTest,
-				stored,
-				reRegister,
-			);
-			if (broken.length > 0) {
-				ctx.ui.notify(
-					`Found ${broken.length} broken models (auto-hidden):\n${broken.map((id) => `${PROVIDER_ROUTEWAY}/${id}`).join("\n")}`,
-					"warning",
-				);
-			} else {
-				ctx.ui.notify("All Routeway models are routable ✅", "info");
-			}
-		},
-	});
-
-	const showPaid = getRoutewayShowPaid();
-	const initialModels =
-		showPaid && stored.all.length > 0 ? stored.all : freeModels;
-	reRegister(initialModels);
+			label: "Routeway",
+			apiKey,
+			probe,
+			handle,
+		});
+	}
+	return Promise.resolve();
 }

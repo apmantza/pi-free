@@ -10,10 +10,11 @@ import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { getZenmuxApiKey, getZenmuxShowPaid } from "../../config.ts";
 import { BASE_URL_ZENMUX, PROVIDER_ZENMUX } from "../../constants.ts";
 import {
+	filterNativeModels,
 	persistNativeProviderModels,
 	restoreNativeProviderModels,
 } from "../../lib/native-provider.ts";
-import { getGlobalFreeOnly, isFreeModel } from "../../lib/registry.ts";
+import { isFreeModel } from "../../lib/registry.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { zenmuxAuth } from "./zenmux-auth.ts";
 import { fetchZenmuxCatalog, toZenmuxModels } from "./zenmux-models.ts";
@@ -38,18 +39,10 @@ function credentialToken(credential?: Credential): string | undefined {
 export function createZenmuxProvider(): ZenmuxNativeProvider {
 	const streams = openAICompletionsApi();
 	const stored: StoredModels = { free: [], all: [] };
-	let currentView: ZenmuxModel[] = [];
 
-	function decideView(): ProviderModelConfig[] {
-		if (!getGlobalFreeOnly()) {
-			return stored.all.length > 0 ? stored.all : stored.free;
-		}
-		const showPaid = getZenmuxShowPaid();
-		return showPaid && stored.all.length > 0 ? stored.all : stored.free;
-	}
-
-	function setView(models: ProviderModelConfig[]): void {
-		currentView = toZenmuxModels(models);
+	function setView(_models: ProviderModelConfig[]): void {
+		// Re-registration invalidates Pi's filtered availability snapshot; the
+		// complete catalog remains in stored.all.
 	}
 
 	function ingest(
@@ -58,7 +51,6 @@ export function createZenmuxProvider(): ZenmuxNativeProvider {
 	): void {
 		stored.all = toZenmuxModels(enhanceWithCI(all));
 		stored.free = toZenmuxModels(enhanceWithCI(free));
-		setView(decideView());
 	}
 
 	async function refreshModels(context: RefreshModelsContext): Promise<void> {
@@ -70,7 +62,6 @@ export function createZenmuxProvider(): ZenmuxNativeProvider {
 				stored.free = storedModels.filter((model) =>
 					isFreeModel({ ...model, provider: PROVIDER_ZENMUX }, storedModels),
 				);
-				setView(decideView());
 			},
 		);
 
@@ -98,7 +89,13 @@ export function createZenmuxProvider(): ZenmuxNativeProvider {
 			"User-Agent": "pi-free-providers",
 		},
 		auth: zenmuxAuth,
-		getModels: () => currentView,
+		getModels: () =>
+			(stored.all.length > 0 ? stored.all : stored.free) as ZenmuxModel[],
+		filterModels: (models) =>
+			filterNativeModels(PROVIDER_ZENMUX, models, {
+				showPaid: getZenmuxShowPaid(),
+				freeModels: stored.free,
+			}),
 		refreshModels,
 		stream: (model, context, options) =>
 			streams.stream(model, context, options),

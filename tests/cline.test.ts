@@ -44,6 +44,7 @@ vi.mock("../lib/registry.ts", () => ({
 		mockRegisterWithGlobalToggle(...args);
 	},
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
+	getGlobalFreeOnlyForced: () => false,
 	isFreeModel: (m: { cost?: { input?: number } }) => (m.cost?.input ?? 0) === 0,
 }));
 
@@ -208,10 +209,12 @@ describe("Cline factory wiring", () => {
 		// Re-registration reused the SAME native provider object (auth preserved).
 		expect(mockRegisterProvider).toHaveBeenCalledWith(provider);
 
-		// Global /toggle-free showing free -> reRegister(stored.free).
+		// Global /toggle-free showing free invalidates the same provider object;
+		// Pi's filterModels applies the free view to the complete catalog.
 		reRegister(stored.free);
-		expect(provider.getModels().map((m: { id: string }) => m.id)).toEqual([
+		expect(provider.getModels().map((m: { id: string }) => m.id).sort()).toEqual([
 			"free-1",
+			"paid-1",
 		]);
 	});
 
@@ -238,13 +241,15 @@ describe("Cline factory wiring", () => {
 			"info",
 		);
 
-		// Second toggle: all -> free.
+		// Second toggle: all -> free. The complete catalog remains registered;
+		// the filter callback selects the free view in Pi's availability layer.
 		mockGetClineShowPaid.mockReturnValue(true);
 		notify.mockClear();
 		await call[1].handler({}, { ui: { notify } });
 		expect(mockSaveConfig).toHaveBeenCalledWith({ cline_show_paid: false });
-		expect(provider.getModels().map((m: { id: string }) => m.id)).toEqual([
+		expect(provider.getModels().map((m: { id: string }) => m.id).sort()).toEqual([
 			"free-1",
+			"paid-1",
 		]);
 		expect(notify).toHaveBeenCalledWith(
 			expect.stringContaining("showing 1 free models"),

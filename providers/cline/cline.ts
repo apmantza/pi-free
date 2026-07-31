@@ -114,7 +114,9 @@ export default async function clineProvider(pi: ExtensionAPI) {
 	};
 
 	const hasClineKey = !!getClineApiKey();
-	registerWithGlobalToggle(PROVIDER_CLINE, stored, reRegister, hasClineKey);
+	registerWithGlobalToggle(PROVIDER_CLINE, stored, reRegister, hasClineKey, {
+		native: true,
+	});
 
 	registerNativeProviderToggle(pi, {
 		providerId: PROVIDER_CLINE,
