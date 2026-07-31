@@ -7,12 +7,14 @@
  * as zero-cost for pi-free's free-model filter.
  */
 
+import type { Model } from "@earendil-works/pi-ai/compat";
 import { applyHidden } from "../../config.ts";
 import {
 	BASE_URL_CLINE,
 	DEFAULT_FETCH_TIMEOUT_MS,
 	PROVIDER_CLINE,
 } from "../../constants.ts";
+import { isFreeModel } from "../../lib/registry.ts";
 import type { ProviderModelConfig } from "../../lib/types.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import { getProxyModelCompat } from "../../lib/provider-compat.ts";
@@ -257,4 +259,62 @@ export async function fetchClineModels(
  */
 export async function fetchClineFreeModels(): Promise<ProviderModelConfig[]> {
 	return fetchClineModels(true);
+}
+
+// =============================================================================
+// Native provider catalog (createProvider object form)
+// =============================================================================
+
+/**
+ * Fetch the full Cline catalog, split into `{ all, free }` using the shared
+ * adaptive free detection. The catalog is public (no credential required).
+ *
+ * Never throws: on a total failure both arrays are empty so callers can retain
+ * their previous list (poisoning guard) and recover on a later refresh. Honors
+ * the shared abort signal between fetch and split.
+ */
+export async function fetchClineCatalog(options?: {
+	signal?: AbortSignal;
+}): Promise<{ all: ProviderModelConfig[]; free: ProviderModelConfig[] }> {
+	let all: ProviderModelConfig[];
+	try {
+		all = await fetchClineModels(false);
+	} catch {
+		all = [];
+	}
+
+	if (options?.signal?.aborted) {
+		return { all: [], free: [] };
+	}
+
+	const free = all.filter((m) =>
+		isFreeModel({ ...m, provider: PROVIDER_CLINE }, all),
+	);
+	return { all, free };
+}
+
+/**
+ * Convert a fetched ProviderModelConfig into the concrete pi-ai
+ * `Model<"cline-xml-tools">` shape a native provider's getModels() returns.
+ * Adds the provider id, the custom wire api, and the gateway baseUrl that the
+ * legacy registerProvider config form used to supply implicitly.
+ */
+export function toClineModel(
+	m: ProviderModelConfig,
+): Model<"cline-xml-tools"> {
+	return {
+		...m,
+		api: "cline-xml-tools",
+		provider: PROVIDER_CLINE,
+		// The legacy registration supplied a single provider-level baseUrl;
+		// every Cline model shares the Cline gateway.
+		baseUrl: BASE_URL_CLINE,
+	} as Model<"cline-xml-tools">;
+}
+
+/** Convert a batch of model configs to native Model objects. */
+export function toClineModels(
+	models: ProviderModelConfig[],
+): Model<"cline-xml-tools">[] {
+	return models.map(toClineModel);
 }

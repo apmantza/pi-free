@@ -45,7 +45,11 @@ index.ts                          ← Extension entry point (piFreeEntry)
       ├─ kilo/kilo-provider.ts    ← assembles the native Provider (offline-init store + toggle view)
       ├─ kilo/kilo-auth.ts        ← native ProviderAuth (API key + OAuth device flow)
       ├─ kilo/kilo-models.ts      ← catalog fetch + Model conversion + compat shaping
-      ├─ cline/cline.ts           ← Cline bot (OAuth, message reshaping for Cline API)
+      ├─ cline/cline.ts           ← Cline (native createProvider port: factory, toggle wiring)
+      ├─ cline/cline-provider.ts  ← assembles the native Provider (offline-init store + toggle view)
+      ├─ cline/cline-auth.ts      ← native ProviderAuth (API key + OAuth callback-server flow)
+      ├─ cline/cline-models.ts    ← public catalog fetch + Model conversion
+      ├─ cline/cline-xml-bridge.ts ← message reshaping for the Cline API (stream + streamSimple)
       ├─ novita/novita.ts         ← Novita AI (paid credits)
       ├─ ollama/ollama.ts         ← Ollama Cloud (usage-based free tier, 403 probing)
       ├─ routeway/routeway.ts     ← RouteWay AI (paid)
@@ -111,17 +115,23 @@ export default async function providerName(pi: ExtensionAPI) {
 }
 ```
 
-**Cache-first loading.** Network-fetching extension providers register from the disk cache (`~/.pi/provider-cache.json`, 1-hour TTL via `lib/provider-cache.ts`) first and only hit the network on a cold or stale cache, so warm startups make no network calls. The dynamic built-in phase (including publicly discoverable FastRouter) runs concurrently with the static providers inside `piFreeEntry`'s single `Promise.allSettled`, not sequentially after it. OpenRouter is owned by Pi and is not dynamically registered by pi-free. **Kilo is the exception**: it uses Pi's native models store (`~/.pi/agent/models-store.json`) via `refreshModels`, not `lib/provider-cache.ts` (see below).
+**Cache-first loading.** Network-fetching extension providers register from the disk cache (`~/.pi/provider-cache.json`, 1-hour TTL via `lib/provider-cache.ts`) first and only hit the network on a cold or stale cache, so warm startups make no network calls. The dynamic built-in phase (including publicly discoverable FastRouter) runs concurrently with the static providers inside `piFreeEntry`'s single `Promise.allSettled`, not sequentially after it. OpenRouter is owned by Pi and is not dynamically registered by pi-free. **Kilo and Cline are the exceptions**: they use Pi's native models store (`~/.pi/agent/models-store.json`) via `refreshModels`, not `lib/provider-cache.ts` (see below).
 
-### Native `createProvider` providers (reference: Kilo)
+### Native `createProvider` providers (Kilo + Cline)
 
-Kilo is the reference port to Pi's modern provider API (Pi `>=0.81.0`). Instead of the legacy `registerProvider(id, { baseUrl, apiKey, models, oauth })` form, it builds a native pi-ai `Provider` object and registers it via the single-argument `registerProvider(provider)`. Pi then owns credential refresh, background model refresh (4h throttle, abortable), and offline initialization — so the extension factory performs **no network I/O** for Kilo and no longer owns any of Pi's startup critical path.
+Kilo and Cline are ports to Pi's modern provider API (Pi `>=0.81.0`) — Kilo is the original reference, Cline is the second data point proving the pattern. Instead of the legacy `registerProvider(id, { baseUrl, apiKey, models, oauth })` form, each builds a native pi-ai `Provider` object and registers it via the single-argument `registerProvider(provider)`. Pi then owns credential refresh, background model refresh (4h throttle, abortable), and offline initialization — so the extension factory performs **no network I/O** for these providers and no longer owns any of Pi's startup critical path.
 
 ```
 providers/kilo/kilo-provider.ts   ← createKiloProvider(): assembles the Provider
 providers/kilo/kilo-auth.ts       ← native ProviderAuth (apiKey + OAuth device flow)
 providers/kilo/kilo-models.ts     ← fetchKiloCatalog + toKiloModel(s) + compat shaping
 providers/kilo/kilo.ts            ← factory: register, toggle wiring, XML-leak handler
+
+providers/cline/cline-provider.ts ← createClineProvider(): assembles the Provider
+providers/cline/cline-auth.ts     ← native ProviderAuth (apiKey + OAuth callback-server flow)
+providers/cline/cline-models.ts   ← fetchClineCatalog + toClineModel(s) (public catalog)
+providers/cline/cline.ts          ← factory: register, toggle wiring, task-id rotation
+providers/cline/cline-xml-bridge.ts ← unchanged message reshaping (stream + streamSimple)
 ```
 
 Key points of the pattern (the recipe for porting other unique providers):
@@ -130,7 +140,14 @@ Key points of the pattern (the recipe for porting other unique providers):
 - `refreshModels(context)`: always `await context.store.read()` first (offline init — `allowNetwork:false` stops here); when `allowNetwork:true`, fetch with `context.credential` (Pi refreshes OAuth before calling), honor `context.signal`, retain the previous list on an empty/failed fetch (poisoning guard), then `context.store.write({ models, checkedAt })`. No internal freshness gating — Pi owns the throttle and `force` (`pi update --models`), so the two never double-throttle.
 - Native `auth`: `apiKey.resolve` returns `credential?.key ?? getKiloApiKey()` (ambient env/config); `oauth` implements `login(interaction)` (device flow via `interaction.notify`), `refresh(credential)` (Kilo tokens are long-lived; expired → throw, re-login fixes), and `toAuth(credential)` → `{ apiKey: credential.access }`. Credentials persist to `~/.pi/agent/auth.json` — the same store the legacy `/login kilo` already used, so existing OAuth users need no migration.
 - The free/paid toggle stays on `registerWithGlobalToggle`: its `reRegister(models)` calls `setView(models)` and re-registers the **same** native provider object (upsert by id), which republishes the chosen catalog without dropping native auth. This keeps `/toggle-kilo` and the global `/toggle-free` working. Native `filterModels` is a possible follow-up but was not adopted because it must compose with the cross-provider global toggle.
-- Because the dev lockfile can lag the declared peer minimum, `kilo.ts` registers through a small documented `NativeRegistrar` type bridge; the source type-checks against both the pinned dev snapshot and the declared `>=0.81.0` runtime.
+- Because the dev lockfile can lag the declared peer minimum, `kilo.ts` and `cline.ts` register through a small documented `NativeRegistrar` type bridge; the source type-checks against both the pinned dev snapshot and the declared `>=0.81.0` runtime.
+
+Cline-specific deviations from the Kilo reference (porting recipe supplements):
+
+- **Custom wire api.** Cline models use the custom `"cline-xml-tools"` api, not `openai-completions`. The native `Provider` requires both `stream` and `streamSimple`; both dispatch to the XML bridge (`streamClineXml`) with per-request headers — exactly how the legacy composer routed both entry points to the extension's `streamSimple` for a custom api. The bridge (the outgoing-message reshaping) is carried over verbatim and is registration-shape-independent.
+- **Public catalog auth.** Cline's model catalog needs no credential (legacy fetched it logged-out, so models appeared before `/login cline`). Pi's `Models.refresh()` skips providers whose auth does not resolve — a Kilo-style `resolve` (undefined when unconfigured) would leave logged-out users with no models at all. So Cline's `apiKey.resolve` always succeeds, returning an empty `auth` when no key exists (Pi's sanctioned keyless pattern — the pi-ai `faux` provider does the same), and intentionally has no `apiKey.check`: Pi runs that check before availability filtering and would hide the public catalog before `/login cline`. Chat requests without a token still fail fast in the XML bridge with an actionable message.
+- **Legacy OAuth flow adapter.** Cline's OAuth is a local callback-server flow written against the legacy `OAuthLoginCallbacks` surface. Rather than rewrite it, `cline-auth.ts` adapts it to the native `AuthInteraction` with the exact mapping Pi's own legacy-OAuth adapter (`provider-composer` `adaptOAuth`) uses — `onAuth` → `auth_url` notify, `onProgress` → `progress` notify, `onManualCodeInput` → `manual_code` prompt — and tags results `type: "oauth"`. `refresh` delegates to the proven `refreshClineToken`; `toAuth` applies the `workos:` bearer prefix (legacy `getApiKey`).
+- **Request-scoped headers.** Cline's VS Code-spoofing headers include a mutable `X-Task-ID`, so they are built per request inside the stream closures (not static `Provider.headers`); `before_agent_start` only rotates the task id — the legacy re-register-for-headers is redundant when headers are request-scoped.
 
 ### Free Model Detection (isFreeModel)
 
@@ -193,8 +210,8 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 - **Extension log:** `~/.pi/free.log`
 - **Model match log:** `~/.pi/modelmatch.log`
 - **Provider cache:** `~/.pi/provider-cache.json` (all cache-first providers except Kilo)
-- **Native models store:** `~/.pi/agent/models-store.json` (Kilo, owned by Pi)
-- **Native auth store:** `~/.pi/agent/auth.json` (Kilo OAuth/API key, owned by Pi)
+- **Native models store:** `~/.pi/agent/models-store.json` (Kilo + Cline, owned by Pi)
+- **Native auth store:** `~/.pi/agent/auth.json` (Kilo + Cline OAuth/API key, owned by Pi)
 
 ---
 
@@ -210,7 +227,7 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 8. **Error handling is graceful** — providers that fail at startup are silently skipped
 9. **Model filtering happens at fetch time** — small models (< 30B, < 70B for NVIDIA) are filtered
 10. **All providers use `enhanceWithCI()`** before registration to add CI scores
-11. **Network-fetching extension providers are cache-first** (1h TTL via `lib/provider-cache.ts`); the first run after install or after the TTL fetches live, subsequent runs serve cache. Pi's built-in OpenRouter provider is not managed by this cache. **Kilo is the exception** — it is a native `createProvider` provider that uses Pi's models store + `refreshModels` (see “Native createProvider providers”).
+11. **Network-fetching extension providers are cache-first** (1h TTL via `lib/provider-cache.ts`); the first run after install or after the TTL fetches live, subsequent runs serve cache. Pi's built-in OpenRouter provider is not managed by this cache. **Kilo and Cline are the exceptions** — they are native `createProvider` providers that use Pi's models store + `refreshModels` (see “Native createProvider providers”).
 12. **Startup model fetches are deadline-bounded** — `loadCachedOrFetchModels` (and Cline's fetch) wrap the network fetch in `STARTUP_FETCH_DEADLINE_MS` (8s, override `PI_FREE_STARTUP_FETCH_TIMEOUT_MS`) via `withFetchDeadline` in `lib/util.ts`. On a cold/stale cache a dead provider API cannot stall Pi session start; the deadline falls back to the stale cache (or an empty list on a true cold start) and refreshes on `session_start`. Warm cache never touches the network.
 
 ---
@@ -237,7 +254,7 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 
 **Authentication notes:**
 
-- **Kilo** and **Cline** support both OAuth (`/login`) and direct API keys. Set `KILO_API_KEY` / `CLINE_API_KEY` (or `kilo_api_key` / `cline_api_key` in `~/.pi/free.json`) to skip OAuth and authenticate directly. When an API key is configured, the provider registers without OAuth and uses the key for model fetching and chat requests.
+- **Kilo** and **Cline** support both OAuth (`/login`) and direct API keys. Set `KILO_API_KEY` / `CLINE_API_KEY` (or `kilo_api_key` / `cline_api_key` in `~/.pi/free.json`) to authenticate directly. Both are native `createProvider` providers: their native auth always carries both methods, and Pi's resolution order applies — a stored credential (from `/login`) wins, then the ambient API key. Cline's catalog fetch is public (unauthenticated) either way.
 
 ---
 
