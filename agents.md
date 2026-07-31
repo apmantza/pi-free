@@ -183,7 +183,7 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 | ----------- | -------------------------------------------------- | ----------------- | -------------------------------- |
 | ✅ Free / free-tier | kilo, cline, llm7, openmodel, tokenrouter, qoder basic | OAuth, API key, or none | Free models or tier; toggles can expose paid models |
 | 🔄 Freemium | anyapi, ollama-cloud, sambanova | API key | Free allowance with limits |
-| 💳 Paid / trial | zenmux, crofai, deepinfra, novita, routeway, bai, qoder premium | API key, OAuth, or credits | Paid access, trial credit, or premium tier |
+| 💳 Paid / trial | zenmux, crofai, deepinfra, novita, routeway, opengateway, bai, qoder premium | API key, OAuth, or credits | Paid access, trial credit, or premium tier |
 | 🔧 Dynamic / built-in | opencode, opencode-go, fastrouter, openrouter | Built-in Pi auth or API key | Built-in toggles or dynamic catalog discovery |
 
 ---
