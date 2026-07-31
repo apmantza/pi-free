@@ -27,11 +27,13 @@ vi.mock("../config.ts", () => ({
 	getKiloApiKey: () => mockGetKiloApiKey(),
 	getKiloShowPaid: () => mockGetKiloShowPaid(),
 	getKiloFreeOnly: () => mockGetKiloFreeOnly(),
+	applyHidden: (models: unknown[]) => models,
 	PROVIDER_KILO: "kilo",
 }));
 
 vi.mock("../lib/registry.ts", () => ({
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
+	getGlobalFreeOnlyForced: () => false,
 	isFreeModel: (m: { cost?: { input?: number } }) => (m.cost?.input ?? 0) === 0,
 }));
 
@@ -173,9 +175,10 @@ describe("refreshModels offline init", () => {
 		await provider.refreshModels?.(ctx({ store, allowNetwork: false }));
 
 		expect(mockFetchKiloCatalog).not.toHaveBeenCalled();
-		// Global free-only on + no show_paid => free models only.
+		// getModels exposes the complete catalog; Pi applies filterModels.
 		const models = provider.getModels();
-		expect(models.map((m) => m.id)).toEqual(["a"]);
+		expect(models.map((m) => m.id).sort()).toEqual(["a", "b"]);
+		expect(provider.filterModels!(models, undefined).map((m) => m.id)).toEqual(["a"]);
 	});
 
 	it("stays empty when the store is empty and network is disallowed", async () => {
@@ -221,8 +224,9 @@ describe("refreshModels online", () => {
 		// Catalogs populated for the toggle.
 		expect(stored.all).toHaveLength(2);
 		expect(stored.free).toHaveLength(1);
-		// Free-only view by default.
-		expect(provider.getModels().map((m) => m.id)).toEqual(["a"]);
+		// getModels exposes the complete catalog; Pi applies filterModels.
+		expect(provider.getModels().map((m) => m.id).sort()).toEqual(["a", "b"]);
+		expect(provider.filterModels!(provider.getModels(), undefined).map((m) => m.id)).toEqual(["a"]);
 	});
 
 	it("passes the OAuth access token from context.credential to the fetcher", async () => {
@@ -321,36 +325,35 @@ describe("toggle interop", () => {
 		return handle;
 	}
 
-	it("setView swaps the visible catalog (what /toggle-kilo and /toggle-free drive)", async () => {
+	it("keeps the full catalog while filterModels selects the free view", async () => {
 		const { provider, stored, setView } = await seededProvider();
-		expect(provider.getModels().map((m) => m.id)).toEqual(["a"]);
-
-		// reRegister(stored.all) -> setView(stored.all) + re-register.
-		setView(stored.all);
 		expect(provider.getModels().map((m) => m.id).sort()).toEqual(["a", "b"]);
+		expect(provider.filterModels!(provider.getModels(), undefined).map((m) => m.id)).toEqual(["a"]);
 
-		// And back to free.
+		// Re-registration is now an availability-snapshot invalidation signal.
+		setView(stored.all);
 		setView(stored.free);
-		expect(provider.getModels().map((m) => m.id)).toEqual(["a"]);
+		expect(provider.getModels().map((m) => m.id).sort()).toEqual(["a", "b"]);
+		expect(provider.filterModels!(provider.getModels(), undefined).map((m) => m.id)).toEqual(["a"]);
 	});
 
 	it("decideView shows all when per-provider show_paid is set under global free-only", async () => {
 		mockGetKiloShowPaid.mockReturnValue(true);
 		const { provider } = await seededProvider();
-		// show_paid true + global free-only true => all models.
-		expect(provider.getModels().map((m) => m.id).sort()).toEqual(["a", "b"]);
+		// show_paid true + global free-only true => filterModels returns all.
+		expect(provider.filterModels!(provider.getModels(), undefined).map((m) => m.id).sort()).toEqual(["a", "b"]);
 	});
 
-	it("decideView shows all when global free-only is off", async () => {
+	it("filterModels shows all when global free-only is off", async () => {
 		mockGetGlobalFreeOnly.mockReturnValue(false);
 		const { provider } = await seededProvider();
-		expect(provider.getModels().map((m) => m.id).sort()).toEqual(["a", "b"]);
+		expect(provider.filterModels!(provider.getModels(), undefined).map((m) => m.id).sort()).toEqual(["a", "b"]);
 	});
 
-	it("decideView forces free when kilo_free_only is set", async () => {
+	it("filterModels forces free when kilo_free_only is set", async () => {
 		mockGetKiloFreeOnly.mockReturnValue(true);
 		mockGetKiloShowPaid.mockReturnValue(true);
 		const { provider } = await seededProvider();
-		expect(provider.getModels().map((m) => m.id)).toEqual(["a"]);
+		expect(provider.filterModels!(provider.getModels(), undefined).map((m) => m.id)).toEqual(["a"]);
 	});
 });

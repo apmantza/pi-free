@@ -13,6 +13,7 @@ import type {
 import { getOllamaApiKey, getOllamaShowPaid } from "../../config.ts";
 import { BASE_URL_OLLAMA, PROVIDER_OLLAMA } from "../../constants.ts";
 import {
+	filterNativeModels,
 	refreshNativeProviderModels,
 	registerNativeProvider,
 	registerNativeProviderRefresh,
@@ -24,10 +25,7 @@ import {
 	saveProviderCache,
 } from "../../lib/provider-cache.ts";
 import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
-import {
-	getGlobalFreeOnly,
-	registerWithGlobalToggle,
-} from "../../lib/registry.ts";
+import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { ollamaAuth } from "./ollama-auth.ts";
 
@@ -83,18 +81,10 @@ export function createOllamaProvider(
 ): OllamaNativeProvider {
 	const streams = openAICompletionsApi();
 	const stored: StoredModels = { free: [], all: [] };
-	let currentView: OllamaModel[] = [];
 
-	function decideView(): ProviderModelConfig[] {
-		if (!getGlobalFreeOnly()) {
-			return stored.all.length > 0 ? stored.all : stored.free;
-		}
-		const showPaid = getOllamaShowPaid();
-		return showPaid && stored.all.length > 0 ? stored.all : stored.free;
-	}
-
-	function setView(models: ProviderModelConfig[]): void {
-		currentView = toOllamaModels(models);
+	function setView(_models: ProviderModelConfig[]): void {
+		// Re-registration invalidates Pi's filtered availability snapshot; the
+		// complete catalog remains in stored.all.
 	}
 
 	function ingest(
@@ -103,7 +93,6 @@ export function createOllamaProvider(
 	): void {
 		stored.all = toOllamaModels(enhanceWithCI(all, PROVIDER_OLLAMA));
 		stored.free = toOllamaModels(enhanceWithCI(free, PROVIDER_OLLAMA));
-		setView(decideView());
 	}
 
 	ingest(initialModels, initialModels);
@@ -111,7 +100,6 @@ export function createOllamaProvider(
 	function restoreStoredModels(storedModels: OllamaModel[]): void {
 		stored.all = storedModels;
 		stored.free = storedModels;
-		setView(decideView());
 	}
 
 	async function refreshOllamaModels(
@@ -135,7 +123,6 @@ export function createOllamaProvider(
 			(models) => {
 				stored.all = models;
 				stored.free = models;
-				setView(decideView());
 			},
 		);
 	}
@@ -146,7 +133,13 @@ export function createOllamaProvider(
 		baseUrl: BASE_URL_OLLAMA,
 		headers: { "User-Agent": "pi-free-providers" },
 		auth: ollamaAuth,
-		getModels: () => currentView,
+		getModels: () =>
+			(stored.all.length > 0 ? stored.all : stored.free) as OllamaModel[],
+		filterModels: (models) =>
+			filterNativeModels(PROVIDER_OLLAMA, models, {
+				showPaid: getOllamaShowPaid(),
+				freeModels: stored.free,
+			}),
 		refreshModels: refreshOllamaModels,
 		stream: (model, context, options) =>
 			streams.stream(model, context, options),
@@ -187,6 +180,7 @@ export function registerOllamaProvider(
 		stored,
 		reRegister,
 		Boolean(getOllamaApiKey()),
+		{ native: true },
 	);
 	registerNativeProviderToggle(pi, {
 		providerId: PROVIDER_OLLAMA,

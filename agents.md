@@ -115,11 +115,11 @@ export default async function providerName(pi: ExtensionAPI) {
 }
 ```
 
-**Cache-first loading.** Network-fetching extension providers register from the disk cache (`~/.pi/provider-cache.json`, 1-hour TTL via `lib/provider-cache.ts`) first and only hit the network on a cold or stale cache, so warm startups make no network calls. The dynamic built-in phase (including publicly discoverable FastRouter) runs concurrently with the static providers inside `piFreeEntry`'s single `Promise.allSettled`, not sequentially after it. OpenRouter is owned by Pi and is not dynamically registered by pi-free. **Kilo and Cline are the exceptions**: they use Pi's native models store (`~/.pi/agent/models-store.json`) via `refreshModels`, not `lib/provider-cache.ts` (see below).
+**Cache-first loading.** Network-fetching extension providers register from the disk cache (`~/.pi/provider-cache.json`, 1-hour TTL via `lib/provider-cache.ts`) first and only hit the network on a cold or stale cache, so warm startups make no network calls. The dynamic built-in phase (including publicly discoverable FastRouter) runs concurrently with the static providers inside `piFreeEntry`'s single `Promise.allSettled`, not sequentially after it. OpenRouter is owned by Pi and is not dynamically registered by pi-free. **Native providers** use Pi's models store (`~/.pi/agent/models-store.json`) via `refreshModels`; remaining legacy/dynamic providers use `lib/provider-cache.ts` (see below).
 
-### Native `createProvider` providers (Kilo + Cline)
+### Native `Provider` providers
 
-Kilo and Cline are ports to Pi's modern provider API (Pi `>=0.81.0`) — Kilo is the original reference, Cline is the second data point proving the pattern. Instead of the legacy `registerProvider(id, { baseUrl, apiKey, models, oauth })` form, each builds a native pi-ai `Provider` object and registers it via the single-argument `registerProvider(provider)`. Pi then owns credential refresh, background model refresh (4h throttle, abortable), and offline initialization — so the extension factory performs **no network I/O** for these providers and no longer owns any of Pi's startup critical path.
+Kilo, Cline, LLM7, ZenMux, TokenRouter, Ollama Cloud, B.AI, AnyAPI, CrofAI, SambaNova, Novita, DeepInfra, Routeway, and OpenModel use Pi's modern provider API (Pi `>=0.81.0`). Instead of the legacy `registerProvider(id, { baseUrl, apiKey, models, oauth })` form, each builds a native pi-ai `Provider` object and registers it via the single-argument `registerProvider(provider)`. Pi then owns credential refresh, background model refresh (4h throttle, abortable), and offline initialization — so these extension factories perform no catalog network I/O on startup.
 
 ```
 providers/kilo/kilo-provider.ts   ← createKiloProvider(): assembles the Provider
@@ -136,10 +136,10 @@ providers/cline/cline-xml-bridge.ts ← unchanged message reshaping (stream + st
 
 Key points of the pattern (the recipe for porting other unique providers):
 
-- The `Provider` is assembled **directly against the public `Provider` interface** (the same shape `createProvider()` returns) rather than via the `createProvider` helper: that helper unconditionally merges its stored dynamic overlay on top of the static baseline on every refresh, which would clobber pi-free's re-registration based free/paid toggle. Assembling directly keeps `getModels()` returning exactly the catalog pi-free chose to show.
+- The `Provider` is assembled **directly against the public `Provider` interface** (the same shape `createProvider()` returns) rather than via the `createProvider` helper: that helper unconditionally merges its stored dynamic overlay on top of the static baseline on every refresh. Native providers keep the complete catalog in `getModels()` and apply the free/paid policy through `filterModels`, so refreshes cannot clobber the selected view.
 - `refreshModels(context)`: always `await context.store.read()` first (offline init — `allowNetwork:false` stops here); when `allowNetwork:true`, fetch with `context.credential` (Pi refreshes OAuth before calling), honor `context.signal`, retain the previous list on an empty/failed fetch (poisoning guard), then `context.store.write({ models, checkedAt })`. No internal freshness gating — Pi owns the throttle and `force` (`pi update --models`), so the two never double-throttle.
 - Native `auth`: `apiKey.resolve` returns `credential?.key ?? getKiloApiKey()` (ambient env/config); `oauth` implements `login(interaction)` (device flow via `interaction.notify`), `refresh(credential)` (Kilo tokens are long-lived; expired → throw, re-login fixes), and `toAuth(credential)` → `{ apiKey: credential.access }`. Credentials persist to `~/.pi/agent/auth.json` — the same store the legacy `/login kilo` already used, so existing OAuth users need no migration.
-- The free/paid toggle stays on `registerWithGlobalToggle`: its `reRegister(models)` calls `setView(models)` and re-registers the **same** native provider object (upsert by id), which republishes the chosen catalog without dropping native auth. This keeps `/toggle-kilo` and the global `/toggle-free` working. Native `filterModels` is a possible follow-up but was not adopted because it must compose with the cross-provider global toggle.
+- The free/paid toggle stays coordinated by `registerWithGlobalToggle`: native `reRegister(models)` re-registers the **same** provider object (upsert by id) to invalidate Pi's availability snapshot, while `filterModels` selects the complete catalog view. This keeps per-provider toggles and the global `/toggle-free` working without rebuilding model arrays.
 - Because the dev lockfile can lag the declared peer minimum, `kilo.ts` and `cline.ts` register through a small documented `NativeRegistrar` type bridge; the source type-checks against both the pinned dev snapshot and the declared `>=0.81.0` runtime.
 
 Cline-specific deviations from the Kilo reference (porting recipe supplements):
@@ -209,9 +209,9 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 - **Config:** `~/.pi/free.json` (auto-created)
 - **Extension log:** `~/.pi/free.log`
 - **Model match log:** `~/.pi/modelmatch.log`
-- **Provider cache:** `~/.pi/provider-cache.json` (all cache-first providers except Kilo)
-- **Native models store:** `~/.pi/agent/models-store.json` (Kilo + Cline, owned by Pi)
-- **Native auth store:** `~/.pi/agent/auth.json` (Kilo + Cline OAuth/API key, owned by Pi)
+- **Provider cache:** `~/.pi/provider-cache.json` (legacy/dynamic providers only)
+- **Native models store:** `~/.pi/agent/models-store.json` (all native providers, owned by Pi)
+- **Native auth store:** `~/.pi/agent/auth.json` (native-provider credentials, owned by Pi)
 
 ---
 
@@ -227,7 +227,7 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 8. **Error handling is graceful** — providers that fail at startup are silently skipped
 9. **Model filtering happens at fetch time** — small models (< 30B, < 70B for NVIDIA) are filtered
 10. **All providers use `enhanceWithCI()`** before registration to add CI scores
-11. **Network-fetching extension providers are cache-first** (1h TTL via `lib/provider-cache.ts`); the first run after install or after the TTL fetches live, subsequent runs serve cache. Pi's built-in OpenRouter provider is not managed by this cache. **Kilo and Cline are the exceptions** — they are native `createProvider` providers that use Pi's models store + `refreshModels` (see “Native createProvider providers”).
+11. **Legacy network-fetching extension providers are cache-first** (1h TTL via `lib/provider-cache.ts`); native providers use Pi's models store + `refreshModels` instead. Pi's built-in OpenRouter provider is not managed by either extension cache.
 12. **Startup model fetches are deadline-bounded** — `loadCachedOrFetchModels` (and Cline's fetch) wrap the network fetch in `STARTUP_FETCH_DEADLINE_MS` (8s, override `PI_FREE_STARTUP_FETCH_TIMEOUT_MS`) via `withFetchDeadline` in `lib/util.ts`. On a cold/stale cache a dead provider API cannot stall Pi session start; the deadline falls back to the stale cache (or an empty list on a true cold start) and refreshes on `session_start`. Warm cache never touches the network.
 
 ---

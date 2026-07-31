@@ -41,6 +41,7 @@ vi.mock("../lib/registry.ts", () => ({
 		mockRegisterWithGlobalToggle(...args);
 	},
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
+	getGlobalFreeOnlyForced: () => false,
 	isFreeModel: (m: { cost?: { input?: number } }) => (m.cost?.input ?? 0) === 0,
 }));
 
@@ -162,10 +163,12 @@ describe("Kilo toggle interop", () => {
 		// Re-registration reused the SAME native provider object (auth preserved).
 		expect(mockRegisterProvider).toHaveBeenCalledWith(provider);
 
-		// Global /toggle-free showing free -> reRegister(stored.free).
+		// Global /toggle-free showing free invalidates the same provider object;
+		// Pi's filterModels applies the free view to the complete catalog.
 		reRegister(stored.free);
-		expect(provider.getModels().map((m: { id: string }) => m.id)).toEqual([
+		expect(provider.getModels().map((m: { id: string }) => m.id).sort()).toEqual([
 			"free-1",
+			"paid-1",
 		]);
 	});
 

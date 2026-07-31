@@ -20,6 +20,8 @@ interface ProviderEntry {
 	stored: { free: ProviderModelConfig[]; all: ProviderModelConfig[] };
 	reRegister: (models: ProviderModelConfig[]) => void;
 	hasKey: boolean;
+	/** Native providers keep the complete catalog and filter it in Pi. */
+	native?: boolean;
 }
 
 // =============================================================================
@@ -28,6 +30,7 @@ interface ProviderEntry {
 
 const providerRegistry = new Map<string, ProviderEntry>();
 let globalFreeOnly = getFreeOnly();
+let globalFreeOnlyForced = false;
 
 // =============================================================================
 // Free-model detection
@@ -152,12 +155,14 @@ export function registerWithGlobalToggle(
 	stored: { free: ProviderModelConfig[]; all: ProviderModelConfig[] },
 	reRegister: (models: ProviderModelConfig[]) => void,
 	hasKey: boolean = false,
+	options: { native?: boolean } = {},
 ): void {
 	providerRegistry.set(providerId, {
 		id: providerId,
 		stored,
 		reRegister,
 		hasKey,
+		native: options.native,
 	});
 	_logger.info(
 		`[pi-free] Registered ${providerId} with global toggle (${stored.free.length} free, ${stored.all.length} total)`,
@@ -167,6 +172,11 @@ export function registerWithGlobalToggle(
 /** Get current global free-only state */
 export function getGlobalFreeOnly(): boolean {
 	return globalFreeOnly;
+}
+
+/** Whether the current global toggle explicitly overrides provider paid views. */
+export function getGlobalFreeOnlyForced(): boolean {
+	return globalFreeOnlyForced;
 }
 
 /** Access the raw registry (used by /free-providers command) */
@@ -195,6 +205,23 @@ function applyFilterToProvider(
 	freeOnly: boolean,
 	force: boolean,
 ): void {
+	if (entry.native) {
+		// Native providers expose their complete catalog through getModels().
+		// Re-register the same object only to invalidate Pi's availability
+		// snapshot; the provider's filterModels callback selects the view.
+		entry.reRegister(
+			freeOnly
+				? entry.stored.free
+				: entry.stored.all.length > 0
+					? entry.stored.all
+					: entry.stored.free,
+		);
+		_logger.info(
+			`[pi-free] ${providerId}: invalidated native model filter (${freeOnly ? "free" : "all"}${force ? ", forced" : ""})`,
+		);
+		return;
+	}
+
 	if (freeOnly) {
 		if (!force && getProviderShowPaid(providerId)) {
 			showAllForProvider(providerId, entry);
@@ -222,6 +249,7 @@ export function applyGlobalFilter(
 	options: { force?: boolean } = {},
 ): void {
 	globalFreeOnly = freeOnly;
+	globalFreeOnlyForced = freeOnly && options.force === true;
 	void saveConfig({ free_only: freeOnly });
 
 	for (const [providerId, entry] of providerRegistry) {

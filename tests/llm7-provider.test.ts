@@ -35,6 +35,7 @@ vi.mock("../config.ts", () => ({
 
 vi.mock("../lib/registry.ts", () => ({
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
+	getGlobalFreeOnlyForced: () => false,
 	isFreeModel: (m: { cost?: { input?: number } }) => (m.cost?.input ?? 0) === 0,
 }));
 
@@ -256,8 +257,13 @@ describe("refreshModels offline init", () => {
 		await provider.refreshModels?.(ctx({ store, allowNetwork: false }));
 
 		expect(mockFetch).not.toHaveBeenCalled();
-		// Global free-only on + no show_paid => free selectors only.
+		// getModels exposes the complete catalog; Pi applies filterModels.
 		expect(provider.getModels().map((m) => m.id)).toEqual([
+			"default",
+			"fast",
+			"pro",
+		]);
+		expect(provider.filterModels!(provider.getModels(), undefined).map((m) => m.id)).toEqual([
 			"default",
 			"fast",
 		]);
@@ -328,8 +334,13 @@ describe("refreshModels online", () => {
 		// Catalogs populated for the toggle.
 		expect(stored.all.map((m) => m.id)).toEqual(["default", "fast", "pro"]);
 		expect(stored.free.map((m) => m.id)).toEqual(["default", "fast"]);
-		// Free-only view by default.
+		// getModels exposes the complete catalog; Pi applies filterModels.
 		expect(provider.getModels().map((m) => m.id)).toEqual([
+			"default",
+			"fast",
+			"pro",
+		]);
+		expect(provider.filterModels!(provider.getModels(), undefined).map((m) => m.id)).toEqual([
 			"default",
 			"fast",
 		]);
@@ -381,12 +392,13 @@ describe("refreshModels online", () => {
 		expect(provider.getModels().map((m) => m.id)).toEqual([
 			"default",
 			"fast",
+			"pro",
 		]);
 	});
 });
 
 // ---------------------------------------------------------------------------
-// Toggle interop (setView / decideView)
+// Toggle interop (setView / filterModels)
 // ---------------------------------------------------------------------------
 
 describe("toggle interop", () => {
@@ -397,24 +409,26 @@ describe("toggle interop", () => {
 		return handle;
 	}
 
-	it("setView swaps the visible catalog (what /toggle-llm7 and /toggle-free drive)", async () => {
+	it("keeps the full catalog while filterModels selects the free view", async () => {
 		const { provider, stored, setView } = await seededProvider();
-		expect(provider.getModels().map((m) => m.id)).toEqual([
-			"default",
-			"fast",
-		]);
-
-		// reRegister(stored.all) -> setView(stored.all) + re-register.
-		setView(stored.all);
 		expect(provider.getModels().map((m) => m.id)).toEqual([
 			"default",
 			"fast",
 			"pro",
 		]);
+		expect(provider.filterModels!(provider.getModels(), undefined).map((m) => m.id)).toEqual([
+			"default",
+			"fast",
+		]);
 
-		// And back to free.
+		setView(stored.all);
 		setView(stored.free);
 		expect(provider.getModels().map((m) => m.id)).toEqual([
+			"default",
+			"fast",
+			"pro",
+		]);
+		expect(provider.filterModels!(provider.getModels(), undefined).map((m) => m.id)).toEqual([
 			"default",
 			"fast",
 		]);
@@ -423,8 +437,8 @@ describe("toggle interop", () => {
 	it("decideView shows all when per-provider show_paid is set under global free-only", async () => {
 		mockGetLlm7ShowPaid.mockReturnValue(true);
 		const { provider } = await seededProvider();
-		// show_paid true + global free-only true => all models.
-		expect(provider.getModels().map((m) => m.id)).toEqual([
+		// show_paid true + global free-only true => filterModels returns all.
+		expect(provider.filterModels!(provider.getModels(), undefined).map((m) => m.id)).toEqual([
 			"default",
 			"fast",
 			"pro",
@@ -434,7 +448,7 @@ describe("toggle interop", () => {
 	it("decideView shows all when global free-only is off", async () => {
 		mockGetGlobalFreeOnly.mockReturnValue(false);
 		const { provider } = await seededProvider();
-		expect(provider.getModels().map((m) => m.id)).toEqual([
+		expect(provider.filterModels!(provider.getModels(), undefined).map((m) => m.id)).toEqual([
 			"default",
 			"fast",
 			"pro",

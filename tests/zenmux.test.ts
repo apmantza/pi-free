@@ -26,6 +26,7 @@ vi.mock("../lib/registry.ts", () => ({
 	registerWithGlobalToggle: (...args: unknown[]) =>
 		mockRegisterWithGlobalToggle(...args),
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
+	getGlobalFreeOnlyForced: () => false,
 	isFreeModel: (model: { cost?: { input?: number; output?: number } }) =>
 		(model.cost?.input ?? 0) === 0 && (model.cost?.output ?? 0) === 0,
 }));

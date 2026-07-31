@@ -26,6 +26,7 @@ vi.mock("../config.ts", () => ({
 
 vi.mock("../lib/registry.ts", () => ({
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
+	getGlobalFreeOnlyForced: () => false,
 	isFreeModel: (model: { cost?: { input?: number; output?: number } }) =>
 		(model.cost?.input ?? 0) === 0 && (model.cost?.output ?? 0) === 0,
 }));
@@ -158,7 +159,8 @@ describe("createZenmuxProvider", () => {
 		await provider.refreshModels?.(context(store));
 
 		expect(mockFetchWithRetry).not.toHaveBeenCalled();
-		expect(provider.getModels().map((model) => model.id)).toEqual(["free"]);
+		expect(provider.getModels().map((model) => model.id)).toEqual(["free", "paid"]);
+		expect(provider.filterModels!(provider.getModels(), undefined).map((model) => model.id)).toEqual(["free"]);
 	});
 
 	it("fetches with the effective stored key and persists the catalog", async () => {
@@ -216,6 +218,10 @@ describe("createZenmuxProvider", () => {
 		]);
 		expect(provider.getModels().map((model) => model.id)).toEqual([
 			"free-model",
+			"paid-model",
+		]);
+		expect(provider.filterModels!(provider.getModels(), undefined).map((model) => model.id)).toEqual([
+			"free-model",
 		]);
 	});
 
@@ -270,19 +276,19 @@ describe("createZenmuxProvider", () => {
 		expect(written).toHaveLength(0);
 	});
 
-	it("switches between free and paid views", async () => {
+	it("keeps the full catalog while filterModels selects the free view", async () => {
 		const { provider, stored, setView } = createZenmuxProvider();
 		const free = nativeModel("free");
 		const paid = nativeModel("paid", true);
 		stored.free = [free];
 		stored.all = [free, paid];
 		setView(stored.free);
-		expect(provider.getModels().map((model) => model.id)).toEqual(["free"]);
 		setView(stored.all);
 		expect(provider.getModels().map((model) => model.id)).toEqual([
 			"free",
 			"paid",
 		]);
+		expect(provider.filterModels!(provider.getModels(), undefined).map((model) => model.id)).toEqual(["free"]);
 	});
 });
 

@@ -7,7 +7,7 @@
  * offline initialization:
  *
  *   - native `auth` (apiKey + oauth) persisted to ~/.pi/agent/auth.json
- *   - sync `getModels()` returning the catalog pi-free chose to show
+ *   - sync `getModels()` returning the complete catalog; Pi applies `filterModels`
  *   - `refreshModels(context)`:
  *       allowNetwork:false → restore from context.store only (fast offline init)
  *       allowNetwork:true  → fetch with context.credential, persist via
@@ -16,10 +16,9 @@
  * The object is assembled directly against the public `Provider` interface (the
  * exact shape `createProvider()` returns) rather than through the `createProvider`
  * helper: that helper unconditionally merges its stored dynamic overlay on top of
- * the static baseline on every refresh, which would clobber pi-free's
- * re-registration based free/paid toggle (the stored full catalog would always win
- * over a free-only baseline). Assembling directly keeps `getModels()` returning
- * precisely the view pi-free selected while still using the native store and auth.
+ * the static baseline on every refresh. The complete catalog stays in
+ * `getModels()` and the shared `filterModels` policy selects the current view
+ * while still using the native store and auth.
  *
  * Pi owns refresh throttling and the `force` flag (`pi update --models`); this
  * module performs no freshness gating of its own so the two never double-throttle.
@@ -40,8 +39,9 @@ import {
 	getKiloShowPaid,
 } from "../../config.ts";
 import { PROVIDER_KILO } from "../../constants.ts";
-import { getGlobalFreeOnly, isFreeModel } from "../../lib/registry.ts";
+import { isFreeModel } from "../../lib/registry.ts";
 import {
+	filterNativeModels,
 	persistNativeProviderModels,
 	restoreNativeProviderModels,
 } from "../../lib/native-provider.ts";
@@ -88,26 +88,10 @@ export function createKiloProvider(): KiloNativeProvider {
 	// Typed as StoredModels (ProviderModelConfig[]) for registerWithGlobalToggle;
 	// the runtime values are full Model objects, which are assignable.
 	const stored: StoredModels = { free: [], all: [] };
-	let currentView: KiloModel[] = [];
 
-	/**
-	 * Which catalog the current toggle state wants to show. Mirrors
-	 * applyGlobalFilter's decision so the offline-init initial view matches what
-	 * the global free/paid toggle would select.
-	 */
-	function decideView(): ProviderModelConfig[] {
-		if (getKiloFreeOnly()) return stored.free;
-		// Global free-only off → show everything.
-		if (!getGlobalFreeOnly()) {
-			return stored.all.length > 0 ? stored.all : stored.free;
-		}
-		// Global free-only on → free, unless per-provider show_paid is persisted.
-		const showPaid = getKiloShowPaid();
-		return showPaid && stored.all.length > 0 ? stored.all : stored.free;
-	}
-
-	function setView(models: ProviderModelConfig[]): void {
-		currentView = toKiloModels(models);
+	function setView(_models: ProviderModelConfig[]): void {
+		// Re-registration invalidates Pi's filtered availability snapshot; the
+		// complete catalog remains in stored.all.
 	}
 
 	function ingest(
@@ -116,7 +100,6 @@ export function createKiloProvider(): KiloNativeProvider {
 	): void {
 		stored.all = toKiloModels(enhanceWithCI(applyKiloCompat(all)));
 		stored.free = toKiloModels(enhanceWithCI(applyKiloCompat(free)));
-		setView(decideView());
 	}
 
 	async function refreshModels(context: RefreshModelsContext): Promise<void> {
@@ -128,7 +111,6 @@ export function createKiloProvider(): KiloNativeProvider {
 				stored.free = storedModels.filter((model) =>
 					isFreeModel({ ...model, provider: PROVIDER_KILO }, storedModels),
 				);
-				setView(decideView());
 			},
 		);
 
@@ -165,7 +147,14 @@ export function createKiloProvider(): KiloNativeProvider {
 			"User-Agent": "pi-free-providers",
 		},
 		auth: kiloAuth,
-		getModels: () => currentView,
+		getModels: () =>
+			(stored.all.length > 0 ? stored.all : stored.free) as KiloModel[],
+		filterModels: (models) =>
+			filterNativeModels(PROVIDER_KILO, models, {
+				showPaid: getKiloShowPaid(),
+				freeModels: stored.free,
+				forceFree: getKiloFreeOnly(),
+			}),
 		refreshModels,
 		stream: (model, context, options) =>
 			streams.stream(model, context, options),

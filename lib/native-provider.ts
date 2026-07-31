@@ -16,10 +16,11 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import { saveConfig } from "../config.ts";
+import { applyHidden, saveConfig } from "../config.ts";
 import { createLogger } from "./logger.ts";
 import {
 	getGlobalFreeOnly,
+	getGlobalFreeOnlyForced,
 	isFreeModel,
 	registerWithGlobalToggle,
 } from "./registry.ts";
@@ -76,6 +77,8 @@ export interface NativeOpenAIProviderOptions {
 	auth: ProviderAuth;
 	getApiKey: () => string | undefined;
 	getShowPaid: () => boolean;
+	/** Override the persisted mode for providers whose legacy default is paid. */
+	initialShowPaid?: boolean;
 	initialModels: ProviderModelConfig[];
 	fetchModels: (
 		apiKey: string,
@@ -89,6 +92,8 @@ export interface NativeOpenAIProviderHandle {
 	provider: Provider<"openai-completions">;
 	stored: StoredModels;
 	setView: (models: ProviderModelConfig[]) => void;
+	setShowPaid: (showPaid: boolean) => void;
+	getShowPaid: () => boolean;
 	ingest: (all: ProviderModelConfig[], free: ProviderModelConfig[]) => void;
 }
 
@@ -113,13 +118,38 @@ function toNativeOpenAIModel(
 	} as Model<"openai-completions">;
 }
 
+/** Apply the shared global/provider free-model policy to a complete native catalog. */
+export function filterNativeModels<T extends Model<Api>>(
+	providerId: string,
+	models: readonly T[],
+	options: {
+		showPaid: boolean;
+		freeModels: readonly ProviderModelConfig[];
+		forceFree?: boolean;
+	},
+): readonly T[] {
+	const forceFree =
+		options.forceFree === true ||
+		(typeof getGlobalFreeOnlyForced === "function" &&
+			getGlobalFreeOnlyForced());
+	const freeOnly = getGlobalFreeOnly() && (forceFree || !options.showPaid);
+	const freeIds = new Set(options.freeModels.map((model) => model.id));
+	const visible = freeOnly
+		? models.filter((model) => freeIds.has(model.id))
+		: models;
+	return applyHidden(
+		visible as unknown as ProviderModelConfig[],
+		providerId,
+	) as T[];
+}
+
 /** Build a keyed OpenAI-compatible native provider with shared catalog lifecycle. */
 export function createNativeOpenAIProvider(
 	options: NativeOpenAIProviderOptions,
 ): NativeOpenAIProviderHandle {
 	const streams = openAICompletionsApi();
 	const stored: StoredModels = { free: [], all: [] };
-	let currentView: Model<"openai-completions">[] = [];
+	let showPaidOverride = options.initialShowPaid;
 
 	function classifyFree(
 		models: Model<"openai-completions">[],
@@ -129,19 +159,17 @@ export function createNativeOpenAIProvider(
 		);
 	}
 
-	function decideView(): ProviderModelConfig[] {
-		if (!getGlobalFreeOnly()) {
-			return stored.all.length > 0 ? stored.all : stored.free;
-		}
-		return options.getShowPaid() && stored.all.length > 0
-			? stored.all
-			: stored.free;
+	function setView(_models: ProviderModelConfig[]): void {
+		// Native toggles re-register the same provider to invalidate Pi's
+		// availability snapshot. The complete catalog remains in stored.all.
 	}
 
-	function setView(models: ProviderModelConfig[]): void {
-		currentView = models.map((model) =>
-			toNativeOpenAIModel(model, options.providerId, options.baseUrl),
-		);
+	function getShowPaid(): boolean {
+		return showPaidOverride ?? options.getShowPaid();
+	}
+
+	function setShowPaid(next: boolean): void {
+		if (options.initialShowPaid !== undefined) showPaidOverride = next;
 	}
 
 	function ingest(
@@ -154,7 +182,6 @@ export function createNativeOpenAIProvider(
 		stored.free = enhanceWithCI(free, options.providerId).map((model) =>
 			toNativeOpenAIModel(model, options.providerId, options.baseUrl),
 		);
-		setView(decideView());
 	}
 
 	if (options.initialModels.length > 0) {
@@ -164,7 +191,6 @@ export function createNativeOpenAIProvider(
 		);
 		stored.all = all;
 		stored.free = classifyFree(all);
-		setView(decideView());
 	}
 
 	async function refreshModels(context: RefreshModelsContext): Promise<void> {
@@ -174,7 +200,6 @@ export function createNativeOpenAIProvider(
 			(storedModels: Model<"openai-completions">[]) => {
 				stored.all = storedModels;
 				stored.free = classifyFree(storedModels);
-				setView(decideView());
 			},
 			async () => {
 				const token = nativeCredentialToken(
@@ -190,7 +215,6 @@ export function createNativeOpenAIProvider(
 			(models) => {
 				stored.all = models;
 				stored.free = classifyFree(models);
-				setView(decideView());
 			},
 		);
 	}
@@ -201,7 +225,15 @@ export function createNativeOpenAIProvider(
 		baseUrl: options.baseUrl,
 		headers: { "User-Agent": "pi-free-providers" },
 		auth: options.auth,
-		getModels: () => currentView,
+		getModels: () =>
+			(stored.all.length > 0 ? stored.all : stored.free) as Model<
+				"openai-completions"
+			>[],
+		filterModels: (models) =>
+			filterNativeModels(options.providerId, models, {
+				showPaid: getShowPaid(),
+				freeModels: stored.free,
+			}),
 		refreshModels,
 		stream: (model, context, streamOptions) =>
 			streams.stream(model, context, streamOptions),
@@ -209,7 +241,14 @@ export function createNativeOpenAIProvider(
 			streams.streamSimple(model, context, streamOptions),
 	};
 
-	return { provider, stored, setView, ingest };
+	return {
+		provider,
+		stored,
+		setView,
+		setShowPaid,
+		getShowPaid,
+		ingest,
+	};
 }
 
 /** Register a shared keyed OpenAI-compatible native provider and its lifecycle. */
@@ -228,11 +267,13 @@ export function registerNativeOpenAIProvider(
 		handle.stored,
 		reRegister,
 		Boolean(options.getApiKey()),
+		{ native: true },
 	);
 	registerNativeProviderToggle(pi, {
 		providerId: options.providerId,
 		stored: handle.stored,
-		getShowPaid: options.getShowPaid,
+		getShowPaid: handle.getShowPaid,
+		setShowPaid: handle.setShowPaid,
 		reRegister,
 	});
 	if (options.tosUrl) {
@@ -269,11 +310,13 @@ export function registerNativeAvailabilityProbe(
 			const models = handle.stored.all;
 			ctx.ui.notify(`Probing ${models.length} ${label} models…`, "info");
 			const broken = await probe.run(apiKey, models, {
-				onBroken: (ids) =>
+				onBroken: (ids) => {
 					ctx.ui.notify(
 						`Found ${ids.length} broken models (auto-hidden):\n${ids.join("\n")}`,
 						"warning",
-					),
+					);
+					registerNativeProvider(pi, handle.provider);
+				},
 			});
 			if (broken.length === 0) {
 				ctx.ui.notify(`All ${label} models are accessible ✅`, "info");
@@ -284,7 +327,11 @@ export function registerNativeAvailabilityProbe(
 		"session_start",
 		wrapSessionStartHandler(
 			`${providerId}-auto-probe`,
-			probe.autoProbeHandler(apiKey, handle.stored.free),
+			probe.autoProbeHandler(
+				apiKey,
+				handle.stored.free,
+				() => registerNativeProvider(pi, handle.provider),
+			),
 		),
 	);
 }
@@ -304,6 +351,7 @@ interface NativeToggleOptions {
 		all: ProviderModelConfig[];
 	};
 	getShowPaid: () => boolean;
+	setShowPaid?: (showPaid: boolean) => void;
 	reRegister: (models: ProviderModelConfig[]) => void;
 }
 
@@ -319,6 +367,7 @@ export function registerNativeProviderToggle(
 		handler: async (_args, ctx) => {
 			const showPaid = !getShowPaid();
 			await saveConfig({ [`${providerId}_show_paid`]: showPaid });
+			options.setShowPaid?.(showPaid);
 
 			const modelsToShow =
 				showPaid && stored.all.length > 0 ? stored.all : stored.free;
