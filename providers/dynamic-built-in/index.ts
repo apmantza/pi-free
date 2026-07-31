@@ -33,6 +33,7 @@ import {
 import { DEFAULT_FETCH_TIMEOUT_MS } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import {
+	applyNativeFreeMetadata,
 	enrichFromNativeCatalog,
 	safeEnrichModelsWithModelsDev,
 } from "../../lib/model-metadata.ts";
@@ -146,7 +147,10 @@ async function fetchModelsFromEndpoint(
 	// Final fallback: fill context windows from Pi's build-time native catalog
 	// for any model still carrying the generic 128K default (e.g. OpenCode's API
 	// exposes no context-length fields and models.dev may be unreachable).
-	return enrichFromNativeCatalog(enriched, opts.providerId);
+	const withNativeMetadata = enrichFromNativeCatalog(enriched, opts.providerId);
+	return isOpenCodeProvider(opts.providerId)
+		? applyNativeFreeMetadata(withNativeMetadata, opts.providerId)
+		: withNativeMetadata;
 }
 
 // =============================================================================
