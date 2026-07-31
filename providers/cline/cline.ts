@@ -1,86 +1,114 @@
 /**
  * Cline Provider Extension
  *
- * Provides access to Cline's free models (via their OpenRouter gateway).
- * Free model list is fetched from Cline's GitHub source — no account needed to browse.
- * Run /login cline to authenticate and make API calls.
+ * Provides access to Cline's models via their gateway, with the message flow
+ * reshaped for the Cline API by the XML bridge (`cline-xml-bridge.ts`).
+ * Registered as a native pi-ai `Provider` (createProvider object form) so Pi
+ * owns credential refresh, background model refresh, and offline initialization:
  *
- * Auth flow based on pi-cline's proven implementation.
+ *   - The factory is synchronous and network-free — it builds the provider
+ *     object and registers it. Models load via `refreshModels` (offline init
+ *     from the native models store, then a background fetch of Cline's PUBLIC
+ *     catalog), so Cline no longer owns any of Pi's startup critical path and
+ *     models still appear before `/login cline` (browsing needs no account).
+ *   - Native `auth` (API key + OAuth callback-server flow) persisted to
+ *     ~/.pi/agent/auth.json — the same store the legacy `/login cline` used.
+ *   - Free/paid filtering stays on pi-free's re-registration toggle so it keeps
+ *     composing with the global /toggle-free system.
  *
- * Responds to global free-only filter (though Cline only provides free models without auth).
- *
- * Usage:
- *   pi install git:github.com/apmantza/pi-free
- *   # Models appear immediately; run /login cline to start chatting
+ * Run /login cline to authenticate and make API calls; /toggle-cline shows the
+ * paid catalog.
  */
 
-import type { OAuthCredentials } from "@earendil-works/pi-ai/compat";
-import type {
-	ExtensionAPI,
-	ProviderModelConfig,
+import type { Provider } from "@earendil-works/pi-ai/compat";
+import {
+	readStoredCredential,
+	type ExtensionAPI,
+	type ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import { getClineApiKey, getClineShowPaid } from "../../config.ts";
 import {
-	BASE_URL_CLINE,
+	getClineApiKey,
+	getClineShowPaid,
 	PROVIDER_CLINE,
-	STARTUP_FETCH_DEADLINE_MS,
-} from "../../constants.ts";
-import {
-	DEFAULT_PROVIDER_CACHE_TTL_MS,
-	isProviderCacheFresh,
-	loadProviderCache,
-	saveProviderCache,
-} from "../../lib/provider-cache.ts";
-import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
+	saveConfig,
+} from "../../config.ts";
+import { createLogger } from "../../lib/logger.ts";
+import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
-import { createToggleState } from "../../lib/toggle-state.ts";
-import { logWarning, withFetchDeadline } from "../../lib/util.ts";
-import { enhanceWithCI } from "../../provider-helper.ts";
-import { loginCline, refreshClineToken } from "./cline-auth.ts";
-import { fetchClineModels } from "./cline-models.ts";
-import { streamClineXml } from "./cline-xml-bridge.ts";
+import { logWarning } from "../../lib/util.ts";
+import { isOAuthCredential } from "../../provider-helper.ts";
+import { createClineProvider, rotateClineTaskId } from "./cline-provider.ts";
+
+const _logger = createLogger("cline");
 
 // =============================================================================
-// Cline API headers (must match real Cline VS Code extension exactly)
+// Native provider registration
 // =============================================================================
 
-const VS_CODE_VERSION = "1.109.3";
-const CLINE_EXTENSION_VERSION = "3.76.0";
-let _currentTaskId = generateUlid();
+/**
+ * The >=0.81 `registerProvider(provider: Provider)` single-argument overload.
+ * The dev lockfile predates it (its ExtensionAPI only types the legacy
+ * `(name, config)` form), so we bridge the type here; the declared peer range
+ * (>=0.81) guarantees the overload exists at runtime. Re-registering the same
+ * provider object upserts by id, which is how the free/paid toggle republishes a
+ * new visible catalog without dropping native auth.
+ */
+type NativeRegistrar = {
+	registerProvider(provider: Provider): void;
+};
 
-function generateUlid(): string {
-	const CHARS = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-	const now = Date.now();
-	let ts = "";
-	let t = now;
-	for (let i = 0; i < 10; i++) {
-		ts = CHARS[t % 32] + ts;
-		t = Math.floor(t / 32);
+function registerNative(
+	pi: ExtensionAPI,
+	provider: Provider<"cline-xml-tools">,
+): void {
+	(pi as unknown as NativeRegistrar).registerProvider(provider);
+}
+
+// =============================================================================
+// Credential inspection (non-destructive)
+// =============================================================================
+
+/**
+ * Per-load credential inspection (the extension factory loads once per process,
+ * so this runs once). Native auth reads the SAME ~/.pi/agent/auth.json that the
+ * legacy `/login cline` flow already persisted to, so existing OAuth credentials
+ * work with no destructive migration. This only logs status and flags malformed
+ * old credentials (re-login is the recovery path); it never rewrites or deletes.
+ * The inspection is a pure read + log, so it is idempotent by nature.
+ */
+function inspectStoredClineCredential(): void {
+	try {
+		const cred = readStoredCredential(PROVIDER_CLINE);
+		if (!cred) {
+			_logger.info(
+				"No stored Cline credential; using ambient CLINE_API_KEY if configured",
+			);
+			return;
+		}
+		if (isOAuthCredential(cred)) {
+			if (typeof cred.access === "string" && cred.access.length > 0) {
+				_logger.info(
+					"Reusing existing Cline OAuth credential from auth.json (no migration needed)",
+				);
+			} else {
+				_logger.warn(
+					"Stored Cline OAuth credential is malformed; run /login cline to re-authenticate",
+				);
+			}
+			return;
+		}
+		if (cred.type === "api_key") {
+			_logger.info("Found stored Cline API key credential in auth.json");
+			return;
+		}
+		_logger.warn(
+			"Unrecognized stored Cline credential shape; run /login cline if auth fails",
+		);
+	} catch (err) {
+		_logger.warn("Failed to inspect stored Cline credential", {
+			error: err instanceof Error ? err.message : String(err),
+		});
 	}
-	const rand = new Uint8Array(16);
-	crypto.getRandomValues(rand);
-	let r = "";
-	for (let i = 0; i < 16; i++) r += CHARS[rand[i] % 32];
-	return ts + r;
-}
-
-function buildClineHeaders(): Record<string, string> {
-	return {
-		"HTTP-Referer": "https://cline.bot",
-		"X-Title": "Cline",
-		"X-Task-ID": _currentTaskId,
-		"X-PLATFORM": "Visual Studio Code",
-		"X-PLATFORM-VERSION": VS_CODE_VERSION,
-		"X-CLIENT-TYPE": "VSCode Extension",
-		"X-CLIENT-VERSION": CLINE_EXTENSION_VERSION,
-		"X-CORE-VERSION": CLINE_EXTENSION_VERSION,
-		"X-Is-Multiroot": "false",
-	};
-}
-
-function toApiKey(credentials: OAuthCredentials): string {
-	const token = credentials.access;
-	return token.startsWith("workos:") ? token : `workos:${token}`;
 }
 
 // =============================================================================
@@ -88,87 +116,42 @@ function toApiKey(credentials: OAuthCredentials): string {
 // =============================================================================
 
 export default async function clineProvider(pi: ExtensionAPI) {
-	const clineApiKey = getClineApiKey();
-	const useApiKeyAuth = !!clineApiKey;
+	const { provider, stored, setView } = createClineProvider();
 
-	let allModels: ProviderModelConfig[];
-	const cachedModels = loadProviderCache(PROVIDER_CLINE);
-	if (cachedModels && cachedModels.length > 0) {
-		allModels = cachedModels;
-	} else {
-		// Bound the fetch so an unresponsive Cline API cannot stall Pi session
-		// start on a true cold cache; a timeout falls through to an empty list
-		// (Cline has no bundled fallback models) and refreshes later.
-		allModels = await withFetchDeadline(
-			fetchClineModels(false),
-			STARTUP_FETCH_DEADLINE_MS,
-			"cline",
-		).catch((err) => {
-			logWarning("cline", "Failed to fetch models at startup", err);
-			return [];
-		});
-		if (allModels.length > 0) {
-			saveProviderCache(PROVIDER_CLINE, allModels).catch((err) => {
-				logWarning("cline", "Failed to save model cache", err);
-			});
-		}
-	}
-	let freeModels = allModels.filter((m) =>
-		isFreeModel({ ...m, provider: PROVIDER_CLINE }, allModels),
-	);
-	const stored = { free: freeModels, all: allModels };
-	const toggleState = createToggleState({
-		providerId: PROVIDER_CLINE,
-		initialShowPaid: getClineShowPaid(),
-		initialModels: stored,
-	});
+	// Non-destructive credential inspection (native auth reuses auth.json).
+	inspectStoredClineCredential();
 
-	const reRegister = (m: typeof allModels) => {
-		pi.registerProvider(PROVIDER_CLINE, {
-			baseUrl: BASE_URL_CLINE,
-			api: "cline-xml-tools" as const,
-			authHeader: false,
-			apiKey: clineApiKey,
-			headers: buildClineHeaders(),
-			streamSimple: (model, context, options) =>
-				streamClineXml(model as any, context, options, buildClineHeaders()),
-			models: enhanceWithCI(m),
-			...(useApiKeyAuth
-				? {}
-				: {
-					oauth: {
-						name: "Cline",
-						login: loginCline,
-						refreshToken: refreshClineToken,
-						getApiKey: toApiKey,
-					},
-				}),
-		});
+	// Register the native provider. The factory performs NO network I/O: models
+	// load via refreshModels (offline init from the store, then a background
+	// fetch of the public catalog), so Cline no longer owns any of Pi's startup
+	// critical path.
+	registerNative(pi, provider);
+
+	// Re-registration republishes the same native provider object (upsert by id)
+	// with a new visible catalog, keeping native auth intact. This is the hook the
+	// global /toggle-free system and /toggle-cline drive.
+	const reRegister = (models: ProviderModelConfig[]) => {
+		setView(models);
+		registerNative(pi, provider);
 	};
 
-	const applyModelList = (models: ProviderModelConfig[]) => {
-		allModels = models;
-		freeModels = allModels.filter((m) =>
-			isFreeModel({ ...m, provider: PROVIDER_CLINE }, allModels),
-		);
-		stored.all = allModels;
-		stored.free = freeModels;
-		toggleState.setModels(stored);
-		toggleState.applyCurrent(reRegister);
-	};
+	const hasClineKey = !!getClineApiKey();
+	registerWithGlobalToggle(PROVIDER_CLINE, stored, reRegister, hasClineKey);
 
-	// Register with global toggle system (hasKey=true if API key auth configured)
-	registerWithGlobalToggle(PROVIDER_CLINE, stored, (m) => reRegister(m), useApiKeyAuth);
-	toggleState.applyCurrent(reRegister);
-
+	// Per-provider toggle command
 	pi.registerCommand("toggle-cline", {
 		description: "Toggle between free and all Cline models",
-		handler: (_args, ctx) => {
-			const applied = toggleState.toggle(reRegister);
+		handler: async (_args, ctx) => {
+			const showPaid = !getClineShowPaid();
+			await saveConfig({ cline_show_paid: showPaid });
+
+			const modelsToShow =
+				showPaid && stored.all.length > 0 ? stored.all : stored.free;
+			reRegister(modelsToShow);
+
 			const freeCount = stored.free.length;
 			const paidCount = stored.all.length - freeCount;
-
-			if (applied.mode === "all") {
+			if (showPaid && stored.all.length > 0) {
 				ctx.ui.notify(
 					`cline: showing all ${stored.all.length} models (${freeCount} free, ${paidCount} paid)`,
 					"info",
@@ -179,37 +162,48 @@ export default async function clineProvider(pi: ExtensionAPI) {
 					"info",
 				);
 			}
-			return Promise.resolve();
 		},
 	});
 
+	// Rotate the Cline task id when a Cline agent starts (mirrors the legacy
+	// behavior). The XML bridge builds its request headers per request, so the
+	// new X-Task-ID takes effect immediately — no re-registration needed.
 	pi.on("before_agent_start", (_event, ctx) => {
 		if (ctx.model?.provider !== PROVIDER_CLINE) return;
-		_currentTaskId = generateUlid();
-		toggleState.applyCurrent(reRegister);
+		rotateClineTaskId();
 	});
 
-	let refreshInFlight: Promise<void> | undefined;
+	// Refresh nudge on session start. Native refreshModels (owned by Pi) keeps the
+	// catalog fresh on its throttled cycle; this replaces the legacy hand-rolled
+	// provider-cache refresh (1h TTL) with Pi's throttled background refresh. It
+	// only nudges the model registry when it exposes a refresh hook, and is a safe
+	// no-op otherwise.
 	pi.on(
 		"session_start",
-		wrapSessionStartHandler("cline", () => {
-			if (refreshInFlight) return Promise.resolve();
-			if (isProviderCacheFresh(PROVIDER_CLINE, DEFAULT_PROVIDER_CACHE_TTL_MS)) {
-				return Promise.resolve();
+		wrapSessionStartHandler("cline", (_event, ctx) => {
+			try {
+				const registry = (
+					ctx as {
+						modelRegistry?: { refresh?: (opts?: unknown) => unknown };
+					}
+				).modelRegistry;
+				const result = registry?.refresh?.({ allowNetwork: true });
+				if (result && typeof (result as Promise<void>).catch === "function") {
+					(result as Promise<void>).catch((err: unknown) =>
+						logWarning(
+							"cline",
+							"Model refresh nudge failed",
+							err instanceof Error ? err.message : String(err),
+						),
+					);
+				}
+			} catch (err) {
+				logWarning(
+					"cline",
+					"Model refresh nudge failed",
+					err instanceof Error ? err.message : String(err),
+				);
 			}
-
-			refreshInFlight = fetchClineModels(false)
-				.then(async (fresh) => {
-					if (fresh.length === 0) return;
-					await saveProviderCache(PROVIDER_CLINE, fresh);
-					applyModelList(fresh);
-				})
-				.catch((err) => {
-					logWarning("cline", "Failed to refresh models at session start", err);
-				})
-				.finally(() => {
-					refreshInFlight = undefined;
-				});
 			return Promise.resolve();
 		}),
 	);
