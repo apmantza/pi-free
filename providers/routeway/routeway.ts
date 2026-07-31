@@ -18,7 +18,11 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import { applyHidden, getRoutewayApiKey, getRoutewayShowPaid } from "../../config.ts";
+import {
+	applyHidden,
+	getRoutewayApiKey,
+	getRoutewayShowPaid,
+} from "../../config.ts";
 import {
 	BASE_URL_ROUTEWAY,
 	DEFAULT_FETCH_TIMEOUT_MS,
@@ -35,7 +39,6 @@ import {
 	registerNativeAvailabilityProbe,
 	registerNativeOpenAIProvider,
 } from "../../lib/native-provider.ts";
-import { loadProviderCache, saveProviderCache } from "../../lib/provider-cache.ts";
 import { cleanModelName, fetchWithRetry } from "../../lib/util.ts";
 import { routewayAuth } from "./routeway-auth.ts";
 
@@ -173,7 +176,6 @@ async function fetchRoutewayModels(
 // =============================================================================
 
 export default function routewayProvider(pi: ExtensionAPI): Promise<void> {
-	const initialModels = loadProviderCache(PROVIDER_ROUTEWAY) ?? [];
 	const handle = registerNativeOpenAIProvider(pi, {
 		providerId: PROVIDER_ROUTEWAY,
 		name: "Routeway",
@@ -181,12 +183,7 @@ export default function routewayProvider(pi: ExtensionAPI): Promise<void> {
 		auth: routewayAuth,
 		getApiKey: getRoutewayApiKey,
 		getShowPaid: getRoutewayShowPaid,
-		initialModels,
-		fetchModels: async (apiKey, signal) => {
-			const models = await fetchRoutewayModels(apiKey, signal);
-			if (models.length > 0) await saveProviderCache(PROVIDER_ROUTEWAY, models);
-			return models;
-		},
+		fetchModels: (apiKey, signal) => fetchRoutewayModels(apiKey, signal),
 		tosUrl: "https://routeway.ai/terms",
 	});
 

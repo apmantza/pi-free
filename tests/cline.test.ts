@@ -16,7 +16,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockFetchClineCatalog = vi.hoisted(() =>
 	vi.fn<(...args: unknown[]) => unknown>(),
 );
-const mockGetClineApiKey = vi.hoisted(() => vi.fn((): string | undefined => undefined));
+const mockGetClineApiKey = vi.hoisted(() =>
+	vi.fn((): string | undefined => undefined),
+);
 const mockGetClineShowPaid = vi.hoisted(() => vi.fn(() => false));
 const mockGetGlobalFreeOnly = vi.hoisted(() => vi.fn(() => true));
 const mockSaveConfig = vi.hoisted(() =>
@@ -123,7 +125,10 @@ describe("Cline factory wiring", () => {
 		mockFetchClineCatalog.mockResolvedValue({
 			all: [
 				cfg({ id: "free-1" }),
-				cfg({ id: "paid-1", cost: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 } }),
+				cfg({
+					id: "paid-1",
+					cost: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 },
+				}),
 			],
 			free: [cfg({ id: "free-1" })],
 		});
@@ -178,9 +183,9 @@ describe("Cline factory wiring", () => {
 		mockGetClineApiKey.mockReturnValue("sk-cline");
 		capturedToggleArgs = [];
 		await clineProvider(mockPi);
-		expect((capturedToggleArgs[0] as [string, unknown, unknown, boolean])[3]).toBe(
-			true,
-		);
+		expect(
+			(capturedToggleArgs[0] as [string, unknown, unknown, boolean])[3],
+		).toBe(true);
 	});
 
 	it("refreshModels populates; global /toggle-free reRegister republishes the same provider", async () => {
@@ -191,7 +196,7 @@ describe("Cline factory wiring", () => {
 		const [, stored, reRegister] = capturedToggleArgs[0] as [
 			string,
 			{ free: unknown[]; all: unknown[] },
-			(models: unknown[]) => void,
+			() => void,
 		];
 
 		// Pi refreshes (online) -> public catalogs populate.
@@ -199,23 +204,27 @@ describe("Cline factory wiring", () => {
 		expect(stored.all).toHaveLength(2);
 		expect(stored.free).toHaveLength(1);
 
-		// Global /toggle-free showing all -> reRegister(stored.all).
+		// Global /toggle-free showing all -> re-register the same provider.
 		mockRegisterProvider.mockClear();
-		reRegister(stored.all);
-		expect(provider.getModels().map((m: { id: string }) => m.id).sort()).toEqual([
-			"free-1",
-			"paid-1",
-		]);
+		reRegister();
+		expect(
+			provider
+				.getModels()
+				.map((m: { id: string }) => m.id)
+				.sort(),
+		).toEqual(["free-1", "paid-1"]);
 		// Re-registration reused the SAME native provider object (auth preserved).
 		expect(mockRegisterProvider).toHaveBeenCalledWith(provider);
 
 		// Global /toggle-free showing free invalidates the same provider object;
 		// Pi's filterModels applies the free view to the complete catalog.
-		reRegister(stored.free);
-		expect(provider.getModels().map((m: { id: string }) => m.id).sort()).toEqual([
-			"free-1",
-			"paid-1",
-		]);
+		reRegister();
+		expect(
+			provider
+				.getModels()
+				.map((m: { id: string }) => m.id)
+				.sort(),
+		).toEqual(["free-1", "paid-1"]);
 	});
 
 	it("/toggle-cline flips cline_show_paid and shows the full catalog, then back", async () => {
@@ -232,10 +241,12 @@ describe("Cline factory wiring", () => {
 		// First toggle: free -> all.
 		await call[1].handler({}, { ui: { notify } });
 		expect(mockSaveConfig).toHaveBeenCalledWith({ cline_show_paid: true });
-		expect(provider.getModels().map((m: { id: string }) => m.id).sort()).toEqual([
-			"free-1",
-			"paid-1",
-		]);
+		expect(
+			provider
+				.getModels()
+				.map((m: { id: string }) => m.id)
+				.sort(),
+		).toEqual(["free-1", "paid-1"]);
 		expect(notify).toHaveBeenCalledWith(
 			expect.stringContaining("showing all 2 models"),
 			"info",
@@ -247,10 +258,12 @@ describe("Cline factory wiring", () => {
 		notify.mockClear();
 		await call[1].handler({}, { ui: { notify } });
 		expect(mockSaveConfig).toHaveBeenCalledWith({ cline_show_paid: false });
-		expect(provider.getModels().map((m: { id: string }) => m.id).sort()).toEqual([
-			"free-1",
-			"paid-1",
-		]);
+		expect(
+			provider
+				.getModels()
+				.map((m: { id: string }) => m.id)
+				.sort(),
+		).toEqual(["free-1", "paid-1"]);
 		expect(notify).toHaveBeenCalledWith(
 			expect.stringContaining("showing 1 free models"),
 			"info",

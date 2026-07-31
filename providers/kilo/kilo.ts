@@ -19,7 +19,6 @@
 import {
 	readStoredCredential,
 	type ExtensionAPI,
-	type ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
 import { getKiloApiKey, getKiloShowPaid, PROVIDER_KILO } from "../../config.ts";
 import { URL_KILO_TOS } from "../../constants.ts";
@@ -190,7 +189,7 @@ function inspectStoredKiloCredential(): void {
 // =============================================================================
 
 export default async function kiloProvider(pi: ExtensionAPI) {
-	const { provider, stored, setView } = createKiloProvider();
+	const { provider, stored } = createKiloProvider();
 
 	// Non-destructive credential inspection (native auth reuses auth.json).
 	inspectStoredKiloCredential();
@@ -200,17 +199,16 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 	// fetch), so Kilo no longer owns any of Pi's startup critical path.
 	registerNativeProvider(pi, provider);
 
-	// Re-registration republishes the same native provider object (upsert by id)
-	// with a new visible catalog, keeping native auth intact. This is the hook the
-	// global /toggle-free system and /toggle-kilo drive.
-	const reRegister = (models: ProviderModelConfig[]) => {
-		setView(models);
+	// Re-registration invalidates Pi's availability snapshot while preserving the
+	// complete catalog and native auth on the same provider object.
+	const reRegister = () => {
 		registerNativeProvider(pi, provider);
 	};
 
 	const hasKiloKey = !!getKiloApiKey();
 	registerWithGlobalToggle(PROVIDER_KILO, stored, reRegister, hasKiloKey, {
 		native: true,
+		invalidate: reRegister,
 	});
 
 	registerNativeProviderToggle(pi, {

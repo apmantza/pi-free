@@ -5,7 +5,7 @@
  *   - refreshModels offline init (store-only, zero network)
  *   - refreshModels online (fetch + store.write + credential passing)
  *   - store persistence + poisoning guard + abort signal
- *   - free/paid toggle via setView / decideView
+ *   - free/paid toggle via filterModels / decideView
  *   - the native provider object shape (auth, getModels, stream wiring)
  */
 
@@ -18,7 +18,9 @@ import type {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockFetchKiloCatalog = vi.hoisted(() => vi.fn());
-const mockGetKiloApiKey = vi.hoisted(() => vi.fn((): string | undefined => undefined));
+const mockGetKiloApiKey = vi.hoisted(() =>
+	vi.fn((): string | undefined => undefined),
+);
 const mockGetKiloShowPaid = vi.hoisted(() => vi.fn(() => false));
 const mockGetKiloFreeOnly = vi.hoisted(() => vi.fn(() => false));
 const mockGetGlobalFreeOnly = vi.hoisted(() => vi.fn(() => true));
@@ -164,8 +166,18 @@ describe("refreshModels offline init", () => {
 	it("restores models from the store with zero network when allowNetwork=false", async () => {
 		const seeded = {
 			models: [
-				{ ...freeCfg("a"), api: "openai-completions", provider: "kilo", baseUrl: "x" },
-				{ ...paidCfg("b"), api: "openai-completions", provider: "kilo", baseUrl: "x" },
+				{
+					...freeCfg("a"),
+					api: "openai-completions",
+					provider: "kilo",
+					baseUrl: "x",
+				},
+				{
+					...paidCfg("b"),
+					api: "openai-completions",
+					provider: "kilo",
+					baseUrl: "x",
+				},
 			],
 			checkedAt: Date.now(),
 		} as unknown as ModelsStoreEntry;
@@ -178,7 +190,9 @@ describe("refreshModels offline init", () => {
 		// getModels exposes the complete catalog; Pi applies filterModels.
 		const models = provider.getModels();
 		expect(models.map((m) => m.id).sort()).toEqual(["a", "b"]);
-		expect(provider.filterModels!(models, undefined).map((m) => m.id)).toEqual(["a"]);
+		expect(provider.filterModels!(models, undefined).map((m) => m.id)).toEqual([
+			"a",
+		]);
 	});
 
 	it("stays empty when the store is empty and network is disallowed", async () => {
@@ -191,7 +205,12 @@ describe("refreshModels offline init", () => {
 	it("ignores stored models from other providers", async () => {
 		const seeded = {
 			models: [
-				{ ...freeCfg("a"), api: "openai-completions", provider: "other", baseUrl: "x" },
+				{
+					...freeCfg("a"),
+					api: "openai-completions",
+					provider: "other",
+					baseUrl: "x",
+				},
 			],
 		} as unknown as ModelsStoreEntry;
 		const { store } = makeStore(seeded);
@@ -225,8 +244,15 @@ describe("refreshModels online", () => {
 		expect(stored.all).toHaveLength(2);
 		expect(stored.free).toHaveLength(1);
 		// getModels exposes the complete catalog; Pi applies filterModels.
-		expect(provider.getModels().map((m) => m.id).sort()).toEqual(["a", "b"]);
-		expect(provider.filterModels!(provider.getModels(), undefined).map((m) => m.id)).toEqual(["a"]);
+		expect(
+			provider
+				.getModels()
+				.map((m) => m.id)
+				.sort(),
+		).toEqual(["a", "b"]);
+		expect(
+			provider.filterModels!(provider.getModels(), undefined).map((m) => m.id),
+		).toEqual(["a"]);
 	});
 
 	it("passes the OAuth access token from context.credential to the fetcher", async () => {
@@ -240,7 +266,9 @@ describe("refreshModels online", () => {
 			expires: Date.now() + 1000,
 		};
 
-		await provider.refreshModels?.(ctx({ store, allowNetwork: true, credential }));
+		await provider.refreshModels?.(
+			ctx({ store, allowNetwork: true, credential }),
+		);
 
 		expect(mockFetchKiloCatalog).toHaveBeenCalledWith(
 			expect.objectContaining({ token: "oauth-access-token" }),
@@ -253,7 +281,9 @@ describe("refreshModels online", () => {
 		const { provider } = createKiloProvider();
 		const credential: Credential = { type: "api_key", key: "sk-stored" };
 
-		await provider.refreshModels?.(ctx({ store, allowNetwork: true, credential }));
+		await provider.refreshModels?.(
+			ctx({ store, allowNetwork: true, credential }),
+		);
 
 		expect(mockFetchKiloCatalog).toHaveBeenCalledWith(
 			expect.objectContaining({ token: "sk-stored" }),
@@ -276,7 +306,12 @@ describe("refreshModels online", () => {
 	it("retains the previous catalog when a fetch returns nothing (poisoning guard)", async () => {
 		const seeded = {
 			models: [
-				{ ...freeCfg("a"), api: "openai-completions", provider: "kilo", baseUrl: "x" },
+				{
+					...freeCfg("a"),
+					api: "openai-completions",
+					provider: "kilo",
+					baseUrl: "x",
+				},
 			],
 		} as unknown as ModelsStoreEntry;
 		const { store, written } = makeStore(seeded);
@@ -310,7 +345,7 @@ describe("refreshModels online", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Toggle interop (setView / decideView)
+// Toggle interop (filterModels / decideView)
 // ---------------------------------------------------------------------------
 
 describe("toggle interop", () => {
@@ -326,34 +361,55 @@ describe("toggle interop", () => {
 	}
 
 	it("keeps the full catalog while filterModels selects the free view", async () => {
-		const { provider, stored, setView } = await seededProvider();
-		expect(provider.getModels().map((m) => m.id).sort()).toEqual(["a", "b"]);
-		expect(provider.filterModels!(provider.getModels(), undefined).map((m) => m.id)).toEqual(["a"]);
+		const { provider } = await seededProvider();
+		expect(
+			provider
+				.getModels()
+				.map((m) => m.id)
+				.sort(),
+		).toEqual(["a", "b"]);
+		expect(
+			provider.filterModels!(provider.getModels(), undefined).map((m) => m.id),
+		).toEqual(["a"]);
 
-		// Re-registration is now an availability-snapshot invalidation signal.
-		setView(stored.all);
-		setView(stored.free);
-		expect(provider.getModels().map((m) => m.id).sort()).toEqual(["a", "b"]);
-		expect(provider.filterModels!(provider.getModels(), undefined).map((m) => m.id)).toEqual(["a"]);
+		expect(
+			provider
+				.getModels()
+				.map((m) => m.id)
+				.sort(),
+		).toEqual(["a", "b"]);
+		expect(
+			provider.filterModels!(provider.getModels(), undefined).map((m) => m.id),
+		).toEqual(["a"]);
 	});
 
 	it("decideView shows all when per-provider show_paid is set under global free-only", async () => {
 		mockGetKiloShowPaid.mockReturnValue(true);
 		const { provider } = await seededProvider();
 		// show_paid true + global free-only true => filterModels returns all.
-		expect(provider.filterModels!(provider.getModels(), undefined).map((m) => m.id).sort()).toEqual(["a", "b"]);
+		expect(
+			provider.filterModels!(provider.getModels(), undefined)
+				.map((m) => m.id)
+				.sort(),
+		).toEqual(["a", "b"]);
 	});
 
 	it("filterModels shows all when global free-only is off", async () => {
 		mockGetGlobalFreeOnly.mockReturnValue(false);
 		const { provider } = await seededProvider();
-		expect(provider.filterModels!(provider.getModels(), undefined).map((m) => m.id).sort()).toEqual(["a", "b"]);
+		expect(
+			provider.filterModels!(provider.getModels(), undefined)
+				.map((m) => m.id)
+				.sort(),
+		).toEqual(["a", "b"]);
 	});
 
 	it("filterModels forces free when kilo_free_only is set", async () => {
 		mockGetKiloFreeOnly.mockReturnValue(true);
 		mockGetKiloShowPaid.mockReturnValue(true);
 		const { provider } = await seededProvider();
-		expect(provider.filterModels!(provider.getModels(), undefined).map((m) => m.id)).toEqual(["a"]);
+		expect(
+			provider.filterModels!(provider.getModels(), undefined).map((m) => m.id),
+		).toEqual(["a"]);
 	});
 });

@@ -60,9 +60,7 @@ export interface Llm7NativeProvider {
 	provider: Provider<"openai-completions">;
 	/** Mutable catalogs shared with registerWithGlobalToggle / /free-providers. */
 	stored: StoredModels;
-	/** Set the visible catalog (toggle / global-toggle re-registration target). */
-	setView: (models: ProviderModelConfig[]) => void;
-	/** Ingest a fresh catalog: update stored + view, per toggle state. */
+	/** Ingest a fresh catalog into the complete native catalog. */
 	ingest: (all: ProviderModelConfig[], free: ProviderModelConfig[]) => void;
 }
 
@@ -78,11 +76,6 @@ export function createLlm7Provider(): Llm7NativeProvider {
 	// StoredModels (ProviderModelConfig[]) for registerWithGlobalToggle; the
 	// runtime values are full Model objects, which are assignable.
 	const stored: StoredModels = { free: [], all: [] };
-
-	function setView(_models: ProviderModelConfig[]): void {
-		// Re-registration invalidates Pi's filtered availability snapshot; the
-		// complete catalog remains in stored.all.
-	}
 
 	function ingest(
 		all: ProviderModelConfig[],
@@ -149,5 +142,5 @@ export function createLlm7Provider(): Llm7NativeProvider {
 			streams.streamSimple(model, context, options),
 	};
 
-	return { provider, stored, setView, ingest };
+	return { provider, stored, ingest };
 }

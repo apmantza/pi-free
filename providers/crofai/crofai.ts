@@ -35,10 +35,6 @@ import {
 } from "../../lib/provider-compat.ts";
 import { registerNativeOpenAIProvider } from "../../lib/native-provider.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
-import {
-	loadProviderCache,
-	saveProviderCache,
-} from "../../lib/provider-cache.ts";
 import { crofaiAuth } from "./crofai-auth.ts";
 
 const _logger = createLogger("crofai");
@@ -143,7 +139,6 @@ async function fetchCrofaiModels(
 // =============================================================================
 
 export default function crofaiProvider(pi: ExtensionAPI): Promise<void> {
-	const initialModels = loadProviderCache(PROVIDER_CROFAI) ?? [];
 	registerNativeOpenAIProvider(pi, {
 		providerId: PROVIDER_CROFAI,
 		name: "CrofAI",
@@ -151,12 +146,7 @@ export default function crofaiProvider(pi: ExtensionAPI): Promise<void> {
 		auth: crofaiAuth,
 		getApiKey: getCrofaiApiKey,
 		getShowPaid: getCrofaiShowPaid,
-		initialModels,
-		fetchModels: async (apiKey, signal) => {
-			const models = await fetchCrofaiModels(apiKey, signal);
-			if (models.length > 0) await saveProviderCache(PROVIDER_CROFAI, models);
-			return models;
-		},
+		fetchModels: (apiKey, signal) => fetchCrofaiModels(apiKey, signal),
 	});
 	return Promise.resolve();
 }

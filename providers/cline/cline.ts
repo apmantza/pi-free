@@ -23,7 +23,6 @@
 import {
 	readStoredCredential,
 	type ExtensionAPI,
-	type ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
 import {
 	getClineApiKey,
@@ -94,7 +93,7 @@ function inspectStoredClineCredential(): void {
 // =============================================================================
 
 export default async function clineProvider(pi: ExtensionAPI) {
-	const { provider, stored, setView } = createClineProvider();
+	const { provider, stored } = createClineProvider();
 
 	// Non-destructive credential inspection (native auth reuses auth.json).
 	inspectStoredClineCredential();
@@ -105,17 +104,16 @@ export default async function clineProvider(pi: ExtensionAPI) {
 	// critical path.
 	registerNativeProvider(pi, provider);
 
-	// Re-registration republishes the same native provider object (upsert by id)
-	// with a new visible catalog, keeping native auth intact. This is the hook the
-	// global /toggle-free system and /toggle-cline drive.
-	const reRegister = (models: ProviderModelConfig[]) => {
-		setView(models);
+	// Re-registration invalidates Pi's availability snapshot while preserving the
+	// complete catalog and native auth on the same provider object.
+	const reRegister = () => {
 		registerNativeProvider(pi, provider);
 	};
 
 	const hasClineKey = !!getClineApiKey();
 	registerWithGlobalToggle(PROVIDER_CLINE, stored, reRegister, hasClineKey, {
 		native: true,
+		invalidate: reRegister,
 	});
 
 	registerNativeProviderToggle(pi, {

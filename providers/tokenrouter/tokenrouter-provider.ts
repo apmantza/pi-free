@@ -23,7 +23,6 @@ import {
 	registerNativeProviderToggle,
 } from "../../lib/native-provider.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
-import { loadProviderCache } from "../../lib/provider-cache.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { tokenRouterAuth } from "./tokenrouter-auth.ts";
 
@@ -46,7 +45,6 @@ export interface TokenRouterProviderDeps {
 export interface TokenRouterNativeProvider {
 	provider: Provider<"tokenrouter-openai-completions">;
 	stored: StoredModels;
-	setView: (models: ProviderModelConfig[]) => void;
 	ingest: (all: ProviderModelConfig[], free: ProviderModelConfig[]) => void;
 }
 
@@ -87,16 +85,9 @@ function classifyFreeModels(
 
 export function createTokenRouterProvider(
 	deps: TokenRouterProviderDeps,
-	initialModels: ProviderModelConfig[] = loadProviderCache(
-		PROVIDER_TOKENROUTER,
-	) ?? [],
+	initialModels: ProviderModelConfig[] = [],
 ): TokenRouterNativeProvider {
 	const stored: StoredModels = { free: [], all: [] };
-
-	function setView(_models: ProviderModelConfig[]): void {
-		// Re-registration invalidates Pi's filtered availability snapshot; the
-		// complete catalog remains in stored.all.
-	}
 
 	function ingest(
 		all: ProviderModelConfig[],
@@ -144,7 +135,9 @@ export function createTokenRouterProvider(
 		headers: { "User-Agent": "pi-free-providers" },
 		auth: tokenRouterAuth,
 		getModels: () =>
-			(stored.all.length > 0 ? stored.all : stored.free) as TokenRouterNativeModel[],
+			(stored.all.length > 0
+				? stored.all
+				: stored.free) as TokenRouterNativeModel[],
 		filterModels: (models) =>
 			filterNativeModels(PROVIDER_TOKENROUTER, models, {
 				showPaid: getTokenrouterShowPaid(),
@@ -157,18 +150,17 @@ export function createTokenRouterProvider(
 			deps.streamSimple(model, context, options),
 	};
 
-	return { provider, stored, setView, ingest };
+	return { provider, stored, ingest };
 }
 
 export function registerTokenRouterProvider(
 	pi: ExtensionAPI,
 	deps: TokenRouterProviderDeps,
 ): void {
-	const { provider, stored, setView } = createTokenRouterProvider(deps);
+	const { provider, stored } = createTokenRouterProvider(deps);
 	registerNativeProvider(pi, provider);
 
-	const reRegister = (models: ProviderModelConfig[]) => {
-		setView(models);
+	const reRegister = () => {
 		registerNativeProvider(pi, provider);
 	};
 
@@ -177,7 +169,7 @@ export function registerTokenRouterProvider(
 		stored,
 		reRegister,
 		Boolean(getTokenrouterApiKey()),
-		{ native: true },
+		{ native: true, invalidate: reRegister },
 	);
 	registerNativeProviderToggle(pi, {
 		providerId: PROVIDER_TOKENROUTER,

@@ -115,7 +115,7 @@ export default async function providerName(pi: ExtensionAPI) {
 }
 ```
 
-**Cache-first loading.** Network-fetching extension providers register from the disk cache (`~/.pi/provider-cache.json`, 1-hour TTL via `lib/provider-cache.ts`) first and only hit the network on a cold or stale cache, so warm startups make no network calls. The dynamic built-in phase (including publicly discoverable FastRouter) runs concurrently with the static providers inside `piFreeEntry`'s single `Promise.allSettled`, not sequentially after it. OpenRouter is owned by Pi and is not dynamically registered by pi-free. **Native providers** use Pi's models store (`~/.pi/agent/models-store.json`) via `refreshModels`; remaining legacy/dynamic providers use `lib/provider-cache.ts` (see below).
+**Cache-first loading.** Legacy network-fetching extension providers register from the disk cache (`~/.pi/provider-cache.json`, 1-hour TTL via `lib/provider-cache.ts`) first and only hit the network on a cold or stale cache, so warm startups make no network calls. The dynamic built-in phase (including publicly discoverable FastRouter) runs concurrently with the static providers inside `piFreeEntry`'s single `Promise.allSettled`, not sequentially after it. OpenRouter is owned by Pi and is not dynamically registered by pi-free. **Native providers** use Pi's models store (`~/.pi/agent/models-store.json`) via `refreshModels`; remaining legacy/dynamic providers use `lib/provider-cache.ts` (see below). Ollama Cloud additionally retains that cache only for `/api/show` capability reuse and its manual refresh compatibility path.
 
 ### Native `Provider` providers
 

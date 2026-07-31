@@ -25,10 +25,6 @@ import {
 	PROVIDER_ANYAPI,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
-import {
-	loadProviderCache,
-	saveProviderCache,
-} from "../../lib/provider-cache.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import { fetchWithRetry, mapOpenRouterModel } from "../../lib/util.ts";
 import { registerNativeOpenAIProvider } from "../../lib/native-provider.ts";
@@ -207,7 +203,6 @@ async function fetchAnyApiModels(
 }
 
 export default function anyapiProvider(pi: ExtensionAPI): Promise<void> {
-	const initialModels = loadProviderCache(PROVIDER_ANYAPI) ?? [];
 	registerNativeOpenAIProvider(pi, {
 		providerId: PROVIDER_ANYAPI,
 		name: "AnyAPI",
@@ -215,12 +210,8 @@ export default function anyapiProvider(pi: ExtensionAPI): Promise<void> {
 		auth: anyapiAuth,
 		getApiKey: getAnyapiApiKey,
 		getShowPaid: getAnyapiShowPaid,
-		initialModels,
-		fetchModels: async (apiKey, signal) => {
-			const models = await fetchAnyApiModels(apiKey, signal);
-			if (models.length > 0) await saveProviderCache(PROVIDER_ANYAPI, models);
-			return models;
-		},
+		fetchModels: (apiKey, signal) =>
+			fetchAnyApiModels(apiKey, signal),
 		tosUrl: "https://anyapi.ai/terms-of-service",
 		suppressTosWhenKey: true,
 	});

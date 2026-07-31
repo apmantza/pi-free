@@ -24,7 +24,6 @@ type ZenmuxModel = Model<"openai-completions">;
 export interface ZenmuxNativeProvider {
 	provider: Provider<"openai-completions">;
 	stored: StoredModels;
-	setView: (models: ProviderModelConfig[]) => void;
 	ingest: (all: ProviderModelConfig[], free: ProviderModelConfig[]) => void;
 }
 
@@ -39,11 +38,6 @@ function credentialToken(credential?: Credential): string | undefined {
 export function createZenmuxProvider(): ZenmuxNativeProvider {
 	const streams = openAICompletionsApi();
 	const stored: StoredModels = { free: [], all: [] };
-
-	function setView(_models: ProviderModelConfig[]): void {
-		// Re-registration invalidates Pi's filtered availability snapshot; the
-		// complete catalog remains in stored.all.
-	}
 
 	function ingest(
 		all: ProviderModelConfig[],
@@ -103,5 +97,5 @@ export function createZenmuxProvider(): ZenmuxNativeProvider {
 			streams.streamSimple(model, context, options),
 	};
 
-	return { provider, stored, setView, ingest };
+	return { provider, stored, ingest };
 }

@@ -157,6 +157,15 @@ describe("createNativeOpenAIProvider", () => {
 		expect(handle.provider.getModels()[0].provider).toBe("test-native");
 	});
 
+	it("supports native-store-only initialization without a legacy cache", () => {
+		const handle = createNativeOpenAIProvider({
+			...options,
+			initialModels: undefined,
+		});
+
+		expect(handle.provider.getModels()).toEqual([]);
+	});
+
 	it("keeps the complete catalog and filters it without replacing the provider", () => {
 		const handle = createNativeOpenAIProvider(options);
 		expect(handle.provider.getModels().map((item) => item.id)).toEqual([
@@ -164,24 +173,24 @@ describe("createNativeOpenAIProvider", () => {
 			"paid",
 		]);
 		expect(
-			handle.provider
-				.filterModels!(handle.provider.getModels(), undefined)
-				.map((item) => item.id),
+			handle.provider.filterModels!(handle.provider.getModels(), undefined).map(
+				(item) => item.id,
+			),
 		).toEqual(["free"]);
 
 		mockGetGlobalFreeOnly.mockReturnValue(false);
 		expect(
-			handle.provider
-				.filterModels!(handle.provider.getModels(), undefined)
-				.map((item) => item.id),
+			handle.provider.filterModels!(handle.provider.getModels(), undefined).map(
+				(item) => item.id,
+			),
 		).toEqual(["free", "paid"]);
 
 		mockGetGlobalFreeOnly.mockReturnValue(true);
 		mockGetGlobalFreeOnlyForced.mockReturnValue(true);
 		expect(
-			handle.provider
-				.filterModels!(handle.provider.getModels(), undefined)
-				.map((item) => item.id),
+			handle.provider.filterModels!(handle.provider.getModels(), undefined).map(
+				(item) => item.id,
+			),
 		).toEqual(["free"]);
 	});
 

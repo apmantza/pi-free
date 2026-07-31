@@ -35,15 +35,10 @@ import {
 	registerNativeAvailabilityProbe,
 	registerNativeOpenAIProvider,
 } from "../../lib/native-provider.ts";
-import {
-	loadProviderCache,
-	saveProviderCache,
-} from "../../lib/provider-cache.ts";
 import { fetchOpenAICompatibleModels } from "../../lib/util.ts";
 import { sambanovaAuth } from "./sambanova-auth.ts";
 
 export default function sambanovaProvider(pi: ExtensionAPI): Promise<void> {
-	const initialModels = loadProviderCache(PROVIDER_SAMBANOVA) ?? [];
 	const handle = registerNativeOpenAIProvider(pi, {
 		providerId: PROVIDER_SAMBANOVA,
 		name: "SambaNova",
@@ -51,7 +46,6 @@ export default function sambanovaProvider(pi: ExtensionAPI): Promise<void> {
 		auth: sambanovaAuth,
 		getApiKey: getSambanovaApiKey,
 		getShowPaid: getSambanovaShowPaid,
-		initialModels,
 		fetchModels: async (apiKey, signal) => {
 			const models = await fetchOpenAICompatibleModels(
 				"sambanova",
@@ -64,8 +58,6 @@ export default function sambanovaProvider(pi: ExtensionAPI): Promise<void> {
 			for (const model of models) {
 				(model as unknown as { _pricingKnown?: boolean })._pricingKnown = true;
 			}
-			if (models.length > 0)
-				await saveProviderCache(PROVIDER_SAMBANOVA, models);
 			return models;
 		},
 		tosUrl: "https://sambanova.ai/terms",

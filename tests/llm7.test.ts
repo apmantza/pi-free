@@ -148,7 +148,7 @@ describe("LLM7 factory wiring", () => {
 		const [, stored, reRegister] = capturedToggleArgs[0] as [
 			string,
 			{ free: unknown[]; all: unknown[] },
-			(models: unknown[]) => void,
+			() => void,
 		];
 
 		// Pi refreshes (online) -> static catalogs populate.
@@ -156,9 +156,9 @@ describe("LLM7 factory wiring", () => {
 		expect(stored.all).toHaveLength(3);
 		expect(stored.free).toHaveLength(2);
 
-		// Global /toggle-free showing all -> reRegister(stored.all).
+		// Global /toggle-free showing all -> re-register the same provider.
 		mockRegisterProvider.mockClear();
-		reRegister(stored.all);
+		reRegister();
 		expect(provider.getModels().map((m: { id: string }) => m.id)).toEqual([
 			"default",
 			"fast",
@@ -169,7 +169,7 @@ describe("LLM7 factory wiring", () => {
 
 		// Global /toggle-free showing free invalidates the same provider object;
 		// Pi's filterModels applies the free view to the complete catalog.
-		reRegister(stored.free);
+		reRegister();
 		expect(provider.getModels().map((m: { id: string }) => m.id)).toEqual([
 			"default",
 			"fast",

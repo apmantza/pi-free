@@ -48,7 +48,6 @@ export interface OllamaProviderDeps {
 export interface OllamaNativeProvider {
 	provider: Provider<"openai-completions">;
 	stored: StoredModels;
-	setView: (models: ProviderModelConfig[]) => void;
 	ingest: (all: ProviderModelConfig[], free: ProviderModelConfig[]) => void;
 }
 
@@ -81,11 +80,6 @@ export function createOllamaProvider(
 ): OllamaNativeProvider {
 	const streams = openAICompletionsApi();
 	const stored: StoredModels = { free: [], all: [] };
-
-	function setView(_models: ProviderModelConfig[]): void {
-		// Re-registration invalidates Pi's filtered availability snapshot; the
-		// complete catalog remains in stored.all.
-	}
 
 	function ingest(
 		all: ProviderModelConfig[],
@@ -147,7 +141,7 @@ export function createOllamaProvider(
 			streams.streamSimple(model, context, options),
 	};
 
-	return { provider, stored, setView, ingest };
+	return { provider, stored, ingest };
 }
 
 export function registerOllamaProvider(
@@ -159,14 +153,13 @@ export function registerOllamaProvider(
 		cachedModels && cachedModels.length > 0
 			? cachedModels
 			: deps.fallbackModels;
-	const { provider, stored, setView, ingest } = createOllamaProvider(
+	const { provider, stored, ingest } = createOllamaProvider(
 		deps,
 		initialModels,
 	);
 	registerNativeProvider(pi, provider);
 
-	const reRegister = (models: ProviderModelConfig[]) => {
-		setView(models);
+	const reRegister = () => {
 		registerNativeProvider(pi, provider);
 	};
 	const applyModelList = (models: ProviderModelConfig[]) => {
@@ -180,7 +173,7 @@ export function registerOllamaProvider(
 		stored,
 		reRegister,
 		Boolean(getOllamaApiKey()),
-		{ native: true },
+		{ native: true, invalidate: reRegister },
 	);
 	registerNativeProviderToggle(pi, {
 		providerId: PROVIDER_OLLAMA,

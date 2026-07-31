@@ -34,7 +34,10 @@ import type {
 	RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
 import { anthropicMessagesApi } from "@earendil-works/pi-ai/compat";
-import type { ExtensionAPI, ProviderModelConfig } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ProviderModelConfig,
+} from "@earendil-works/pi-coding-agent";
 import {
 	getOpenmodelApiKey,
 	getOpenmodelShowPaid,
@@ -48,10 +51,7 @@ import {
 import { createLogger } from "../../lib/logger.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import { isLikelyReasoningModel } from "../../lib/provider-compat.ts";
-import {
-	isFreeModel,
-	registerWithGlobalToggle,
-} from "../../lib/registry.ts";
+import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import {
 	filterNativeModels,
 	persistNativeProviderModels,
@@ -60,7 +60,6 @@ import {
 	registerNativeProviderRefresh,
 	registerNativeProviderToggle,
 } from "../../lib/native-provider.ts";
-import { loadProviderCache, saveProviderCache } from "../../lib/provider-cache.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { openmodelAuth } from "./openmodel-auth.ts";
@@ -393,10 +392,14 @@ async function fetchOpenModelWebCatalog(
 				return;
 			}
 			const timer = setTimeout(resolve, OPENMODEL_PAGINATION_DELAY_MS);
-			signal?.addEventListener("abort", () => {
-				clearTimeout(timer);
-				reject(new DOMException("Aborted", "AbortError"));
-			}, { once: true });
+			signal?.addEventListener(
+				"abort",
+				() => {
+					clearTimeout(timer);
+					reject(new DOMException("Aborted", "AbortError"));
+				},
+				{ once: true },
+			);
 		});
 	}
 
@@ -452,12 +455,14 @@ async function fetchOpenModelModels(
 			});
 			return [] as OpenModelCatalogItem[];
 		}),
-		fetchOpenModelProtocols(apiKey, BASE_URL_OPENMODEL, signal).catch((error) => {
-			_logger.error("[openmodel] Failed to fetch /v1/models", {
-				error: error instanceof Error ? error.message : String(error),
-			});
-			return [] as OpenModelProtocolItem[];
-		}),
+		fetchOpenModelProtocols(apiKey, BASE_URL_OPENMODEL, signal).catch(
+			(error) => {
+				_logger.error("[openmodel] Failed to fetch /v1/models", {
+					error: error instanceof Error ? error.message : String(error),
+				});
+				return [] as OpenModelProtocolItem[];
+			},
+		),
 	]);
 
 	if (catalog.length === 0 && protocols.length === 0) {
@@ -508,20 +513,20 @@ function openModelCredentialToken(
 
 export default function openmodelProvider(pi: ExtensionAPI): Promise<void> {
 	const streams = anthropicMessagesApi();
-	const initialModels = loadProviderCache(PROVIDER_OPENMODEL) ?? [];
 	const stored: StoredModels = { free: [], all: [] };
 
-	function ingest(all: ProviderModelConfig[], free?: ProviderModelConfig[]): void {
+	function ingest(
+		all: ProviderModelConfig[],
+		free?: ProviderModelConfig[],
+	): void {
 		stored.all = enhanceWithCI(all, PROVIDER_OPENMODEL).map(toOpenModel);
-		stored.free = (free ?? stored.all.filter((model) =>
-			isFreeModel(
-				{ ...model, provider: PROVIDER_OPENMODEL },
-				stored.all,
-			),
-		)).map(toOpenModel);
+		stored.free = (
+			free ??
+			stored.all.filter((model) =>
+				isFreeModel({ ...model, provider: PROVIDER_OPENMODEL }, stored.all),
+			)
+		).map(toOpenModel);
 	}
-
-	if (initialModels.length > 0) ingest(initialModels);
 
 	const provider: Provider<"anthropic-messages"> = {
 		id: PROVIDER_OPENMODEL,
@@ -560,7 +565,6 @@ export default function openmodelProvider(pi: ExtensionAPI): Promise<void> {
 				isFreeModel({ ...model, provider: PROVIDER_OPENMODEL }, models),
 			);
 			ingest(models, free);
-			await saveProviderCache(PROVIDER_OPENMODEL, models);
 			await persistNativeProviderModels(
 				PROVIDER_OPENMODEL,
 				context,
@@ -574,14 +578,13 @@ export default function openmodelProvider(pi: ExtensionAPI): Promise<void> {
 	};
 
 	registerNativeProvider(pi, provider);
-	const reRegister = (_models: ProviderModelConfig[]) =>
-		registerNativeProvider(pi, provider);
+	const reRegister = () => registerNativeProvider(pi, provider);
 	registerWithGlobalToggle(
 		PROVIDER_OPENMODEL,
 		stored,
 		reRegister,
 		Boolean(getOpenmodelApiKey()),
-		{ native: true },
+		{ native: true, invalidate: reRegister },
 	);
 	registerNativeProviderToggle(pi, {
 		providerId: PROVIDER_OPENMODEL,

@@ -196,9 +196,9 @@ describe("refreshModels offline init", () => {
 		// getModels exposes the complete catalog; Pi applies filterModels.
 		const models = provider.getModels();
 		expect(models.map((m) => m.id).sort()).toEqual(["a", "b"]);
-		expect(
-			provider.filterModels!(models, undefined).map((m) => m.id),
-		).toEqual(["a"]);
+		expect(provider.filterModels!(models, undefined).map((m) => m.id)).toEqual([
+			"a",
+		]);
 	});
 
 	it("stays empty when the store is empty and network is disallowed", async () => {
@@ -274,7 +274,12 @@ describe("refreshModels online", () => {
 		expect(stored.all).toHaveLength(2);
 		expect(stored.free).toHaveLength(1);
 		// getModels exposes the complete catalog; Pi applies filterModels.
-		expect(provider.getModels().map((m) => m.id).sort()).toEqual(["a", "b"]);
+		expect(
+			provider
+				.getModels()
+				.map((m) => m.id)
+				.sort(),
+		).toEqual(["a", "b"]);
 		expect(
 			provider.filterModels!(provider.getModels(), undefined).map((m) => m.id),
 		).toEqual(["a"]);
@@ -342,7 +347,7 @@ describe("refreshModels online", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Toggle interop (setView / decideView)
+// Toggle interop (filterModels / decideView)
 // ---------------------------------------------------------------------------
 
 describe("toggle interop", () => {
@@ -358,15 +363,26 @@ describe("toggle interop", () => {
 	}
 
 	it("keeps the full catalog while filterModels selects the free view", async () => {
-		const { provider, stored, setView } = await seededProvider();
-		expect(provider.getModels().map((m) => m.id).sort()).toEqual(["a", "b"]);
-		expect(provider.filterModels!(provider.getModels(), undefined).map((m) => m.id)).toEqual(["a"]);
+		const { provider } = await seededProvider();
+		expect(
+			provider
+				.getModels()
+				.map((m) => m.id)
+				.sort(),
+		).toEqual(["a", "b"]);
+		expect(
+			provider.filterModels!(provider.getModels(), undefined).map((m) => m.id),
+		).toEqual(["a"]);
 
-		// Re-registration is now an availability-snapshot invalidation signal.
-		setView(stored.all);
-		setView(stored.free);
-		expect(provider.getModels().map((m) => m.id).sort()).toEqual(["a", "b"]);
-		expect(provider.filterModels!(provider.getModels(), undefined).map((m) => m.id)).toEqual(["a"]);
+		expect(
+			provider
+				.getModels()
+				.map((m) => m.id)
+				.sort(),
+		).toEqual(["a", "b"]);
+		expect(
+			provider.filterModels!(provider.getModels(), undefined).map((m) => m.id),
+		).toEqual(["a"]);
 	});
 
 	it("decideView shows all when per-provider show_paid is set under global free-only", async () => {
@@ -374,8 +390,7 @@ describe("toggle interop", () => {
 		const { provider } = await seededProvider();
 		// show_paid true + global free-only true => filterModels returns all.
 		expect(
-			provider
-				.filterModels!(provider.getModels(), undefined)
+			provider.filterModels!(provider.getModels(), undefined)
 				.map((m) => m.id)
 				.sort(),
 		).toEqual(["a", "b"]);
