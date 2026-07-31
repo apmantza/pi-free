@@ -37,15 +37,17 @@ import {
 	getProxyModelCompat,
 	isLikelyReasoningModel,
 } from "../../lib/provider-compat.ts";
-import { createProviderProbe } from "../../lib/provider-probe.ts";
-import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
-import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
-import { fetchWithRetry, fetchWithTimeout } from "../../lib/util.ts";
+import { createOpenAIAvailabilityProbe } from "../../lib/provider-probe.ts";
 import {
-	createReRegister,
-	loadCachedOrFetchModels,
-	setupProvider,
-} from "../../provider-helper.ts";
+	registerNativeAvailabilityProbe,
+	registerNativeOpenAIProvider,
+} from "../../lib/native-provider.ts";
+import {
+	loadProviderCache,
+	saveProviderCache,
+} from "../../lib/provider-cache.ts";
+import { fetchWithRetry } from "../../lib/util.ts";
+import { novitaAuth } from "./novita-auth.ts";
 
 const _logger = createLogger("novita");
 
@@ -75,6 +77,7 @@ interface NovitaModel {
 
 async function fetchNovitaModels(
 	apiKey: string,
+	signal?: AbortSignal,
 ): Promise<ProviderModelConfig[]> {
 	_logger.info("[novita] Fetching models from Novita API...");
 
@@ -86,6 +89,7 @@ async function fetchNovitaModels(
 					Authorization: `Bearer ${apiKey}`,
 					"Content-Type": "application/json",
 				},
+				signal,
 			},
 			3,
 			1000,
@@ -146,133 +150,36 @@ async function fetchNovitaModels(
 	}
 }
 
-// =============================================================================
-// Extension Entry Point
-// =============================================================================
-
-export default async function novitaProvider(pi: ExtensionAPI) {
-	const apiKey = getNovitaApiKey();
-
-	if (!apiKey) {
-		_logger.info(
-			"[novita] Skipping — NOVITA_API_KEY not set. Sign up at https://novita.ai/",
-		);
-		return;
-	}
-
-	// Fetch models
-	const allModels = await loadCachedOrFetchModels(PROVIDER_NOVITA, () =>
-		fetchNovitaModels(apiKey),
-	);
-
-	if (allModels.length === 0) {
-		_logger.warn("[novita] No chat models available");
-		return;
-	}
-
-	// Use isFreeModel with allModels for proper detection
-	// Novita returns pricing for all models → _pricingKnown=true → Route A OR logic
-	const freeModels = allModels.filter((m) =>
-		isFreeModel({ ...m, provider: PROVIDER_NOVITA }, allModels),
-	);
-
-	const stored = { free: freeModels, all: allModels };
-
-	_logger.info(
-		`[novita] Registered ${allModels.length} models (${freeModels.length} free)`,
-	);
-
-	// Create re-register function
-	const reRegister = createReRegister(pi, {
+export default function novitaProvider(pi: ExtensionAPI): Promise<void> {
+	const initialModels = loadProviderCache(PROVIDER_NOVITA) ?? [];
+	const handle = registerNativeOpenAIProvider(pi, {
 		providerId: PROVIDER_NOVITA,
+		name: "Novita AI",
 		baseUrl: BASE_URL_NOVITA,
-		apiKey,
-	});
-
-	// Register with global toggle
-	registerWithGlobalToggle(PROVIDER_NOVITA, stored, reRegister, true);
-
-	// Setup provider with toggle command
-	setupProvider(
-		pi,
-		{
-			providerId: PROVIDER_NOVITA,
-			initialShowPaid: getNovitaShowPaid(),
-			tosUrl: "https://novita.ai/terms",
-			reRegister: (models, _stored) => {
-				if (_stored) {
-					stored.free = _stored.free;
-					stored.all = _stored.all;
-				}
-				reRegister(models);
-			},
+		auth: novitaAuth,
+		getApiKey: getNovitaApiKey,
+		getShowPaid: getNovitaShowPaid,
+		initialModels,
+		fetchModels: async (apiKey, signal) => {
+			const models = await fetchNovitaModels(apiKey, signal);
+			if (models.length > 0) await saveProviderCache(PROVIDER_NOVITA, models);
+			return models;
 		},
-		stored,
+		tosUrl: "https://novita.ai/terms",
+	});
+	const apiKey = getNovitaApiKey();
+	if (!apiKey) return Promise.resolve();
+
+	const probe = createOpenAIAvailabilityProbe(
+		PROVIDER_NOVITA,
+		BASE_URL_NOVITA,
 	);
-
-	// Initial registration — respect persisted toggle state
-	const showPaid = getNovitaShowPaid();
-	const initialModels =
-		showPaid && stored.all.length > 0 ? stored.all : freeModels;
-	reRegister(initialModels);
-
-	// ── Probe support ──────────────────────────────────────────────
-	const probe = createProviderProbe({
+	registerNativeAvailabilityProbe(pi, {
 		providerId: PROVIDER_NOVITA,
-		probeModel: async (_apiKey: string, modelId: string) => {
-			try {
-				const response = await fetchWithTimeout(
-					`${BASE_URL_NOVITA}/chat/completions`,
-					{
-						method: "POST",
-						headers: {
-							Authorization: `Bearer ${apiKey}`,
-							"Content-Type": "application/json",
-							"User-Agent": "pi-free-providers",
-						},
-						body: JSON.stringify({
-							model: modelId,
-							messages: [{ role: "user", content: "hi" }],
-							max_tokens: 1,
-						}),
-					},
-					10_000,
-				);
-				if (response.status === 404 || response.status >= 500) return "broken";
-				if (response.status === 429) return "ok";
-				if (response.ok) return "ok";
-				return "ok";
-			} catch {
-				return "unknown";
-			}
-		},
+		label: "Novita AI",
+		apiKey,
+		probe,
+		handle,
 	});
-
-	// Probe command
-	pi.registerCommand(`probe-${PROVIDER_NOVITA}`, {
-		description: "Test all Novita AI models for availability",
-		handler: async (_args, ctx) => {
-			ctx.ui.notify(`Probing ${allModels.length} Novita AI models…`, "info");
-			const broken = await probe.run(apiKey, allModels, {
-				onBroken: (ids) => {
-					ctx.ui.notify(
-						`Found ${ids.length} broken models (auto-hidden):\n${ids.join("\n")}`,
-						"warning",
-					);
-				},
-			});
-			if (broken.length === 0) {
-				ctx.ui.notify("All Novita AI models are accessible ✅", "info");
-			}
-		},
-	});
-
-	// Lazy auto-probe on first session_start
-	pi.on(
-		"session_start",
-		wrapSessionStartHandler(
-			`${PROVIDER_NOVITA}-auto-probe`,
-			probe.autoProbeHandler(apiKey, freeModels),
-		),
-	);
+	return Promise.resolve();
 }
