@@ -39,12 +39,12 @@ import {
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
-	readFileSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import { freshenProviderCache } from "./bench-startup-cache.ts";
 
 const mode = process.argv[2] ?? "warm";
 if (!["warm", "cold", "fastcold"].includes(mode)) {
@@ -81,23 +81,14 @@ const MINIMAL_CONFIG = JSON.stringify(
 	2,
 );
 
-function freshenCache(src: string, dest: string): number {
-	const raw = JSON.parse(readFileSync(src, "utf-8"));
-	const now = new Date().toISOString();
-	let n = 0;
-	for (const v of Object.values<any>(raw.providers ?? {})) {
-		v.fetchedAt = now;
-		n++;
-	}
-	writeFileSync(dest, JSON.stringify(raw));
-	return n;
-}
-
 let seededProviders = 0;
 if (mode === "warm") {
 	const cacheSrc = join(REAL_PI, "provider-cache.json");
 	if (existsSync(cacheSrc)) {
-		seededProviders = freshenCache(cacheSrc, join(piDir, "provider-cache.json"));
+		seededProviders = freshenProviderCache(
+			cacheSrc,
+			join(piDir, "provider-cache.json"),
+		);
 	}
 	const cfgSrc = join(REAL_PI, "free.json");
 	if (existsSync(cfgSrc)) copyFileSync(cfgSrc, join(piDir, "free.json"));
