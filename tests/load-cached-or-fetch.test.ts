@@ -78,10 +78,22 @@ describe("loadCachedOrFetchModels", () => {
 		mocks.isProviderCacheFresh.mockReturnValue(false);
 		const fetcher = vi.fn().mockRejectedValue(new Error("network down"));
 		const { loadCachedOrFetchModels } = await import("../provider-helper.ts");
+		const { beginStartup, getStartupSummary } = await import(
+			"../lib/startup-timing.ts"
+		);
+		beginStartup();
 
 		const result = await loadCachedOrFetchModels("test", fetcher);
 
 		expect(result).toBe(cachedModels);
+		expect(getStartupSummary().cacheNetwork).toEqual([
+			expect.objectContaining({
+				provider: "test",
+				networkFetches: 1,
+				networkFailures: 1,
+				networkSuccesses: 0,
+			}),
+		]);
 		// A failed fetch must not poison the cache.
 		expect(mocks.saveProviderCacheGuarded).not.toHaveBeenCalled();
 	});
@@ -127,11 +139,22 @@ describe("loadCachedOrFetchModels", () => {
 		const fetcher = vi.fn().mockReturnValue(new Promise(() => {}));
 		const { loadCachedOrFetchModels } = await import("../provider-helper.ts");
 
+		const { beginStartup, getStartupSummary } = await import(
+			"../lib/startup-timing.ts"
+		);
+		beginStartup();
 		const result = await loadCachedOrFetchModels("test", fetcher, {
 			fetchTimeoutMs: 30,
 		});
 
 		expect(fetcher).toHaveBeenCalledTimes(1);
+		expect(getStartupSummary().cacheNetwork[0]).toEqual(
+			expect.objectContaining({
+				provider: "test",
+				networkFetches: 1,
+				networkFailures: 1,
+			}),
+		);
 		expect(result).toBe(cachedModels);
 		// A timed-out fetch must not poison the cache.
 		expect(mocks.saveProviderCacheGuarded).not.toHaveBeenCalled();

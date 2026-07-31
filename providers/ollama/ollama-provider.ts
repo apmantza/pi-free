@@ -24,7 +24,10 @@ import {
 	loadProviderCache,
 	saveProviderCache,
 } from "../../lib/provider-cache.ts";
-import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
+import {
+	trackDetachedSessionStart,
+	wrapSessionStartHandler,
+} from "../../lib/session-start-metrics.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { ollamaAuth } from "./ollama-auth.ts";
@@ -240,7 +243,9 @@ export function registerOllamaProvider(
 		},
 	});
 
-	const runProbeInBackground = (models: ProviderModelConfig[]) => {
+	const runProbeInBackground = (
+		models: ProviderModelConfig[],
+	): Promise<string[]> | undefined => {
 		if (
 			areAllModelsFresh(
 				PROVIDER_OLLAMA,
@@ -251,9 +256,7 @@ export function registerOllamaProvider(
 		}
 		const apiKey = getOllamaApiKey();
 		if (!apiKey) return;
-		deps
-			.probeModels(apiKey, models, applyModelList, { useCache: true })
-			.catch(() => undefined);
+		return deps.probeModels(apiKey, models, applyModelList, { useCache: true });
 	};
 
 	// Pi owns the native model refresh; this handler preserves Ollama's
@@ -261,8 +264,10 @@ export function registerOllamaProvider(
 	pi.on(
 		"session_start",
 		wrapSessionStartHandler("ollama-cloud", () => {
-			runProbeInBackground(currentModels());
-			return Promise.resolve();
+			const task = runProbeInBackground(currentModels());
+			if (task) {
+				trackDetachedSessionStart("ollama-cloud-probe", task);
+			}
 		}),
 	);
 	registerNativeProviderRefresh(pi, PROVIDER_OLLAMA);

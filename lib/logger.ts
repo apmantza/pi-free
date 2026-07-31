@@ -181,6 +181,14 @@ function log(
 	}
 }
 
+export function getLogPath(): string {
+	return LOG_PATH;
+}
+
+export function isFileLoggingEnabled(): boolean {
+	return FILE_LOG_ENABLED;
+}
+
 export const logger = {
 	debug: (namespace: string, message: string, data?: Record<string, unknown>) =>
 		log("debug", namespace, message, data),

@@ -7,75 +7,74 @@ All slash commands provided by pi-free.
 ## Global Commands
 
 | Command | Description |
-|---|---|
-| `/toggle-free` | Toggle global free-only mode for ALL providers |
-| `/free-providers` | Show free/paid model counts for all providers |
-| `/free-telemetry` | Show real-world performance data (tokens/s, latency, success rate) for free models |
-| `/clear-free-telemetry` | Clear all stored telemetry data |
-
----
+| --- | --- |
+| `/toggle-free` | Toggle global free-only mode for all providers. |
+| `/free-providers` | Show the current free/paid model view for registered providers. |
+| `/pi-free-health` | Show a credential-free health report, startup/session issues, registered-provider count, and the diagnostic log path. |
+| `/free-startup` | Show the latest startup timing summary, including provider timings, cache/network activity, session-start handlers, and detached work. |
+| `/free-telemetry` | Show optional real-world performance data for free models. |
+| `/clear-free-telemetry` | Clear stored telemetry data. |
 
 ## Per-Provider Toggles
 
-Run `/toggle-{provider}` to switch between free-only and all models. Your preference is saved to `~/.pi/free.json` and remembered across Pi restarts.
+Run `/toggle-{provider}` to switch between a provider's free/basic view and its full catalog. The preference is saved in `~/.pi/free.json`.
 
-| Command | Provider | Type |
-|---|---|---|
-| `/toggle-kilo` | Kilo | ✅ free |
-| `/toggle-openrouter` | OpenRouter | ✅ free |
-| `/toggle-opencode` | OpenCode | ✅ free |
-| `/toggle-cline` | Cline | ✅ free |
-| `/toggle-ollama` | Ollama Cloud | 🔄 freemium |
-| `/toggle-sambanova` | SambaNova | 🔄 freemium |
-| `/toggle-llm7` | LLM7 | ✅ free |
-| `/toggle-novita` | Novita AI | 💳 paid |
-| `/toggle-routeway` | Routeway AI | 💳 paid |
-| `/toggle-tokenrouter` | TokenRouter | 🔄 freemium |
-| `/toggle-anyapi` | AnyAPI | 🔄 freemium |
-| `/toggle-openmodel` | OpenModel | ✅ free |
-| `/toggle-zenmux` | ZenMux | 💳 paid |
-| `/toggle-crofai` | CrofAI | 💳 paid |
-| `/toggle-deepinfra` | DeepInfra | 💳 trial |
-| `/toggle-fastrouter` | FastRouter | 🔧 dynamic |
+| Command | Provider | Surface |
+| --- | --- | --- |
+| `/toggle-kilo` | Kilo | Native |
+| `/toggle-cline` | Cline | Native |
+| `/toggle-ollama-cloud` | Ollama Cloud | Native |
+| `/toggle-llm7` | LLM7 | Native |
+| `/toggle-zenmux` | ZenMux | Native |
+| `/toggle-crofai` | CrofAI | Native |
+| `/toggle-deepinfra` | DeepInfra | Native |
+| `/toggle-sambanova` | SambaNova | Native |
+| `/toggle-novita` | Novita AI | Native |
+| `/toggle-routeway` | Routeway AI | Native |
+| `/toggle-tokenrouter` | TokenRouter | Native |
+| `/toggle-anyapi` | AnyAPI | Native |
+| `/toggle-bai` | B.AI | Native |
+| `/toggle-openmodel` | OpenModel | Native |
+| `/toggle-qoder` | Qoder | Legacy |
+| `/toggle-openrouter` | OpenRouter | Pi built-in |
+| `/toggle-opencode` | OpenCode | Pi built-in/dynamic |
+| `/toggle-opencode-go` | OpenCode Go | Pi built-in/dynamic |
+| `/toggle-fastrouter` | FastRouter | Dynamic |
 
-**Notes:**
+Native providers retain their complete catalog and let Pi apply the current filter. Qoder and dynamic providers re-register the selected model list.
 
-- **✅ Free providers** — toggle switches between free-only vs all models (including paid)
-- **🔄 Freemium** — shows all models by default; toggle switches between filtered and full list
-- **🔧 Dynamic** — filters the model list when you have an API key configured
-- **💳 Paid** — shows all models by default
+## Authentication Commands
 
----
+| Command | Description |
+| --- | --- |
+| `/login kilo` | Start Kilo OAuth. Kilo also accepts `KILO_API_KEY`. |
+| `/login cline` | Start Cline OAuth. Cline's public catalog does not require login; chat does. |
+| `/login qoder` | Authenticate Qoder with a PAT or browser OAuth. |
+| `/logout kilo` | Clear Kilo credentials managed by Pi. |
+| `/logout cline` | Clear Cline credentials managed by Pi. |
 
-## OAuth Commands
+Qoder PAT authentication can also use `QODER_PERSONAL_ACCESS_TOKEN` or its `QODER_PAT` alias. See [providers.md](providers.md) for all API-key names.
+
+## Ollama Cloud Refresh
 
 | Command | Description |
 |---|---|
-| `/login kilo` | Start OAuth flow for Kilo |
-| `/logout kilo` | Clear Kilo OAuth credentials |
-| `/login cline` | Start OAuth flow for Cline |
-| `/logout cline` | Clear Cline OAuth credentials |
+| `/ollama-cloud-refresh` | Re-fetch Ollama Cloud's catalog and update the provider live. Requires `OLLAMA_API_KEY`. |
 
----
+Ollama Cloud is a native provider, but this compatibility command and `/api/show` capability reuse continue to use `~/.pi/provider-cache.json`.
 
 ## Probe Commands
 
-Test models for errors and auto-hide broken ones. All probes use a **24-hour cache** to avoid re-checking recently-verified models. Run any probe manually to force a full re-check.
+Probes test model availability. Automatic checks use a 24-hour probe cache; running a probe command explicitly forces a fresh check. Broken models are hidden in `~/.pi/free.json` with provider-scoped IDs.
 
 | Command | Provider | What it does |
-|---|---|---|
-| `/probe-ollama` | Ollama Cloud | Test for 403 errors, auto-hide |
-| `/probe-routeway` | Routeway | Test for 5xx/404 errors, auto-hide |
-| `/probe-opencode` | OpenCode | Test for expired free promotions (report only) |
-| `/probe-opencode-go` | OpenCode Go | Test for expired free promotions (report only) |
-| `/probe-deepinfra` | DeepInfra | Test for 404/5xx errors, auto-hide |
-| `/probe-sambanova` | SambaNova | Test for 404/5xx errors, auto-hide |
-| `/probe-novita` | Novita AI | Test for 404/5xx errors, auto-hide |
+| --- | --- | --- |
+| `/probe-ollama` | Ollama Cloud | Test for 403 access-denied models and auto-hide them. |
+| `/probe-routeway` | Routeway | Test for 5xx/404 errors and auto-hide broken models. |
+| `/probe-opencode` | OpenCode | Test expired free promotions; report only. |
+| `/probe-opencode-go` | OpenCode Go | Test expired free promotions; report only. |
+| `/probe-deepinfra` | DeepInfra | Test for 404/5xx errors and auto-hide broken models. |
+| `/probe-sambanova` | SambaNova | Test for 404/5xx errors and auto-hide broken models. |
+| `/probe-novita` | Novita AI | Test for 404/5xx errors and auto-hide broken models. |
 
-**How probes work:**
-
-1. Sends a minimal test request to every model
-2. Identifies broken models (404/403/5xx responses)
-3. **Auto-hides** broken models in your config (provider-scoped: `"ollama/kimi-k2.6"`)
-4. Re-registers the provider so broken models disappear immediately
-5. Hidden models persist across Pi restarts
+Probes never treat a transient network failure as proof that a model is broken.

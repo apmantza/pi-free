@@ -15,6 +15,7 @@ import {
 	processQuotaResponse,
 	formatQuotaStatus,
 } from "./lib/quota-monitor.ts";
+import { formatHealthReport } from "./lib/health.ts";
 import {
 	startModelCall,
 	recordModelCall,
@@ -23,6 +24,7 @@ import {
 	clearTelemetry,
 } from "./lib/telemetry.ts";
 import {
+	beginSessionStart,
 	beginStartup,
 	endPhase,
 	finalizeStartup,
@@ -248,6 +250,14 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 		},
 	});
 
+	// /pi-free-health — Show a credential-free diagnostic report and log path
+	pi.registerCommand("pi-free-health", {
+		description: "Show pi-free health, startup issues, and the diagnostic log path",
+		handler: async (_args, ctx) => {
+			ctx.ui.notify(formatHealthReport(), "info");
+		},
+	});
+
 	// /free-startup — Show the last startup timing breakdown
 	pi.registerCommand("free-startup", {
 		description:
@@ -419,6 +429,10 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 	startPhase("global-handlers");
 	if (!_handlersRegistered) {
 		_handlersRegistered = true;
+
+		// Start a fresh observability window before any provider session_start
+		// handlers run. The handler is synchronous and never blocks Pi.
+		pi.on("session_start", () => beginSessionStart());
 
 		// Setup global commands first
 		setupGlobalCommands(pi);

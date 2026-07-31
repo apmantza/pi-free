@@ -22,7 +22,9 @@ index.ts                          ← Extension entry point (piFreeEntry)
   ├─ lib/toggle-state.ts          ← Generic toggle state machine (free ↔ all)
   ├─ lib/built-in-toggle.ts       ← Toggles for Pi's built-in providers (opencode, openrouter)
   ├─ lib/quota-monitor.ts         ← Rate-limit header extraction → status bar
-  ├─ lib/startup-timing.ts        ← Startup phase + per-provider timing observability
+  ├─ lib/startup-timing.ts        ← Startup, cache/network, and session-start timing observability
+  ├─ lib/session-start-metrics.ts ← Monotonic handler + detached session-start timing
+  ├─ lib/health.ts                ← Credential-free `/pi-free-health` diagnostic report
   ├─ lib/logger.ts                ← Structured logging (console + ~/.pi/free.log)
   ├─ lib/json-persistence.ts      ← Generic JSON/JSONL file stores
   ├─ lib/model-detection.ts       ← Model family grouping, name normalization
@@ -79,7 +81,7 @@ tests/                            ← Vitest test suite
 
 `index.ts` exports `piFreeEntry(pi: ExtensionAPI)` — the single entry point Pi calls. It:
 
-1. Sets up global commands (`/toggle-free`, `/free-providers`)
+1. Sets up global commands (`/toggle-free`, `/free-providers`, `/pi-free-health`)
 2. Sets up quota monitoring (passive, listens to `after_provider_response`)
 3. Loads all unique providers via `Promise.allSettled`
 4. Sets up dynamic built-in providers (only if API keys configured)
@@ -88,32 +90,12 @@ tests/                            ← Vitest test suite
 
 ### Provider Registration Pattern
 
-Every provider follows this pattern:
+Provider setup has two lifecycle patterns:
 
-```typescript
-export default async function providerName(pi: ExtensionAPI) {
-    // 1. Fetch models (from API, hardcoded list, or models.dev)
-    const allModels = await fetchModels(...);
-    const freeModels = allModels.filter(m => isFreeModel(m, allModels));
-    const stored = { free: freeModels, all: allModels };
+- **Native providers** register a Pi `Provider` object (usually through `lib/native-provider.ts`). They expose the complete catalog from `getModels()`, apply free/paid and hidden-model policy in `filterModels`, and implement `refreshModels(context)` so Pi owns the models store, credentials, refresh timing, abort signal, and offline initialization.
+- **Legacy providers** may still fetch a catalog during setup and use `createReRegister`, `setupProvider`, and `lib/provider-cache.ts`. Qoder intentionally remains on this surface for now; dynamic built-ins also retain their specialized lifecycle.
 
-    // 2. Create re-register function (used by toggles)
-    const reRegister = createReRegister(pi, { providerId, baseUrl, apiKey });
-
-    // 3. Register with global toggle system
-    registerWithGlobalToggle(providerId, stored, reRegister, hasKey);
-
-    // 4. Register initial models with Pi
-    pi.registerProvider(providerId, { models: enhanceWithCI(initialModels), ... });
-
-    // 5. Register toggle command
-    pi.registerCommand(`toggle-${providerId}`, { ... });
-
-    // 6. Status bar + session refresh
-    pi.on("model_select", ...);
-    pi.on("session_start", ...);
-}
-```
+For a new OpenAI-compatible native provider, use `registerNativeOpenAIProvider()` with a `ProviderAuth`, a catalog fetcher, and `getShowPaid`. For a custom wire protocol, assemble the public `Provider` interface directly, following OpenModel or Cline. Do not add a second freshness policy or copy native catalogs into `provider-cache.json`.
 
 **Cache-first loading.** Legacy network-fetching extension providers register from the disk cache (`~/.pi/provider-cache.json`, 1-hour TTL via `lib/provider-cache.ts`) first and only hit the network on a cold or stale cache, so warm startups make no network calls. The dynamic built-in phase (including publicly discoverable FastRouter) runs concurrently with the static providers inside `piFreeEntry`'s single `Promise.allSettled`, not sequentially after it. OpenRouter is owned by Pi and is not dynamically registered by pi-free. **Native providers** use Pi's models store (`~/.pi/agent/models-store.json`) via `refreshModels`; remaining legacy/dynamic providers use `lib/provider-cache.ts` (see below). Ollama Cloud additionally retains that cache only for `/api/show` capability reuse and its manual refresh compatibility path.
 
@@ -136,10 +118,11 @@ providers/cline/cline-xml-bridge.ts ← unchanged message reshaping (stream + st
 
 Key points of the pattern (the recipe for porting other unique providers):
 
-- The `Provider` is assembled **directly against the public `Provider` interface** (the same shape `createProvider()` returns) rather than via the `createProvider` helper: that helper unconditionally merges its stored dynamic overlay on top of the static baseline on every refresh. Native providers keep the complete catalog in `getModels()` and apply the free/paid policy through `filterModels`, so refreshes cannot clobber the selected view.
+- The `Provider` is assembled **directly against the public `Provider` interface** (the same shape as the native provider surface), rather than using the legacy registration helpers. Native providers keep the complete catalog in `getModels()` and apply the free/paid policy through `filterModels`, so refreshes cannot clobber the selected view.
 - `refreshModels(context)`: always `await context.store.read()` first (offline init — `allowNetwork:false` stops here); when `allowNetwork:true`, fetch with `context.credential` (Pi refreshes OAuth before calling), honor `context.signal`, retain the previous list on an empty/failed fetch (poisoning guard), then `context.store.write({ models, checkedAt })`. No internal freshness gating — Pi owns the throttle and `force` (`pi update --models`), so the two never double-throttle.
+- Native session-start hooks nudge Pi's model registry without awaiting detached refresh work; `lib/session-start-metrics.ts` records both handler return time and eventual refresh/probe completion or failure so `/free-startup` does not hide post-finalize work.
 - Native `auth`: `apiKey.resolve` returns `credential?.key ?? getKiloApiKey()` (ambient env/config); `oauth` implements `login(interaction)` (device flow via `interaction.notify`), `refresh(credential)` (Kilo tokens are long-lived; expired → throw, re-login fixes), and `toAuth(credential)` → `{ apiKey: credential.access }`. Credentials persist to `~/.pi/agent/auth.json` — the same store the legacy `/login kilo` already used, so existing OAuth users need no migration.
-- The free/paid toggle stays coordinated by `registerWithGlobalToggle`: native `reRegister(models)` re-registers the **same** provider object (upsert by id) to invalidate Pi's availability snapshot, while `filterModels` selects the complete catalog view. This keeps per-provider toggles and the global `/toggle-free` working without rebuilding model arrays.
+- The free/paid toggle stays coordinated by `registerWithGlobalToggle`: native `reRegister()` re-registers the **same** provider object (upsert by id) only to invalidate Pi's availability snapshot, while `filterModels` selects the complete catalog view. This keeps per-provider toggles and the global `/toggle-free` working without rebuilding model arrays.
 - Because the dev lockfile can lag the declared peer minimum, `kilo.ts` and `cline.ts` register through a small documented `NativeRegistrar` type bridge; the source type-checks against both the pinned dev snapshot and the declared `>=0.81.0` runtime.
 
 Cline-specific deviations from the Kilo reference (porting recipe supplements):
@@ -195,12 +178,12 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 
 ## Provider Categories
 
-| Category    | Providers                                          | Auth              | Notes                            |
+| Category | Providers | Auth | Notes |
 | ----------- | -------------------------------------------------- | ----------------- | -------------------------------- |
-| ✅ Free     | kilo, cline, openrouter, opencode, llm7            | OAuth, API key, or none | Toggle between free/paid         |
-| 🔄 Freemium | anyapi, ollama-cloud, sambanova, tokenrouter       | API key                | Free tier with limits            |
-| 💳 Paid     | zenmux, crofai, deepinfra, novita, routeway, qoder, bai, openmodel | API key, OAuth, or credits | Trial credits or pay-per-token |
-| 🔧 Dynamic  | opencode, opencode-go, fastrouter | API key             | Fetched when configured or publicly discoverable |
+| ✅ Free / free-tier | kilo, cline, llm7, openmodel, tokenrouter, qoder basic | OAuth, API key, or none | Free models or tier; toggles can expose paid models |
+| 🔄 Freemium | anyapi, ollama-cloud, sambanova | API key | Free allowance with limits |
+| 💳 Paid / trial | zenmux, crofai, deepinfra, novita, routeway, bai, qoder premium | API key, OAuth, or credits | Paid access, trial credit, or premium tier |
+| 🔧 Dynamic / built-in | opencode, opencode-go, fastrouter, openrouter | Built-in Pi auth or API key | Built-in toggles or dynamic catalog discovery |
 
 ---
 
@@ -225,10 +208,12 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 6. **API keys are getters** in `config.ts` — re-read on every call for runtime changes
 7. **Logging uses `createLogger(namespace)`** — never `console.log` directly
 8. **Error handling is graceful** — providers that fail at startup are silently skipped
-9. **Model filtering happens at fetch time** — small models (< 30B, < 70B for NVIDIA) are filtered
-10. **All providers use `enhanceWithCI()`** before registration to add CI scores
+9. **Model filtering is provider-specific** — native providers filter complete catalogs with `filterModels`; catalog fetchers may apply provider-specific modality or quality filters (NVIDIA retains its own 70B threshold)
+10. **All pi-free-registered catalogs use `enhanceWithCI()`** before registration to add CI scores
 11. **Legacy network-fetching extension providers are cache-first** (1h TTL via `lib/provider-cache.ts`); native providers use Pi's models store + `refreshModels` instead. Pi's built-in OpenRouter provider is not managed by either extension cache.
-12. **Startup model fetches are deadline-bounded** — `loadCachedOrFetchModels` (and Cline's fetch) wrap the network fetch in `STARTUP_FETCH_DEADLINE_MS` (8s, override `PI_FREE_STARTUP_FETCH_TIMEOUT_MS`) via `withFetchDeadline` in `lib/util.ts`. On a cold/stale cache a dead provider API cannot stall Pi session start; the deadline falls back to the stale cache (or an empty list on a true cold start) and refreshes on `session_start`. Warm cache never touches the network.
+12. **Startup and session-start work are observable and bounded** — legacy/dynamic `loadCachedOrFetchModels` network attempts use `STARTUP_FETCH_DEADLINE_MS` (8s, override `PI_FREE_STARTUP_FETCH_TIMEOUT_MS`) via `withFetchDeadline` in `lib/util.ts`; failed and timed-out attempts are counted with duration and per-provider status. Native providers restore from Pi's store and their session-start refresh nudges and detached probes are measured without making intentionally background work block the event. `/free-startup` exposes the post-finalize handler/task timings.
+13. **Compiled packaging is not shipped yet** — the proposed plain-TypeScript `dist` strategy, peer externalization, JSON asset layout, and validation plan live in [`docs/build-strategy.md`](docs/build-strategy.md). Keep source-mode loading until an import-inclusive benchmark justifies the change.
+14. **Health output is credential-free** — `/pi-free-health` reports provider counts, timing/failure labels, and the configured log path; it must not print API keys, OAuth tokens, model payloads, or raw log contents.
 
 ---
 
@@ -239,7 +224,11 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 | `/toggle-free`       | Global       | Toggle free-only mode for ALL providers   |
 | `/free-providers`    | Global       | Show free/paid counts for all providers   |
 | `/free-startup`      | Global       | Show last startup timing breakdown        |
+| `/pi-free-health`    | Global       | Show diagnostic status and log path      |
+| `/free-telemetry`    | Global       | Show local free-model performance data   |
+| `/clear-free-telemetry` | Global    | Clear local telemetry data               |
 | `/toggle-{provider}` | Per-provider | Toggle between free and all models        |
+| `/toggle-ollama-cloud` | Ollama Cloud | Toggle native free/all catalog view |
 | `/probe-deepinfra`   | DeepInfra    | Test all models, auto-hide broken       |
 | `/probe-novita`      | Novita       | Test all models, auto-hide broken        |
 | `/probe-ollama`      | Ollama       | Test all models for 403 errors, auto-hide |
@@ -249,12 +238,14 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 | `/probe-sambanova`   | SambaNova    | Test all models, auto-hide broken        |
 | `/login kilo`        | Kilo         | Start OAuth flow                          |
 | `/login cline`       | Cline        | Start OAuth flow                          |
+| `/login qoder`       | Qoder        | Start browser OAuth or PAT flow           |
 | `/logout kilo`       | Kilo         | Clear OAuth credentials                   |
 | `/logout cline`      | Cline        | Clear OAuth credentials                   |
 
 **Authentication notes:**
 
-- **Kilo** and **Cline** support both OAuth (`/login`) and direct API keys. Set `KILO_API_KEY` / `CLINE_API_KEY` (or `kilo_api_key` / `cline_api_key` in `~/.pi/free.json`) to authenticate directly. Both are native `createProvider` providers: their native auth always carries both methods, and Pi's resolution order applies — a stored credential (from `/login`) wins, then the ambient API key. Cline's catalog fetch is public (unauthenticated) either way.
+- **Kilo** and **Cline** support both OAuth (`/login`) and direct API keys. Set `KILO_API_KEY` / `CLINE_API_KEY` (or `kilo_api_key` / `cline_api_key` in `~/.pi/free.json`) to authenticate directly. Both are native providers: their native auth carries both methods, and Pi's resolution order applies — a stored credential (from `/login`) wins, then the ambient API key. Cline's catalog is public and can refresh without a credential.
+- **Qoder** remains a legacy provider intentionally. Use `/login qoder`, or set `QODER_PERSONAL_ACCESS_TOKEN` / `QODER_PAT` for headless PAT authentication; its COSY signing and custom stream remain outside the native-provider migration.
 
 ---
 
@@ -262,7 +253,7 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 
 - **Framework:** Vitest (`vitest` v4.1.10)
 - **Run:** `npm test` (watch), `npm run test:run` (once)
-- **Startup perf:** `npx tsx scripts/bench-startup.ts <warm|cold|fastcold>` times the `piFreeEntry` factory in a sandboxed `HOME` with a mocked `fetch` (warm = realistic steady state, cold = dead APIs worst case). Run in a loop for stable numbers.
+- **Startup perf:** `npx tsx scripts/bench-startup.ts <warm|cold|fastcold>` times the awaited `piFreeEntry` factory in a sandboxed `HOME` with mocked `fetch` (warm = no legacy network, cold = dead API worst case). Import/transpile time is intentionally outside that benchmark; include it before evaluating a compiled `dist` package. Native Pi model refresh and session-start detached work are reported separately.
 - **Tests:** `tests/*.test.ts` — covers registry, toggle state, config, model detection, provider compat
 - Tests use `vi.fn()` mocks for ExtensionAPI
 
@@ -285,7 +276,7 @@ Releases are automated via `.github/workflows/release.yml`.
 
 1. **Update version** in `package.json` (semver: patch for fixes, minor for features, major for breaking changes).
 2. **Update `CHANGELOG.md`** — move content from `[Unreleased]` to a new `## [X.Y.Z] - YYYY-MM-DD` section.
-3. **Update `AGENTS.md`** if architecture, commands, or conventions changed.
+3. **Update `agents.md`** if architecture, commands, or conventions changed.
 4. **Commit and push to `master`**.
 5. The CI workflow will:
    - Read the version from `package.json`.
@@ -327,7 +318,7 @@ pi.on(event, handler); // Subscribe to events
 
 **Events:**
 
-- `session_start` — New session begins (refresh models here)
+- `session_start` — New session begins; Pi restores/refreshes native catalogs, while pi-free measures handler and detached work
 - `model_select` — User picked a model (update status bar)
 - `turn_end` — Conversation turn completed (error handling)
 - `before_agent_start` — Before agent starts (re-register models)

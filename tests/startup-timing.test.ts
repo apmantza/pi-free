@@ -124,6 +124,51 @@ describe("startup-timing", () => {
 		expect(summary.cacheHits).toBe(2);
 		expect(summary.networkFetches).toBe(2);
 		expect(summary.networkMsTotal).toBe(100);
+		expect(summary.cacheNetwork).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					provider: "c",
+					cacheHits: 0,
+					networkFetches: 1,
+					networkSuccesses: 1,
+					networkFailures: 0,
+				}),
+				expect.objectContaining({
+					provider: "d",
+					networkFetches: 1,
+				}),
+			]),
+		);
+	});
+
+	it("records session handlers and detached completion after finalize", async () => {
+		const {
+			beginStartup,
+			finalizeStartup,
+			recordSessionStartHandler,
+			recordDetachedSessionWork,
+			getStartupSummary,
+			formatStartupSummary,
+		} = await import("../lib/startup-timing.ts");
+		beginStartup();
+		finalizeStartup();
+		recordSessionStartHandler("native-refresh", 2, true);
+		recordDetachedSessionWork("native-refresh-models", 7, false);
+
+		const summary = getStartupSummary();
+		expect(summary.sessionStartHandlers[0]).toMatchObject({
+			label: "native-refresh",
+			success: true,
+		});
+		expect(summary.detachedSessionWork[0]).toMatchObject({
+			label: "native-refresh-models",
+			success: false,
+		});
+		expect(summary.sessionStartFailures).toEqual(["native-refresh-models"]);
+		const text = formatStartupSummary();
+		expect(text).toContain("Session_start handlers");
+		expect(text).toContain("Detached session_start work");
+		expect(text).toContain("native-refresh-models");
 	});
 
 	it("finalizeStartup freezes totalMs and formatStartupSummary renders", async () => {
@@ -162,5 +207,23 @@ describe("startup-timing", () => {
 		beginStartup();
 		expect(getStartupSummary().providers).toHaveLength(0);
 		expect(getStartupSummary().cacheHits).toBe(0);
+	});
+
+	it("beginSessionStart keeps startup data but replaces the previous session", async () => {
+		const {
+			beginStartup,
+			beginSessionStart,
+			recordSessionStartHandler,
+			getStartupSummary,
+		} = await import("../lib/startup-timing.ts");
+		beginStartup();
+		recordSessionStartHandler("old", 1, true);
+		beginSessionStart();
+		recordSessionStartHandler("new", 2, true);
+
+		expect(getStartupSummary().sessionStartHandlers).toEqual([
+			expect.objectContaining({ label: "new" }),
+		]);
+		expect(getStartupSummary().totalMs).toBeGreaterThanOrEqual(0);
 	});
 });
