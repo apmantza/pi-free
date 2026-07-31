@@ -30,6 +30,7 @@ import {
 	PROVIDER_OPENROUTER,
 	PROVIDER_QODER,
 	PROVIDER_ROUTEWAY,
+	PROVIDER_OPENGATEWAY,
 	PROVIDER_TOKENROUTER,
 	PROVIDER_ZENMUX,
 	PROVIDER_CROFAI,
@@ -75,6 +76,7 @@ interface PiFreeConfig {
 	sambanova_api_key?: string;
 	novita_api_key?: string;
 	routeway_api_key?: string;
+	opengateway_api_key?: string;
 	fastrouter_api_key?: string;
 	tokenrouter_api_key?: string;
 	anyapi_api_key?: string;
@@ -95,6 +97,7 @@ interface PiFreeConfig {
 	sambanova_show_paid?: boolean;
 	novita_show_paid?: boolean;
 	routeway_show_paid?: boolean;
+	opengateway_show_paid?: boolean;
 	fastrouter_show_paid?: boolean;
 	tokenrouter_show_paid?: boolean;
 	anyapi_show_paid?: boolean;
@@ -115,6 +118,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	sambanova_api_key: "",
 	novita_api_key: "",
 	routeway_api_key: "",
+	opengateway_api_key: "",
 	fastrouter_api_key: "",
 	tokenrouter_api_key: "",
 	anyapi_api_key: "",
@@ -136,6 +140,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	sambanova_show_paid: false,
 	novita_show_paid: false,
 	routeway_show_paid: false,
+	opengateway_show_paid: false,
 	fastrouter_show_paid: false,
 	tokenrouter_show_paid: false,
 	anyapi_show_paid: false,
@@ -374,6 +379,11 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 		showPaidKey: "routeway_show_paid",
 	},
 	{
+		id: PROVIDER_OPENGATEWAY,
+		prefix: "OPENGATEWAY",
+		showPaidKey: "opengateway_show_paid",
+	},
+	{
 		id: PROVIDER_TOKENROUTER,
 		prefix: "TOKENROUTER",
 		showPaidKey: "tokenrouter_show_paid",
@@ -465,6 +475,13 @@ export function getNovitaShowPaid(): boolean {
 
 export function getRoutewayShowPaid(): boolean {
 	return resolveBool("ROUTEWAY_SHOW_PAID", loadConfigFile().routeway_show_paid);
+}
+
+export function getOpengatewayShowPaid(): boolean {
+	return resolveBool(
+		"OPENGATEWAY_SHOW_PAID",
+		loadConfigFile().opengateway_show_paid,
+	);
 }
 
 export function getTokenrouterShowPaid(): boolean {
@@ -561,6 +578,10 @@ export function getNovitaApiKey(): string | undefined {
 
 export function getRoutewayApiKey(): string | undefined {
 	return resolve("ROUTEWAY_API_KEY", loadConfigFile().routeway_api_key);
+}
+
+export function getOpengatewayApiKey(): string | undefined {
+	return resolve("OPENGATEWAY_API_KEY", loadConfigFile().opengateway_api_key);
 }
 
 export function getFastrouterApiKey(): string | undefined {

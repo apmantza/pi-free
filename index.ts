@@ -49,6 +49,7 @@ import deepinfra from "./providers/deepinfra/deepinfra.ts";
 import sambanova from "./providers/sambanova/sambanova.ts";
 import novita from "./providers/novita/novita.ts";
 import routeway from "./providers/routeway/routeway.ts";
+import opengateway from "./providers/opengateway/opengateway.ts";
 import tokenRouter from "./providers/tokenrouter/tokenrouter.ts";
 import ollama from "./providers/ollama/ollama.ts";
 import zenmux from "./providers/zenmux/zenmux.ts";
@@ -76,6 +77,7 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 	sambanova,
 	novita,
 	routeway,
+	opengateway,
 	tokenRouter,
 	anyapi,
 	bai,
@@ -252,7 +254,8 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 
 	// /pi-free-health — Show a credential-free diagnostic report and log path
 	pi.registerCommand("pi-free-health", {
-		description: "Show pi-free health, startup issues, and the diagnostic log path",
+		description:
+			"Show pi-free health, startup issues, and the diagnostic log path",
 		handler: async (_args, ctx) => {
 			ctx.ui.notify(formatHealthReport(), "info");
 		},

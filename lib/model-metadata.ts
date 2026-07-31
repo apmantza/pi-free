@@ -419,13 +419,7 @@ const NATIVE_FALLBACK_MAX_TOKENS = new Set([DEFAULT_MAX_TOKENS, 4096]);
 
 type NativeCatalogModel = Pick<
 	ProviderModelConfig,
-	| "id"
-	| "api"
-	| "baseUrl"
-	| "compat"
-	| "contextWindow"
-	| "maxTokens"
-	| "cost"
+	"id" | "api" | "baseUrl" | "compat" | "contextWindow" | "maxTokens" | "cost"
 >;
 
 function getNativeCatalogModels(providerId: string): NativeCatalogModel[] {

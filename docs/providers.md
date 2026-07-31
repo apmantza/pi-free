@@ -151,6 +151,16 @@ export ROUTEWAY_API_KEY="..."
 
 Or set `routeway_api_key`. Toggle with `/toggle-routeway`; `/probe-routeway` checks availability.
 
+### OpenGateway
+
+[Gitlawb OpenGateway](https://gitlawb.com/opengateway) is an OpenAI-compatible gateway with smart routing, paid models, and changing promotional/free entries. Its base URL is `https://opengateway.gitlawb.com/v1`:
+
+```bash
+export OPENGATEWAY_API_KEY="ogw_live_..."
+```
+
+Or set `opengateway_api_key`. Toggle with `/toggle-opengateway`. The catalog is refreshed through Pi's native model lifecycle and includes the `auto` smart-routing model plus the models advertised by `/v1/models`. The gateway accepts the short `mimo-v2.5-pro` alias as well as its Xiaomi-qualified model ID.
+
 ### B.AI
 
 B.AI is an OpenAI-compatible paid provider:

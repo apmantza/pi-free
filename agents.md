@@ -55,6 +55,7 @@ index.ts                          ← Extension entry point (piFreeEntry)
       ├─ novita/novita.ts         ← Novita AI (paid credits)
       ├─ ollama/ollama.ts         ← Ollama Cloud (usage-based free tier, 403 probing)
       ├─ routeway/routeway.ts     ← RouteWay AI (paid)
+      ├─ opengateway/opengateway.ts ← Gitlawb OpenGateway (paid + promotional free models)
       ├─ sambanova/sambanova.ts   ← SambaNova (free tier)
       ├─ zenmux/zenmux.ts         ← ZenMux AI gateway (paid)
       ├─ crofai/crofai.ts         ← CrofAI (paid)
@@ -101,7 +102,7 @@ For a new OpenAI-compatible native provider, use `registerNativeOpenAIProvider()
 
 ### Native `Provider` providers
 
-Kilo, Cline, LLM7, ZenMux, TokenRouter, Ollama Cloud, B.AI, AnyAPI, CrofAI, SambaNova, Novita, DeepInfra, Routeway, and OpenModel use Pi's modern provider API (Pi `>=0.81.0`). Instead of the legacy `registerProvider(id, { baseUrl, apiKey, models, oauth })` form, each builds a native pi-ai `Provider` object and registers it via the single-argument `registerProvider(provider)`. Pi then owns credential refresh, background model refresh (4h throttle, abortable), and offline initialization — so these extension factories perform no catalog network I/O on startup.
+Kilo, Cline, LLM7, ZenMux, TokenRouter, Ollama Cloud, B.AI, AnyAPI, CrofAI, SambaNova, Novita, DeepInfra, Routeway, OpenGateway, and OpenModel use Pi's modern provider API (Pi `>=0.81.0`). Instead of the legacy `registerProvider(id, { baseUrl, apiKey, models, oauth })` form, each builds a native pi-ai `Provider` object and registers it via the single-argument `registerProvider(provider)`. Pi then owns credential refresh, background model refresh (4h throttle, abortable), and offline initialization — so these extension factories perform no catalog network I/O on startup.
 
 ```
 providers/kilo/kilo-provider.ts   ← createKiloProvider(): assembles the Provider

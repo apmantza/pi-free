@@ -20,6 +20,7 @@ These are the pi-free config keys and their environment variables:
 | `sambanova_api_key` | `SAMBANOVA_API_KEY` |
 | `novita_api_key` | `NOVITA_API_KEY` |
 | `routeway_api_key` | `ROUTEWAY_API_KEY` |
+| `opengateway_api_key` | `OPENGATEWAY_API_KEY` |
 | `fastrouter_api_key` | `FASTROUTER_API_KEY` |
 | `tokenrouter_api_key` | `TOKENROUTER_API_KEY` |
 | `anyapi_api_key` | `ANYAPI_API_KEY` |

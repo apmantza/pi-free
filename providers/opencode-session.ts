@@ -140,14 +140,15 @@ export function applyOpenCodeProtocolDefaults(
 		const api = resolveOpenCodeModelApi(model.id, providerId, model.api);
 		const compat =
 			api === "openai-responses"
-				? { sessionAffinityFormat: "openai-nosession" as const, ...model.compat }
+				? {
+						sessionAffinityFormat: "openai-nosession" as const,
+						...model.compat,
+					}
 				: model.compat;
 		return {
 			...model,
 			api,
-			baseUrl:
-				model.baseUrl ??
-				getOpenCodeModelBaseUrl(api, fallbackBaseUrl),
+			baseUrl: model.baseUrl ?? getOpenCodeModelBaseUrl(api, fallbackBaseUrl),
 			...(compat ? { compat } : {}),
 		};
 	});
@@ -186,7 +187,8 @@ type StreamSimpleModule<TApi extends Api> = {
 };
 
 type AnthropicStreamModule = StreamSimpleModule<"anthropic-messages">;
-type GoogleGenerativeAIStreamModule = StreamSimpleModule<"google-generative-ai">;
+type GoogleGenerativeAIStreamModule =
+	StreamSimpleModule<"google-generative-ai">;
 type OpenAICompletionsStreamModule = StreamSimpleModule<"openai-completions">;
 type OpenAIResponsesStreamModule = StreamSimpleModule<"openai-responses">;
 
