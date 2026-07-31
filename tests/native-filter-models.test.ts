@@ -11,7 +11,12 @@ function model(id: string): Model<"openai-completions"> {
 		baseUrl: "https://example.test/v1",
 		reasoning: false,
 		input: ["text"],
-		cost: { input: id === "free" ? 0 : 1, output: id === "free" ? 0 : 1, cacheRead: 0, cacheWrite: 0 },
+		cost: {
+			input: id === "free" ? 0 : 1,
+			output: id === "free" ? 0 : 1,
+			cacheRead: 0,
+			cacheWrite: 0,
+		},
 		contextWindow: 32_000,
 		maxTokens: 4_096,
 	};

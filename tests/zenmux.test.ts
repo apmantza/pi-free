@@ -103,9 +103,9 @@ describe("ZenMux native factory", () => {
 		expect(provider.auth.apiKey).toBeDefined();
 		expect(provider.getModels()).toEqual([]);
 		expect(registerCommand).toHaveBeenCalledWith(
-		"toggle-zenmux",
-		expect.any(Object),
-	);
+			"toggle-zenmux",
+			expect.any(Object),
+		);
 		expect(on).toHaveBeenCalledWith("session_start", expect.any(Function));
 	});
 

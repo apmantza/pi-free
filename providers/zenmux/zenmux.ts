@@ -11,10 +11,7 @@
  */
 
 import type { Provider } from "@earendil-works/pi-ai/compat";
-import type {
-	ExtensionAPI,
-	ProviderModelConfig,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getZenmuxApiKey, getZenmuxShowPaid } from "../../config.ts";
 import { PROVIDER_ZENMUX } from "../../constants.ts";
 import {
@@ -26,11 +23,10 @@ import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import { createZenmuxProvider } from "./zenmux-provider.ts";
 
 export default async function zenmuxProvider(pi: ExtensionAPI) {
-	const { provider, stored, setView } = createZenmuxProvider();
+	const { provider, stored } = createZenmuxProvider();
 	registerNativeProvider(pi, provider as Provider);
 
-	const reRegister = (models: ProviderModelConfig[]) => {
-		setView(models);
+	const reRegister = () => {
 		registerNativeProvider(pi, provider as Provider);
 	};
 
@@ -39,7 +35,7 @@ export default async function zenmuxProvider(pi: ExtensionAPI) {
 		stored,
 		reRegister,
 		Boolean(getZenmuxApiKey()),
-		{ native: true },
+		{ native: true, invalidate: reRegister },
 	);
 	registerNativeProviderToggle(pi, {
 		providerId: PROVIDER_ZENMUX,

@@ -42,10 +42,6 @@ import {
 	registerNativeAvailabilityProbe,
 	registerNativeOpenAIProvider,
 } from "../../lib/native-provider.ts";
-import {
-	loadProviderCache,
-	saveProviderCache,
-} from "../../lib/provider-cache.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
 import { novitaAuth } from "./novita-auth.ts";
 
@@ -151,7 +147,6 @@ async function fetchNovitaModels(
 }
 
 export default function novitaProvider(pi: ExtensionAPI): Promise<void> {
-	const initialModels = loadProviderCache(PROVIDER_NOVITA) ?? [];
 	const handle = registerNativeOpenAIProvider(pi, {
 		providerId: PROVIDER_NOVITA,
 		name: "Novita AI",
@@ -159,21 +154,13 @@ export default function novitaProvider(pi: ExtensionAPI): Promise<void> {
 		auth: novitaAuth,
 		getApiKey: getNovitaApiKey,
 		getShowPaid: getNovitaShowPaid,
-		initialModels,
-		fetchModels: async (apiKey, signal) => {
-			const models = await fetchNovitaModels(apiKey, signal);
-			if (models.length > 0) await saveProviderCache(PROVIDER_NOVITA, models);
-			return models;
-		},
+		fetchModels: (apiKey, signal) => fetchNovitaModels(apiKey, signal),
 		tosUrl: "https://novita.ai/terms",
 	});
 	const apiKey = getNovitaApiKey();
 	if (!apiKey) return Promise.resolve();
 
-	const probe = createOpenAIAvailabilityProbe(
-		PROVIDER_NOVITA,
-		BASE_URL_NOVITA,
-	);
+	const probe = createOpenAIAvailabilityProbe(PROVIDER_NOVITA, BASE_URL_NOVITA);
 	registerNativeAvailabilityProbe(pi, {
 		providerId: PROVIDER_NOVITA,
 		label: "Novita AI",

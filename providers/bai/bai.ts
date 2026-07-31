@@ -40,10 +40,6 @@ import {
 } from "../../lib/provider-compat.ts";
 import { registerNativeOpenAIProvider } from "../../lib/native-provider.ts";
 import { cleanModelName, fetchWithRetry } from "../../lib/util.ts";
-import {
-	loadProviderCache,
-	saveProviderCache,
-} from "../../lib/provider-cache.ts";
 import { baiAuth } from "./bai-auth.ts";
 
 const _logger = createLogger("bai");
@@ -175,7 +171,6 @@ async function fetchBaiModels(
 // =============================================================================
 
 export default function baiProvider(pi: ExtensionAPI): Promise<void> {
-	const initialModels = loadProviderCache(PROVIDER_BAI) ?? [];
 	registerNativeOpenAIProvider(pi, {
 		providerId: PROVIDER_BAI,
 		name: "B.AI",
@@ -183,12 +178,7 @@ export default function baiProvider(pi: ExtensionAPI): Promise<void> {
 		auth: baiAuth,
 		getApiKey: getBaiApiKey,
 		getShowPaid: getBaiShowPaid,
-		initialModels,
-		fetchModels: async (apiKey, signal) => {
-			const models = await fetchBaiModels(apiKey, signal);
-			if (models.length > 0) await saveProviderCache(PROVIDER_BAI, models);
-			return models;
-		},
+		fetchModels: (apiKey, signal) => fetchBaiModels(apiKey, signal),
 		tosUrl: "https://b.ai/",
 	});
 	return Promise.resolve();

@@ -47,10 +47,7 @@
  *   # Models appear in /model selector as "llm7/default", "llm7/fast", "llm7/pro"
  */
 
-import type {
-	ExtensionAPI,
-	ProviderModelConfig,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getLlm7ApiKey, getLlm7ShowPaid } from "../../config.ts";
 import { PROVIDER_LLM7 } from "../../constants.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
@@ -66,7 +63,7 @@ import { createLlm7Provider } from "./llm7-provider.ts";
 // =============================================================================
 
 export default async function llm7Provider(pi: ExtensionAPI) {
-	const { provider, stored, setView } = createLlm7Provider();
+	const { provider, stored } = createLlm7Provider();
 
 	// Register the native provider. The factory performs NO network I/O: models
 	// load via refreshModels (offline init from the store, then a background
@@ -74,17 +71,16 @@ export default async function llm7Provider(pi: ExtensionAPI) {
 	// Pi's startup critical path.
 	registerNativeProvider(pi, provider);
 
-	// Re-registration republishes the same native provider object (upsert by id)
-	// with a new visible catalog, keeping native auth intact. This is the hook the
-	// global /toggle-free system and /toggle-llm7 drive.
-	const reRegister = (models: ProviderModelConfig[]) => {
-		setView(models);
+	// Re-registration invalidates Pi's availability snapshot while preserving the
+	// complete catalog and native auth on the same provider object.
+	const reRegister = () => {
 		registerNativeProvider(pi, provider);
 	};
 
 	const hasLlm7Key = !!getLlm7ApiKey();
 	registerWithGlobalToggle(PROVIDER_LLM7, stored, reRegister, hasLlm7Key, {
 		native: true,
+		invalidate: reRegister,
 	});
 
 	registerNativeProviderToggle(pi, {

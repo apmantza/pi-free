@@ -79,7 +79,7 @@ export interface NativeOpenAIProviderOptions {
 	getShowPaid: () => boolean;
 	/** Override the persisted mode for providers whose legacy default is paid. */
 	initialShowPaid?: boolean;
-	initialModels: ProviderModelConfig[];
+	initialModels?: ProviderModelConfig[];
 	fetchModels: (
 		apiKey: string,
 		signal?: AbortSignal,
@@ -91,7 +91,6 @@ export interface NativeOpenAIProviderOptions {
 export interface NativeOpenAIProviderHandle {
 	provider: Provider<"openai-completions">;
 	stored: StoredModels;
-	setView: (models: ProviderModelConfig[]) => void;
 	setShowPaid: (showPaid: boolean) => void;
 	getShowPaid: () => boolean;
 	ingest: (all: ProviderModelConfig[], free: ProviderModelConfig[]) => void;
@@ -159,11 +158,6 @@ export function createNativeOpenAIProvider(
 		);
 	}
 
-	function setView(_models: ProviderModelConfig[]): void {
-		// Native toggles re-register the same provider to invalidate Pi's
-		// availability snapshot. The complete catalog remains in stored.all.
-	}
-
 	function getShowPaid(): boolean {
 		return showPaidOverride ?? options.getShowPaid();
 	}
@@ -184,8 +178,9 @@ export function createNativeOpenAIProvider(
 		);
 	}
 
-	if (options.initialModels.length > 0) {
-		const all = enhanceWithCI(options.initialModels, options.providerId).map(
+	const initialModels = options.initialModels ?? [];
+	if (initialModels.length > 0) {
+		const all = enhanceWithCI(initialModels, options.providerId).map(
 			(model) =>
 				toNativeOpenAIModel(model, options.providerId, options.baseUrl),
 		);
@@ -226,9 +221,9 @@ export function createNativeOpenAIProvider(
 		headers: { "User-Agent": "pi-free-providers" },
 		auth: options.auth,
 		getModels: () =>
-			(stored.all.length > 0 ? stored.all : stored.free) as Model<
-				"openai-completions"
-			>[],
+			(stored.all.length > 0
+				? stored.all
+				: stored.free) as Model<"openai-completions">[],
 		filterModels: (models) =>
 			filterNativeModels(options.providerId, models, {
 				showPaid: getShowPaid(),
@@ -244,7 +239,6 @@ export function createNativeOpenAIProvider(
 	return {
 		provider,
 		stored,
-		setView,
 		setShowPaid,
 		getShowPaid,
 		ingest,
@@ -258,8 +252,7 @@ export function registerNativeOpenAIProvider(
 ): NativeOpenAIProviderHandle {
 	const handle = createNativeOpenAIProvider(options);
 	registerNativeProvider(pi, handle.provider);
-	const reRegister = (models: ProviderModelConfig[]) => {
-		handle.setView(models);
+	const reRegister = () => {
 		registerNativeProvider(pi, handle.provider);
 	};
 	registerWithGlobalToggle(
@@ -267,7 +260,7 @@ export function registerNativeOpenAIProvider(
 		handle.stored,
 		reRegister,
 		Boolean(options.getApiKey()),
-		{ native: true },
+		{ native: true, invalidate: reRegister },
 	);
 	registerNativeProviderToggle(pi, {
 		providerId: options.providerId,
@@ -327,10 +320,8 @@ export function registerNativeAvailabilityProbe(
 		"session_start",
 		wrapSessionStartHandler(
 			`${providerId}-auto-probe`,
-			probe.autoProbeHandler(
-				apiKey,
-				handle.stored.free,
-				() => registerNativeProvider(pi, handle.provider),
+			probe.autoProbeHandler(apiKey, handle.stored.free, () =>
+				registerNativeProvider(pi, handle.provider),
 			),
 		),
 	);
@@ -352,7 +343,7 @@ interface NativeToggleOptions {
 	};
 	getShowPaid: () => boolean;
 	setShowPaid?: (showPaid: boolean) => void;
-	reRegister: (models: ProviderModelConfig[]) => void;
+	reRegister: () => void;
 }
 
 /** Register the standard free/all toggle used by native providers. */
@@ -369,9 +360,7 @@ export function registerNativeProviderToggle(
 			await saveConfig({ [`${providerId}_show_paid`]: showPaid });
 			options.setShowPaid?.(showPaid);
 
-			const modelsToShow =
-				showPaid && stored.all.length > 0 ? stored.all : stored.free;
-			reRegister(modelsToShow);
+			reRegister();
 
 			const freeCount = stored.free.length;
 			const paidCount = stored.all.length - freeCount;

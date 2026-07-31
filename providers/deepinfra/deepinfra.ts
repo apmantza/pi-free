@@ -50,7 +50,6 @@ import {
 	registerNativeAvailabilityProbe,
 	registerNativeOpenAIProvider,
 } from "../../lib/native-provider.ts";
-import { loadProviderCache, saveProviderCache } from "../../lib/provider-cache.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
 import { deepinfraAuth } from "./deepinfra-auth.ts";
 
@@ -158,7 +157,6 @@ async function fetchDeepinfraModels(
 // =============================================================================
 
 export default function deepinfraProvider(pi: ExtensionAPI): Promise<void> {
-	const initialModels = loadProviderCache(PROVIDER_DEEPINFRA) ?? [];
 	const handle = registerNativeOpenAIProvider(pi, {
 		providerId: PROVIDER_DEEPINFRA,
 		name: "DeepInfra",
@@ -167,12 +165,8 @@ export default function deepinfraProvider(pi: ExtensionAPI): Promise<void> {
 		getApiKey: getDeepinfraApiKey,
 		getShowPaid: getDeepinfraShowPaid,
 		initialShowPaid: true,
-		initialModels,
-		fetchModels: async (apiKey, signal) => {
-			const models = await fetchDeepinfraModels(apiKey, signal);
-			if (models.length > 0) await saveProviderCache(PROVIDER_DEEPINFRA, models);
-			return models;
-		},
+		fetchModels: (apiKey, signal) =>
+			fetchDeepinfraModels(apiKey, signal),
 		tosUrl: "https://deepinfra.com/pricing",
 	});
 

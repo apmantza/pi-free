@@ -14,7 +14,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockFetchKiloCatalog = vi.hoisted(() =>
 	vi.fn<(...args: unknown[]) => unknown>(),
 );
-const mockGetKiloApiKey = vi.hoisted(() => vi.fn((): string | undefined => undefined));
+const mockGetKiloApiKey = vi.hoisted(() =>
+	vi.fn((): string | undefined => undefined),
+);
 const mockGetKiloShowPaid = vi.hoisted(() => vi.fn(() => false));
 const mockGetKiloFreeOnly = vi.hoisted(() => vi.fn(() => false));
 const mockGetGlobalFreeOnly = vi.hoisted(() => vi.fn(() => true));
@@ -116,7 +118,13 @@ describe("Kilo toggle interop", () => {
 		mockGetKiloFreeOnly.mockReturnValue(false);
 		mockGetGlobalFreeOnly.mockReturnValue(true);
 		mockFetchKiloCatalog.mockResolvedValue({
-			all: [cfg({ id: "free-1" }), cfg({ id: "paid-1", cost: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 } })],
+			all: [
+				cfg({ id: "free-1" }),
+				cfg({
+					id: "paid-1",
+					cost: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 },
+				}),
+			],
 			free: [cfg({ id: "free-1" })],
 		});
 
@@ -142,7 +150,7 @@ describe("Kilo toggle interop", () => {
 		const [providerId, stored, reRegister, hasKey] = capturedToggleArgs[0] as [
 			string,
 			{ free: unknown[]; all: unknown[] },
-			(models: unknown[]) => void,
+			() => void,
 			boolean,
 		];
 		expect(providerId).toBe("kilo");
@@ -153,23 +161,27 @@ describe("Kilo toggle interop", () => {
 		expect(stored.all).toHaveLength(2);
 		expect(stored.free).toHaveLength(1);
 
-		// Global /toggle-free showing all -> reRegister(stored.all).
+		// Global /toggle-free showing all -> re-register the same provider.
 		mockRegisterProvider.mockClear();
-		reRegister(stored.all);
-		expect(provider.getModels().map((m: { id: string }) => m.id).sort()).toEqual([
-			"free-1",
-			"paid-1",
-		]);
+		reRegister();
+		expect(
+			provider
+				.getModels()
+				.map((m: { id: string }) => m.id)
+				.sort(),
+		).toEqual(["free-1", "paid-1"]);
 		// Re-registration reused the SAME native provider object (auth preserved).
 		expect(mockRegisterProvider).toHaveBeenCalledWith(provider);
 
 		// Global /toggle-free showing free invalidates the same provider object;
 		// Pi's filterModels applies the free view to the complete catalog.
-		reRegister(stored.free);
-		expect(provider.getModels().map((m: { id: string }) => m.id).sort()).toEqual([
-			"free-1",
-			"paid-1",
-		]);
+		reRegister();
+		expect(
+			provider
+				.getModels()
+				.map((m: { id: string }) => m.id)
+				.sort(),
+		).toEqual(["free-1", "paid-1"]);
 	});
 
 	it("/toggle-kilo flips show_paid and shows the full catalog", async () => {
@@ -185,10 +197,12 @@ describe("Kilo toggle interop", () => {
 		await call[1].handler({}, { ui: { notify } });
 
 		expect(mockSaveConfig).toHaveBeenCalledWith({ kilo_show_paid: true });
-		expect(provider.getModels().map((m: { id: string }) => m.id).sort()).toEqual([
-			"free-1",
-			"paid-1",
-		]);
+		expect(
+			provider
+				.getModels()
+				.map((m: { id: string }) => m.id)
+				.sort(),
+		).toEqual(["free-1", "paid-1"]);
 		expect(notify).toHaveBeenCalledWith(
 			expect.stringContaining("showing all 2 models"),
 			"info",

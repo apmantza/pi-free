@@ -159,8 +159,15 @@ describe("createZenmuxProvider", () => {
 		await provider.refreshModels?.(context(store));
 
 		expect(mockFetchWithRetry).not.toHaveBeenCalled();
-		expect(provider.getModels().map((model) => model.id)).toEqual(["free", "paid"]);
-		expect(provider.filterModels!(provider.getModels(), undefined).map((model) => model.id)).toEqual(["free"]);
+		expect(provider.getModels().map((model) => model.id)).toEqual([
+			"free",
+			"paid",
+		]);
+		expect(
+			provider.filterModels!(provider.getModels(), undefined).map(
+				(model) => model.id,
+			),
+		).toEqual(["free"]);
 	});
 
 	it("fetches with the effective stored key and persists the catalog", async () => {
@@ -220,9 +227,11 @@ describe("createZenmuxProvider", () => {
 			"free-model",
 			"paid-model",
 		]);
-		expect(provider.filterModels!(provider.getModels(), undefined).map((model) => model.id)).toEqual([
-			"free-model",
-		]);
+		expect(
+			provider.filterModels!(provider.getModels(), undefined).map(
+				(model) => model.id,
+			),
+		).toEqual(["free-model"]);
 	});
 
 	it("applies hidden models before publishing", async () => {
@@ -277,18 +286,20 @@ describe("createZenmuxProvider", () => {
 	});
 
 	it("keeps the full catalog while filterModels selects the free view", async () => {
-		const { provider, stored, setView } = createZenmuxProvider();
+		const { provider, stored } = createZenmuxProvider();
 		const free = nativeModel("free");
 		const paid = nativeModel("paid", true);
 		stored.free = [free];
 		stored.all = [free, paid];
-		setView(stored.free);
-		setView(stored.all);
 		expect(provider.getModels().map((model) => model.id)).toEqual([
 			"free",
 			"paid",
 		]);
-		expect(provider.filterModels!(provider.getModels(), undefined).map((model) => model.id)).toEqual(["free"]);
+		expect(
+			provider.filterModels!(provider.getModels(), undefined).map(
+				(model) => model.id,
+			),
+		).toEqual(["free"]);
 	});
 });
 

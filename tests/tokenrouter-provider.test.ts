@@ -26,10 +26,6 @@ vi.mock("../lib/registry.ts", () => ({
 	registerWithGlobalToggle: vi.fn(),
 }));
 
-vi.mock("../lib/provider-cache.ts", () => ({
-	loadProviderCache: () => undefined,
-}));
-
 vi.mock("../lib/util.ts", () => ({
 	cleanModelName: (id: string) => id,
 	fetchWithRetry: (...args: unknown[]) => mockFetchWithRetry(...args),
@@ -167,8 +163,15 @@ describe("createTokenRouterProvider", () => {
 		await provider.refreshModels?.(context(store));
 
 		expect(mockFetchWithRetry).not.toHaveBeenCalled();
-		expect(provider.getModels().map((item) => item.id)).toEqual(["free:free", "paid"]);
-		expect(provider.filterModels!(provider.getModels(), undefined).map((item) => item.id)).toEqual(["free:free"]);
+		expect(provider.getModels().map((item) => item.id)).toEqual([
+			"free:free",
+			"paid",
+		]);
+		expect(
+			provider.filterModels!(provider.getModels(), undefined).map(
+				(item) => item.id,
+			),
+		).toEqual(["free:free"]);
 	});
 
 	it("fetches with the stored key and persists the native catalog", async () => {
@@ -221,9 +224,11 @@ describe("createTokenRouterProvider", () => {
 			"free-model:free",
 			"paid-model",
 		]);
-		expect(provider.filterModels!(provider.getModels(), undefined).map((item) => item.id)).toEqual([
-			"free-model:free",
-		]);
+		expect(
+			provider.filterModels!(provider.getModels(), undefined).map(
+				(item) => item.id,
+			),
+		).toEqual(["free-model:free"]);
 	});
 
 	it("honors an already-aborted refresh signal", async () => {

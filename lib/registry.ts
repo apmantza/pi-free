@@ -22,6 +22,8 @@ interface ProviderEntry {
 	hasKey: boolean;
 	/** Native providers keep the complete catalog and filter it in Pi. */
 	native?: boolean;
+	/** Re-register the native provider without rebuilding a model array. */
+	invalidate?: () => void;
 }
 
 // =============================================================================
@@ -155,7 +157,7 @@ export function registerWithGlobalToggle(
 	stored: { free: ProviderModelConfig[]; all: ProviderModelConfig[] },
 	reRegister: (models: ProviderModelConfig[]) => void,
 	hasKey: boolean = false,
-	options: { native?: boolean } = {},
+	options: { native?: boolean; invalidate?: () => void } = {},
 ): void {
 	providerRegistry.set(providerId, {
 		id: providerId,
@@ -163,6 +165,7 @@ export function registerWithGlobalToggle(
 		reRegister,
 		hasKey,
 		native: options.native,
+		invalidate: options.invalidate,
 	});
 	_logger.info(
 		`[pi-free] Registered ${providerId} with global toggle (${stored.free.length} free, ${stored.all.length} total)`,
@@ -209,13 +212,17 @@ function applyFilterToProvider(
 		// Native providers expose their complete catalog through getModels().
 		// Re-register the same object only to invalidate Pi's availability
 		// snapshot; the provider's filterModels callback selects the view.
-		entry.reRegister(
-			freeOnly
-				? entry.stored.free
-				: entry.stored.all.length > 0
-					? entry.stored.all
-					: entry.stored.free,
-		);
+		if (entry.invalidate) {
+			entry.invalidate();
+		} else {
+			entry.reRegister(
+				freeOnly
+					? entry.stored.free
+					: entry.stored.all.length > 0
+						? entry.stored.all
+						: entry.stored.free,
+			);
+		}
 		_logger.info(
 			`[pi-free] ${providerId}: invalidated native model filter (${freeOnly ? "free" : "all"}${force ? ", forced" : ""})`,
 		);

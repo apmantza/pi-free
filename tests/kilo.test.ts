@@ -5,7 +5,7 @@
  * mock createKiloProvider and assert the extension factory wires it up correctly:
  *   - registers the native provider via the single-arg registerProvider(provider)
  *   - participates in the global toggle (registerWithGlobalToggle)
- *   - /toggle-kilo flips show_paid and republishes via setView + re-register
+ *   - /toggle-kilo flips show_paid and re-registers the same provider object
  *   - model_select ToS notice + session_start handler
  *   - non-destructive credential migration inspection
  */
@@ -13,7 +13,9 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockGetKiloApiKey = vi.hoisted(() => vi.fn((): string | undefined => undefined));
+const mockGetKiloApiKey = vi.hoisted(() =>
+	vi.fn((): string | undefined => undefined),
+);
 const mockGetKiloShowPaid = vi.hoisted(() => vi.fn(() => false));
 const mockSaveConfig = vi.hoisted(() =>
 	vi.fn<(...args: unknown[]) => Promise<void>>(),
@@ -24,15 +26,16 @@ const mockRegisterWithGlobalToggle = vi.hoisted(() =>
 const mockReadStoredCredential = vi.hoisted(() =>
 	vi.fn<(...args: unknown[]) => unknown>(),
 );
-const mockSetView = vi.hoisted(() => vi.fn());
-
 const mockProvider = vi.hoisted(() => ({
 	id: "kilo",
 	name: "Kilo",
 	auth: { apiKey: { name: "Kilo API key" }, oauth: { name: "Kilo" } },
 	getModels: () => [],
 }));
-const mockStored = vi.hoisted(() => ({ free: [] as unknown[], all: [] as unknown[] }));
+const mockStored = vi.hoisted(() => ({
+	free: [] as unknown[],
+	all: [] as unknown[],
+}));
 
 vi.mock("../config.ts", () => ({
 	getKiloApiKey: () => mockGetKiloApiKey(),
@@ -47,14 +50,14 @@ vi.mock("../lib/registry.ts", () => ({
 }));
 
 vi.mock("@earendil-works/pi-coding-agent", () => ({
-	readStoredCredential: (...args: unknown[]) => mockReadStoredCredential(...args),
+	readStoredCredential: (...args: unknown[]) =>
+		mockReadStoredCredential(...args),
 }));
 
 vi.mock("../providers/kilo/kilo-provider.ts", () => ({
 	createKiloProvider: () => ({
 		provider: mockProvider,
 		stored: mockStored,
-		setView: mockSetView,
 		ingest: vi.fn(),
 	}),
 }));
@@ -114,7 +117,7 @@ describe("Kilo extension wiring", () => {
 			mockStored,
 			expect.any(Function),
 			false,
-			{ native: true },
+			expect.objectContaining({ native: true }),
 		);
 	});
 
@@ -126,20 +129,17 @@ describe("Kilo extension wiring", () => {
 			mockStored,
 			expect.any(Function),
 			true,
-			{ native: true },
+			expect.objectContaining({ native: true }),
 		);
 	});
 
-	it("global-toggle reRegister republishes via setView + re-register (keeps native auth)", async () => {
+	it("global-toggle reRegister republishes the same provider object", async () => {
 		await kiloProvider(mockPi);
-		const reRegister = mockRegisterWithGlobalToggle.mock.calls[0][2] as (
-			models: unknown[],
-		) => void;
+		const reRegister = mockRegisterWithGlobalToggle.mock.calls[0][2] as () => void;
 		mockRegisterProvider.mockClear();
 
-		reRegister(mockStored.all);
+		reRegister();
 
-		expect(mockSetView).toHaveBeenCalledWith(mockStored.all);
 		expect(mockRegisterProvider).toHaveBeenCalledWith(mockProvider);
 	});
 
@@ -157,7 +157,6 @@ describe("Kilo extension wiring", () => {
 			await call[1].handler({}, { ui: { notify } });
 
 			expect(mockSaveConfig).toHaveBeenCalledWith({ kilo_show_paid: true });
-			expect(mockSetView).toHaveBeenCalledWith(mockStored.all);
 			expect(mockRegisterProvider).toHaveBeenCalledWith(mockProvider);
 			expect(notify).toHaveBeenCalledWith(
 				expect.stringContaining("showing all 2 models"),
