@@ -13,11 +13,12 @@
  *   warm     - Sandbox seeded with your real ~/.pi/provider-cache.json (timestamps
  *              freshened to "now") and ~/.pi/free.json, so every configured
  *              provider that still uses the disk cache registers with ZERO network.
- *              Kilo now uses the native models store instead: after the factory the
- *              bench seeds an in-memory store (Pi's real one lives at
- *              ~/.pi/agent/models-store.json) and drives Kilo's
+ *              Kilo and Cline now use the native models store instead: after the
+ *              factory the bench seeds an in-memory store (Pi's real one lives at
+ *              ~/.pi/agent/models-store.json) and drives each native provider's
  *              refreshModels(allowNetwork:false) to prove offline init populates its
- *              catalog with zero network (kiloOfflineInitMs / kiloOfflineModels).
+ *              catalog with zero network (kiloOfflineInitMs / kiloOfflineModels,
+ *              clineOfflineInitMs / clineOfflineModels).
  *              NOTE: copies your free.json (which may contain API keys) into a local
  *              temp dir that is deleted on exit; nothing leaves the machine.
  *   cold     - Empty cache + your real API keys, with fetch mocked to HANG until
@@ -249,6 +250,55 @@ const kiloFactoryNetworkCalls = fetchUrls.filter((u) =>
 	u.includes("kilo"),
 ).length;
 
+// ---------------------------------------------------------------------------
+// Exercise Cline's native offline-init path (same contract as Kilo, custom
+// "cline-xml-tools" wire api). Cline's catalog is public, so at runtime Pi
+// drives this even for logged-out users; here we only prove the store restore.
+// ---------------------------------------------------------------------------
+let clineOfflineInitMs: number | null = null;
+let clineOfflineModels = 0;
+const cline = nativeProviders.get("cline");
+if (cline && typeof cline.refreshModels === "function") {
+	const seededModels = [0, 1, 2].map((i) => ({
+		id: `cline-seeded-${i}`,
+		name: `Cline Seeded Free ${i}`,
+		api: "cline-xml-tools",
+		provider: "cline",
+		baseUrl: "https://api.cline.bot/api/v1",
+		reasoning: false,
+		input: ["text"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 128000,
+		maxTokens: 4096,
+	}));
+	let entry: any = { models: seededModels, checkedAt: Date.now() };
+	const store = {
+		read: async () => entry,
+		write: async (e: any) => {
+			entry = e;
+		},
+		delete: async () => {
+			entry = undefined;
+		},
+	};
+	const fetchBefore = fetchCalls;
+	const t2 = performance.now();
+	await cline.refreshModels({
+		store,
+		allowNetwork: false,
+		signal: AbortSignal.timeout(2000),
+	});
+	const t3 = performance.now();
+	clineOfflineInitMs = Math.round((t3 - t2) * 100) / 100;
+	clineOfflineModels = cline.getModels().length;
+	if (fetchCalls !== fetchBefore) {
+		console.log("WARN: Cline offline init made a network call");
+	}
+}
+const clineFactoryNetworkCalls = fetchUrls.filter((u) =>
+	u.includes("cline"),
+).length;
+
 console.log(`\nmode: ${mode}`);
 console.log(`factory (awaited by Pi): ${factoryMs}ms`);
 console.log(`registered providers: ${registered.size}`);
@@ -257,6 +307,12 @@ console.log(`kilo factory network calls: ${kiloFactoryNetworkCalls}`);
 if (kiloOfflineInitMs !== null) {
 	console.log(
 		`kilo offline-init (from models store, 0 network): ${kiloOfflineInitMs}ms -> ${kiloOfflineModels} models`,
+	);
+}
+console.log(`cline factory network calls: ${clineFactoryNetworkCalls}`);
+if (clineOfflineInitMs !== null) {
+	console.log(
+		`cline offline-init (from models store, 0 network): ${clineOfflineInitMs}ms -> ${clineOfflineModels} models`,
 	);
 }
 console.log("");
@@ -276,6 +332,9 @@ const result = {
 	kiloFactoryNetworkCalls,
 	kiloOfflineInitMs,
 	kiloOfflineModels,
+	clineFactoryNetworkCalls,
+	clineOfflineInitMs,
+	clineOfflineModels,
 };
 console.log("\nRESULT " + JSON.stringify(result));
 
