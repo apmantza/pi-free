@@ -43,14 +43,14 @@ import { openAICompletionsApi } from "@earendil-works/pi-ai/compat";
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { getLlm7ShowPaid } from "../../config.ts";
 import { BASE_URL_LLM7, PROVIDER_LLM7 } from "../../constants.ts";
-import { createLogger } from "../../lib/logger.ts";
 import { getGlobalFreeOnly, isFreeModel } from "../../lib/registry.ts";
-import { persistNativeProviderModels } from "../../lib/native-provider.ts";
+import {
+	persistNativeProviderModels,
+	restoreNativeProviderModels,
+} from "../../lib/native-provider.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { llm7Auth } from "./llm7-auth.ts";
 import { fetchLlm7Catalog, toLlm7Models } from "./llm7-models.ts";
-
-const _logger = createLogger("llm7");
 
 type Llm7Model = Model<"openai-completions">;
 
@@ -110,25 +110,20 @@ export function createLlm7Provider(): Llm7NativeProvider {
 	}
 
 	async function refreshModels(context: RefreshModelsContext): Promise<void> {
-		// Offline init / cache restore: always read the store first so a warm
-		// startup shows models with zero network.
-		try {
-			const entry = await context.store.read();
-			const storedModels = (entry?.models ?? []).filter(
-				(m) => m.provider === PROVIDER_LLM7,
-			) as Llm7Model[];
-			if (storedModels.length > 0) {
+		await restoreNativeProviderModels(
+			PROVIDER_LLM7,
+			context,
+			(storedModels: Llm7Model[]) => {
 				stored.all = storedModels;
-				stored.free = storedModels.filter((m) =>
-					isFreeModel({ ...m, provider: PROVIDER_LLM7 }, storedModels),
+				stored.free = storedModels.filter((model) =>
+					isFreeModel(
+						{ ...model, provider: PROVIDER_LLM7 },
+						storedModels,
+					),
 				);
 				setView(decideView());
-			}
-		} catch (err) {
-			_logger.warn("Failed to read models store; continuing empty", {
-				error: err instanceof Error ? err.message : String(err),
-			});
-		}
+			},
+		);
 
 		// Offline init stops here: serve the store only.
 		if (!context.allowNetwork || context.signal?.aborted) return;

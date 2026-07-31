@@ -1,6 +1,7 @@
 import type {
 	Api,
 	Model,
+	Provider,
 	RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
 import type {
@@ -12,6 +13,19 @@ import { createLogger } from "./logger.ts";
 import { wrapSessionStartHandler } from "./session-start-metrics.ts";
 
 const _logger = createLogger("native-provider");
+
+/** Compatibility bridge for the native single-argument registrar. */
+export type NativeRegistrar = {
+	registerProvider(provider: Provider): void;
+};
+
+/** Register a native provider across the current dev snapshot and >=0.81 peers. */
+export function registerNativeProvider(
+	pi: ExtensionAPI,
+	provider: Provider,
+): void {
+	(pi as unknown as NativeRegistrar).registerProvider(provider);
+}
 
 interface NativeToggleOptions {
 	providerId: string;
@@ -89,6 +103,25 @@ function logRefreshFailure(providerId: string, error: unknown): void {
 	_logger.warn(`Model refresh nudge failed for ${providerId}`, {
 		error: error instanceof Error ? error.message : String(error),
 	});
+}
+
+/** Restore one provider's catalog from Pi's native models store. */
+export async function restoreNativeProviderModels<T extends Model<Api>>(
+	providerId: string,
+	context: RefreshModelsContext,
+	onModels: (models: T[]) => void,
+): Promise<void> {
+	try {
+		const entry = await context.store.read();
+		const models = (entry?.models ?? []).filter(
+			(model) => model.provider === providerId,
+		) as T[];
+		if (models.length > 0) onModels(models);
+	} catch (err) {
+		_logger.warn(`Failed to read ${providerId} models store; continuing empty`, {
+			error: err instanceof Error ? err.message : String(err),
+		});
+	}
 }
 
 /** Persist a native provider catalog while retaining the previous store on failure. */

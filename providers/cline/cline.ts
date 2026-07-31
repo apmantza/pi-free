@@ -20,7 +20,6 @@
  * paid catalog.
  */
 
-import type { Provider } from "@earendil-works/pi-ai/compat";
 import {
 	readStoredCredential,
 	type ExtensionAPI,
@@ -34,6 +33,7 @@ import {
 import { createLogger } from "../../lib/logger.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import {
+	registerNativeProvider,
 	registerNativeProviderRefresh,
 	registerNativeProviderToggle,
 } from "../../lib/native-provider.ts";
@@ -41,29 +41,6 @@ import { isOAuthCredential } from "../../provider-helper.ts";
 import { createClineProvider, rotateClineTaskId } from "./cline-provider.ts";
 
 const _logger = createLogger("cline");
-
-// =============================================================================
-// Native provider registration
-// =============================================================================
-
-/**
- * The >=0.81 `registerProvider(provider: Provider)` single-argument overload.
- * The dev lockfile predates it (its ExtensionAPI only types the legacy
- * `(name, config)` form), so we bridge the type here; the declared peer range
- * (>=0.81) guarantees the overload exists at runtime. Re-registering the same
- * provider object upserts by id, which is how the free/paid toggle republishes a
- * new visible catalog without dropping native auth.
- */
-type NativeRegistrar = {
-	registerProvider(provider: Provider): void;
-};
-
-function registerNative(
-	pi: ExtensionAPI,
-	provider: Provider<"cline-xml-tools">,
-): void {
-	(pi as unknown as NativeRegistrar).registerProvider(provider);
-}
 
 // =============================================================================
 // Credential inspection (non-destructive)
@@ -126,14 +103,14 @@ export default async function clineProvider(pi: ExtensionAPI) {
 	// load via refreshModels (offline init from the store, then a background
 	// fetch of the public catalog), so Cline no longer owns any of Pi's startup
 	// critical path.
-	registerNative(pi, provider);
+	registerNativeProvider(pi, provider);
 
 	// Re-registration republishes the same native provider object (upsert by id)
 	// with a new visible catalog, keeping native auth intact. This is the hook the
 	// global /toggle-free system and /toggle-cline drive.
 	const reRegister = (models: ProviderModelConfig[]) => {
 		setView(models);
-		registerNative(pi, provider);
+		registerNativeProvider(pi, provider);
 	};
 
 	const hasClineKey = !!getClineApiKey();

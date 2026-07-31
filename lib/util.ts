@@ -65,6 +65,16 @@ export async function fetchWithTimeout(
 ): Promise<Response> {
 	const controller = new AbortController();
 	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+	const upstreamSignal = options.signal;
+	const abortFromUpstream = () => controller.abort(upstreamSignal?.reason);
+
+	if (upstreamSignal?.aborted) {
+		abortFromUpstream();
+	} else {
+		upstreamSignal?.addEventListener("abort", abortFromUpstream, {
+			once: true,
+		});
+	}
 
 	try {
 		const response = await fetch(url, {
@@ -74,6 +84,7 @@ export async function fetchWithTimeout(
 		return response;
 	} finally {
 		clearTimeout(timeoutId);
+		upstreamSignal?.removeEventListener("abort", abortFromUpstream);
 	}
 }
 
@@ -113,6 +124,7 @@ export async function fetchWithRetry(
 			return response; // Return non-ok but non-retryable responses
 		} catch (error) {
 			lastError = error;
+			if (options.signal?.aborted) throw error;
 			if (i < retries - 1) {
 				await sleep(delayMs * (i + 1));
 			}
