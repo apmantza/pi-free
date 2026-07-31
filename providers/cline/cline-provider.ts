@@ -48,6 +48,7 @@ import { getClineShowPaid } from "../../config.ts";
 import { BASE_URL_CLINE, PROVIDER_CLINE } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { getGlobalFreeOnly, isFreeModel } from "../../lib/registry.ts";
+import { persistNativeProviderModels } from "../../lib/native-provider.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { clineAuth } from "./cline-auth.ts";
 import { fetchClineCatalog, toClineModels } from "./cline-models.ts";
@@ -194,18 +195,13 @@ export function createClineProvider(): ClineNativeProvider {
 
 		ingest(all, free);
 
-		try {
-			await context.store.write({
-				// stored.all holds full Model objects at runtime (toClineModels output);
-				// the StoredModels type widens them to ProviderModelConfig for the toggle.
-				models: stored.all as unknown as readonly Model<Api>[],
-				checkedAt: Date.now(),
-			});
-		} catch (err) {
-			_logger.warn("Failed to persist models to store", {
-				error: err instanceof Error ? err.message : String(err),
-			});
-		}
+		await persistNativeProviderModels(
+			PROVIDER_CLINE,
+			context,
+			// stored.all holds full Model objects at runtime (toClineModels output);
+			// the StoredModels type widens them to ProviderModelConfig for the toggle.
+			stored.all as unknown as readonly Model<Api>[],
+		);
 	}
 
 	// Both entry points dispatch to the XML bridge, exactly as the legacy

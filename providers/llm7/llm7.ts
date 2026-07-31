@@ -6,7 +6,7 @@
  * a single OpenAI-compatible endpoint.
  *
  * Free tier:
- *   - Free token from https://token.llm7.io/
+ *   - Anonymous (no key) or free token from https://token.llm7.io/
  *   - 100 req/hr, 20 req/min, 2 req/s
  *   - No credit card required
  *
@@ -22,135 +22,112 @@
  * Endpoint:
  *   Chat: https://api.llm7.io/v1/chat/completions
  *
- * Setup:
- *   1. Get free token from https://token.llm7.io/
+ * Registered as a native pi-ai `Provider` (createProvider object form) so Pi
+ * owns credential resolution, background model refresh, and offline
+ * initialization. LLM7 is pi-free's keyless-provider proof case: its auth
+ * always resolves (empty auth when no key is configured), so the public free
+ * catalog stays visible without an API key — the legacy registration skipped
+ * the provider entirely in that case. Authenticated requests still use the
+ * ambient `LLM7_API_KEY` env var / `~/.pi/free.json` value as before.
+ *
+ *   - The factory is synchronous and network-free — it builds the provider
+ *     object and registers it. Models load via `refreshModels` (offline init
+ *     from the native models store, then a background refresh of the STATIC
+ *     selector catalog), so LLM7 no longer owns any of Pi's startup critical
+ *     path.
+ *   - Free/paid filtering stays on pi-free's re-registration toggle so it
+ *     keeps composing with the global /toggle-free system.
+ *
+ * Setup (optional — free models work without a key):
+ *   1. Get a free token from https://token.llm7.io/
  *   2. Set LLM7_API_KEY env var (or add to ~/.pi/free.json)
  *
  * Usage:
  *   pi install git:github.com/apmantza/pi-free
- *   # Set LLM7_API_KEY env var
  *   # Models appear in /model selector as "llm7/default", "llm7/fast", "llm7/pro"
  */
 
+import type { Provider } from "@earendil-works/pi-ai/compat";
 import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
 import { getLlm7ApiKey, getLlm7ShowPaid } from "../../config.ts";
-import { BASE_URL_LLM7, PROVIDER_LLM7 } from "../../constants.ts";
-import { createLogger } from "../../lib/logger.ts";
-import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
-import { createReRegister, setupProvider } from "../../provider-helper.ts";
-
-const _logger = createLogger("llm7");
-
-// =============================================================================
-// Model Definitions
-// =============================================================================
-
-const LLM7_MODELS: ProviderModelConfig[] = [
-	{
-		id: "default",
-		name: "LLM7 Default",
-		reasoning: false,
-		input: ["text"],
-		cost: {
-			input: 0,
-			output: 0,
-			cacheRead: 0,
-			cacheWrite: 0,
-		},
-		contextWindow: 32_000,
-		maxTokens: 4_096,
-	},
-	{
-		id: "fast",
-		name: "LLM7 Fast",
-		reasoning: false,
-		input: ["text"],
-		cost: {
-			input: 0,
-			output: 0,
-			cacheRead: 0,
-			cacheWrite: 0,
-		},
-		contextWindow: 32_000,
-		maxTokens: 4_096,
-	},
-	{
-		id: "pro",
-		name: "LLM7 Pro",
-		reasoning: false,
-		input: ["text"],
-		cost: {
-			input: 0.3, // Requires $12/mo LLM7 Pro subscription
-			output: 0.9,
-			cacheRead: 0,
-			cacheWrite: 0,
-		},
-		contextWindow: 32_000,
-		maxTokens: 4_096,
-	},
-];
+import { PROVIDER_LLM7 } from "../../constants.ts";
+import { registerWithGlobalToggle } from "../../lib/registry.ts";
+import {
+	registerNativeProviderRefresh,
+	registerNativeProviderToggle,
+} from "../../lib/native-provider.ts";
+import { createLlm7Provider } from "./llm7-provider.ts";
 
 // =============================================================================
-// Extension Entry Point
+// Native provider registration
+// =============================================================================
+
+/**
+ * The >=0.81 `registerProvider(provider: Provider)` single-argument overload.
+ * The dev lockfile predates it (its ExtensionAPI only types the legacy
+ * `(name, config)` form), so we bridge the type here; the declared peer range
+ * (>=0.81) guarantees the overload exists at runtime. Re-registering the same
+ * provider object upserts by id, which is how the free/paid toggle republishes a
+ * new visible catalog without dropping native auth.
+ */
+type NativeRegistrar = {
+	registerProvider(provider: Provider): void;
+};
+
+function registerNative(
+	pi: ExtensionAPI,
+	provider: Provider<"openai-completions">,
+): void {
+	(pi as unknown as NativeRegistrar).registerProvider(provider);
+}
+
+// =============================================================================
+// Extension entry point
 // =============================================================================
 
 export default async function llm7Provider(pi: ExtensionAPI) {
-	const apiKey = getLlm7ApiKey();
+	const { provider, stored, setView } = createLlm7Provider();
 
-	if (!apiKey) {
-		_logger.info(
-			"[llm7] Skipping — LLM7_API_KEY not set. Get a free token at https://token.llm7.io/",
-		);
-		return;
-	}
+	// Register the native provider. The factory performs NO network I/O: models
+	// load via refreshModels (offline init from the store, then a background
+	// refresh of the static selector catalog), so LLM7 no longer owns any of
+	// Pi's startup critical path.
+	registerNative(pi, provider);
 
-	_logger.info("[llm7] Using LLM7_API_KEY");
+	// Re-registration republishes the same native provider object (upsert by id)
+	// with a new visible catalog, keeping native auth intact. This is the hook the
+	// global /toggle-free system and /toggle-llm7 drive.
+	const reRegister = (models: ProviderModelConfig[]) => {
+		setView(models);
+		registerNative(pi, provider);
+	};
 
-	const allModels = LLM7_MODELS;
-	const freeModels = allModels.filter((m) =>
-		isFreeModel({ ...m, provider: PROVIDER_LLM7 }, allModels),
-	);
+	const hasLlm7Key = !!getLlm7ApiKey();
+	registerWithGlobalToggle(PROVIDER_LLM7, stored, reRegister, hasLlm7Key);
 
-	const stored = { free: freeModels, all: allModels };
-
-	_logger.info(
-		`[llm7] Registered ${allModels.length} models (${freeModels.length} free)`,
-	);
-
-	// Create re-register function
-	const reRegister = createReRegister(pi, {
+	registerNativeProviderToggle(pi, {
 		providerId: PROVIDER_LLM7,
-		baseUrl: BASE_URL_LLM7,
-		apiKey,
+		stored,
+		getShowPaid: getLlm7ShowPaid,
+		reRegister,
 	});
 
-	// Register with global toggle
-	registerWithGlobalToggle(PROVIDER_LLM7, stored, reRegister, true);
+	// ToS notice on first LLM7 selection (mirrors the legacy setupProvider
+	// notice). Suppressed when an API key is configured — the "set API key for
+	// paid access" hint is only relevant to keyless users.
+	let tosShown = false;
+	pi.on("model_select", async (_event, ctx) => {
+		if (tosShown || ctx.model?.provider !== PROVIDER_LLM7) return;
+		tosShown = true;
+		if (getLlm7ApiKey()) return;
+		ctx.ui.notify(
+			"Using llm7 free models. Set API key for paid access. Terms: https://llm7.io/",
+			"info",
+		);
+	});
 
-	// Setup provider with toggle command
-	setupProvider(
-		pi,
-		{
-			providerId: PROVIDER_LLM7,
-			initialShowPaid: getLlm7ShowPaid(),
-			tosUrl: "https://llm7.io/",
-			reRegister: (models, _stored) => {
-				if (_stored) {
-					stored.free = _stored.free;
-					stored.all = _stored.all;
-				}
-				reRegister(models);
-			},
-		},
-		stored,
-	);
-
-	// Initial registration — respect persisted toggle state
-	const showPaid = getLlm7ShowPaid();
-	const initialModels =
-		showPaid && stored.all.length > 0 ? stored.all : freeModels;
-	reRegister(initialModels);
+	registerNativeProviderRefresh(pi, PROVIDER_LLM7);
 }

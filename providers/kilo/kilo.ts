@@ -26,12 +26,14 @@ import {
 	getKiloApiKey,
 	getKiloShowPaid,
 	PROVIDER_KILO,
-	saveConfig,
 } from "../../config.ts";
 import { URL_KILO_TOS } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
-import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
+import {
+	registerNativeProviderRefresh,
+	registerNativeProviderToggle,
+} from "../../lib/native-provider.ts";
 import { logWarning } from "../../lib/util.ts";
 import { isOAuthCredential } from "../../provider-helper.ts";
 import { createKiloProvider } from "./kilo-provider.ts";
@@ -236,31 +238,11 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 	const hasKiloKey = !!getKiloApiKey();
 	registerWithGlobalToggle(PROVIDER_KILO, stored, reRegister, hasKiloKey);
 
-	// Per-provider toggle command
-	pi.registerCommand("toggle-kilo", {
-		description: "Toggle between free and all Kilo models",
-		handler: async (_args, ctx) => {
-			const showPaid = !getKiloShowPaid();
-			await saveConfig({ kilo_show_paid: showPaid });
-
-			const modelsToShow =
-				showPaid && stored.all.length > 0 ? stored.all : stored.free;
-			reRegister(modelsToShow);
-
-			const freeCount = stored.free.length;
-			const paidCount = stored.all.length - freeCount;
-			if (showPaid && stored.all.length > 0) {
-				ctx.ui.notify(
-					`kilo: showing all ${stored.all.length} models (${freeCount} free, ${paidCount} paid)`,
-					"info",
-				);
-			} else {
-				ctx.ui.notify(
-					`kilo: showing ${freeCount} free models (${paidCount} paid hidden)`,
-					"info",
-				);
-			}
-		},
+	registerNativeProviderToggle(pi, {
+		providerId: PROVIDER_KILO,
+		stored,
+		getShowPaid: getKiloShowPaid,
+		reRegister,
 	});
 
 	// ToS notice on provider selection
@@ -362,37 +344,5 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 		};
 	});
 
-	// Refresh nudge on session start. Native refreshModels (owned by Pi) keeps the
-	// catalog fresh on its throttled cycle and refreshes the OAuth credential
-	// before fetching; this only nudges the model registry when it exposes a
-	// refresh hook, and is a safe no-op otherwise.
-	pi.on(
-		"session_start",
-		wrapSessionStartHandler("kilo", (_event, ctx) => {
-			try {
-				const registry = (
-					ctx as {
-						modelRegistry?: { refresh?: (opts?: unknown) => unknown };
-					}
-				).modelRegistry;
-				const result = registry?.refresh?.({ allowNetwork: true });
-				if (result && typeof (result as Promise<void>).catch === "function") {
-					(result as Promise<void>).catch((err: unknown) =>
-						logWarning(
-							"kilo",
-							"Model refresh nudge failed",
-							err instanceof Error ? err.message : String(err),
-						),
-					);
-				}
-			} catch (err) {
-				logWarning(
-					"kilo",
-					"Model refresh nudge failed",
-					err instanceof Error ? err.message : String(err),
-				);
-			}
-			return Promise.resolve();
-		}),
-	);
+	registerNativeProviderRefresh(pi, PROVIDER_KILO);
 }
