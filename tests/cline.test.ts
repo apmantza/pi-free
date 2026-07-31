@@ -1,432 +1,313 @@
 /**
- * Cline Provider Tests
+ * Cline factory wiring tests (end-to-end: extension wiring + real native
+ * provider, network mocked). Mirrors tests/kilo-toggle.test.ts: verifies the
+ * network-free factory, native registration, /toggle-cline, the global
+ * /toggle-free re-register hook, task-id rotation, the session_start refresh
+ * nudge, and the non-destructive credential inspection.
  */
 
+import type {
+	ModelsStoreEntry,
+	ProviderModelsStore,
+} from "@earendil-works/pi-ai/compat";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock dependencies
-vi.mock("../constants.ts", () => ({
-	BASE_URL_CLINE: "https://api.cline.bot/api/v1",
+const mockFetchClineCatalog = vi.hoisted(() =>
+	vi.fn<(...args: unknown[]) => unknown>(),
+);
+const mockGetClineApiKey = vi.hoisted(() => vi.fn((): string | undefined => undefined));
+const mockGetClineShowPaid = vi.hoisted(() => vi.fn(() => false));
+const mockGetGlobalFreeOnly = vi.hoisted(() => vi.fn(() => true));
+const mockSaveConfig = vi.hoisted(() =>
+	vi.fn<(...args: unknown[]) => Promise<void>>(),
+);
+const mockRegisterWithGlobalToggle = vi.hoisted(() =>
+	vi.fn<(...args: unknown[]) => void>(),
+);
+const mockReadStoredCredential = vi.hoisted(() =>
+	vi.fn((): unknown => undefined),
+);
+
+let capturedToggleArgs: unknown[][] = [];
+
+vi.mock("../config.ts", () => ({
+	getClineApiKey: () => mockGetClineApiKey(),
+	getClineShowPaid: () => mockGetClineShowPaid(),
+	saveConfig: (...args: unknown[]) => mockSaveConfig(...args),
 	PROVIDER_CLINE: "cline",
-	STARTUP_FETCH_DEADLINE_MS: 8_000,
 }));
 
 vi.mock("../lib/registry.ts", () => ({
-	registerWithGlobalToggle: vi.fn(),
-	isFreeModel: (m: any) => (m.cost?.input ?? 0) === 0,
-	getGlobalFreeOnly: () => false,
+	registerWithGlobalToggle: (...args: unknown[]) => {
+		capturedToggleArgs.push(args);
+		mockRegisterWithGlobalToggle(...args);
+	},
+	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
+	isFreeModel: (m: { cost?: { input?: number } }) => (m.cost?.input ?? 0) === 0,
 }));
 
-const mockGetClineShowPaid = vi.fn();
-const mockSaveConfig = vi.fn();
-const mockLoadProviderCache = vi.fn();
-const mockSaveProviderCache = vi.fn();
-const mockIsProviderCacheFresh = vi.fn();
+vi.mock("../provider-helper.ts", async () => {
+	const actual = await vi.importActual<Record<string, unknown>>(
+		"../provider-helper.ts",
+	);
+	return { ...actual, enhanceWithCI: (models: unknown[]) => models };
+});
 
-vi.mock("../lib/util.ts", () => ({
-	logWarning: vi.fn(),
-	// Passthrough: test fetchers settle immediately, so the deadline is inert.
-	withFetchDeadline: (p: Promise<unknown>) => p,
+vi.mock("../providers/cline/cline-models.ts", async () => {
+	const actual = await vi.importActual<Record<string, unknown>>(
+		"../providers/cline/cline-models.ts",
+	);
+	return {
+		...actual,
+		fetchClineCatalog: (...args: unknown[]) => mockFetchClineCatalog(...args),
+	};
+});
+
+vi.mock("@earendil-works/pi-coding-agent", () => ({
+	readStoredCredential: () => mockReadStoredCredential(),
 }));
 
-const mockGetClineApiKey = vi.fn();
-
-vi.mock("../config.ts", () => ({
-	getClineShowPaid: () => mockGetClineShowPaid(),
-	getClineApiKey: () => mockGetClineApiKey(),
-	saveConfig: (...args: unknown[]) => mockSaveConfig(...args),
-}));
-
-vi.mock("../lib/provider-cache.ts", () => ({
-	DEFAULT_PROVIDER_CACHE_TTL_MS: 60 * 60 * 1000,
-	loadProviderCache: (...args: unknown[]) => mockLoadProviderCache(...args),
-	saveProviderCache: (...args: unknown[]) => mockSaveProviderCache(...args),
-	isProviderCacheFresh: (...args: unknown[]) =>
-		mockIsProviderCacheFresh(...args),
-}));
-
-vi.mock("../providers/cline/cline-auth.ts", () => ({
-	loginCline: vi.fn(),
-	refreshClineToken: vi.fn(),
-}));
-
-vi.mock("../providers/cline/cline-models.ts", () => ({
-	fetchClineModels: vi.fn(),
-}));
-
-vi.mock("../provider-helper.ts", () => ({
-	enhanceWithCI: (models: unknown[]) => models,
+vi.mock("../lib/logger.ts", () => ({
+	createLogger: () => ({
+		info: vi.fn(),
+		warn: vi.fn(),
+		error: vi.fn(),
+		debug: vi.fn(),
+	}),
 }));
 
 import clineProvider from "../providers/cline/cline.ts";
-import { loginCline } from "../providers/cline/cline-auth.ts";
-import { fetchClineModels } from "../providers/cline/cline-models.ts";
+import { buildClineHeaders } from "../providers/cline/cline-provider.ts";
 
-describe("Cline Provider", () => {
+function cfg(over: Record<string, unknown> = {}) {
+	return {
+		id: "m",
+		name: "Model",
+		reasoning: false,
+		input: ["text"] as ("text" | "image")[],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 128000,
+		maxTokens: 4096,
+		...over,
+	};
+}
+
+function makeStore(): ProviderModelsStore {
+	let entry: ModelsStoreEntry | undefined;
+	return {
+		read: async () => entry,
+		write: async (e: ModelsStoreEntry) => {
+			entry = e;
+		},
+		delete: async () => {
+			entry = undefined;
+		},
+	};
+}
+
+describe("Cline factory wiring", () => {
 	let mockPi: ExtensionAPI;
 	let mockRegisterProvider: ReturnType<typeof vi.fn>;
+	let mockRegisterCommand: ReturnType<typeof vi.fn>;
 	let mockOn: ReturnType<typeof vi.fn>;
-	let commandHandlers: Record<string, Function>;
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		mockRegisterProvider = vi.fn();
-		mockOn = vi.fn();
-		commandHandlers = {};
-		mockGetClineShowPaid.mockReturnValue(false);
+		capturedToggleArgs = [];
 		mockGetClineApiKey.mockReturnValue(undefined);
-		mockLoadProviderCache.mockReturnValue(undefined);
-		mockSaveProviderCache.mockResolvedValue(undefined);
-		mockIsProviderCacheFresh.mockReturnValue(false);
+		mockGetClineShowPaid.mockReturnValue(false);
+		mockGetGlobalFreeOnly.mockReturnValue(true);
+		mockReadStoredCredential.mockReturnValue(undefined);
+		mockFetchClineCatalog.mockResolvedValue({
+			all: [
+				cfg({ id: "free-1" }),
+				cfg({ id: "paid-1", cost: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 } }),
+			],
+			free: [cfg({ id: "free-1" })],
+		});
 
+		mockRegisterProvider = vi.fn();
+		mockRegisterCommand = vi.fn();
+		mockOn = vi.fn();
 		mockPi = {
 			registerProvider: mockRegisterProvider,
 			on: mockOn,
-			registerCommand: vi.fn((name: string, config: { handler: Function }) => {
-				commandHandlers[name] = config.handler;
-			}),
+			registerCommand: mockRegisterCommand,
 		} as unknown as ExtensionAPI;
 	});
 
-	describe("initialization", () => {
-		it("should register provider with models", async () => {
-			const mockModels = [
-				{
-					id: "claude-3-5-sonnet",
-					name: "Claude 3.5 Sonnet",
-					reasoning: true,
-					input: ["text" as const],
-					cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-					contextWindow: 200000,
-					maxTokens: 8192,
-				},
-			];
+	it("factory is network-free: registers the native provider empty", async () => {
+		await clineProvider(mockPi);
 
-			vi.mocked(fetchClineModels).mockResolvedValue(mockModels);
+		// The factory never fetches: models load via refreshModels.
+		expect(mockFetchClineCatalog).not.toHaveBeenCalled();
 
-			await clineProvider(mockPi);
+		// Native provider object registered (single arg).
+		expect(mockRegisterProvider).toHaveBeenCalledTimes(1);
+		const provider = mockRegisterProvider.mock.calls[0][0];
+		expect(provider.id).toBe("cline");
+		expect(provider.getModels()).toEqual([]);
+		expect(provider.auth.apiKey).toBeDefined();
+		expect(provider.auth.oauth).toBeDefined();
 
-			expect(mockRegisterProvider).toHaveBeenCalledWith(
-				"cline",
-				expect.objectContaining({
-					baseUrl: "https://api.cline.bot/api/v1",
-					models: expect.any(Array), // enhanced via enhanceWithCI
-					oauth: expect.any(Object),
-				}),
-			);
-		});
-
-		it("should register event handlers and XML bridge stream", async () => {
-			vi.mocked(fetchClineModels).mockResolvedValue([]);
-
-			await clineProvider(mockPi);
-
-			expect(mockOn).toHaveBeenCalledWith(
-				"before_agent_start",
-				expect.any(Function),
-			);
-			expect(mockOn).toHaveBeenCalledWith(
-				"session_start",
-				expect.any(Function),
-			);
-			expect(mockRegisterProvider).toHaveBeenCalledWith(
-				"cline",
-				expect.objectContaining({
-					api: "cline-xml-tools",
-					streamSimple: expect.any(Function),
-				}),
-			);
-		});
-
-		it("should use cached models at startup without fetching", async () => {
-			const cachedModels = [
-				{
-					id: "cached-free-model",
-					name: "Cached Free Model",
-					reasoning: false,
-					input: ["text" as const],
-					cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-					contextWindow: 200000,
-					maxTokens: 8192,
-				},
-			];
-			mockLoadProviderCache.mockReturnValue(cachedModels);
-
-			await clineProvider(mockPi);
-
-			expect(fetchClineModels).not.toHaveBeenCalled();
-			expect(mockRegisterProvider).toHaveBeenCalledWith(
-				"cline",
-				expect.objectContaining({
-					models: expect.arrayContaining([
-						expect.objectContaining({ id: "cached-free-model" }),
-					]),
-				}),
-			);
-		});
-
-		it("should use API key auth when configured", async () => {
-			mockGetClineApiKey.mockReturnValue("sk-cline-test");
-			vi.mocked(fetchClineModels).mockResolvedValue([]);
-
-			await clineProvider(mockPi);
-
-			expect(mockRegisterProvider).toHaveBeenCalledWith(
-				"cline",
-				expect.objectContaining({
-					apiKey: "sk-cline-test",
-					authHeader: false,
-					streamSimple: expect.any(Function),
-				}),
-			);
-			const registerCall = mockRegisterProvider.mock.calls[0];
-			expect(registerCall[1]).not.toHaveProperty("oauth");
-		});
+		// Lifecycle handlers + toggle command registered.
+		expect(mockOn).toHaveBeenCalledWith(
+			"before_agent_start",
+			expect.any(Function),
+		);
+		expect(mockOn).toHaveBeenCalledWith("session_start", expect.any(Function));
+		expect(
+			mockRegisterCommand.mock.calls.some((c) => c[0] === "toggle-cline"),
+		).toBe(true);
 	});
 
-	describe("OAuth integration", () => {
-		it("should have OAuth configuration", async () => {
-			vi.mocked(fetchClineModels).mockResolvedValue([]);
+	it("registers with the global toggle (hasKey reflects CLINE_API_KEY)", async () => {
+		await clineProvider(mockPi);
+		expect(capturedToggleArgs).toHaveLength(1);
+		const [providerId, , , hasKey] = capturedToggleArgs[0] as [
+			string,
+			unknown,
+			unknown,
+			boolean,
+		];
+		expect(providerId).toBe("cline");
+		expect(hasKey).toBe(false);
 
-			await clineProvider(mockPi);
-
-			const registerCall = mockRegisterProvider.mock.calls[0];
-			expect(registerCall[1]).toHaveProperty("oauth");
-			expect(registerCall[1].oauth).toHaveProperty("name", "Cline");
-			expect(registerCall[1].oauth).toHaveProperty("login");
-			expect(registerCall[1].oauth).toHaveProperty("refreshToken");
-		});
-
-		it("should call loginCline on OAuth login", async () => {
-			vi.mocked(fetchClineModels).mockResolvedValue([]);
-			const mockCreds = {
-				access: "token",
-				refresh: "refresh",
-				expires: Date.now(),
-			};
-			vi.mocked(loginCline).mockResolvedValue(mockCreds);
-
-			await clineProvider(mockPi);
-
-			const oauth = mockRegisterProvider.mock.calls[0][1].oauth;
-			await oauth.login({ onProgress: vi.fn() });
-
-			expect(loginCline).toHaveBeenCalled();
-		});
+		mockGetClineApiKey.mockReturnValue("sk-cline");
+		capturedToggleArgs = [];
+		await clineProvider(mockPi);
+		expect((capturedToggleArgs[0] as [string, unknown, unknown, boolean])[3]).toBe(
+			true,
+		);
 	});
 
-	describe("request handling", () => {
-		it("should persist and re-apply paid mode across lifecycle hooks", async () => {
-			const initialModels = [
-				{
-					id: "free-model",
-					name: "Free Model",
-					reasoning: false,
-					input: ["text" as const],
-					cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-					contextWindow: 200000,
-					maxTokens: 8192,
-				},
-				{
-					id: "paid-model",
-					name: "Paid Model",
-					reasoning: false,
-					input: ["text" as const],
-					cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
-					contextWindow: 200000,
-					maxTokens: 8192,
-				},
-			];
-			vi.mocked(fetchClineModels)
-				.mockResolvedValueOnce(initialModels)
-				.mockResolvedValueOnce(initialModels);
+	it("refreshModels populates; global /toggle-free reRegister republishes the same provider", async () => {
+		await clineProvider(mockPi);
+		const provider = mockRegisterProvider.mock.calls[0][0];
 
-			await clineProvider(mockPi);
-			mockRegisterProvider.mockClear();
+		expect(capturedToggleArgs).toHaveLength(1);
+		const [, stored, reRegister] = capturedToggleArgs[0] as [
+			string,
+			{ free: unknown[]; all: unknown[] },
+			(models: unknown[]) => void,
+		];
 
-			const notify = vi.fn();
-			await commandHandlers["toggle-cline"]({}, { ui: { notify } });
+		// Pi refreshes (online) -> public catalogs populate.
+		await provider.refreshModels({ store: makeStore(), allowNetwork: true });
+		expect(stored.all).toHaveLength(2);
+		expect(stored.free).toHaveLength(1);
 
-			expect(mockSaveConfig).toHaveBeenCalledWith({ cline_show_paid: true });
-			expect(mockRegisterProvider).toHaveBeenLastCalledWith(
-				"cline",
-				expect.objectContaining({
-					models: expect.arrayContaining([
-						expect.objectContaining({ id: "free-model" }),
-						expect.objectContaining({ id: "paid-model" }),
-					]),
-				}),
-			);
+		// Global /toggle-free showing all -> reRegister(stored.all).
+		mockRegisterProvider.mockClear();
+		reRegister(stored.all);
+		expect(provider.getModels().map((m: { id: string }) => m.id).sort()).toEqual([
+			"free-1",
+			"paid-1",
+		]);
+		// Re-registration reused the SAME native provider object (auth preserved).
+		expect(mockRegisterProvider).toHaveBeenCalledWith(provider);
 
-			mockRegisterProvider.mockClear();
-			const beforeRequestHandler = mockOn.mock.calls.find(
-				(call) => call[0] === "before_agent_start",
-			)?.[1];
-			await beforeRequestHandler({}, { model: { provider: "cline" } });
+		// Global /toggle-free showing free -> reRegister(stored.free).
+		reRegister(stored.free);
+		expect(provider.getModels().map((m: { id: string }) => m.id)).toEqual([
+			"free-1",
+		]);
+	});
 
-			expect(mockRegisterProvider).toHaveBeenCalledWith(
-				"cline",
-				expect.objectContaining({
-					models: expect.arrayContaining([
-						expect.objectContaining({ id: "free-model" }),
-						expect.objectContaining({ id: "paid-model" }),
-					]),
-				}),
-			);
+	it("/toggle-cline flips cline_show_paid and shows the full catalog, then back", async () => {
+		await clineProvider(mockPi);
+		const provider = mockRegisterProvider.mock.calls[0][0];
+		await provider.refreshModels({ store: makeStore(), allowNetwork: true });
 
-			mockRegisterProvider.mockClear();
-			const sessionStartHandler = mockOn.mock.calls.find(
-				(call) => call[0] === "session_start",
-			)?.[1];
-			await sessionStartHandler(
-				{},
-				{ model: { provider: "cline" }, ui: { notify } },
-			);
+		const call = mockRegisterCommand.mock.calls.find(
+			(c) => c[0] === "toggle-cline",
+		);
+		if (!call) throw new Error("toggle-cline not registered");
+		const notify = vi.fn();
 
-			await vi.waitFor(() => {
-				expect(mockRegisterProvider).toHaveBeenCalledWith(
-					"cline",
-					expect.objectContaining({
-						models: expect.arrayContaining([
-							expect.objectContaining({ id: "free-model" }),
-							expect.objectContaining({ id: "paid-model" }),
-						]),
-					}),
-				);
-			});
+		// First toggle: free -> all.
+		await call[1].handler({}, { ui: { notify } });
+		expect(mockSaveConfig).toHaveBeenCalledWith({ cline_show_paid: true });
+		expect(provider.getModels().map((m: { id: string }) => m.id).sort()).toEqual([
+			"free-1",
+			"paid-1",
+		]);
+		expect(notify).toHaveBeenCalledWith(
+			expect.stringContaining("showing all 2 models"),
+			"info",
+		);
+
+		// Second toggle: all -> free.
+		mockGetClineShowPaid.mockReturnValue(true);
+		notify.mockClear();
+		await call[1].handler({}, { ui: { notify } });
+		expect(mockSaveConfig).toHaveBeenCalledWith({ cline_show_paid: false });
+		expect(provider.getModels().map((m: { id: string }) => m.id)).toEqual([
+			"free-1",
+		]);
+		expect(notify).toHaveBeenCalledWith(
+			expect.stringContaining("showing 1 free models"),
+			"info",
+		);
+	});
+
+	it("before_agent_start rotates the Cline task id for Cline models only", async () => {
+		await clineProvider(mockPi);
+		const handler = mockOn.mock.calls.find(
+			(call) => call[0] === "before_agent_start",
+		)?.[1];
+		expect(handler).toBeDefined();
+
+		const before = buildClineHeaders()["X-Task-ID"];
+		await handler({}, { model: { provider: "cline" } });
+		const after = buildClineHeaders()["X-Task-ID"];
+		expect(after).not.toBe(before);
+		// The rest of the VS Code-spoofing headers are unchanged.
+		expect(buildClineHeaders()).toMatchObject({
+			"HTTP-Referer": "https://cline.bot",
+			"X-Title": "Cline",
+			"X-CLIENT-TYPE": "VSCode Extension",
 		});
 
-		it("should skip session_start refresh when cache is fresh", async () => {
-			vi.mocked(fetchClineModels).mockResolvedValue([]);
-			mockIsProviderCacheFresh.mockReturnValue(true);
+		// A different provider does not rotate the task id.
+		await handler({}, { model: { provider: "kilo" } });
+		expect(buildClineHeaders()["X-Task-ID"]).toBe(after);
+	});
 
+	it("session_start nudges the model registry refresh and is safe without one", async () => {
+		await clineProvider(mockPi);
+		const handler = mockOn.mock.calls.find(
+			(call) => call[0] === "session_start",
+		)?.[1];
+		expect(handler).toBeDefined();
+
+		const refresh = vi.fn().mockResolvedValue(undefined);
+		await handler({}, { modelRegistry: { refresh } });
+		expect(refresh).toHaveBeenCalledWith({ allowNetwork: true });
+
+		// No modelRegistry on the context -> safe no-op.
+		await expect(handler({}, {})).resolves.toBeUndefined();
+	});
+
+	describe("non-destructive credential inspection", () => {
+		it.each([
+			["no stored credential", undefined],
+			[
+				"valid oauth credential",
+				{ type: "oauth", access: "tok", refresh: "r", expires: 1 },
+			],
+			[
+				"malformed oauth credential",
+				{ type: "oauth", access: "", refresh: "r", expires: 1 },
+			],
+			["api key credential", { type: "api_key", key: "sk" }],
+			["unrecognized credential", { type: "mystery" }],
+		])("registers normally with %s", async (_label, cred) => {
+			mockReadStoredCredential.mockReturnValue(cred);
 			await clineProvider(mockPi);
-
-			vi.mocked(fetchClineModels).mockClear();
-			const sessionStartHandler = mockOn.mock.calls.find(
-				(call) => call[0] === "session_start",
-			)?.[1];
-			await sessionStartHandler(
-				{},
-				{ model: { provider: "cline" }, ui: { notify: vi.fn() } },
-			);
-
-			expect(fetchClineModels).not.toHaveBeenCalled();
-			expect(mockSaveProviderCache).not.toHaveBeenCalled();
-		});
-
-		it("should save cache after stale session_start refresh", async () => {
-			const initialModels = [
-				{
-					id: "free-model",
-					name: "Free Model",
-					reasoning: false,
-					input: ["text" as const],
-					cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-					contextWindow: 200000,
-					maxTokens: 8192,
-				},
-			];
-			vi.mocked(fetchClineModels).mockResolvedValue(initialModels);
-
-			await clineProvider(mockPi);
-			mockSaveProviderCache.mockClear();
-
-			const sessionStartHandler = mockOn.mock.calls.find(
-				(call) => call[0] === "session_start",
-			)?.[1];
-			await sessionStartHandler(
-				{},
-				{ model: { provider: "cline" }, ui: { notify: vi.fn() } },
-			);
-
-			await vi.waitFor(() => {
-				expect(mockSaveProviderCache).toHaveBeenCalledWith(
-					"cline",
-					initialModels,
-				);
-			});
-		});
-
-		it("should not start duplicate session_start refresh while one is in flight", async () => {
-			vi.mocked(fetchClineModels).mockResolvedValueOnce([]);
-			let resolveRefresh!: (models: any[]) => void;
-			const refreshPromise = new Promise<any[]>((resolve) => {
-				resolveRefresh = resolve;
-			});
-			vi.mocked(fetchClineModels).mockReturnValueOnce(refreshPromise as any);
-
-			await clineProvider(mockPi);
-			vi.mocked(fetchClineModels).mockClear();
-			vi.mocked(fetchClineModels).mockReturnValue(refreshPromise as any);
-
-			const sessionStartHandler = mockOn.mock.calls.find(
-				(call) => call[0] === "session_start",
-			)?.[1];
-			await sessionStartHandler(
-				{},
-				{ model: { provider: "cline" }, ui: { notify: vi.fn() } },
-			);
-			await sessionStartHandler(
-				{},
-				{ model: { provider: "cline" }, ui: { notify: vi.fn() } },
-			);
-
-			expect(fetchClineModels).toHaveBeenCalledTimes(1);
-			resolveRefresh([]);
-			await refreshPromise;
-		});
-
-		it("should re-register provider with fresh headers on before_agent_start", async () => {
-			vi.mocked(fetchClineModels).mockResolvedValue([]);
-
-			await clineProvider(mockPi);
-
-			// Clear calls from initial registration
-			mockRegisterProvider.mockClear();
-
-			const beforeRequestHandler = mockOn.mock.calls.find(
-				(call) => call[0] === "before_agent_start",
-			)?.[1];
-
-			expect(beforeRequestHandler).toBeDefined();
-
-			// Mock context with Cline provider selected
-			const mockCtx = { model: { provider: "cline" } };
-			await beforeRequestHandler({}, mockCtx);
-
-			// Should re-register provider with fresh headers (new X-Task-ID)
-			expect(mockRegisterProvider).toHaveBeenCalledWith(
-				"cline",
-				expect.objectContaining({
-					headers: expect.objectContaining({
-						"HTTP-Referer": "https://cline.bot",
-						"X-Title": "Cline",
-						"X-Task-ID": expect.any(String),
-					}),
-				}),
-			);
-		});
-
-		it("should skip re-registration when different provider is active", async () => {
-			vi.mocked(fetchClineModels).mockResolvedValue([]);
-
-			await clineProvider(mockPi);
-
-			// Clear calls from initial registration
-			mockRegisterProvider.mockClear();
-
-			const beforeRequestHandler = mockOn.mock.calls.find(
-				(call) => call[0] === "before_agent_start",
-			)?.[1];
-
-			// Mock context with different provider
-			const mockCtx = { model: { provider: "openrouter" } };
-			await beforeRequestHandler({}, mockCtx);
-
-			// Should not re-register when different provider is active
-			expect(mockRegisterProvider).not.toHaveBeenCalled();
+			expect(mockRegisterProvider).toHaveBeenCalledTimes(1);
+			expect(mockRegisterProvider.mock.calls[0][0].id).toBe("cline");
 		});
 	});
 });
