@@ -45,6 +45,7 @@ import { getLlm7ShowPaid } from "../../config.ts";
 import { BASE_URL_LLM7, PROVIDER_LLM7 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { getGlobalFreeOnly, isFreeModel } from "../../lib/registry.ts";
+import { persistNativeProviderModels } from "../../lib/native-provider.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { llm7Auth } from "./llm7-auth.ts";
 import { fetchLlm7Catalog, toLlm7Models } from "./llm7-models.ts";
@@ -99,7 +100,10 @@ export function createLlm7Provider(): Llm7NativeProvider {
 		currentView = toLlm7Models(models);
 	}
 
-	function ingest(all: ProviderModelConfig[], free: ProviderModelConfig[]): void {
+	function ingest(
+		all: ProviderModelConfig[],
+		free: ProviderModelConfig[],
+	): void {
 		stored.all = toLlm7Models(enhanceWithCI(all));
 		stored.free = toLlm7Models(enhanceWithCI(free));
 		setView(decideView());
@@ -140,18 +144,13 @@ export function createLlm7Provider(): Llm7NativeProvider {
 
 		ingest(all, free);
 
-		try {
-			await context.store.write({
-				// stored.all holds full Model objects at runtime (toLlm7Models output);
-				// the StoredModels type widens them to ProviderModelConfig for the toggle.
-				models: stored.all as unknown as readonly Model<Api>[],
-				checkedAt: Date.now(),
-			});
-		} catch (err) {
-			_logger.warn("Failed to persist models to store", {
-				error: err instanceof Error ? err.message : String(err),
-			});
-		}
+		await persistNativeProviderModels(
+			PROVIDER_LLM7,
+			context,
+			// stored.all holds full Model objects at runtime (toLlm7Models output);
+			// the StoredModels type widens them to ProviderModelConfig for the toggle.
+			stored.all as unknown as readonly Model<Api>[],
+		);
 	}
 
 	const provider: Provider<"openai-completions"> = {
@@ -164,7 +163,8 @@ export function createLlm7Provider(): Llm7NativeProvider {
 		auth: llm7Auth,
 		getModels: () => currentView,
 		refreshModels,
-		stream: (model, context, options) => streams.stream(model, context, options),
+		stream: (model, context, options) =>
+			streams.stream(model, context, options),
 		streamSimple: (model, context, options) =>
 			streams.streamSimple(model, context, options),
 	};

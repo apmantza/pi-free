@@ -42,6 +42,7 @@ import {
 import { PROVIDER_KILO } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { getGlobalFreeOnly, isFreeModel } from "../../lib/registry.ts";
+import { persistNativeProviderModels } from "../../lib/native-provider.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { kiloAuth } from "./kilo-auth.ts";
 import {
@@ -151,18 +152,13 @@ export function createKiloProvider(): KiloNativeProvider {
 
 		ingest(all, free);
 
-		try {
-			await context.store.write({
-				// stored.all holds full Model objects at runtime (toKiloModels output);
-				// the StoredModels type widens them to ProviderModelConfig for the toggle.
-				models: stored.all as unknown as readonly Model<Api>[],
-				checkedAt: Date.now(),
-			});
-		} catch (err) {
-			_logger.warn("Failed to persist models to store", {
-				error: err instanceof Error ? err.message : String(err),
-			});
-		}
+		await persistNativeProviderModels(
+			PROVIDER_KILO,
+			context,
+			// stored.all holds full Model objects at runtime (toKiloModels output);
+			// the StoredModels type widens them to ProviderModelConfig for the toggle.
+			stored.all as unknown as readonly Model<Api>[],
+		);
 	}
 
 	const provider: Provider<"openai-completions"> = {

@@ -30,12 +30,13 @@ import {
 	getClineApiKey,
 	getClineShowPaid,
 	PROVIDER_CLINE,
-	saveConfig,
 } from "../../config.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
-import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
-import { logWarning } from "../../lib/util.ts";
+import {
+	registerNativeProviderRefresh,
+	registerNativeProviderToggle,
+} from "../../lib/native-provider.ts";
 import { isOAuthCredential } from "../../provider-helper.ts";
 import { createClineProvider, rotateClineTaskId } from "./cline-provider.ts";
 
@@ -138,31 +139,11 @@ export default async function clineProvider(pi: ExtensionAPI) {
 	const hasClineKey = !!getClineApiKey();
 	registerWithGlobalToggle(PROVIDER_CLINE, stored, reRegister, hasClineKey);
 
-	// Per-provider toggle command
-	pi.registerCommand("toggle-cline", {
-		description: "Toggle between free and all Cline models",
-		handler: async (_args, ctx) => {
-			const showPaid = !getClineShowPaid();
-			await saveConfig({ cline_show_paid: showPaid });
-
-			const modelsToShow =
-				showPaid && stored.all.length > 0 ? stored.all : stored.free;
-			reRegister(modelsToShow);
-
-			const freeCount = stored.free.length;
-			const paidCount = stored.all.length - freeCount;
-			if (showPaid && stored.all.length > 0) {
-				ctx.ui.notify(
-					`cline: showing all ${stored.all.length} models (${freeCount} free, ${paidCount} paid)`,
-					"info",
-				);
-			} else {
-				ctx.ui.notify(
-					`cline: showing ${freeCount} free models (${paidCount} paid hidden)`,
-					"info",
-				);
-			}
-		},
+	registerNativeProviderToggle(pi, {
+		providerId: PROVIDER_CLINE,
+		stored,
+		getShowPaid: getClineShowPaid,
+		reRegister,
 	});
 
 	// Rotate the Cline task id when a Cline agent starts (mirrors the legacy
@@ -173,38 +154,5 @@ export default async function clineProvider(pi: ExtensionAPI) {
 		rotateClineTaskId();
 	});
 
-	// Refresh nudge on session start. Native refreshModels (owned by Pi) keeps the
-	// catalog fresh on its throttled cycle; this replaces the legacy hand-rolled
-	// provider-cache refresh (1h TTL) with Pi's throttled background refresh. It
-	// only nudges the model registry when it exposes a refresh hook, and is a safe
-	// no-op otherwise.
-	pi.on(
-		"session_start",
-		wrapSessionStartHandler("cline", (_event, ctx) => {
-			try {
-				const registry = (
-					ctx as {
-						modelRegistry?: { refresh?: (opts?: unknown) => unknown };
-					}
-				).modelRegistry;
-				const result = registry?.refresh?.({ allowNetwork: true });
-				if (result && typeof (result as Promise<void>).catch === "function") {
-					(result as Promise<void>).catch((err: unknown) =>
-						logWarning(
-							"cline",
-							"Model refresh nudge failed",
-							err instanceof Error ? err.message : String(err),
-						),
-					);
-				}
-			} catch (err) {
-				logWarning(
-					"cline",
-					"Model refresh nudge failed",
-					err instanceof Error ? err.message : String(err),
-				);
-			}
-			return Promise.resolve();
-		}),
-	);
+	registerNativeProviderRefresh(pi, PROVIDER_CLINE);
 }
