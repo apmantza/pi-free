@@ -28,11 +28,7 @@ import type {
 } from "@earendil-works/pi-ai/compat";
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/compat";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/compat";
-import {
-	getTokenrouterApiKey,
-	getTokenrouterShowPaid,
-	applyHidden,
-} from "../../config.ts";
+import { applyHidden } from "../../config.ts";
 import {
 	BASE_URL_TOKENROUTER,
 	DEFAULT_FETCH_TIMEOUT_MS,
@@ -45,13 +41,12 @@ import {
 	getProxyModelCompat,
 	isLikelyReasoningModel,
 } from "../../lib/provider-compat.ts";
-import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import { cleanModelName, fetchWithRetry } from "../../lib/util.ts";
 import {
-	enhanceWithCI,
-	loadCachedOrFetchModels,
-	setupProvider,
-} from "../../provider-helper.ts";
+	createTokenRouterProvider as createNativeTokenRouterProvider,
+	registerTokenRouterProvider,
+	type TokenRouterProviderDeps,
+} from "./tokenrouter-provider.ts";
 
 const _logger = createLogger("tokenrouter");
 const streamSimpleOpenAICompletions = openAICompletionsApi().streamSimple;
@@ -109,7 +104,7 @@ function extractThinkBlocks(text: string): ExtractedThinking {
 	};
 }
 
-function isTokenRouterModel(model: { provider?: string }): boolean {
+export function isTokenRouterModel(model: { provider?: string }): boolean {
 	return model.provider === PROVIDER_TOKENROUTER;
 }
 
@@ -118,7 +113,7 @@ function isTokenRouterModel(model: { provider?: string }): boolean {
 // TokenRouter doesn't expose pricing via /v1/models.
 // Known-free detection uses `:free` name suffix for promotional models.
 // =============================================================================
-const TOKENROUTER_OPENAI_API = "tokenrouter-openai-completions" as const;
+export const TOKENROUTER_OPENAI_API = "tokenrouter-openai-completions" as const;
 const TOKENROUTER_HIGH_LOAD_RETRY_DELAY_MS = 30_000;
 const MINIMAX_ADAPTIVE_COMPAT: NonNullable<ProviderModelConfig["compat"]> = {
 	...DEEPSEEK_PROXY_COMPAT,
@@ -164,7 +159,7 @@ function isTextChatModel(model: TokenRouterModel): boolean {
 	return model.supported_endpoint_types.some((t) => CHAT_ENDPOINT_TYPES.has(t));
 }
 
-function isTokenRouterMinimaxModel(modelId: string): boolean {
+export function isTokenRouterMinimaxModel(modelId: string): boolean {
 	return modelId.toLowerCase().includes("minimax");
 }
 
@@ -511,8 +506,9 @@ export function mapTokenRouterModel(
 // Fetch Models
 // =============================================================================
 
-async function fetchTokenRouterModels(
+export async function fetchTokenRouterModels(
 	apiKey: string,
+	signal?: AbortSignal,
 ): Promise<ProviderModelConfig[]> {
 	_logger.info("[tokenrouter] Fetching models from TokenRouter API...");
 
@@ -525,6 +521,7 @@ async function fetchTokenRouterModels(
 					Accept: "application/json",
 					"Content-Type": "application/json",
 				},
+				signal,
 			},
 			3,
 			1000,
@@ -555,82 +552,24 @@ async function fetchTokenRouterModels(
 	}
 }
 
-// =============================================================================
-// Extension Entry Point
-// =============================================================================
+const TOKENROUTER_PROVIDER_DEPS: TokenRouterProviderDeps = {
+	fetchModels: fetchTokenRouterModels,
+	streamSimple: streamSimpleTokenRouter,
+	isModel: isTokenRouterModel,
+	isMinimaxModel: isTokenRouterMinimaxModel,
+	normalizeMessage: normalizeAssistantMessage,
+	patchPayload: patchTokenRouterMinimaxThinkingPayload,
+};
 
-export default async function tokenRouterProvider(pi: ExtensionAPI) {
-	const apiKey = getTokenrouterApiKey();
+export function createTokenRouterProvider(initialModels?: ProviderModelConfig[]) {
+	return initialModels === undefined
+		? createNativeTokenRouterProvider(TOKENROUTER_PROVIDER_DEPS)
+		: createNativeTokenRouterProvider(TOKENROUTER_PROVIDER_DEPS, initialModels);
+}
 
-	if (!apiKey) {
-		_logger.info("[tokenrouter] Skipping — TOKENROUTER_API_KEY not set.");
-		return;
-	}
-
-	const allModels = await loadCachedOrFetchModels(PROVIDER_TOKENROUTER, () =>
-		fetchTokenRouterModels(apiKey),
-	);
-
-	if (allModels.length === 0) {
-		_logger.warn("[tokenrouter] No text chat models available");
-		return;
-	}
-
-	const freeModels = allModels.filter((m) =>
-		isFreeModel({ ...m, provider: PROVIDER_TOKENROUTER }, allModels),
-	);
-	const stored = { free: freeModels, all: allModels };
-
-	_logger.info(
-		`[tokenrouter] Registered ${allModels.length} models (${freeModels.length} free)`,
-	);
-
-	const reRegister = (models: ProviderModelConfig[]) => {
-		pi.registerProvider(PROVIDER_TOKENROUTER, {
-			baseUrl: BASE_URL_TOKENROUTER,
-			apiKey,
-			api: TOKENROUTER_OPENAI_API,
-			streamSimple: streamSimpleTokenRouter,
-			headers: { "User-Agent": "pi-free-providers" },
-			models: enhanceWithCI(models, PROVIDER_TOKENROUTER),
-		});
-	};
-
-	registerWithGlobalToggle(PROVIDER_TOKENROUTER, stored, reRegister, true);
-
-	pi.on("before_provider_request", (event, ctx) =>
-		patchTokenRouterMinimaxThinkingPayload(
-			event.payload,
-			isTokenRouterModel(ctx.model ?? {}) &&
-				isTokenRouterMinimaxModel(ctx.model?.id ?? ""),
-		),
-	);
-
-	pi.on("message_end", (event, ctx) => {
-		if (!isTokenRouterModel(ctx.model ?? {})) return;
-		if (event.message.role !== "assistant") return;
-		return { message: normalizeAssistantMessage(event.message) };
-	});
-
-	setupProvider(
-		pi,
-		{
-			providerId: PROVIDER_TOKENROUTER,
-			initialShowPaid: getTokenrouterShowPaid(),
-			tosUrl: "https://tokenrouter.com/terms",
-			reRegister: (models, _stored) => {
-				if (_stored) {
-					stored.free = _stored.free;
-					stored.all = _stored.all;
-				}
-				reRegister(models);
-			},
-		},
-		stored,
-	);
-
-	const showPaid = getTokenrouterShowPaid();
-	const initialModels =
-		showPaid && stored.all.length > 0 ? stored.all : freeModels;
-	reRegister(initialModels);
+export default function tokenRouterProvider(
+	pi: ExtensionAPI,
+): Promise<void> {
+	registerTokenRouterProvider(pi, TOKENROUTER_PROVIDER_DEPS);
+	return Promise.resolve();
 }

@@ -124,6 +124,29 @@ export async function restoreNativeProviderModels<T extends Model<Api>>(
 	}
 }
 
+/** Refresh, publish, and persist a native provider catalog. */
+export async function refreshNativeProviderModels<T extends Model<Api>>(
+	providerId: string,
+	context: RefreshModelsContext,
+	onRestore: (models: T[]) => void,
+	fetchModels: () => Promise<T[]>,
+	onFetched: (models: T[]) => void | Promise<void>,
+): Promise<void> {
+	await restoreNativeProviderModels(providerId, context, onRestore);
+	if (!context.allowNetwork || context.signal?.aborted) return;
+
+	try {
+		const models = await fetchModels();
+		if (context.signal?.aborted || models.length === 0) return;
+		await onFetched(models);
+		await persistNativeProviderModels(providerId, context, models);
+	} catch (err) {
+		_logger.warn(`Failed to refresh ${providerId} models; retaining previous`, {
+			error: err instanceof Error ? err.message : String(err),
+		});
+	}
+}
+
 /** Persist a native provider catalog while retaining the previous store on failure. */
 export async function persistNativeProviderModels(
 	providerId: string,
