@@ -19,37 +19,27 @@
 
 import type {
 	ExtensionAPI,
-	ExtensionCommandContext,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import {
-	applyHidden,
-	getOllamaApiKey,
-	getOllamaShowPaid,
-	updateConfig,
-} from "../../config.ts";
+import { applyHidden, updateConfig } from "../../config.ts";
 import {
 	BASE_URL_OLLAMA,
 	DEFAULT_FETCH_TIMEOUT_MS,
 	PROVIDER_OLLAMA,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
+import { loadProviderCache, saveProviderCache } from "../../lib/provider-cache.ts";
 import {
-	DEFAULT_PROVIDER_CACHE_TTL_MS,
-	isProviderCacheFresh,
-	loadProviderCache,
-	saveProviderCache,
-} from "../../lib/provider-cache.ts";
-import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
-import {
-	areAllModelsFresh,
 	getModelsDueForProbe,
 	recordModelProbeResults,
 } from "../../lib/probe-cache.ts";
-import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import { fetchWithRetry, fetchWithTimeout } from "../../lib/util.ts";
-import { createReRegister, enhanceWithCI } from "../../provider-helper.ts";
 import { resolveThinkingMap } from "./thinking-levels.ts";
+import {
+	createOllamaProvider as createNativeOllamaProvider,
+	registerOllamaProvider,
+	type OllamaProviderDeps,
+} from "./ollama-provider.ts";
 
 const _logger = createLogger("ollama-cloud");
 
@@ -75,7 +65,7 @@ const OLLAMA_KNOWN_403_MODELS: ReadonlySet<string> = new Set([
 // =============================================================================
 // Fallback models (used when API is unreachable and no cache exists)
 // =============================================================================
-const FALLBACK_MODELS: ProviderModelConfig[] = [
+export const FALLBACK_MODELS: ProviderModelConfig[] = [
 	{
 		id: "glm-5.1",
 		name: "GLM 5.1",
@@ -187,7 +177,10 @@ async function concurrentMap<T, R>(
 // Fetch: /v1/models → list of model IDs
 // =============================================================================
 
-async function fetchModelIds(apiKey: string): Promise<string[]> {
+async function fetchModelIds(
+	apiKey: string,
+	signal?: AbortSignal,
+): Promise<string[]> {
 	const response = await fetchWithRetry(
 		`${BASE_URL_OLLAMA}/models`,
 		{
@@ -195,6 +188,7 @@ async function fetchModelIds(apiKey: string): Promise<string[]> {
 				Authorization: `Bearer ${apiKey}`,
 				"Content-Type": "application/json",
 			},
+			signal,
 		},
 		3,
 		1000,
@@ -220,6 +214,7 @@ async function fetchModelIds(apiKey: string): Promise<string[]> {
 async function fetchModelDetails(
 	apiKey: string,
 	modelId: string,
+	signal?: AbortSignal,
 ): Promise<OllamaShowResponse> {
 	const response = await fetchWithTimeout(
 		`${OLLAMA_API_BASE}/api/show`,
@@ -230,6 +225,7 @@ async function fetchModelDetails(
 				"Content-Type": "application/json",
 			},
 			body: JSON.stringify({ model: modelId }),
+			signal,
 		},
 		DETAIL_FETCH_TIMEOUT_MS,
 	);
@@ -319,13 +315,14 @@ function assembleModels(
 // Fetch all models (orchestrates /v1/models + /api/show)
 // =============================================================================
 
-async function fetchAllModels(
+export async function fetchAllModels(
 	apiKey: string,
 	cachedModels: ProviderModelConfig[] = loadProviderCache(PROVIDER_OLLAMA) ??
 		[],
+	signal?: AbortSignal,
 ): Promise<ProviderModelConfig[]> {
 	// Step 1: Get model IDs
-	const modelIds = await fetchModelIds(apiKey);
+	const modelIds = await fetchModelIds(apiKey, signal);
 	_logger.info(
 		`[ollama-cloud] Found ${modelIds.length} model IDs, fetching details...`,
 	);
@@ -351,7 +348,7 @@ async function fetchAllModels(
 		DETAIL_CONCURRENCY,
 		async (id) => {
 			try {
-				const result = await fetchModelDetails(apiKey, id);
+				const result = await fetchModelDetails(apiKey, id, signal);
 				succeeded++;
 				return [id, result] as const;
 			} catch {
@@ -400,7 +397,7 @@ async function fetchAllModels(
 	return applyHidden(models, PROVIDER_OLLAMA);
 }
 
-async function runOllamaProbe(
+export async function runOllamaProbe(
 	apiKey: string,
 	modelsToTest: ProviderModelConfig[],
 	applyModels: (models: ProviderModelConfig[]) => void,
@@ -478,200 +475,21 @@ async function runOllamaProbe(
 	return notFound;
 }
 
-// =============================================================================
-// Extension Entry Point
-// =============================================================================
+const OLLAMA_PROVIDER_DEPS: OllamaProviderDeps = {
+	fallbackModels: FALLBACK_MODELS,
+	fetchModels: fetchAllModels,
+	probeModels: runOllamaProbe,
+};
 
-export default async function ollamaProvider(pi: ExtensionAPI) {
-	const apiKey = getOllamaApiKey();
+export function createOllamaProvider(initialModels?: ProviderModelConfig[]) {
+	return initialModels === undefined
+		? createNativeOllamaProvider(OLLAMA_PROVIDER_DEPS)
+		: createNativeOllamaProvider(OLLAMA_PROVIDER_DEPS, initialModels);
+}
 
-	if (!apiKey) {
-		_logger.info(
-			"[ollama-cloud] Skipping - OLLAMA_API_KEY not set (env var or ~/.pi/free.json)",
-		);
-		return;
-	}
-
-	// ── Try cache first for fast startup ────────────────────────────
-	let allModels: ProviderModelConfig[];
-	let fromCache = false;
-
-	const cachedModels = loadProviderCache(PROVIDER_OLLAMA);
-	if (cachedModels && cachedModels.length > 0) {
-		allModels = cachedModels;
-		fromCache = true;
-		_logger.info(
-			`[ollama-cloud] Using ${cachedModels.length} cached models for fast startup`,
-		);
-	} else {
-		allModels = FALLBACK_MODELS;
-		_logger.info("[ollama-cloud] No cache available, using fallback models");
-	}
-
-	// ── Register immediately with cached/fallback models ────────────
-	const freeModels = allModels;
-	const stored = { free: freeModels, all: allModels };
-	const hasKey = true;
-
-	const reRegister = createReRegister(pi, {
-		providerId: PROVIDER_OLLAMA,
-		baseUrl: BASE_URL_OLLAMA,
-		apiKey,
-	});
-	const applyModelList = (models: ProviderModelConfig[]) => {
-		allModels = models;
-		stored.free = models;
-		stored.all = models;
-		reRegister(models);
-	};
-
-	registerWithGlobalToggle(PROVIDER_OLLAMA, stored, reRegister, hasKey);
-
-	const initialModels = getOllamaShowPaid() ? allModels : freeModels;
-	pi.registerProvider(PROVIDER_OLLAMA, {
-		baseUrl: BASE_URL_OLLAMA,
-		apiKey,
-		api: "openai-completions" as const,
-		models: enhanceWithCI(initialModels),
-	});
-
-	_logger.info(
-		`[ollama-cloud] Registered ${initialModels.length} models` +
-			(fromCache ? " (from cache)" : " (fallback)") +
-			", refresh scheduled on session start...",
-	);
-
-	// ── Background refresh ─────────────────────────────────────────
-	async function refreshModels(): Promise<ProviderModelConfig[]> {
-		try {
-			const freshModels = await fetchAllModels(
-				apiKey!,
-				loadProviderCache(PROVIDER_OLLAMA),
-			);
-			await saveProviderCache(PROVIDER_OLLAMA, freshModels);
-			return freshModels;
-		} catch (error) {
-			_logger.error("[ollama-cloud] Background refresh failed", {
-				error: error instanceof Error ? error.message : String(error),
-			});
-			// Return current models so we don't lose what we have
-			return allModels;
-		}
-	}
-
-	// ── /ollama-cloud-refresh command ───────────────────────────────
-	pi.registerCommand("ollama-cloud-refresh", {
-		description:
-			"Re-fetch Ollama Cloud models from the API and update the provider live",
-		handler: async (_args: string, ctx: ExtensionCommandContext) => {
-			ctx.ui.notify("Refreshing Ollama Cloud models…", "info");
-			try {
-				const fresh = await fetchAllModels(
-					apiKey!,
-					loadProviderCache(PROVIDER_OLLAMA),
-				);
-				await saveProviderCache(PROVIDER_OLLAMA, fresh);
-				applyModelList(fresh);
-				ctx.ui.notify(
-					`Registered ${fresh.length} Ollama Cloud models (refresh complete)`,
-					"info",
-				);
-			} catch (error) {
-				ctx.ui.notify(
-					`Refresh failed: ${error instanceof Error ? error.message : String(error)}`,
-					"error",
-				);
-			}
-		},
-	});
-
-	// ── /probe-ollama command ───────────────────────────────────────
-	pi.registerCommand("probe-ollama", {
-		description: "Test all Ollama Cloud models for 403 'access denied' errors",
-		handler: async (_args: string, ctx: ExtensionCommandContext) => {
-			if (!apiKey) {
-				ctx.ui.notify("OLLAMA_API_KEY not set", "error");
-				return;
-			}
-
-			const modelsToTest = allModels;
-			ctx.ui.notify(`Probing ${modelsToTest.length} Ollama models…`, "info");
-
-			const notFound = await runOllamaProbe(
-				apiKey,
-				modelsToTest,
-				applyModelList,
-			);
-
-			if (notFound.length === 0) {
-				ctx.ui.notify("All Ollama models are accessible ✅", "info");
-				return;
-			}
-
-			ctx.ui.notify(
-				`Found ${notFound.length} broken models (auto-hidden):\n${notFound.join("\n")}`,
-				"warning",
-			);
-		},
-	});
-
-	const runProbeInBackground = (models: ProviderModelConfig[]) => {
-		// Skip scheduling entirely if every model was probed recently.
-		// Without this check the probe runs on every session_start and
-		// only then discovers the cache is fresh inside runOllamaProbe.
-		if (
-			areAllModelsFresh(
-				PROVIDER_OLLAMA,
-				models.map((m) => m.id),
-			)
-		) {
-			_logger.info("Auto-probe: Ollama probe cache is fresh");
-			return;
-		}
-		runOllamaProbe(apiKey, models, applyModelList, { useCache: true }).catch(
-			(error) => {
-				_logger.warn("Auto-probe failed", {
-					error: error instanceof Error ? error.message : String(error),
-				});
-			},
-		);
-	};
-
-	// ── Background refresh on session_start ─────────────────────────
-	let refreshInFlight: Promise<void> | undefined;
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	pi.on(
-		"session_start" as any,
-		wrapSessionStartHandler("ollama-cloud", (_event: any, ctx: any) => {
-			if (refreshInFlight) return Promise.resolve();
-
-			if (
-				isProviderCacheFresh(PROVIDER_OLLAMA, DEFAULT_PROVIDER_CACHE_TTL_MS)
-			) {
-				_logger.info(
-					"session_start: Ollama Cloud cache is fresh; skipping refresh",
-				);
-				runProbeInBackground(allModels);
-				return Promise.resolve();
-			}
-
-			refreshInFlight = refreshModels()
-				.then((fresh) => {
-					applyModelList(fresh);
-					ctx.ui.notify(`Ollama Cloud: ${fresh.length} models ready`, "info");
-					runProbeInBackground(fresh);
-				})
-				.catch((error) => {
-					_logger.warn("Background refresh failed", {
-						error: error instanceof Error ? error.message : String(error),
-					});
-				})
-				.finally(() => {
-					refreshInFlight = undefined;
-				});
-			return Promise.resolve();
-		}),
-	);
+export default function ollamaProvider(pi: ExtensionAPI): Promise<void> {
+	registerOllamaProvider(pi, OLLAMA_PROVIDER_DEPS);
+	return Promise.resolve();
 }
 
 // =============================================================================
