@@ -19,9 +19,15 @@ import {
 	registerNativeProviderToggle,
 } from "../../lib/native-provider.ts";
 import { areAllModelsFresh } from "../../lib/probe-cache.ts";
-import { loadProviderCache, saveProviderCache } from "../../lib/provider-cache.ts";
+import {
+	loadProviderCache,
+	saveProviderCache,
+} from "../../lib/provider-cache.ts";
 import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
-import { getGlobalFreeOnly, registerWithGlobalToggle } from "../../lib/registry.ts";
+import {
+	getGlobalFreeOnly,
+	registerWithGlobalToggle,
+} from "../../lib/registry.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { ollamaAuth } from "./ollama-auth.ts";
 
@@ -45,10 +51,7 @@ export interface OllamaNativeProvider {
 	provider: Provider<"openai-completions">;
 	stored: StoredModels;
 	setView: (models: ProviderModelConfig[]) => void;
-	ingest: (
-		all: ProviderModelConfig[],
-		free: ProviderModelConfig[],
-	) => void;
+	ingest: (all: ProviderModelConfig[], free: ProviderModelConfig[]) => void;
 }
 
 type OllamaModel = Model<"openai-completions">;
@@ -251,14 +254,19 @@ export function registerOllamaProvider(
 	});
 
 	const runProbeInBackground = (models: ProviderModelConfig[]) => {
-		if (areAllModelsFresh(PROVIDER_OLLAMA, models.map((model) => model.id))) {
+		if (
+			areAllModelsFresh(
+				PROVIDER_OLLAMA,
+				models.map((model) => model.id),
+			)
+		) {
 			return;
 		}
 		const apiKey = getOllamaApiKey();
 		if (!apiKey) return;
-		deps.probeModels(apiKey, models, applyModelList, { useCache: true }).catch(
-			() => undefined,
-		);
+		deps
+			.probeModels(apiKey, models, applyModelList, { useCache: true })
+			.catch(() => undefined);
 	};
 
 	// Pi owns the native model refresh; this handler preserves Ollama's

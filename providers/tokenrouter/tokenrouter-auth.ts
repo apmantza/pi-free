@@ -18,9 +18,7 @@ async function resolveTokenRouterApiKey(input: {
 	if (!key) return undefined;
 	return {
 		auth: { apiKey: key },
-		source: input.credential?.key
-			? "stored API key"
-			: "TOKENROUTER_API_KEY",
+		source: input.credential?.key ? "stored API key" : "TOKENROUTER_API_KEY",
 	};
 }
 

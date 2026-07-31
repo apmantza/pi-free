@@ -21,11 +21,7 @@ import {
 	type ExtensionAPI,
 	type ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import {
-	getKiloApiKey,
-	getKiloShowPaid,
-	PROVIDER_KILO,
-} from "../../config.ts";
+import { getKiloApiKey, getKiloShowPaid, PROVIDER_KILO } from "../../config.ts";
 import { URL_KILO_TOS } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";

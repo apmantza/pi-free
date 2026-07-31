@@ -233,11 +233,10 @@ describe("createZenmuxProvider", () => {
 		const { store } = makeStore();
 		const handle = createZenmuxProvider();
 
-		await handle.provider.refreshModels?.(context(store, { allowNetwork: true }));
-		expect(mockApplyHidden).toHaveBeenCalledWith(
-			expect.any(Array),
-			"zenmux",
+		await handle.provider.refreshModels?.(
+			context(store, { allowNetwork: true }),
 		);
+		expect(mockApplyHidden).toHaveBeenCalledWith(expect.any(Array), "zenmux");
 		expect(handle.stored.all.map((model) => model.id)).toEqual(["visible"]);
 	});
 
