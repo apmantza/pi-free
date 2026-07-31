@@ -24,7 +24,10 @@ import {
 	isFreeModel,
 	registerWithGlobalToggle,
 } from "./registry.ts";
-import { wrapSessionStartHandler } from "./session-start-metrics.ts";
+import {
+	trackDetachedSessionStart,
+	wrapSessionStartHandler,
+} from "./session-start-metrics.ts";
 import type { ProviderProbe } from "./provider-probe.ts";
 import { enhanceWithCI, type StoredModels } from "../provider-helper.ts";
 
@@ -323,6 +326,7 @@ export function registerNativeAvailabilityProbe(
 			probe.autoProbeHandler(apiKey, handle.stored.free, () =>
 				registerNativeProvider(pi, handle.provider),
 			),
+			{ detached: true },
 		),
 	);
 }
@@ -394,9 +398,20 @@ export function registerNativeProviderRefresh(
 					}
 				).modelRegistry;
 				const result = registry?.refresh?.({ allowNetwork: true });
-				if (result && typeof (result as Promise<void>).catch === "function") {
-					(result as Promise<void>).catch((err: unknown) =>
-						logRefreshFailure(providerId, err),
+				if (result && typeof (result as PromiseLike<unknown>).then === "function") {
+					const refreshTask = Promise.resolve(result).then((value) => {
+						const errors = (value as { errors?: { size?: number } } | undefined)
+							?.errors;
+						if (errors?.size && errors.size > 0) {
+							throw new Error(
+								`Pi model refresh reported ${errors.size} provider error(s)`,
+							);
+						}
+					});
+					trackDetachedSessionStart(
+						`${providerId}-model-refresh`,
+						refreshTask,
+						(err) => logRefreshFailure(providerId, err),
 					);
 				}
 			} catch (err) {

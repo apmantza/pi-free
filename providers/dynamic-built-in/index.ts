@@ -502,34 +502,39 @@ async function registerProvider(
 		let _autoProbeDone = false;
 		pi.on(
 			"session_start",
-			wrapSessionStartHandler(`${config.providerId}-auto-probe`, async () => {
-				if (_autoProbeDone) return;
-				_autoProbeDone = true;
-				if (
-					areAllModelsFresh(
-						config.providerId,
-						stored.free.map((m) => m.id),
-					)
-				) {
+			wrapSessionStartHandler(
+				`${config.providerId}-auto-probe`,
+				async () => {
+					if (_autoProbeDone) return;
+					_autoProbeDone = true;
+					if (
+						areAllModelsFresh(
+							config.providerId,
+							stored.free.map((m) => m.id),
+						)
+					) {
+						_logger.info(
+							`[probe] ${config.providerId}: auto-probe cache is fresh`,
+						);
+						return;
+					}
 					_logger.info(
-						`[probe] ${config.providerId}: auto-probe cache is fresh`,
+						`Starting lazy auto-probe of ${config.providerId} free models...`,
 					);
-					return;
-				}
-				_logger.info(
-					`Starting lazy auto-probe of ${config.providerId} free models...`,
-				);
-				try {
-					const broken = await config.probe!.run(apiKey, stored.free, {
-						useCache: true,
-					});
-					await hideBrokenModels(broken);
-				} catch (err) {
-					_logger.warn("Auto-probe failed", {
-						error: err instanceof Error ? err.message : String(err),
-					});
-				}
-			}),
+					try {
+						const broken = await config.probe!.run(apiKey, stored.free, {
+							useCache: true,
+						});
+						await hideBrokenModels(broken);
+					} catch (err) {
+						_logger.warn("Auto-probe failed", {
+							error: err instanceof Error ? err.message : String(err),
+						});
+						throw err;
+					}
+				},
+				{ detached: true },
+			),
 		);
 	}
 

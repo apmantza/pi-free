@@ -42,6 +42,21 @@ export interface ProviderTiming {
 	error?: string;
 }
 
+export interface SessionStartTiming {
+	label: string;
+	durationMs: number;
+	success: boolean;
+}
+
+export interface ProviderCacheNetworkTiming {
+	provider: string;
+	cacheHits: number;
+	networkFetches: number;
+	networkSuccesses: number;
+	networkFailures: number;
+	networkMsTotal: number;
+}
+
 export interface StartupSummary {
 	/** Unique id for this startup run. */
 	runId: string;
@@ -53,7 +68,7 @@ export interface StartupSummary {
 	phases: PhaseTiming[];
 	/** Per-provider timings, sorted slowest-first. */
 	providers: ProviderTiming[];
-	/** Number of provider model lists served from the disk cache. */
+	/** Number of provider cache entries observed by legacy/dynamic loaders. */
 	cacheHits: number;
 	/** Number of provider model lists fetched from the network. */
 	networkFetches: number;
@@ -61,6 +76,14 @@ export interface StartupSummary {
 	networkMsTotal: number;
 	/** Names of providers whose setup failed. */
 	failures: string[];
+	/** Cache/network attribution by provider. */
+	cacheNetwork: ProviderCacheNetworkTiming[];
+	/** Session-start handler timings, including work after startup finalization. */
+	sessionStartHandlers: SessionStartTiming[];
+	/** Detached session-start tasks that completed after their handler returned. */
+	detachedSessionWork: SessionStartTiming[];
+	/** Labels of failed session-start handlers or detached tasks. */
+	sessionStartFailures: string[];
 }
 
 interface StartupState {
@@ -78,6 +101,10 @@ interface StartupState {
 	cacheHits: number;
 	networkFetches: number;
 	networkMsTotal: number;
+	cacheNetwork: Map<string, ProviderCacheNetworkTiming>;
+	sessionStartHandlers: SessionStartTiming[];
+	detachedSessionWork: SessionStartTiming[];
+	sessionStartFailures: string[];
 }
 
 // =============================================================================
@@ -108,6 +135,10 @@ function freshState(): StartupState {
 		cacheHits: 0,
 		networkFetches: 0,
 		networkMsTotal: 0,
+		cacheNetwork: new Map(),
+		sessionStartHandlers: [],
+		detachedSessionWork: [],
+		sessionStartFailures: [],
 	};
 }
 
@@ -149,6 +180,23 @@ export function finalizeStartup(): void {
 		_state.finalized = true;
 	} catch (err) {
 		_logger.warn("finalizeStartup failed", {
+			error: err instanceof Error ? err.message : String(err),
+		});
+	}
+}
+
+/**
+ * Begin a fresh session_start metrics window without discarding startup data.
+ * Pi can reuse an extension module across sessions, so these arrays must not
+ * accumulate indefinitely or make `/free-startup` report an old session.
+ */
+export function beginSessionStart(): void {
+	try {
+		_state.sessionStartHandlers = [];
+		_state.detachedSessionWork = [];
+		_state.sessionStartFailures = [];
+	} catch (err) {
+		_logger.warn("beginSessionStart failed", {
 			error: err instanceof Error ? err.message : String(err),
 		});
 	}
@@ -251,24 +299,85 @@ function recordProvider(
 /**
  * Record that a provider's model list was served from the disk cache.
  */
-export function recordCacheHit(_provider?: string): void {
+function cacheNetworkEntry(provider: string): ProviderCacheNetworkTiming {
+	let entry = _state.cacheNetwork.get(provider);
+	if (!entry) {
+		entry = {
+			provider,
+			cacheHits: 0,
+			networkFetches: 0,
+			networkSuccesses: 0,
+			networkFailures: 0,
+			networkMsTotal: 0,
+		};
+		_state.cacheNetwork.set(provider, entry);
+	}
+	return entry;
+}
+
+export function recordCacheHit(provider?: string): void {
 	try {
 		_state.cacheHits += 1;
+		if (provider) cacheNetworkEntry(provider).cacheHits += 1;
 	} catch {
 		// best-effort
 	}
 }
 
-/**
- * Record that a provider's model list was fetched from the network.
- * @param durationMs - Optional fetch duration in milliseconds.
- */
-export function recordNetworkFetch(_provider?: string, durationMs?: number): void {
+/** Record an attempted provider model-list network fetch, including failures. */
+export function recordNetworkFetch(
+	provider?: string,
+	durationMs?: number,
+	success = true,
+): void {
 	try {
 		_state.networkFetches += 1;
-		if (typeof durationMs === "number" && Number.isFinite(durationMs)) {
-			_state.networkMsTotal += Math.max(0, durationMs);
+		const duration =
+			typeof durationMs === "number" && Number.isFinite(durationMs)
+				? Math.max(0, durationMs)
+				: 0;
+		_state.networkMsTotal += duration;
+		if (provider) {
+			const entry = cacheNetworkEntry(provider);
+			entry.networkFetches += 1;
+			entry.networkMsTotal += duration;
+			if (success) entry.networkSuccesses += 1;
+			else entry.networkFailures += 1;
 		}
+	} catch {
+		// best-effort
+	}
+}
+
+export function recordSessionStartHandler(
+	label: string,
+	durationMs: number,
+	success: boolean,
+): void {
+	try {
+		_state.sessionStartHandlers.push({
+			label,
+			durationMs: round(durationMs),
+			success,
+		});
+		if (!success) _state.sessionStartFailures.push(label);
+	} catch {
+		// best-effort
+	}
+}
+
+export function recordDetachedSessionWork(
+	label: string,
+	durationMs: number,
+	success: boolean,
+): void {
+	try {
+		_state.detachedSessionWork.push({
+			label,
+			durationMs: round(durationMs),
+			success,
+		});
+		if (!success) _state.sessionStartFailures.push(label);
 	} catch {
 		// best-effort
 	}
@@ -301,6 +410,17 @@ export function getStartupSummary(): StartupSummary {
 		networkFetches: _state.networkFetches,
 		networkMsTotal: round(_state.networkMsTotal),
 		failures: _state.providers.filter((p) => !p.success).map((p) => p.provider),
+		cacheNetwork: [..._state.cacheNetwork.values()].map((entry) => ({
+			...entry,
+			networkMsTotal: round(entry.networkMsTotal),
+		})),
+		sessionStartHandlers: [..._state.sessionStartHandlers].sort(
+			(a, b) => b.durationMs - a.durationMs,
+		),
+		detachedSessionWork: [..._state.detachedSessionWork].sort(
+			(a, b) => b.durationMs - a.durationMs,
+		),
+		sessionStartFailures: [..._state.sessionStartFailures],
 	};
 }
 
@@ -354,12 +474,37 @@ export function formatStartupSummary(maxProviders = 15): string {
 		"",
 		...renderPhaseLines(s.phases),
 		...renderProviderLines(s.providers, maxProviders),
-		`Cache: ${s.cacheHits} hits / ${s.networkFetches} network fetches` +
+		`Cache: ${s.cacheHits} entries / ${s.networkFetches} network fetches` +
 			(s.networkMsTotal > 0 ? ` (${s.networkMsTotal}ms)` : ""),
 	];
 
-	if (s.failures.length > 0) {
-		lines.push(`Failures: ${s.failures.join(", ")}`);
+	if (s.cacheNetwork.length > 0) {
+		lines.push("Cache/network by provider:");
+		for (const entry of s.cacheNetwork) {
+			lines.push(
+				`  ${entry.provider}: cache ${entry.cacheHits}, network ${entry.networkFetches} (${entry.networkSuccesses} ok, ${entry.networkFailures} failed, ${entry.networkMsTotal}ms)`,
+			);
+		}
+		lines.push("");
+	}
+
+	const renderSession = (title: string, timings: SessionStartTiming[]) => {
+		if (timings.length === 0) return;
+		lines.push(`${title}:`);
+		for (const timing of timings.slice(0, maxProviders)) {
+			lines.push(
+				`  ${timing.label.padEnd(28)} ${String(timing.durationMs).padStart(6)}ms  ${timing.success ? "ok" : "FAILED"}`,
+			);
+		}
+		lines.push("");
+	};
+	renderSession("Session_start handlers", s.sessionStartHandlers);
+	renderSession("Detached session_start work", s.detachedSessionWork);
+
+	if (s.failures.length > 0 || s.sessionStartFailures.length > 0) {
+		lines.push(
+			`Failures: ${[...s.failures, ...s.sessionStartFailures].join(", ")}`,
+		);
 	}
 
 	return lines.join("\n");
@@ -381,7 +526,10 @@ export function logStartupSummary(): void {
 				cacheHits: s.cacheHits,
 				networkFetches: s.networkFetches,
 				networkMsTotal: s.networkMsTotal,
-				failures: s.failures,
+				cacheNetwork: s.cacheNetwork,
+				sessionStartHandlers: s.sessionStartHandlers,
+				detachedSessionWork: s.detachedSessionWork,
+				failures: [...s.failures, ...s.sessionStartFailures],
 				slowest: s.providers.slice(0, 5).map((p) => ({
 					provider: p.provider,
 					durationMs: p.durationMs,

@@ -12,7 +12,7 @@
 import { createJSONStore } from "./json-persistence.ts";
 import { createLogger } from "./logger.ts";
 import { resolveSafeDataFile } from "./paths.ts";
-import { recordCacheHit, recordNetworkFetch } from "./startup-timing.ts";
+import { recordCacheHit } from "./startup-timing.ts";
 import type { ProviderModelConfig } from "./types.ts";
 
 const _logger = createLogger("provider-cache");
@@ -81,7 +81,8 @@ export function loadProviderCache(
 		fetchedAt: cached.fetchedAt,
 	});
 
-	// Best-effort startup observability: a disk-cache hit avoids a network fetch.
+	// Best-effort startup observability: record that a cache entry was available
+	// to the caller. The caller may still attempt a network refresh when stale.
 	recordCacheHit(providerId);
 
 	// Cached data is loaded from disk on each call. Callers must treat the
@@ -132,9 +133,6 @@ export async function saveProviderCache(
 	});
 
 	_logger.debug(`Saved ${models.length} models to cache for ${providerId}`);
-
-	// Best-effort startup observability: saving follows a fresh network fetch.
-	recordNetworkFetch(providerId);
 }
 
 /**

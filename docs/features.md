@@ -2,67 +2,72 @@
 
 ---
 
-## Free Model Detection
+## Free-model filtering
 
-pi-free uses **adaptive Route A/B detection** to identify free models:
+pi-free uses adaptive Route A/B detection:
 
-- **Route A** (pricing-exposed): If ANY model has cost > 0, use cost-based detection. Free = both input AND output cost are 0 (OR name contains "free").
-- **Route B** (non-pricing-exposed): If ALL models have cost === 0, use name-based detection only. Free = name contains "free" (case-insensitive).
+- **Route A (pricing exposed):** when the catalog contains a priced model, a model is free when both input and output costs are zero, or its name explicitly contains `free`.
+- **Route B (pricing not exposed):** when the catalog has no positive pricing, only an explicit `free` name signal marks a model free.
 
-This avoids false positives where providers default all costs to 0 without exposing real pricing.
+Providers can also supply authoritative free/basic metadata. This avoids treating missing pricing as proof that every model is free.
 
----
+The global `free_only` setting is enabled by default. Provider-level settings and the global toggle determine whether a provider's paid or trial catalog is visible.
 
-## Coding Index (CI) Scores
+## Native provider lifecycle
 
-Every model shows a **Coding Index score** (e.g., `CI: 52.3`) in the model picker:
+Most pi-free providers now use Pi's native `registerProvider(provider)` surface. Native providers:
 
-- **Benchmark-based** — scores from Artificial Analysis coding benchmarks (HumanEval, MBPP, etc.)
-- **Applied to all providers** — every model from every provider gets a CI score
-- **Multi-strategy matching** — direct match, variant alias, provider normalization, prefix fallback
+- restore catalogs from Pi's `~/.pi/agent/models-store.json` during offline initialization;
+- let Pi control online refresh timing and cancellation;
+- retain the previous catalog after an empty or failed refresh; and
+- keep their complete catalog in memory while Pi applies the current free/all filter.
 
-**Debug missing scores:** Check `~/.pi/modelmatch.log` to see which models matched or didn't match.
+Qoder intentionally remains on the legacy registration surface. Dynamic built-in catalogs and Qoder do not use the native provider lifecycle. See [configuration](configuration.md#model-stores-and-caches) for cache locations, including Ollama Cloud's intentional compatibility-cache exception.
 
----
+## Coding Index (CI) scores
 
-## Model Availability Probing
+Where a model matches the benchmark catalog, pi-free appends a Coding Index score such as `CI: 52.3` to its display name. Matching uses direct, alias, provider-normalization, and prefix-fallback strategies. Missing scores are not fabricated.
 
-Provider APIs often list models that return errors when actually used (expired free promotions, decommissioned models, server spin-down). pi-free automatically detects and hides broken models:
+Set `PI_FREE_BENCHMARK_DEBUG=1` to record match diagnostics in `~/.pi/modelmatch.log`.
 
-- **Lazy auto-probe** — runs on first `session_start`, no manual command needed
-- **24-hour probe cache** — avoids re-checking recently-verified models
-- **Provider-scoped hiding** — broken models hidden in `~/.pi/free.json` as `"provider/model-id"`
+## Model availability probing
 
-See [Commands](commands.md#probe-commands) for the full list of probe commands.
+Some providers list models that are unavailable at request time. pi-free provides automatic and manual probes for selected providers:
 
----
+- native availability probes cover Ollama Cloud, Routeway, DeepInfra, SambaNova, and Novita;
+- dynamic probes cover OpenCode and OpenCode Go; and
+- probes use a 24-hour result cache for automatic checks, while explicit commands force a fresh check.
 
-## Free/Paid Model Toggling
+Deterministically broken models are hidden in `~/.pi/free.json` using provider-scoped IDs. Transient network failures are not treated as proof that a model is broken.
 
-- **Free-only by default** — shows only zero-cost models initially
-- **Per-provider toggles** — `/toggle-{provider}` switches between free-only and all models
-- **Global toggle** — `/toggle-free` applies to all providers at once
-- **Persists across sessions** — preference saved to `~/.pi/free.json`
-- **Instant updates** — changes apply immediately, no Pi restart needed
+See [Commands](commands.md#probe-commands) for the command list.
 
----
+## Free/all model toggling
 
-## Telemetry
+- `/toggle-{provider}` switches an individual provider between its free/basic view and full catalog.
+- `/toggle-free` changes the global free-only mode.
+- Preferences persist in `~/.pi/free.json`.
+- Native providers re-register the same provider object to invalidate Pi's model snapshot; legacy and dynamic providers re-register the selected model array.
 
-pi-free collects optional real-world performance data for free models:
+## Optional telemetry
+
+Telemetry is local and opt-in through actual use of free models. It records aggregate calls, latency, token throughput, success, and cost data. Use:
 
 | Command | Description |
-|---|---|
-| `/free-telemetry` | Show tokens/s, latency, success rate |
-| `/clear-free-telemetry` | Clear all stored telemetry data |
+| --- | --- |
+| `/free-telemetry` | Show collected telemetry. |
+| `/clear-free-telemetry` | Delete collected telemetry. |
 
----
+## Startup observability
 
-## Non-OpenAI-Compatible Providers
+`/free-startup` reports the latest extension startup timing, including provider setup durations, per-provider cache/network activity, failed network attempts, session-start handler durations, detached post-handler work, and failures. `/pi-free-health` adds a credential-free status summary, registered-provider count, problem list, and the path to `~/.pi/free.log` (or the configured log path). Legacy/dynamic startup model fetches have an 8-second default deadline, configurable with `PI_FREE_STARTUP_FETCH_TIMEOUT_MS`; native provider refresh is handled by Pi after registration and its session-start nudge is measured without blocking the event.
 
-Most providers use OpenAI-compatible APIs. Some use custom protocols:
+## Provider protocols
 
-- **Qoder** — proprietary COSY auth headers, WAF-encoded bodies, custom SSE streaming, PKCE OAuth device flow
-- **Cline** — OpenAI-compatible API with message reshaping for Cline's bot protocol
+Most providers use OpenAI-compatible APIs. Notable custom integrations are:
 
-These providers implement the full `streamSimple` interface that Pi expects, bridging their proprietary streaming to Pi's `AssistantMessageEventStream`.
+- **Cline** — native provider with the custom `cline-xml-tools` wire API and XML message/tool reshaping.
+- **OpenModel** — native Anthropic Messages API provider.
+- **Qoder** — intentionally legacy provider with Qoder authentication, request signing, and custom streaming compatibility.
+
+See [Provider catalog & auth](providers.md) for setup details.

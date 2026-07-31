@@ -22,6 +22,7 @@ import {
 import { createLogger } from "./lib/logger.ts";
 import type { ModelsDevEnrichedMetadata } from "./lib/types.ts";
 import { withFetchDeadline } from "./lib/util.ts";
+import { recordNetworkFetch } from "./lib/startup-timing.ts";
 import { enhanceModelNameWithCodingIndex } from "./provider-failover/benchmark-lookup.ts";
 
 const _logger = createLogger("provider-helper");
@@ -167,9 +168,13 @@ export async function loadCachedOrFetchModels(
 	const deadlineMs = options?.fetchTimeoutMs ?? STARTUP_FETCH_DEADLINE_MS;
 
 	let fetched: ProviderModelConfig[] = [];
+	const fetchStarted = performance.now();
 	try {
 		fetched = await withFetchDeadline(fetcher(), deadlineMs, providerId);
+		recordNetworkFetch(providerId, performance.now() - fetchStarted, true);
 	} catch (err) {
+		// Record the attempted wait even when the deadline or provider rejects.
+		recordNetworkFetch(providerId, performance.now() - fetchStarted, false);
 		// Network/discovery failure: keep serving whatever cache we have so the
 		// provider still registers models instead of going empty.
 		if (cached && cached.length > 0) {
