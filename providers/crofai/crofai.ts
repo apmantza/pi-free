@@ -33,13 +33,13 @@ import {
 	getProxyModelCompat,
 	isLikelyReasoningModel,
 } from "../../lib/provider-compat.ts";
-import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
+import { registerNativeOpenAIProvider } from "../../lib/native-provider.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
 import {
-	createReRegister,
-	loadCachedOrFetchModels,
-	setupProvider,
-} from "../../provider-helper.ts";
+	loadProviderCache,
+	saveProviderCache,
+} from "../../lib/provider-cache.ts";
+import { crofaiAuth } from "./crofai-auth.ts";
 
 const _logger = createLogger("crofai");
 
@@ -75,6 +75,7 @@ function parseCrofaiPrice(priceStr: string | undefined): number {
 
 async function fetchCrofaiModels(
 	apiKey: string,
+	signal?: AbortSignal,
 ): Promise<ProviderModelConfig[]> {
 	const response = await fetchWithRetry(
 		`${BASE_URL_CROFAI}/models`,
@@ -83,6 +84,7 @@ async function fetchCrofaiModels(
 				Authorization: `Bearer ${apiKey}`,
 				"Content-Type": "application/json",
 			},
+			signal,
 		},
 		3,
 		1000,
@@ -137,69 +139,24 @@ async function fetchCrofaiModels(
 }
 
 // =============================================================================
-// Extension Entry Point
+// Native Provider Entry Point
 // =============================================================================
 
-export default async function crofaiProvider(pi: ExtensionAPI) {
-	const apiKey = getCrofaiApiKey();
-
-	if (!apiKey) {
-		_logger.info(
-			"[crofai] Skipping - CROFAI_API_KEY not set (env var or ~/.pi/free.json)",
-		);
-		return;
-	}
-
-	// Fetch models
-	const allModels = await loadCachedOrFetchModels(PROVIDER_CROFAI, () =>
-		fetchCrofaiModels(apiKey),
-	);
-
-	if (allModels.length === 0) {
-		_logger.warn("[crofai] No models available");
-		return;
-	}
-
-	const freeModels = allModels.filter((m) =>
-		isFreeModel({ ...m, provider: PROVIDER_CROFAI }, allModels),
-	);
-
-	const stored = { free: freeModels, all: allModels };
-
-	_logger.info(
-		`[crofai] Registered ${allModels.length} models (${freeModels.length} free)`,
-	);
-
-	// Create re-register function
-	const reRegister = createReRegister(pi, {
+export default function crofaiProvider(pi: ExtensionAPI): Promise<void> {
+	const initialModels = loadProviderCache(PROVIDER_CROFAI) ?? [];
+	registerNativeOpenAIProvider(pi, {
 		providerId: PROVIDER_CROFAI,
+		name: "CrofAI",
 		baseUrl: BASE_URL_CROFAI,
-		apiKey,
-	});
-
-	// Register with global toggle
-	registerWithGlobalToggle(PROVIDER_CROFAI, stored, reRegister, true);
-
-	// Setup provider with toggle command
-	setupProvider(
-		pi,
-		{
-			providerId: PROVIDER_CROFAI,
-			initialShowPaid: getCrofaiShowPaid(),
-			reRegister: (models, _stored) => {
-				if (_stored) {
-					stored.free = _stored.free;
-					stored.all = _stored.all;
-				}
-				reRegister(models);
-			},
+		auth: crofaiAuth,
+		getApiKey: getCrofaiApiKey,
+		getShowPaid: getCrofaiShowPaid,
+		initialModels,
+		fetchModels: async (apiKey, signal) => {
+			const models = await fetchCrofaiModels(apiKey, signal);
+			if (models.length > 0) await saveProviderCache(PROVIDER_CROFAI, models);
+			return models;
 		},
-		stored,
-	);
-
-	// Initial registration — respect persisted toggle state
-	const showPaid = getCrofaiShowPaid();
-	const initialModels =
-		showPaid && stored.all.length > 0 ? stored.all : freeModels;
-	reRegister(initialModels);
+	});
+	return Promise.resolve();
 }

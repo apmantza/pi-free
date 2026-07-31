@@ -534,6 +534,7 @@ export async function fetchOpenAICompatibleModels(
 	apiKey: string,
 	defaults: OpenAIModelDefaults = {},
 	callbacks: OpenAIModelCallbacks = {},
+	signal?: AbortSignal,
 ): Promise<PiProviderModelConfig[]> {
 	const logger = createLogger(providerId);
 	const detectReasoning = callbacks.detectReasoning ?? isLikelyReasoningModel;
@@ -549,6 +550,7 @@ export async function fetchOpenAICompatibleModels(
 					Authorization: `Bearer ${apiKey}`,
 					"Content-Type": "application/json",
 				},
+				signal,
 			},
 			3,
 			1000,

@@ -23,6 +23,7 @@
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { updateConfig } from "../config.ts";
 import { createLogger } from "./logger.ts";
+import { fetchWithTimeout } from "./util.ts";
 import {
 	areAllModelsFresh,
 	getModelsDueForProbe,
@@ -87,6 +88,42 @@ export interface ProviderProbe {
 // =============================================================================
 // Factory
 // =============================================================================
+
+/** Build the standard one-token probe used by OpenAI-compatible gateways. */
+export function createOpenAIAvailabilityProbe(
+	providerId: string,
+	baseUrl: string,
+): ProviderProbe {
+	return createProviderProbe({
+		providerId,
+		probeModel: async (apiKey, modelId) => {
+			try {
+				const response = await fetchWithTimeout(
+					`${baseUrl}/chat/completions`,
+					{
+						method: "POST",
+						headers: {
+							Authorization: `Bearer ${apiKey}`,
+							"Content-Type": "application/json",
+							"User-Agent": "pi-free-providers",
+						},
+						body: JSON.stringify({
+							model: modelId,
+							messages: [{ role: "user", content: "hi" }],
+							max_tokens: 1,
+						}),
+					},
+					10_000,
+				);
+				return response.status === 404 || response.status >= 500
+					? "broken"
+					: "ok";
+			} catch {
+				return "unknown";
+			}
+		},
+	});
+}
 
 export function createProviderProbe(
 	options: ProviderProbeOptions,

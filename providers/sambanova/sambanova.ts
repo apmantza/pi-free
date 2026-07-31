@@ -30,158 +30,59 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getSambanovaApiKey, getSambanovaShowPaid } from "../../config.ts";
 import { BASE_URL_SAMBANOVA, PROVIDER_SAMBANOVA } from "../../constants.ts";
-import { createLogger } from "../../lib/logger.ts";
-import { createProviderProbe } from "../../lib/provider-probe.ts";
-import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
-import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
+import { createOpenAIAvailabilityProbe } from "../../lib/provider-probe.ts";
 import {
-	fetchOpenAICompatibleModels,
-	fetchWithTimeout,
-} from "../../lib/util.ts";
+	registerNativeAvailabilityProbe,
+	registerNativeOpenAIProvider,
+} from "../../lib/native-provider.ts";
 import {
-	createReRegister,
-	loadCachedOrFetchModels,
-	setupProvider,
-} from "../../provider-helper.ts";
+	loadProviderCache,
+	saveProviderCache,
+} from "../../lib/provider-cache.ts";
+import { fetchOpenAICompatibleModels } from "../../lib/util.ts";
+import { sambanovaAuth } from "./sambanova-auth.ts";
 
-const _logger = createLogger("sambanova");
-
-// =============================================================================
-// Extension Entry Point
-// =============================================================================
-
-export default async function sambanovaProvider(pi: ExtensionAPI) {
-	const apiKey = getSambanovaApiKey();
-
-	if (!apiKey) {
-		_logger.info(
-			"[sambanova] Skipping — SAMBANOVA_API_KEY not set. Sign up at https://cloud.sambanova.ai/",
-		);
-		return;
-	}
-
-	// Fetch models via shared OpenAI-compatible helper
-	const allModels = await loadCachedOrFetchModels(PROVIDER_SAMBANOVA, () =>
-		fetchOpenAICompatibleModels(
-			"sambanova",
-			BASE_URL_SAMBANOVA,
-			apiKey,
-			{ maxTokens: 8_192 },
-		),
-	);
-
-	if (allModels.length === 0) {
-		_logger.warn("[sambanova] No models available");
-		return;
-	}
-
-	// All SambaNova models are free-tier (no payment method required).
-	// Rate limits are lower on free tier but all models are accessible.
-	// Override _pricingKnown so isFreeModel trusts the zero costs.
-	for (const m of allModels) {
-		(m as unknown as { _pricingKnown?: boolean })._pricingKnown = true;
-	}
-	const freeModels = allModels.filter((m) =>
-		isFreeModel({ ...m, provider: PROVIDER_SAMBANOVA }, allModels),
-	);
-	const stored = { free: freeModels, all: allModels };
-
-	_logger.info(
-		`[sambanova] Registered ${allModels.length} models (all free tier)`,
-	);
-
-	// Create re-register function
-	const reRegister = createReRegister(pi, {
+export default function sambanovaProvider(pi: ExtensionAPI): Promise<void> {
+	const initialModels = loadProviderCache(PROVIDER_SAMBANOVA) ?? [];
+	const handle = registerNativeOpenAIProvider(pi, {
 		providerId: PROVIDER_SAMBANOVA,
+		name: "SambaNova",
 		baseUrl: BASE_URL_SAMBANOVA,
-		apiKey,
-	});
-
-	// Register with global toggle
-	registerWithGlobalToggle(PROVIDER_SAMBANOVA, stored, reRegister, true);
-
-	// Setup provider with toggle command
-	setupProvider(
-		pi,
-		{
-			providerId: PROVIDER_SAMBANOVA,
-			initialShowPaid: getSambanovaShowPaid(),
-			tosUrl: "https://sambanova.ai/terms",
-			reRegister: (models, _stored) => {
-				if (_stored) {
-					stored.free = _stored.free;
-					stored.all = _stored.all;
-				}
-				reRegister(models);
-			},
+		auth: sambanovaAuth,
+		getApiKey: getSambanovaApiKey,
+		getShowPaid: getSambanovaShowPaid,
+		initialModels,
+		fetchModels: async (apiKey, signal) => {
+			const models = await fetchOpenAICompatibleModels(
+				"sambanova",
+				BASE_URL_SAMBANOVA,
+				apiKey,
+				{ maxTokens: 8_192 },
+				{},
+				signal,
+			);
+			for (const model of models) {
+				(model as unknown as { _pricingKnown?: boolean })._pricingKnown = true;
+			}
+			if (models.length > 0)
+				await saveProviderCache(PROVIDER_SAMBANOVA, models);
+			return models;
 		},
-		stored,
+		tosUrl: "https://sambanova.ai/terms",
+	});
+	const apiKey = getSambanovaApiKey();
+	if (!apiKey) return Promise.resolve();
+
+	const probe = createOpenAIAvailabilityProbe(
+		PROVIDER_SAMBANOVA,
+		BASE_URL_SAMBANOVA,
 	);
-
-	// Initial registration — respect persisted toggle state
-	const showPaid = getSambanovaShowPaid();
-	const initialModels =
-		showPaid && stored.all.length > 0 ? stored.all : freeModels;
-	reRegister(initialModels);
-
-	// ── Probe support ──────────────────────────────────────────────
-	const probe = createProviderProbe({
+	registerNativeAvailabilityProbe(pi, {
 		providerId: PROVIDER_SAMBANOVA,
-		probeModel: async (_apiKey: string, modelId: string) => {
-			try {
-				const response = await fetchWithTimeout(
-					`${BASE_URL_SAMBANOVA}/chat/completions`,
-					{
-						method: "POST",
-						headers: {
-							Authorization: `Bearer ${apiKey}`,
-							"Content-Type": "application/json",
-							"User-Agent": "pi-free-providers",
-						},
-						body: JSON.stringify({
-							model: modelId,
-							messages: [{ role: "user", content: "hi" }],
-							max_tokens: 1,
-						}),
-					},
-					10_000,
-				);
-				// SambaNova may return 404 for preview/unavailable models
-				if (response.status === 404 || response.status >= 500) return "broken";
-				if (response.status === 429) return "ok";
-				if (response.ok) return "ok";
-				return "ok";
-			} catch {
-				return "unknown";
-			}
-		},
+		label: "SambaNova",
+		apiKey,
+		probe,
+		handle,
 	});
-
-	// Probe command
-	pi.registerCommand(`probe-${PROVIDER_SAMBANOVA}`, {
-		description: "Test all SambaNova models for availability",
-		handler: async (_args, ctx) => {
-			ctx.ui.notify(`Probing ${allModels.length} SambaNova models…`, "info");
-			const broken = await probe.run(apiKey, allModels, {
-				onBroken: (ids) => {
-					ctx.ui.notify(
-						`Found ${ids.length} broken models (auto-hidden):\n${ids.join("\n")}`,
-						"warning",
-					);
-				},
-			});
-			if (broken.length === 0) {
-				ctx.ui.notify("All SambaNova models are accessible ✅", "info");
-			}
-		},
-	});
-
-	// Lazy auto-probe on first session_start
-	pi.on(
-		"session_start",
-		wrapSessionStartHandler(
-			`${PROVIDER_SAMBANOVA}-auto-probe`,
-			probe.autoProbeHandler(apiKey, freeModels),
-		),
-	);
+	return Promise.resolve();
 }
