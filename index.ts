@@ -254,7 +254,8 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 
 	// /pi-free-health — Show a credential-free diagnostic report and log path
 	pi.registerCommand("pi-free-health", {
-		description: "Show pi-free health, startup issues, and the diagnostic log path",
+		description:
+			"Show pi-free health, startup issues, and the diagnostic log path",
 		handler: async (_args, ctx) => {
 			ctx.ui.notify(formatHealthReport(), "info");
 		},

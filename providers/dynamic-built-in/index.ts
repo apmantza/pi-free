@@ -250,32 +250,34 @@ async function discoverAndRegister(
 	// FastRouter) don't block startup on a network fetch. The helper serves a fresh
 	// cache, falls back to stale cache on failure/empty fetch, and persists the
 	// result for next startup.
-	const loadedModels = await loadCachedOrFetchModels(config.providerId, async () => {
-		let allModels: ProviderModelConfig[];
-		if (config.fetchModels) {
-			allModels = await config.fetchModels(apiKey);
-		} else {
-			allModels = await fetchModelsFromEndpoint({
-				providerId: config.providerId,
-				baseUrl: config.baseUrl,
-				apiKey,
-				compat: config.compat,
-				modelDefaults: config.modelDefaults,
-				timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
-			});
-		}
+	const loadedModels = await loadCachedOrFetchModels(
+		config.providerId,
+		async () => {
+			let allModels: ProviderModelConfig[];
+			if (config.fetchModels) {
+				allModels = await config.fetchModels(apiKey);
+			} else {
+				allModels = await fetchModelsFromEndpoint({
+					providerId: config.providerId,
+					baseUrl: config.baseUrl,
+					apiKey,
+					compat: config.compat,
+					modelDefaults: config.modelDefaults,
+					timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
+				});
+			}
 
-		// Apply DeepSeek proxy compat to matching models. OpenCode headers are
-		// injected per request by createOpenCodeStreamSimple(), not stored here.
-		return allModels.map((m) => ({
-			...m,
-			api:
-				isOpenCodeProvider(config.providerId)
+			// Apply DeepSeek proxy compat to matching models. OpenCode headers are
+			// injected per request by createOpenCodeStreamSimple(), not stored here.
+			return allModels.map((m) => ({
+				...m,
+				api: isOpenCodeProvider(config.providerId)
 					? (m.api ?? OPENCODE_DYNAMIC_API)
 					: m.api,
-			compat: getProxyModelCompat(m) ?? m.compat,
-		}));
-	});
+				compat: getProxyModelCompat(m) ?? m.compat,
+			}));
+		},
+	);
 
 	const models = isOpenCodeProvider(config.providerId)
 		? normalizeOpenCodeModels(loadedModels, config)

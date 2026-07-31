@@ -581,10 +581,7 @@ export function getRoutewayApiKey(): string | undefined {
 }
 
 export function getOpengatewayApiKey(): string | undefined {
-	return resolve(
-		"OPENGATEWAY_API_KEY",
-		loadConfigFile().opengateway_api_key,
-	);
+	return resolve("OPENGATEWAY_API_KEY", loadConfigFile().opengateway_api_key);
 }
 
 export function getFastrouterApiKey(): string | undefined {

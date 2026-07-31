@@ -20,9 +20,9 @@ describe("OpenGateway model mapping", () => {
 			context_window: 262_144,
 			pricing: { prompt: "0.000000435", completion: "0.00000087" },
 			effective_pricing: {
-			prompt: "0.000000522",
-			completion: "0.000001044",
-		},
+				prompt: "0.000000522",
+				completion: "0.000001044",
+			},
 		});
 
 		expect(model).toMatchObject({
