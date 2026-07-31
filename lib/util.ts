@@ -436,9 +436,7 @@ export function mapOpenRouterModel(m: {
 }): ProviderModelConfig {
 	const promptPrice = Number.parseFloat(m.pricing?.prompt ?? "0");
 	const completionPrice = Number.parseFloat(m.pricing?.completion ?? "0");
-	const cacheReadPrice = Number.parseFloat(
-		m.pricing?.input_cache_read ?? "0",
-	);
+	const cacheReadPrice = Number.parseFloat(m.pricing?.input_cache_read ?? "0");
 	const cacheWritePrice = Number.parseFloat(
 		m.pricing?.input_cache_write ?? "0",
 	);

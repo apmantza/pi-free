@@ -561,15 +561,15 @@ const TOKENROUTER_PROVIDER_DEPS: TokenRouterProviderDeps = {
 	patchPayload: patchTokenRouterMinimaxThinkingPayload,
 };
 
-export function createTokenRouterProvider(initialModels?: ProviderModelConfig[]) {
+export function createTokenRouterProvider(
+	initialModels?: ProviderModelConfig[],
+) {
 	return initialModels === undefined
 		? createNativeTokenRouterProvider(TOKENROUTER_PROVIDER_DEPS)
 		: createNativeTokenRouterProvider(TOKENROUTER_PROVIDER_DEPS, initialModels);
 }
 
-export default function tokenRouterProvider(
-	pi: ExtensionAPI,
-): Promise<void> {
+export default function tokenRouterProvider(pi: ExtensionAPI): Promise<void> {
 	registerTokenRouterProvider(pi, TOKENROUTER_PROVIDER_DEPS);
 	return Promise.resolve();
 }

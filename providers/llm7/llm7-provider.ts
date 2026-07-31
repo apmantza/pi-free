@@ -116,10 +116,7 @@ export function createLlm7Provider(): Llm7NativeProvider {
 			(storedModels: Llm7Model[]) => {
 				stored.all = storedModels;
 				stored.free = storedModels.filter((model) =>
-					isFreeModel(
-						{ ...model, provider: PROVIDER_LLM7 },
-						storedModels,
-					),
+					isFreeModel({ ...model, provider: PROVIDER_LLM7 }, storedModels),
 				);
 				setView(decideView());
 			},

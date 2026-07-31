@@ -118,9 +118,12 @@ export async function restoreNativeProviderModels<T extends Model<Api>>(
 		) as T[];
 		if (models.length > 0) onModels(models);
 	} catch (err) {
-		_logger.warn(`Failed to read ${providerId} models store; continuing empty`, {
-			error: err instanceof Error ? err.message : String(err),
-		});
+		_logger.warn(
+			`Failed to read ${providerId} models store; continuing empty`,
+			{
+				error: err instanceof Error ? err.message : String(err),
+			},
+		);
 	}
 }
 

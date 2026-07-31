@@ -24,10 +24,7 @@ export interface ZenmuxNativeProvider {
 	provider: Provider<"openai-completions">;
 	stored: StoredModels;
 	setView: (models: ProviderModelConfig[]) => void;
-	ingest: (
-		all: ProviderModelConfig[],
-		free: ProviderModelConfig[],
-	) => void;
+	ingest: (all: ProviderModelConfig[], free: ProviderModelConfig[]) => void;
 }
 
 function credentialToken(credential?: Credential): string | undefined {
@@ -71,10 +68,7 @@ export function createZenmuxProvider(): ZenmuxNativeProvider {
 			(storedModels: ZenmuxModel[]) => {
 				stored.all = storedModels;
 				stored.free = storedModels.filter((model) =>
-					isFreeModel(
-						{ ...model, provider: PROVIDER_ZENMUX },
-						storedModels,
-					),
+					isFreeModel({ ...model, provider: PROVIDER_ZENMUX }, storedModels),
 				);
 				setView(decideView());
 			},

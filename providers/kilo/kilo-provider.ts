@@ -110,7 +110,10 @@ export function createKiloProvider(): KiloNativeProvider {
 		currentView = toKiloModels(models);
 	}
 
-	function ingest(all: ProviderModelConfig[], free: ProviderModelConfig[]): void {
+	function ingest(
+		all: ProviderModelConfig[],
+		free: ProviderModelConfig[],
+	): void {
 		stored.all = toKiloModels(enhanceWithCI(applyKiloCompat(all)));
 		stored.free = toKiloModels(enhanceWithCI(applyKiloCompat(free)));
 		setView(decideView());
@@ -123,10 +126,7 @@ export function createKiloProvider(): KiloNativeProvider {
 			(storedModels: KiloModel[]) => {
 				stored.all = storedModels;
 				stored.free = storedModels.filter((model) =>
-					isFreeModel(
-						{ ...model, provider: PROVIDER_KILO },
-						storedModels,
-					),
+					isFreeModel({ ...model, provider: PROVIDER_KILO }, storedModels),
 				);
 				setView(decideView());
 			},
@@ -167,7 +167,8 @@ export function createKiloProvider(): KiloNativeProvider {
 		auth: kiloAuth,
 		getModels: () => currentView,
 		refreshModels,
-		stream: (model, context, options) => streams.stream(model, context, options),
+		stream: (model, context, options) =>
+			streams.stream(model, context, options),
 		streamSimple: (model, context, options) =>
 			streams.streamSimple(model, context, options),
 	};

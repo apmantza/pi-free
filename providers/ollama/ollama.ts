@@ -28,7 +28,10 @@ import {
 	PROVIDER_OLLAMA,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
-import { loadProviderCache, saveProviderCache } from "../../lib/provider-cache.ts";
+import {
+	loadProviderCache,
+	saveProviderCache,
+} from "../../lib/provider-cache.ts";
 import {
 	getModelsDueForProbe,
 	recordModelProbeResults,

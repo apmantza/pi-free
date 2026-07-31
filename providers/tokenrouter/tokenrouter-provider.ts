@@ -9,7 +9,10 @@ import type {
 	AssistantMessageEventStream,
 	Context,
 } from "@earendil-works/pi-ai/compat";
-import type { ExtensionAPI, ProviderModelConfig } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ProviderModelConfig,
+} from "@earendil-works/pi-coding-agent";
 import { getTokenrouterApiKey, getTokenrouterShowPaid } from "../../config.ts";
 import { BASE_URL_TOKENROUTER, PROVIDER_TOKENROUTER } from "../../constants.ts";
 import {
@@ -60,7 +63,9 @@ function credentialToken(credential?: Credential): string | undefined {
 	return getTokenrouterApiKey();
 }
 
-function toTokenRouterModel(model: ProviderModelConfig): TokenRouterNativeModel {
+function toTokenRouterModel(
+	model: ProviderModelConfig,
+): TokenRouterNativeModel {
 	return {
 		...model,
 		api: "tokenrouter-openai-completions",
@@ -85,8 +90,9 @@ function classifyFreeModels(
 
 export function createTokenRouterProvider(
 	deps: TokenRouterProviderDeps,
-	initialModels: ProviderModelConfig[] = loadProviderCache(PROVIDER_TOKENROUTER) ??
-		[],
+	initialModels: ProviderModelConfig[] = loadProviderCache(
+		PROVIDER_TOKENROUTER,
+	) ?? [],
 ): TokenRouterNativeProvider {
 	const stored: StoredModels = { free: [], all: [] };
 	let currentView: TokenRouterNativeModel[] = [];
@@ -136,9 +142,7 @@ export function createTokenRouterProvider(
 				const token = credentialToken(context.credential);
 				if (!token) return [];
 				const all = await deps.fetchModels(token, context.signal);
-				return toTokenRouterModels(
-					enhanceWithCI(all, PROVIDER_TOKENROUTER),
-				);
+				return toTokenRouterModels(enhanceWithCI(all, PROVIDER_TOKENROUTER));
 			},
 			(models) => {
 				stored.all = models;
@@ -193,8 +197,7 @@ export function registerTokenRouterProvider(
 	pi.on("before_provider_request", (event, ctx) =>
 		deps.patchPayload(
 			event.payload,
-			deps.isModel(ctx.model ?? {}) &&
-				deps.isMinimaxModel(ctx.model?.id ?? ""),
+			deps.isModel(ctx.model ?? {}) && deps.isMinimaxModel(ctx.model?.id ?? ""),
 		),
 	);
 

@@ -156,7 +156,10 @@ export function createClineProvider(): ClineNativeProvider {
 		currentView = toClineModels(models);
 	}
 
-	function ingest(all: ProviderModelConfig[], free: ProviderModelConfig[]): void {
+	function ingest(
+		all: ProviderModelConfig[],
+		free: ProviderModelConfig[],
+	): void {
 		stored.all = toClineModels(enhanceWithCI(all));
 		stored.free = toClineModels(enhanceWithCI(free));
 		setView(decideView());
@@ -169,10 +172,7 @@ export function createClineProvider(): ClineNativeProvider {
 			(storedModels: ClineModel[]) => {
 				stored.all = storedModels;
 				stored.free = storedModels.filter((model) =>
-					isFreeModel(
-						{ ...model, provider: PROVIDER_CLINE },
-						storedModels,
-					),
+					isFreeModel({ ...model, provider: PROVIDER_CLINE }, storedModels),
 				);
 				setView(decideView());
 			},
