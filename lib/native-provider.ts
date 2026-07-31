@@ -399,9 +399,18 @@ export function registerNativeProviderRefresh(
 				).modelRegistry;
 				const result = registry?.refresh?.({ allowNetwork: true });
 				if (result && typeof (result as PromiseLike<unknown>).then === "function") {
+					const refreshTask = Promise.resolve(result).then((value) => {
+						const errors = (value as { errors?: { size?: number } } | undefined)
+							?.errors;
+						if (errors?.size && errors.size > 0) {
+							throw new Error(
+								`Pi model refresh reported ${errors.size} provider error(s)`,
+							);
+						}
+					});
 					trackDetachedSessionStart(
 						`${providerId}-model-refresh`,
-						result as PromiseLike<unknown>,
+						refreshTask,
 						(err) => logRefreshFailure(providerId, err),
 					);
 				}
