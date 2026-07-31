@@ -7,8 +7,11 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import type { Model, Api, Context } from "@earendil-works/pi-ai/compat";
 import {
+	createOpenCodeHeaders,
 	createOpenCodeStreamSimple,
 	createOpenCodeSessionTracker,
+	getOpenCodeModelBaseUrl,
+	resolveOpenCodeModelApi,
 } from "../providers/opencode-session.js";
 
 /**
@@ -35,6 +38,44 @@ function findValidRequireBase(): string | undefined {
  * the node_modules directory.
  */
 describe("opencode-session fallback resolution", () => {
+	it("preserves OpenCode protocol endpoints for known model families", () => {
+		expect(resolveOpenCodeModelApi("gpt-5.3-codex-spark", "opencode")).toBe(
+			"openai-responses",
+		);
+		expect(resolveOpenCodeModelApi("claude-fable-5", "opencode")).toBe(
+			"anthropic-messages",
+		);
+		expect(resolveOpenCodeModelApi("gemini-3.6-flash", "opencode")).toBe(
+			"google-generative-ai",
+		);
+		expect(resolveOpenCodeModelApi("minimax-m3", "opencode-go")).toBe(
+			"anthropic-messages",
+		);
+		expect(
+			getOpenCodeModelBaseUrl(
+				"anthropic-messages",
+				"https://opencode.ai/zen/go/v1",
+			),
+		).toBe("https://opencode.ai/zen/go");
+	});
+
+	it("generates CLI-compatible session and request headers", () => {
+		const tracker = createOpenCodeSessionTracker();
+		const first = createOpenCodeHeaders(tracker);
+		const second = createOpenCodeHeaders(tracker);
+
+		expect(first["User-Agent"]).toBe("opencode/1.15.5");
+		expect(first["x-opencode-client"]).toBe("cli");
+		expect(first["x-opencode-session"]).toMatch(
+			/^ses_[0-9a-f]+[0-9A-Za-z]{14}$/,
+		);
+		expect(first["x-opencode-request"]).toMatch(
+			/^msg_[0-9a-f]+[0-9A-Za-z]{14}$/,
+		);
+		expect(second["x-opencode-session"]).toBe(first["x-opencode-session"]);
+		expect(second["x-opencode-request"]).not.toBe(first["x-opencode-request"]);
+	});
+
 	it("resolves pi-ai subpaths when loaded from an isolated directory", () => {
 		const requireBase = findValidRequireBase();
 		if (!requireBase) {

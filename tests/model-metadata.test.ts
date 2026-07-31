@@ -1,6 +1,8 @@
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+	applyNativeFreeMetadata,
+	applyNativeProtocolMetadata,
 	clearModelsDevMetaCache,
 	enrichModelsWithModelsDev,
 	fetchModelsDevMeta,
@@ -210,6 +212,52 @@ describe("models.dev metadata enrichment", () => {
 			(await fetchModelsDevMeta("novita"))["moonshotai/Kimi-K2.6"],
 		).toBeDefined();
 		expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+	});
+
+	it("preserves native OpenCode protocol metadata during discovery", () => {
+		const [model] = applyNativeProtocolMetadata(
+			[
+				{
+					...baseModel,
+					id: "gpt-5.4",
+					name: "GPT-5.4",
+				},
+			],
+			"opencode",
+		);
+
+		expect(model.api).toBe("openai-responses");
+		expect(model.baseUrl).toBe("https://opencode.ai/zen/v1");
+		expect(model.compat).toMatchObject({
+			sessionAffinityFormat: "openai-nosession",
+		});
+	});
+
+	it("preserves known OpenCode free metadata when discovery omits pricing", () => {
+		const models = applyNativeFreeMetadata(
+			[
+				{
+					...baseModel,
+					id: "big-pickle",
+					name: "Big Pickle",
+					_pricingKnown: false,
+				},
+				{
+					...baseModel,
+					id: "unknown-model",
+					name: "Unknown Model",
+					_pricingKnown: false,
+				},
+			],
+			"opencode",
+		);
+
+		expect(models[0]).toMatchObject({
+			id: "big-pickle",
+			_freeKnown: true,
+			_isFree: true,
+		});
+		expect(models[1]).not.toHaveProperty("_freeKnown");
 	});
 
 	it("fails open when metadata cannot be fetched", async () => {

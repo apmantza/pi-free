@@ -33,6 +33,8 @@ import {
 import { DEFAULT_FETCH_TIMEOUT_MS } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import {
+	applyNativeFreeMetadata,
+	applyNativeProtocolMetadata,
 	enrichFromNativeCatalog,
 	safeEnrichModelsWithModelsDev,
 } from "../../lib/model-metadata.ts";
@@ -54,6 +56,8 @@ import {
 } from "../../provider-helper.ts";
 import {
 	OPENCODE_DYNAMIC_API,
+	applyOpenCodeProtocolDefaults,
+	createOpenCodeHeaders,
 	createOpenCodeSessionTracker,
 	createOpenCodeStreamSimple,
 	ensureOpenCodeApiProviderRegistered,
@@ -149,6 +153,22 @@ async function fetchModelsFromEndpoint(
 	return enrichFromNativeCatalog(enriched, opts.providerId);
 }
 
+function normalizeOpenCodeModels(
+	models: ProviderModelConfig[],
+	config: DynamicProviderDef,
+): ProviderModelConfig[] {
+	const withNativeProtocols = applyNativeProtocolMetadata(
+		models,
+		config.providerId,
+	);
+	const withProtocolDefaults = applyOpenCodeProtocolDefaults(
+		withNativeProtocols,
+		config.providerId,
+		config.baseUrl,
+	);
+	return applyNativeFreeMetadata(withProtocolDefaults, config.providerId);
+}
+
 // =============================================================================
 // Provider Definitions
 // =============================================================================
@@ -230,7 +250,7 @@ async function discoverAndRegister(
 	// FastRouter) don't block startup on a network fetch. The helper serves a fresh
 	// cache, falls back to stale cache on failure/empty fetch, and persists the
 	// result for next startup.
-	const models = await loadCachedOrFetchModels(config.providerId, async () => {
+	const loadedModels = await loadCachedOrFetchModels(config.providerId, async () => {
 		let allModels: ProviderModelConfig[];
 		if (config.fetchModels) {
 			allModels = await config.fetchModels(apiKey);
@@ -249,10 +269,17 @@ async function discoverAndRegister(
 		// injected per request by createOpenCodeStreamSimple(), not stored here.
 		return allModels.map((m) => ({
 			...m,
-			api: isOpenCodeProvider(config.providerId) ? OPENCODE_DYNAMIC_API : m.api,
+			api:
+				isOpenCodeProvider(config.providerId)
+					? (m.api ?? OPENCODE_DYNAMIC_API)
+					: m.api,
 			compat: getProxyModelCompat(m) ?? m.compat,
 		}));
 	});
+
+	const models = isOpenCodeProvider(config.providerId)
+		? normalizeOpenCodeModels(loadedModels, config)
+		: loadedModels;
 
 	if (models.length === 0) {
 		// No usable models and no fallback cache: leave Pi's built-in defaults.
@@ -290,11 +317,10 @@ async function probeOpenCodeModel(
 			{
 				method: "POST",
 				headers: {
+					...createOpenCodeHeaders(_opencodeSession),
 					Authorization: `Bearer ${apiKey}`,
 					"Content-Type": "application/json",
-					"User-Agent": "opencode/1.15.5",
-					"x-opencode-client": "cli",
-				},
+				} as Record<string, string>,
 				body: JSON.stringify({
 					model: modelId,
 					messages: [{ role: "user", content: "hi" }],

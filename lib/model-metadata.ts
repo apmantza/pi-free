@@ -417,6 +417,87 @@ export async function safeEnrichModelsWithModelsDev<
 const NATIVE_FALLBACK_CONTEXT_WINDOWS = new Set([DEFAULT_CONTEXT_WINDOW, 4096]);
 const NATIVE_FALLBACK_MAX_TOKENS = new Set([DEFAULT_MAX_TOKENS, 4096]);
 
+type NativeCatalogModel = Pick<
+	ProviderModelConfig,
+	| "id"
+	| "api"
+	| "baseUrl"
+	| "compat"
+	| "contextWindow"
+	| "maxTokens"
+	| "cost"
+>;
+
+function getNativeCatalogModels(providerId: string): NativeCatalogModel[] {
+	try {
+		return getBuiltinModels(
+			providerId as Parameters<typeof getBuiltinModels>[0],
+		) as NativeCatalogModel[];
+	} catch {
+		return [];
+	}
+}
+
+function hasZeroTokenCost(cost: CostConfig): boolean {
+	return (
+		cost.input === 0 &&
+		cost.output === 0 &&
+		cost.cacheRead === 0 &&
+		cost.cacheWrite === 0
+	);
+}
+
+/**
+ * Mark dynamic models whose IDs are known to be free in Pi's native catalog.
+ * Some OpenCode endpoints omit pricing, but `big-pickle` is free without a
+ * `-free` suffix. Preserve that authoritative native signal for dynamic
+ * discovery while leaving unknown models on the normal name-based path.
+ */
+export function applyNativeFreeMetadata<T extends ProviderModelConfig>(
+	models: T[],
+	providerId: string,
+): Array<T & { _freeKnown?: boolean; _isFree?: boolean }> {
+	const nativeById = new Map(
+		getNativeCatalogModels(providerId).map((model) => [model.id, model]),
+	);
+
+	return models.map((model) => {
+		const native = nativeById.get(model.id);
+		if (!native || !hasZeroTokenCost(native.cost)) return model;
+		return { ...model, _freeKnown: true, _isFree: true };
+	});
+}
+
+/**
+ * Preserve Pi's per-model protocol metadata when a dynamic endpoint only
+ * returns model IDs. This prevents a live catalog refresh from flattening
+ * Anthropic, Responses, and Google models into one OpenAI-compatible route.
+ */
+export function applyNativeProtocolMetadata<T extends ProviderModelConfig>(
+	models: T[],
+	providerId: string,
+): T[] {
+	const nativeById = new Map(
+		getNativeCatalogModels(providerId).map((model) => [model.id, model]),
+	);
+
+	return models.map((model) => {
+		const native = nativeById.get(model.id);
+		if (!native) return model;
+
+		const compat =
+			native.compat || model.compat
+				? { ...native.compat, ...model.compat }
+				: undefined;
+		return {
+			...model,
+			...(native.api ? { api: native.api } : {}),
+			...(native.baseUrl ? { baseUrl: native.baseUrl } : {}),
+			...(compat ? { compat } : {}),
+		};
+	});
+}
+
 /**
  * Fill context windows / max tokens from Pi's built-time native catalog
  * (shipped in `@earendil-works/pi-ai`) for models still carrying a generic
@@ -429,20 +510,7 @@ export function enrichFromNativeCatalog<T extends ProviderModelConfig>(
 ): T[] {
 	if (models.length === 0) return models;
 
-	let nativeModels: Array<{
-		id: string;
-		contextWindow: number;
-		maxTokens: number;
-	}>;
-	try {
-		// providerId is a dynamic string; the catalog lookup is safe at runtime
-		// (returns [] for unknown providers) but the type is a literal union.
-		nativeModels = getBuiltinModels(
-			providerId as Parameters<typeof getBuiltinModels>[0],
-		) as typeof nativeModels;
-	} catch {
-		return models;
-	}
+	const nativeModels = getNativeCatalogModels(providerId);
 	if (nativeModels.length === 0) return models;
 
 	const nativeById = new Map(nativeModels.map((m) => [m.id, m]));

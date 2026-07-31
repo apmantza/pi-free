@@ -133,11 +133,11 @@ describe("built-in provider toggles", () => {
 				models: expect.arrayContaining([
 					expect.objectContaining({
 						id: "free-model",
-						api: "opencode-dynamic",
+						api: "openai-completions",
 					}),
 					expect.objectContaining({
 						id: "paid-model",
-						api: "opencode-dynamic",
+						api: "openai-completions",
 					}),
 				]),
 			}),

@@ -21,6 +21,7 @@ import {
 	getOpencodeShowPaid,
 	getOpenrouterShowPaid,
 } from "../config.ts";
+import { applyNativeProtocolMetadata } from "./model-metadata.ts";
 import { createLogger } from "./logger.ts";
 import {
 	getProviderRegistry,
@@ -32,6 +33,7 @@ import { createToggleState } from "./toggle-state.ts";
 import { fetchWithTimeout } from "./util.ts";
 import {
 	OPENCODE_DYNAMIC_API,
+	applyOpenCodeProtocolDefaults,
 	createOpenCodeSessionTracker,
 	createOpenCodeStreamSimple,
 	ensureOpenCodeApiProviderRegistered,
@@ -180,7 +182,7 @@ function tryCaptureProvider(
 	if (providerModels.length === 0) return undefined;
 
 	const allModels = providerModels.map((m: Model<Api>) =>
-		modelToProviderConfig(m, config.id),
+		modelToProviderConfig(m),
 	);
 
 	return createProviderState(pi, config, {
@@ -235,7 +237,10 @@ async function tryDiscoverProvider(
 				(m): m is ProviderModelConfig & { _pricingKnown?: boolean } =>
 					m !== undefined,
 			);
-		const allModels = applyAuthoritativeFreeFlags(mappedModels, config.id);
+		const protocolModels = isOpenCodeProvider(config.id)
+			? applyOpenCodeProtocolMetadata(mappedModels, config)
+			: mappedModels;
+		const allModels = applyAuthoritativeFreeFlags(protocolModels, config.id);
 
 		if (allModels.length === 0) return undefined;
 
@@ -359,10 +364,7 @@ function registerToggleCommand(
 // Helpers
 // =============================================================================
 
-function modelToProviderConfig(
-	m: Model<Api>,
-	providerId?: string,
-): ProviderModelConfig {
+function modelToProviderConfig(m: Model<Api>): ProviderModelConfig {
 	const base: ProviderModelConfig = {
 		id: m.id,
 		name: m.name,
@@ -376,12 +378,9 @@ function modelToProviderConfig(
 		compat: (m as any).compat,
 	};
 
-	// Use a custom OpenCode API wrapper so per-request headers are regenerated
-	// for every LLM call instead of being frozen at registration time.
-	if (providerId && isOpenCodeProvider(providerId)) {
-		base.api = OPENCODE_DYNAMIC_API;
-	}
-
+	// The provider-level OpenCode wrapper still regenerates headers, while the
+	// model-level API is preserved so Anthropic/Responses/Google routes remain
+	// protocol-correct.
 	return base;
 }
 
@@ -409,6 +408,17 @@ function rawModelToProviderConfig(
 		maxTokens: ((m.max_tokens ?? m.max_completion_tokens) as number) ?? 16_384,
 		_pricingKnown: false,
 	};
+}
+
+function applyOpenCodeProtocolMetadata(
+	models: Array<ProviderModelConfig & { _pricingKnown?: boolean }>,
+	config: BuiltInToggleConfig,
+): Array<ProviderModelConfig & { _pricingKnown?: boolean }> {
+	return applyOpenCodeProtocolDefaults(
+		applyNativeProtocolMetadata(models, config.id),
+		config.id,
+		config.baseUrl,
+	);
 }
 
 function applyAuthoritativeFreeFlags(
