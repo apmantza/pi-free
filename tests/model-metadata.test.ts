@@ -2,6 +2,7 @@ import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	applyNativeFreeMetadata,
+	applyNativeProtocolMetadata,
 	clearModelsDevMetaCache,
 	enrichModelsWithModelsDev,
 	fetchModelsDevMeta,
@@ -211,6 +212,25 @@ describe("models.dev metadata enrichment", () => {
 			(await fetchModelsDevMeta("novita"))["moonshotai/Kimi-K2.6"],
 		).toBeDefined();
 		expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+	});
+
+	it("preserves native OpenCode protocol metadata during discovery", () => {
+		const [model] = applyNativeProtocolMetadata(
+			[
+				{
+					...baseModel,
+					id: "gpt-5.4",
+					name: "GPT-5.4",
+				},
+			],
+			"opencode",
+		);
+
+		expect(model.api).toBe("openai-responses");
+		expect(model.baseUrl).toBe("https://opencode.ai/zen/v1");
+		expect(model.compat).toMatchObject({
+			sessionAffinityFormat: "openai-nosession",
+		});
 	});
 
 	it("preserves known OpenCode free metadata when discovery omits pricing", () => {

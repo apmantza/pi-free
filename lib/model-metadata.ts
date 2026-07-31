@@ -419,7 +419,13 @@ const NATIVE_FALLBACK_MAX_TOKENS = new Set([DEFAULT_MAX_TOKENS, 4096]);
 
 type NativeCatalogModel = Pick<
 	ProviderModelConfig,
-	"id" | "contextWindow" | "maxTokens" | "cost"
+	| "id"
+	| "api"
+	| "baseUrl"
+	| "compat"
+	| "contextWindow"
+	| "maxTokens"
+	| "cost"
 >;
 
 function getNativeCatalogModels(providerId: string): NativeCatalogModel[] {
@@ -459,6 +465,36 @@ export function applyNativeFreeMetadata<T extends ProviderModelConfig>(
 		const native = nativeById.get(model.id);
 		if (!native || !hasZeroTokenCost(native.cost)) return model;
 		return { ...model, _freeKnown: true, _isFree: true };
+	});
+}
+
+/**
+ * Preserve Pi's per-model protocol metadata when a dynamic endpoint only
+ * returns model IDs. This prevents a live catalog refresh from flattening
+ * Anthropic, Responses, and Google models into one OpenAI-compatible route.
+ */
+export function applyNativeProtocolMetadata<T extends ProviderModelConfig>(
+	models: T[],
+	providerId: string,
+): T[] {
+	const nativeById = new Map(
+		getNativeCatalogModels(providerId).map((model) => [model.id, model]),
+	);
+
+	return models.map((model) => {
+		const native = nativeById.get(model.id);
+		if (!native) return model;
+
+		const compat =
+			native.compat || model.compat
+				? { ...native.compat, ...model.compat }
+				: undefined;
+		return {
+			...model,
+			...(native.api ? { api: native.api } : {}),
+			...(native.baseUrl ? { baseUrl: native.baseUrl } : {}),
+			...(compat ? { compat } : {}),
+		};
 	});
 }
 

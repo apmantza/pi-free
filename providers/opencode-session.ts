@@ -14,7 +14,10 @@ import type {
 	SimpleStreamOptions,
 } from "@earendil-works/pi-ai/compat";
 import { registerApiProvider } from "@earendil-works/pi-ai/compat";
-import type { ProviderConfig } from "@earendil-works/pi-coding-agent";
+import type {
+	ProviderConfig,
+	ProviderModelConfig,
+} from "@earendil-works/pi-coding-agent";
 
 export const OPENCODE_DYNAMIC_API = "opencode-dynamic" as const;
 
@@ -99,6 +102,57 @@ export function isOpenCodeProvider(providerId: string): boolean {
 	return providerId === "opencode" || providerId === "opencode-go";
 }
 
+export function resolveOpenCodeModelApi(
+	modelId: string,
+	providerId: string,
+	currentApi?: Api,
+): NonNullable<Api> {
+	if (currentApi && currentApi !== OPENCODE_DYNAMIC_API) return currentApi;
+
+	const id = modelId.toLowerCase();
+	if (id.startsWith("gpt-")) return "openai-responses";
+	if (
+		id.startsWith("claude-") ||
+		id.startsWith("qwen3.") ||
+		id.startsWith("qwen3-") ||
+		(providerId === "opencode-go" && id.startsWith("minimax-"))
+	) {
+		return "anthropic-messages";
+	}
+	if (id.startsWith("gemini-")) return "google-generative-ai";
+	return "openai-completions";
+}
+
+export function getOpenCodeModelBaseUrl(
+	api: NonNullable<Api>,
+	fallbackBaseUrl: string,
+): string {
+	const root = fallbackBaseUrl.replace(/\/v1\/?$/u, "");
+	return api === "anthropic-messages" ? root : `${root}/v1`;
+}
+
+export function applyOpenCodeProtocolDefaults(
+	models: ProviderModelConfig[],
+	providerId: string,
+	fallbackBaseUrl: string,
+): ProviderModelConfig[] {
+	return models.map((model) => {
+		const api = resolveOpenCodeModelApi(model.id, providerId, model.api);
+		const compat =
+			api === "openai-responses"
+				? { sessionAffinityFormat: "openai-nosession" as const, ...model.compat }
+				: model.compat;
+		return {
+			...model,
+			api,
+			baseUrl:
+				model.baseUrl ??
+				getOpenCodeModelBaseUrl(api, fallbackBaseUrl),
+			...(compat ? { compat } : {}),
+		};
+	});
+}
+
 function stripTrailingSlashes(value: string): string {
 	let end = value.length;
 	while (end > 0 && value.codePointAt(end - 1) === 47) {
@@ -109,6 +163,15 @@ function stripTrailingSlashes(value: string): string {
 
 function isAnthropicOpenCodeEndpoint(model: Model<Api>): boolean {
 	return !stripTrailingSlashes(model.baseUrl).endsWith("/v1");
+}
+
+function resolveOpenCodeStreamApi(model: Model<Api>): string {
+	if (model.api === OPENCODE_DYNAMIC_API) {
+		return isAnthropicOpenCodeEndpoint(model)
+			? "anthropic-messages"
+			: "openai-completions";
+	}
+	return model.api;
 }
 
 type StreamSimpleFn<TApi extends Api> = (
@@ -123,7 +186,9 @@ type StreamSimpleModule<TApi extends Api> = {
 };
 
 type AnthropicStreamModule = StreamSimpleModule<"anthropic-messages">;
+type GoogleGenerativeAIStreamModule = StreamSimpleModule<"google-generative-ai">;
 type OpenAICompletionsStreamModule = StreamSimpleModule<"openai-completions">;
+type OpenAIResponsesStreamModule = StreamSimpleModule<"openai-responses">;
 
 function getStreamSimple<TApi extends Api>(
 	module: StreamSimpleModule<TApi>,
@@ -173,10 +238,14 @@ async function importPiAiRootFallback<T>(
 	const subpath = specifier.replace("@earendil-works/pi-ai/", "");
 	const requiredExport: Record<string, string> = {
 		"api/anthropic-messages": "streamSimpleAnthropic",
+		"api/google-generative-ai": "streamSimpleGoogle",
 		"api/openai-completions": "streamSimpleOpenAICompletions",
+		"api/openai-responses": "streamSimpleOpenAIResponses",
 		// Keep compatibility with pre-0.80 Pi AI packages.
 		anthropic: "streamSimpleAnthropic",
+		google: "streamSimpleGoogle",
 		"openai-completions": "streamSimpleOpenAICompletions",
+		"openai-responses": "streamSimpleOpenAIResponses",
 	};
 	const exportName = requiredExport[subpath];
 	if (!exportName) return undefined;
@@ -412,7 +481,8 @@ export function createOpenCodeStreamSimple(
 
 		void (async () => {
 			try {
-				if (isAnthropicOpenCodeEndpoint(model)) {
+				const streamApi = resolveOpenCodeStreamApi(model);
+				if (streamApi === "anthropic-messages") {
 					const streamSimpleAnthropic = getStreamSimple(
 						await importPiAiSubpath<AnthropicStreamModule>(
 							"api/anthropic-messages",
@@ -426,6 +496,48 @@ export function createOpenCodeStreamSimple(
 								...model,
 								api: "anthropic-messages",
 							} as Model<"anthropic-messages">,
+							sanitizedContext,
+							{ ...options, headers },
+						),
+					);
+					return;
+				}
+
+				if (streamApi === "google-generative-ai") {
+					const streamSimpleGoogle = getStreamSimple(
+						await importPiAiSubpath<GoogleGenerativeAIStreamModule>(
+							"api/google-generative-ai",
+						),
+						"streamSimpleGoogle",
+					);
+					await pipeStream(
+						stream,
+						streamSimpleGoogle(
+							{
+								...model,
+								api: "google-generative-ai",
+							} as Model<"google-generative-ai">,
+							sanitizedContext,
+							{ ...options, headers },
+						),
+					);
+					return;
+				}
+
+				if (streamApi === "openai-responses") {
+					const streamSimpleOpenAIResponses = getStreamSimple(
+						await importPiAiSubpath<OpenAIResponsesStreamModule>(
+							"api/openai-responses",
+						),
+						"streamSimpleOpenAIResponses",
+					);
+					await pipeStream(
+						stream,
+						streamSimpleOpenAIResponses(
+							{
+								...model,
+								api: "openai-responses",
+							} as Model<"openai-responses">,
 							sanitizedContext,
 							{ ...options, headers },
 						),
