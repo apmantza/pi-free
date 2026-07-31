@@ -46,15 +46,15 @@ import type {
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { getClineShowPaid } from "../../config.ts";
 import { BASE_URL_CLINE, PROVIDER_CLINE } from "../../constants.ts";
-import { createLogger } from "../../lib/logger.ts";
 import { getGlobalFreeOnly, isFreeModel } from "../../lib/registry.ts";
-import { persistNativeProviderModels } from "../../lib/native-provider.ts";
+import {
+	persistNativeProviderModels,
+	restoreNativeProviderModels,
+} from "../../lib/native-provider.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { clineAuth } from "./cline-auth.ts";
 import { fetchClineCatalog, toClineModels } from "./cline-models.ts";
 import { streamClineXml } from "./cline-xml-bridge.ts";
-
-const _logger = createLogger("cline");
 
 type ClineModel = Model<"cline-xml-tools">;
 
@@ -163,25 +163,20 @@ export function createClineProvider(): ClineNativeProvider {
 	}
 
 	async function refreshModels(context: RefreshModelsContext): Promise<void> {
-		// Offline init / cache restore: always read the store first so a warm
-		// startup shows models with zero network.
-		try {
-			const entry = await context.store.read();
-			const storedModels = (entry?.models ?? []).filter(
-				(m) => m.provider === PROVIDER_CLINE,
-			) as ClineModel[];
-			if (storedModels.length > 0) {
+		await restoreNativeProviderModels(
+			PROVIDER_CLINE,
+			context,
+			(storedModels: ClineModel[]) => {
 				stored.all = storedModels;
-				stored.free = storedModels.filter((m) =>
-					isFreeModel({ ...m, provider: PROVIDER_CLINE }, storedModels),
+				stored.free = storedModels.filter((model) =>
+					isFreeModel(
+						{ ...model, provider: PROVIDER_CLINE },
+						storedModels,
+					),
 				);
 				setView(decideView());
-			}
-		} catch (err) {
-			_logger.warn("Failed to read models store; continuing empty", {
-				error: err instanceof Error ? err.message : String(err),
-			});
-		}
+			},
+		);
 
 		// Offline init stops here: serve the store only.
 		if (!context.allowNetwork || context.signal?.aborted) return;

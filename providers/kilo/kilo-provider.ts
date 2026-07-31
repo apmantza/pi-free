@@ -40,9 +40,11 @@ import {
 	getKiloShowPaid,
 } from "../../config.ts";
 import { PROVIDER_KILO } from "../../constants.ts";
-import { createLogger } from "../../lib/logger.ts";
 import { getGlobalFreeOnly, isFreeModel } from "../../lib/registry.ts";
-import { persistNativeProviderModels } from "../../lib/native-provider.ts";
+import {
+	persistNativeProviderModels,
+	restoreNativeProviderModels,
+} from "../../lib/native-provider.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { kiloAuth } from "./kilo-auth.ts";
 import {
@@ -51,8 +53,6 @@ import {
 	KILO_GATEWAY_BASE,
 	toKiloModels,
 } from "./kilo-models.ts";
-
-const _logger = createLogger("kilo");
 
 type KiloModel = Model<"openai-completions">;
 
@@ -117,25 +117,20 @@ export function createKiloProvider(): KiloNativeProvider {
 	}
 
 	async function refreshModels(context: RefreshModelsContext): Promise<void> {
-		// Offline init / cache restore: always read the store first so a warm
-		// startup shows models with zero network.
-		try {
-			const entry = await context.store.read();
-			const storedModels = (entry?.models ?? []).filter(
-				(m) => m.provider === PROVIDER_KILO,
-			) as KiloModel[];
-			if (storedModels.length > 0) {
+		await restoreNativeProviderModels(
+			PROVIDER_KILO,
+			context,
+			(storedModels: KiloModel[]) => {
 				stored.all = storedModels;
-				stored.free = storedModels.filter((m) =>
-					isFreeModel({ ...m, provider: PROVIDER_KILO }, storedModels),
+				stored.free = storedModels.filter((model) =>
+					isFreeModel(
+						{ ...model, provider: PROVIDER_KILO },
+						storedModels,
+					),
 				);
 				setView(decideView());
-			}
-		} catch (err) {
-			_logger.warn("Failed to read models store; continuing empty", {
-				error: err instanceof Error ? err.message : String(err),
-			});
-		}
+			},
+		);
 
 		// Offline init stops here: serve the store only.
 		if (!context.allowNetwork || context.signal?.aborted) return;

@@ -47,7 +47,6 @@
  *   # Models appear in /model selector as "llm7/default", "llm7/fast", "llm7/pro"
  */
 
-import type { Provider } from "@earendil-works/pi-ai/compat";
 import type {
 	ExtensionAPI,
 	ProviderModelConfig,
@@ -56,33 +55,11 @@ import { getLlm7ApiKey, getLlm7ShowPaid } from "../../config.ts";
 import { PROVIDER_LLM7 } from "../../constants.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import {
+	registerNativeProvider,
 	registerNativeProviderRefresh,
 	registerNativeProviderToggle,
 } from "../../lib/native-provider.ts";
 import { createLlm7Provider } from "./llm7-provider.ts";
-
-// =============================================================================
-// Native provider registration
-// =============================================================================
-
-/**
- * The >=0.81 `registerProvider(provider: Provider)` single-argument overload.
- * The dev lockfile predates it (its ExtensionAPI only types the legacy
- * `(name, config)` form), so we bridge the type here; the declared peer range
- * (>=0.81) guarantees the overload exists at runtime. Re-registering the same
- * provider object upserts by id, which is how the free/paid toggle republishes a
- * new visible catalog without dropping native auth.
- */
-type NativeRegistrar = {
-	registerProvider(provider: Provider): void;
-};
-
-function registerNative(
-	pi: ExtensionAPI,
-	provider: Provider<"openai-completions">,
-): void {
-	(pi as unknown as NativeRegistrar).registerProvider(provider);
-}
 
 // =============================================================================
 // Extension entry point
@@ -95,14 +72,14 @@ export default async function llm7Provider(pi: ExtensionAPI) {
 	// load via refreshModels (offline init from the store, then a background
 	// refresh of the static selector catalog), so LLM7 no longer owns any of
 	// Pi's startup critical path.
-	registerNative(pi, provider);
+	registerNativeProvider(pi, provider);
 
 	// Re-registration republishes the same native provider object (upsert by id)
 	// with a new visible catalog, keeping native auth intact. This is the hook the
 	// global /toggle-free system and /toggle-llm7 drive.
 	const reRegister = (models: ProviderModelConfig[]) => {
 		setView(models);
-		registerNative(pi, provider);
+		registerNativeProvider(pi, provider);
 	};
 
 	const hasLlm7Key = !!getLlm7ApiKey();

@@ -354,6 +354,28 @@ describe("Utility Functions", () => {
 				}),
 			);
 		});
+
+		it("propagates an upstream abort signal", async () => {
+			const controller = new AbortController();
+			const fetchMock = vi.fn(
+				(_url: string | Request | URL, options?: RequestInit) =>
+					new Promise<Response>((_resolve, reject) => {
+						options?.signal?.addEventListener("abort", () =>
+							reject(new Error("aborted")),
+						);
+					}),
+			);
+			globalThis.fetch = fetchMock;
+
+			const request = fetchWithTimeout(
+				"https://api.example.com/data",
+				{ signal: controller.signal },
+				5000,
+			);
+			controller.abort();
+
+			await expect(request).rejects.toThrow("aborted");
+		});
 	});
 
 	describe("fetchWithRetry", () => {
