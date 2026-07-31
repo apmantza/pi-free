@@ -14,7 +14,6 @@ import { URL as NodeURL } from "node:url";
 import type {
 	ApiKeyAuth,
 	ApiKeyCredential,
-	AuthCheck,
 	AuthContext,
 	AuthInteraction,
 	AuthResult,
@@ -460,9 +459,7 @@ async function attemptClineTokenRefresh(
 	});
 
 	if (!res.ok) {
-		throw new Error(
-			`Cline token refresh failed with status ${res.status}`,
-		);
+		throw new Error(`Cline token refresh failed with status ${res.status}`);
 	}
 
 	const data = (await res.json()) as {
@@ -500,9 +497,7 @@ export async function refreshClineToken(
 		} catch (secondErr) {
 			logger.warn("Cline token refresh failed after retry", {
 				error:
-					secondErr instanceof Error
-						? secondErr.message
-						: String(secondErr),
+					secondErr instanceof Error ? secondErr.message : String(secondErr),
 			});
 			throw new Error(
 				"Cline token refresh failed. Run /login cline to re-authenticate.",
@@ -551,8 +546,7 @@ export async function loginClineNative(
 				message: prompt.message,
 				placeholder: prompt.placeholder,
 			}),
-		onProgress: (message) =>
-			interaction.notify({ type: "progress", message }),
+		onProgress: (message) => interaction.notify({ type: "progress", message }),
 		onManualCodeInput: () =>
 			interaction.prompt({
 				type: "manual_code",
@@ -584,25 +578,6 @@ export async function refreshClineCredential(
 }
 
 /**
- * Side-effect-free availability check: report configured only when a real key
- * exists (stored or ambient). Unlike Kilo, Cline's `resolve` always succeeds
- * (public catalog, see below), so without this check every user would appear
- * "configured" in Pi's auth status UI even with no credential at all.
- */
-async function checkClineApiKey(input: {
-	ctx: AuthContext;
-	credential?: ApiKeyCredential;
-}): Promise<AuthCheck | undefined> {
-	if (input.credential?.key) {
-		return { type: "api_key", source: "stored API key" };
-	}
-	if (getClineApiKey()) {
-		return { type: "api_key", source: "CLINE_API_KEY" };
-	}
-	return undefined;
-}
-
-/**
  * Resolve the effective Cline API key: a natively-stored key wins, then the
  * ambient `CLINE_API_KEY` env var / `~/.pi/free.json` value.
  *
@@ -614,8 +589,9 @@ async function checkClineApiKey(input: {
  * at all (no offline init, no background refresh). Always resolving keeps the
  * catalog flowing for everyone — this is Pi's sanctioned keyless pattern (the
  * pi-ai `faux` provider does the same) — while chat requests without a token
- * still fail fast in the XML bridge with an actionable message. `checkClineApiKey`
- * keeps the configured/unconfigured status honest.
+ * still fail fast in the XML bridge with an actionable message. Do not add
+ * `apiKey.check`: Pi runs that check before `filterModels` and would hide this
+ * intentionally public catalog when the user is logged out.
  */
 async function resolveClineApiKey(input: {
 	ctx: AuthContext;
@@ -640,7 +616,6 @@ export const clineApiKeyAuth: ApiKeyAuth = {
 		});
 		return { type: "api_key", key };
 	},
-	check: checkClineApiKey,
 	resolve: resolveClineApiKey,
 };
 

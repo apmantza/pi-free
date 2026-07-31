@@ -2,8 +2,8 @@
  * Tests for the Cline native auth (apiKey + OAuth callback-server flow).
  *
  * Mirrors tests/kilo-auth.test.ts, plus the Cline-specific pieces:
- *   - resolve always succeeds (public catalog) so Pi's refresh() still drives
- *     offline init + catalog refresh for logged-out users; check() stays honest
+ *   - resolve always succeeds (public catalog) so Pi's refresh() and
+ *     availability both work for logged-out users
  *   - toAuth applies the workos: bearer prefix (legacy oauth.getApiKey)
  *   - the login adapter maps the legacy OAuthLoginCallbacks flow onto the
  *     native AuthInteraction exactly as Pi's own adaptOAuth did
@@ -15,7 +15,9 @@ import type {
 } from "@earendil-works/pi-ai/compat";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockGetClineApiKey = vi.hoisted(() => vi.fn((): string | undefined => undefined));
+const mockGetClineApiKey = vi.hoisted(() =>
+	vi.fn((): string | undefined => undefined),
+);
 
 vi.mock("../config.ts", () => ({
 	getClineApiKey: () => mockGetClineApiKey(),
@@ -94,28 +96,6 @@ describe("apiKey.resolve", () => {
 			auth: {},
 			source: "public catalog (no account)",
 		});
-	});
-});
-
-describe("apiKey.check", () => {
-	it("reports configured for a stored key", async () => {
-		const result = await clineApiKeyAuth.check?.({
-			ctx: authCtx,
-			credential: { type: "api_key", key: "sk-stored" },
-		});
-		expect(result).toEqual({ type: "api_key", source: "stored API key" });
-	});
-
-	it("reports configured for the ambient key", async () => {
-		mockGetClineApiKey.mockReturnValue("sk-ambient");
-		const result = await clineApiKeyAuth.check?.({ ctx: authCtx });
-		expect(result).toEqual({ type: "api_key", source: "CLINE_API_KEY" });
-	});
-
-	it("reports unconfigured when no real key exists (resolve's empty auth is keyless)", async () => {
-		mockGetClineApiKey.mockReturnValue(undefined);
-		const result = await clineApiKeyAuth.check?.({ ctx: authCtx });
-		expect(result).toBeUndefined();
 	});
 });
 

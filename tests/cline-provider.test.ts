@@ -7,6 +7,7 @@
  *   - public catalog: refreshModels fetches without any credential
  */
 
+import { createModels } from "@earendil-works/pi-ai";
 import type {
 	ModelsStoreEntry,
 	ProviderModelsStore,
@@ -16,7 +17,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockFetchClineCatalog = vi.hoisted(() => vi.fn());
 const mockGetClineShowPaid = vi.hoisted(() => vi.fn(() => false));
-const mockGetClineApiKey = vi.hoisted(() => vi.fn((): string | undefined => undefined));
+const mockGetClineApiKey = vi.hoisted(() =>
+	vi.fn((): string | undefined => undefined),
+);
 const mockGetGlobalFreeOnly = vi.hoisted(() => vi.fn(() => true));
 
 vi.mock("../config.ts", () => ({
@@ -146,6 +149,17 @@ describe("createClineProvider shape", () => {
 		// Empty before the first refresh (dynamic provider contract).
 		expect(provider.getModels()).toEqual([]);
 	});
+
+	it("keeps the public catalog available without a credential", async () => {
+		const handle = createClineProvider();
+		handle.ingest([freeCfg("public")], [freeCfg("public")]);
+
+		const models = createModels();
+		models.setProvider(handle.provider);
+
+		const available = await models.getAvailable();
+		expect(available.map((model) => model.id)).toEqual(["public"]);
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -156,8 +170,18 @@ describe("refreshModels offline init", () => {
 	it("restores models from the store with zero network when allowNetwork=false", async () => {
 		const seeded = {
 			models: [
-				{ ...freeCfg("a"), api: "cline-xml-tools", provider: "cline", baseUrl: "x" },
-				{ ...paidCfg("b"), api: "cline-xml-tools", provider: "cline", baseUrl: "x" },
+				{
+					...freeCfg("a"),
+					api: "cline-xml-tools",
+					provider: "cline",
+					baseUrl: "x",
+				},
+				{
+					...paidCfg("b"),
+					api: "cline-xml-tools",
+					provider: "cline",
+					baseUrl: "x",
+				},
 			],
 			checkedAt: Date.now(),
 		} as unknown as ModelsStoreEntry;
@@ -182,7 +206,12 @@ describe("refreshModels offline init", () => {
 	it("ignores stored models from other providers", async () => {
 		const seeded = {
 			models: [
-				{ ...freeCfg("a"), api: "cline-xml-tools", provider: "other", baseUrl: "x" },
+				{
+					...freeCfg("a"),
+					api: "cline-xml-tools",
+					provider: "other",
+					baseUrl: "x",
+				},
 			],
 		} as unknown as ModelsStoreEntry;
 		const { store } = makeStore(seeded);
@@ -246,7 +275,12 @@ describe("refreshModels online", () => {
 	it("retains the previous catalog when a fetch returns nothing (poisoning guard)", async () => {
 		const seeded = {
 			models: [
-				{ ...freeCfg("a"), api: "cline-xml-tools", provider: "cline", baseUrl: "x" },
+				{
+					...freeCfg("a"),
+					api: "cline-xml-tools",
+					provider: "cline",
+					baseUrl: "x",
+				},
 			],
 		} as unknown as ModelsStoreEntry;
 		const { store, written } = makeStore(seeded);
@@ -321,7 +355,12 @@ describe("toggle interop", () => {
 
 		// reRegister(stored.all) -> setView(stored.all) + re-register.
 		setView(stored.all);
-		expect(provider.getModels().map((m) => m.id).sort()).toEqual(["a", "b"]);
+		expect(
+			provider
+				.getModels()
+				.map((m) => m.id)
+				.sort(),
+		).toEqual(["a", "b"]);
 
 		// And back to free.
 		setView(stored.free);
@@ -332,13 +371,23 @@ describe("toggle interop", () => {
 		mockGetClineShowPaid.mockReturnValue(true);
 		const { provider } = await seededProvider();
 		// show_paid true + global free-only true => all models.
-		expect(provider.getModels().map((m) => m.id).sort()).toEqual(["a", "b"]);
+		expect(
+			provider
+				.getModels()
+				.map((m) => m.id)
+				.sort(),
+		).toEqual(["a", "b"]);
 	});
 
 	it("decideView shows all when global free-only is off", async () => {
 		mockGetGlobalFreeOnly.mockReturnValue(false);
 		const { provider } = await seededProvider();
-		expect(provider.getModels().map((m) => m.id).sort()).toEqual(["a", "b"]);
+		expect(
+			provider
+				.getModels()
+				.map((m) => m.id)
+				.sort(),
+		).toEqual(["a", "b"]);
 	});
 });
 
