@@ -12,9 +12,20 @@
 import * as http from "node:http";
 import { URL as NodeURL } from "node:url";
 import type {
+	ApiKeyAuth,
+	ApiKeyCredential,
+	AuthCheck,
+	AuthContext,
+	AuthInteraction,
+	AuthResult,
+	ModelAuth,
+	OAuthAuth,
+	OAuthCredential,
 	OAuthCredentials,
 	OAuthLoginCallbacks,
+	ProviderAuth,
 } from "@earendil-works/pi-ai/compat";
+import { getClineApiKey } from "../../config.ts";
 import { BASE_URL_CLINE, CLINE_AUTH_TIMEOUT_MS } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 
@@ -499,3 +510,152 @@ export async function refreshClineToken(
 		}
 	}
 }
+
+// =============================================================================
+// Native ProviderAuth (createProvider object form)
+// =============================================================================
+
+/**
+ * Derive the Cline request API key from an OAuth credential: Cline expects the
+ * access token as a bearer value prefixed with `workos:` (idempotent). This is
+ * the native `toAuth` equivalent of the legacy `oauth.getApiKey` config field.
+ */
+export function toApiKey(credentials: OAuthCredentials): string {
+	const token = credentials.access;
+	return token.startsWith("workos:") ? token : `workos:${token}`;
+}
+
+/**
+ * Run the proven Cline OAuth flow (local callback server + browser) against the
+ * native `AuthInteraction`. The mapping mirrors Pi's own legacy-OAuth adapter
+ * (provider-composer `adaptOAuth`), so the flow behaves exactly as it did under
+ * the legacy `oauth:` registration config: `onAuth` → `auth_url` notification,
+ * `onProgress` → `progress`, manual code input → `manual_code` prompt. Returns
+ * a canonical OAuth credential Pi persists to the shared auth store.
+ */
+export async function loginClineNative(
+	interaction: AuthInteraction,
+): Promise<OAuthCredential> {
+	const credential = await loginCline({
+		onAuth: (info) =>
+			interaction.notify({
+				type: "auth_url",
+				url: info.url,
+				instructions: info.instructions,
+			}),
+		onDeviceCode: (info) =>
+			interaction.notify({ type: "device_code", ...info }),
+		onPrompt: (prompt) =>
+			interaction.prompt({
+				type: "text",
+				message: prompt.message,
+				placeholder: prompt.placeholder,
+			}),
+		onProgress: (message) =>
+			interaction.notify({ type: "progress", message }),
+		onManualCodeInput: () =>
+			interaction.prompt({
+				type: "manual_code",
+				message: "Paste the authorization code",
+			}),
+		onSelect: (prompt) =>
+			interaction.prompt({
+				type: "select",
+				message: prompt.message,
+				options: prompt.options,
+			}),
+		signal: interaction.signal,
+	});
+	return { ...credential, type: "oauth" };
+}
+
+/**
+ * Native OAuth refresh. Delegates to the proven `refreshClineToken` (still-valid
+ * credential returned as-is; expired → one retry, then throw so Pi preserves the
+ * stored credential and `/login cline` re-authenticates). Pi runs this under the
+ * credential-store lock before any network access, replacing the refresh the
+ * legacy `oauth.refreshToken` config required Pi's composer to adapt.
+ */
+export async function refreshClineCredential(
+	credential: OAuthCredential,
+	_signal?: AbortSignal,
+): Promise<OAuthCredential> {
+	return { ...(await refreshClineToken(credential)), type: "oauth" };
+}
+
+/**
+ * Side-effect-free availability check: report configured only when a real key
+ * exists (stored or ambient). Unlike Kilo, Cline's `resolve` always succeeds
+ * (public catalog, see below), so without this check every user would appear
+ * "configured" in Pi's auth status UI even with no credential at all.
+ */
+async function checkClineApiKey(input: {
+	ctx: AuthContext;
+	credential?: ApiKeyCredential;
+}): Promise<AuthCheck | undefined> {
+	if (input.credential?.key) {
+		return { type: "api_key", source: "stored API key" };
+	}
+	if (getClineApiKey()) {
+		return { type: "api_key", source: "CLINE_API_KEY" };
+	}
+	return undefined;
+}
+
+/**
+ * Resolve the effective Cline API key: a natively-stored key wins, then the
+ * ambient `CLINE_API_KEY` env var / `~/.pi/free.json` value.
+ *
+ * Cline-specific deviation from the Kilo recipe: when NO key is configured this
+ * still resolves — with an empty `auth` — instead of returning undefined. Cline's
+ * model catalog is public (the legacy factory fetched it with no credential, so
+ * models appeared before `/login cline`). Pi's `Models.refresh()` skips providers
+ * whose auth does not resolve, which would leave logged-out users with no models
+ * at all (no offline init, no background refresh). Always resolving keeps the
+ * catalog flowing for everyone — this is Pi's sanctioned keyless pattern (the
+ * pi-ai `faux` provider does the same) — while chat requests without a token
+ * still fail fast in the XML bridge with an actionable message. `checkClineApiKey`
+ * keeps the configured/unconfigured status honest.
+ */
+async function resolveClineApiKey(input: {
+	ctx: AuthContext;
+	credential?: ApiKeyCredential;
+}): Promise<AuthResult | undefined> {
+	const key = input.credential?.key ?? getClineApiKey();
+	if (!key) {
+		return { auth: {}, source: "public catalog (no account)" };
+	}
+	return {
+		auth: { apiKey: key },
+		source: input.credential?.key ? "stored API key" : "CLINE_API_KEY",
+	};
+}
+
+export const clineApiKeyAuth: ApiKeyAuth = {
+	name: "Cline API key",
+	async login(interaction: AuthInteraction): Promise<ApiKeyCredential> {
+		const key = await interaction.prompt({
+			type: "secret",
+			message: "Cline API key",
+		});
+		return { type: "api_key", key };
+	},
+	check: checkClineApiKey,
+	resolve: resolveClineApiKey,
+};
+
+export const clineOAuthAuth: OAuthAuth = {
+	name: "Cline",
+	loginLabel: "Sign in with Cline",
+	login: loginClineNative,
+	refresh: refreshClineCredential,
+	async toAuth(credential: OAuthCredential): Promise<ModelAuth> {
+		return { apiKey: toApiKey(credential) };
+	},
+};
+
+/** Native auth for the Cline provider: API key and OAuth (callback-server flow). */
+export const clineAuth: ProviderAuth = {
+	apiKey: clineApiKeyAuth,
+	oauth: clineOAuthAuth,
+};
