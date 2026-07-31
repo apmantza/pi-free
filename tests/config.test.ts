@@ -224,6 +224,22 @@ describe("show-paid getters", () => {
 		expect(getRoutewayShowPaid()).toBe(true);
 		expect(getProviderShowPaid("routeway")).toBe(true);
 	});
+
+	it("getOpengatewayShowPaid reads from file", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(
+			configPath(),
+			JSON.stringify({ opengateway_show_paid: true }),
+		);
+
+		const { getOpengatewayShowPaid, getProviderShowPaid } = await import(
+			"../config.ts"
+		);
+		expect(getOpengatewayShowPaid()).toBe(true);
+		expect(getProviderShowPaid("opengateway")).toBe(true);
+	});
 });
 
 // =============================================================================
@@ -276,6 +292,20 @@ describe("API key getters", () => {
 		vi.stubEnv("HOME", "/tmp");
 		const { getOpenrouterApiKey } = await import("../config.ts");
 		expect(getOpenrouterApiKey()).toBeUndefined();
+	});
+
+	it("getOpengatewayApiKey prefers the environment", async () => {
+		vi.stubEnv("OPENGATEWAY_API_KEY", "env-key");
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(
+			configPath(),
+			JSON.stringify({ opengateway_api_key: "file-key" }),
+		);
+
+		const { getOpengatewayApiKey } = await import("../config.ts");
+		expect(getOpengatewayApiKey()).toBe("env-key");
 	});
 });
 

@@ -31,6 +31,7 @@ Run `/toggle-{provider}` to switch between a provider's free/basic view and its 
 | `/toggle-sambanova` | SambaNova | Native |
 | `/toggle-novita` | Novita AI | Native |
 | `/toggle-routeway` | Routeway AI | Native |
+| `/toggle-opengateway` | OpenGateway | Native |
 | `/toggle-tokenrouter` | TokenRouter | Native |
 | `/toggle-anyapi` | AnyAPI | Native |
 | `/toggle-bai` | B.AI | Native |

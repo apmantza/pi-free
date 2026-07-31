@@ -49,6 +49,7 @@ import deepinfra from "./providers/deepinfra/deepinfra.ts";
 import sambanova from "./providers/sambanova/sambanova.ts";
 import novita from "./providers/novita/novita.ts";
 import routeway from "./providers/routeway/routeway.ts";
+import opengateway from "./providers/opengateway/opengateway.ts";
 import tokenRouter from "./providers/tokenrouter/tokenrouter.ts";
 import ollama from "./providers/ollama/ollama.ts";
 import zenmux from "./providers/zenmux/zenmux.ts";
@@ -76,6 +77,7 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 	sambanova,
 	novita,
 	routeway,
+	opengateway,
 	tokenRouter,
 	anyapi,
 	bai,
