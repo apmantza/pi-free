@@ -12,10 +12,14 @@
  * Modes:
  *   warm     - Sandbox seeded with your real ~/.pi/provider-cache.json (timestamps
  *              freshened to "now") and ~/.pi/free.json, so every configured
- *              provider registers from cache with ZERO network. This is the
- *              realistic steady state (the common case). NOTE: copies your
- *              free.json (which may contain API keys) into a local temp dir that
- *              is deleted on exit; nothing leaves the machine.
+ *              provider that still uses the disk cache registers with ZERO network.
+ *              Kilo now uses the native models store instead: after the factory the
+ *              bench seeds an in-memory store (Pi's real one lives at
+ *              ~/.pi/agent/models-store.json) and drives Kilo's
+ *              refreshModels(allowNetwork:false) to prove offline init populates its
+ *              catalog with zero network (kiloOfflineInitMs / kiloOfflineModels).
+ *              NOTE: copies your free.json (which may contain API keys) into a local
+ *              temp dir that is deleted on exit; nothing leaves the machine.
  *   cold     - Empty cache + your real API keys, with fetch mocked to HANG until
  *              the caller aborts. Simulates a cold/stale cache with unresponsive
  *              provider APIs — the worst case. Bounded by STARTUP_FETCH_DEADLINE_MS.
@@ -158,9 +162,23 @@ if (mode === "cold") {
 // Mock ExtensionAPI
 // ---------------------------------------------------------------------------
 const registered = new Map<string, number>();
+// Native createProvider object registrations (registerProvider(provider)), keyed
+// by provider id, so we can exercise their refreshModels offline-init path below.
+const nativeProviders = new Map<string, any>();
 const mockPi: any = {
-	registerProvider: (id: string, cfg: any) =>
-		registered.set(id, (cfg?.models ?? []).length),
+	registerProvider: (idOrProvider: any, cfg: any) => {
+		// Native object form: a Provider has an id + sync getModels().
+		if (
+			idOrProvider &&
+			typeof idOrProvider === "object" &&
+			typeof idOrProvider.getModels === "function"
+		) {
+			nativeProviders.set(idOrProvider.id, idOrProvider);
+			registered.set(idOrProvider.id, idOrProvider.getModels().length);
+			return;
+		}
+		registered.set(idOrProvider, (cfg?.models ?? []).length);
+	},
 	registerCommand: () => {},
 	on: () => {},
 };
@@ -181,10 +199,66 @@ const t1 = performance.now();
 const summary = getStartupSummary();
 const factoryMs = Math.round((t1 - t0) * 10) / 10;
 
+// ---------------------------------------------------------------------------
+// Exercise Kilo's native offline-init path. Kilo no longer fetches in the
+// factory; Pi calls refreshModels(allowNetwork:false) to restore the catalog
+// from the models store (Pi's real store: ~/.pi/agent/models-store.json). Seed an
+// in-memory store and confirm Kilo populates from it with ZERO network, fast.
+// ---------------------------------------------------------------------------
+let kiloOfflineInitMs: number | null = null;
+let kiloOfflineModels = 0;
+const kilo = nativeProviders.get("kilo");
+if (kilo && typeof kilo.refreshModels === "function") {
+	const seededModels = [0, 1, 2].map((i) => ({
+		id: `kilo-seeded-${i}`,
+		name: `Kilo Seeded Free ${i}`,
+		api: "openai-completions",
+		provider: "kilo",
+		baseUrl: "https://api.kilo.ai/api/gateway",
+		reasoning: false,
+		input: ["text"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 128000,
+		maxTokens: 4096,
+	}));
+	let entry: any = { models: seededModels, checkedAt: Date.now() };
+	const store = {
+		read: async () => entry,
+		write: async (e: any) => {
+			entry = e;
+		},
+		delete: async () => {
+			entry = undefined;
+		},
+	};
+	const fetchBefore = fetchCalls;
+	const t2 = performance.now();
+	await kilo.refreshModels({
+		store,
+		allowNetwork: false,
+		signal: AbortSignal.timeout(2000),
+	});
+	const t3 = performance.now();
+	kiloOfflineInitMs = Math.round((t3 - t2) * 100) / 100;
+	kiloOfflineModels = kilo.getModels().length;
+	if (fetchCalls !== fetchBefore) {
+		console.log("WARN: Kilo offline init made a network call");
+	}
+}
+const kiloFactoryNetworkCalls = fetchUrls.filter((u) =>
+	u.includes("kilo"),
+).length;
+
 console.log(`\nmode: ${mode}`);
 console.log(`factory (awaited by Pi): ${factoryMs}ms`);
 console.log(`registered providers: ${registered.size}`);
 console.log(`network calls during factory: ${fetchCalls}`);
+console.log(`kilo factory network calls: ${kiloFactoryNetworkCalls}`);
+if (kiloOfflineInitMs !== null) {
+	console.log(
+		`kilo offline-init (from models store, 0 network): ${kiloOfflineInitMs}ms -> ${kiloOfflineModels} models`,
+	);
+}
 console.log("");
 console.log(formatStartupSummary());
 
@@ -199,6 +273,9 @@ const result = {
 	networkFetches: summary.networkFetches,
 	failures: summary.failures,
 	fetchUrls: [...new Set(fetchUrls)].slice(0, 12),
+	kiloFactoryNetworkCalls,
+	kiloOfflineInitMs,
+	kiloOfflineModels,
 };
 console.log("\nRESULT " + JSON.stringify(result));
 

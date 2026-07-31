@@ -1,11 +1,25 @@
 /**
- * Kilo device authorization flow and token management.
+ * Kilo device authorization flow and native provider auth.
+ *
+ * Exposes a pi-ai `ProviderAuth` (apiKey + oauth) for the createProvider object
+ * form. Pi owns credential persistence (~/.pi/agent/auth.json) and token refresh:
+ * `OAuthAuth.refresh` is called under the credential-store lock before any
+ * network access, replacing the hand-rolled refresh the legacy `oauth:` config
+ * required the extension to own.
  */
 
 import type {
-	OAuthCredentials,
-	OAuthLoginCallbacks,
+	ApiKeyAuth,
+	ApiKeyCredential,
+	AuthContext,
+	AuthInteraction,
+	AuthResult,
+	ModelAuth,
+	OAuthAuth,
+	OAuthCredential,
+	ProviderAuth,
 } from "@earendil-works/pi-ai/compat";
+import { getKiloApiKey } from "../../config.ts";
 import {
 	KILO_POLL_INTERVAL_MS,
 	KILO_TOKEN_EXPIRATION_MS,
@@ -100,31 +114,49 @@ async function pollDeviceAuth(code: string): Promise<DeviceAuthPollResponse> {
 	return (await response.json()) as DeviceAuthPollResponse;
 }
 
+/**
+ * Run the Kilo device-authorization flow against the native `AuthInteraction`
+ * (Pi renders auth_url/device_code/progress events; `signal` cancels). Returns
+ * a canonical OAuth credential Pi persists to the shared auth store.
+ */
 export async function loginKilo(
-	callbacks: OAuthLoginCallbacks,
-): Promise<OAuthCredentials> {
-	callbacks.onProgress?.("Initiating device authorization...");
+	interaction: AuthInteraction,
+): Promise<OAuthCredential> {
+	interaction.notify({
+		type: "progress",
+		message: "Initiating device authorization...",
+	});
 	const { code, verificationUrl, expiresIn } = await initiateDeviceAuth();
 
-	callbacks.onAuth({
+	interaction.notify({
+		type: "auth_url",
 		url: verificationUrl,
 		instructions: `Enter code: ${code}`,
 	});
+	interaction.notify({
+		type: "device_code",
+		userCode: code,
+		verificationUri: verificationUrl,
+	});
 	openBrowser(verificationUrl);
-	callbacks.onProgress?.("Waiting for browser authorization...");
+	interaction.notify({
+		type: "progress",
+		message: "Waiting for browser authorization...",
+	});
 
 	const deadline = Date.now() + expiresIn * 1000;
 	while (Date.now() < deadline) {
-		if (callbacks.signal?.aborted) throw new Error("Login cancelled");
+		if (interaction.signal?.aborted) throw new Error("Login cancelled");
 		// pi-lens-ignore: await-in-loop
-		await abortableSleep(KILO_POLL_INTERVAL_MS, callbacks.signal);
+		await abortableSleep(KILO_POLL_INTERVAL_MS, interaction.signal);
 
 		const result = await pollDeviceAuth(code);
 		if (result.status === "approved") {
 			if (!result.token)
 				throw new Error("Authorization approved but no token received");
-			callbacks.onProgress?.("Login successful!");
+			interaction.notify({ type: "progress", message: "Login successful!" });
 			return {
+				type: "oauth",
 				refresh: result.token,
 				access: result.token,
 				expires: Date.now() + KILO_TOKEN_EXPIRATION_MS,
@@ -136,18 +168,76 @@ export async function loginKilo(
 			throw new Error("Authorization code expired. Please try again.");
 
 		const remaining = Math.ceil((deadline - Date.now()) / 1000);
-		callbacks.onProgress?.(
-			`Waiting for browser authorization... (${remaining}s remaining)`,
-		);
+		interaction.notify({
+			type: "progress",
+			message: `Waiting for browser authorization... (${remaining}s remaining)`,
+		});
 	}
 	throw new Error("Authentication timed out. Please try again.");
 }
 
-export async function refreshKiloToken(
-	credentials: OAuthCredentials,
-): Promise<OAuthCredentials> {
-	if (credentials.expires > Date.now()) return credentials;
+/**
+ * Native OAuth refresh. Kilo access tokens are long-lived (1 year) with no
+ * refresh endpoint, so a still-valid credential is returned as-is and an expired
+ * one throws — Pi preserves the stored credential for retry and `/login kilo`
+ * re-authenticates. This replaces the legacy `refreshKiloToken` the extension
+ * previously had to wire up itself.
+ */
+export async function refreshKiloCredential(
+	credential: OAuthCredential,
+	_signal?: AbortSignal,
+): Promise<OAuthCredential> {
+	if (credential.expires > Date.now()) return credential;
 	throw new Error(
 		"Kilo token expired. Please run /login kilo to re-authenticate.",
 	);
 }
+
+// =============================================================================
+// Native ProviderAuth
+// =============================================================================
+
+/**
+ * Resolve the effective Kilo API key: a natively-stored key (from
+ * `interaction.prompt` login) wins, then the ambient `KILO_API_KEY` env var /
+ * `~/.pi/free.json` value via the shared config getter.
+ */
+async function resolveKiloApiKey(input: {
+	ctx: AuthContext;
+	credential?: ApiKeyCredential;
+}): Promise<AuthResult | undefined> {
+	const key = input.credential?.key ?? getKiloApiKey();
+	if (!key) return undefined;
+	return {
+		auth: { apiKey: key },
+		source: input.credential?.key ? "stored API key" : "KILO_API_KEY",
+	};
+}
+
+export const kiloApiKeyAuth: ApiKeyAuth = {
+	name: "Kilo API key",
+	async login(interaction: AuthInteraction): Promise<ApiKeyCredential> {
+		const key = await interaction.prompt({
+			type: "secret",
+			message: "Kilo API key",
+		});
+		return { type: "api_key", key };
+	},
+	resolve: resolveKiloApiKey,
+};
+
+export const kiloOAuthAuth: OAuthAuth = {
+	name: "Kilo",
+	loginLabel: "Sign in with Kilo",
+	login: loginKilo,
+	refresh: refreshKiloCredential,
+	async toAuth(credential: OAuthCredential): Promise<ModelAuth> {
+		return { apiKey: credential.access };
+	},
+};
+
+/** Native auth for the Kilo provider: API key and OAuth device flow. */
+export const kiloAuth: ProviderAuth = {
+	apiKey: kiloApiKeyAuth,
+	oauth: kiloOAuthAuth,
+};

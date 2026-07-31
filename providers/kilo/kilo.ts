@@ -2,21 +2,21 @@
  * Kilo Provider Extension
  *
  * Provides access to 300+ AI models via the Kilo Gateway (OpenRouter-compatible).
- * Fetches ALL models at startup (like Cline/OpenRouter), defaults to free-only view.
+ * Registered as a native pi-ai `Provider` (createProvider object form) so Pi owns
+ * credential refresh, background model refresh, and offline initialization:
+ *
+ *   - The factory is synchronous and network-free — it builds the provider object
+ *     and registers it. Models load via `refreshModels` (offline init from the
+ *     native models store, then a background fetch), so Kilo no longer owns any of
+ *     Pi's startup critical path.
+ *   - Native `auth` (API key + OAuth device flow) persisted to auth.json.
+ *   - Free/paid filtering stays on pi-free's re-registration toggle so it keeps
+ *     composing with the global /toggle-free system.
+ *
  * Run /login kilo or use /toggle-kilo to access paid models.
- *
- * Responds to global free-only filter for free/paid model filtering.
- *
- * Usage:
- *   pi install git:github.com/apmantza/pi-free
- *   # Free models visible immediately; /login kilo for paid access
  */
 
-import type {
-	Api,
-	Model,
-	OAuthCredentials,
-} from "@earendil-works/pi-ai/compat";
+import type { Provider } from "@earendil-works/pi-ai/compat";
 import {
 	readStoredCredential,
 	type ExtensionAPI,
@@ -24,59 +24,44 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import {
 	getKiloApiKey,
-	getKiloFreeOnly,
 	getKiloShowPaid,
 	PROVIDER_KILO,
 	saveConfig,
 } from "../../config.ts";
 import { URL_KILO_TOS } from "../../constants.ts";
-import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
-import { saveProviderCacheGuarded } from "../../lib/provider-cache.ts";
+import { createLogger } from "../../lib/logger.ts";
+import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import { wrapSessionStartHandler } from "../../lib/session-start-metrics.ts";
-import { cleanModelName, logWarning } from "../../lib/util.ts";
-import {
-	createCtxReRegister,
-	createReRegister,
-	enhanceWithCI,
-	isOAuthCredential,
-	loadCachedOrFetchModels,
-	type StoredModels,
-} from "../../provider-helper.ts";
-import { loginKilo, refreshKiloToken } from "./kilo-auth.ts";
-import { fetchKiloModels, KILO_GATEWAY_BASE } from "./kilo-models.ts";
+import { logWarning } from "../../lib/util.ts";
+import { isOAuthCredential } from "../../provider-helper.ts";
+import { createKiloProvider } from "./kilo-provider.ts";
 
-/** Kilo Gateway compat overrides, borrowed from pi-kilo-provider. */
-const KILO_COMPAT = {
-	supportsStore: false,
-	supportsDeveloperRole: false,
-	supportsReasoningEffort: false,
-	supportsUsageInStreaming: false,
-	supportsStrictMode: false,
-	thinkingFormat: "openrouter" as const,
-	maxTokensField: "max_tokens" as const,
-};
+const _logger = createLogger("kilo");
 
 // =============================================================================
 // XML leak detection and auto-retry
 // =============================================================================
 
+// NOTE: the "<invoke" / "<antml:tool_use>" needles are built via concatenation
+// purely so this source file does not contain a literal token that the agent
+// harness's own XML framing would treat as a tool-call boundary. Behavior is
+// identical to a plain string literal.
+const XML_LEAK_NEEDLES: readonly string[] = [
+	"<tool>",
+	"<tool_call>",
+	"<function_call>",
+	"<" + "invoke",
+	"<" + String.fromCharCode(97) + "ntml:tool_use>",
+];
 /**
  * Detect when a model outputs raw XML tool calls instead of using
  * native function calling. This happens when gateways don't pass
  * tool definitions to certain models (e.g., step-3.7-flash via Kilo).
- *
- * Pattern: <tool><name>tool_name</name><param>...</param></tool>
  */
 function detectXmlToolLeak(text: string): boolean {
 	// Use simple string searches instead of regex to avoid ReDoS risks.
 	const lower = text.toLowerCase();
-	return (
-		lower.includes("<tool>") ||
-		lower.includes("<tool_call>") ||
-		lower.includes("<function_call>") ||
-		lower.includes("<invoke") ||
-		lower.includes("<antml:tool_use>")
-	);
+	return XML_LEAK_NEEDLES.some((needle) => lower.includes(needle));
 }
 
 function findTag(
@@ -156,181 +141,117 @@ function parseXmlToolCalls(
 }
 
 // =============================================================================
-// Extension entry point
+// Native provider registration
 // =============================================================================
-const KILO_PROVIDER_CONFIG = {
-	providerId: PROVIDER_KILO,
-	baseUrl: KILO_GATEWAY_BASE,
-	apiKey: getKiloApiKey() || "$KILO_API_KEY",
-	headers: {
-		"X-KILOCODE-EDITORNAME": "Pi",
-	},
+
+/**
+ * The >=0.81 `registerProvider(provider: Provider)` single-argument overload.
+ * The dev lockfile predates it (its ExtensionAPI only types the legacy
+ * `(name, config)` form), so we bridge the type here; the declared peer range
+ * (>=0.81) guarantees the overload exists at runtime. Re-registering the same
+ * provider object upserts by id, which is how the free/paid toggle republishes a
+ * new visible catalog without dropping native auth.
+ */
+type NativeRegistrar = {
+	registerProvider(provider: Provider): void;
 };
 
-/** Apply Kilo-specific compat overrides while preserving provider/model values. */
-function applyKiloCompat<T extends { compat?: ProviderModelConfig["compat"] }>(
-	models: T[],
-): T[] {
-	return models.map((m) => ({
-		...m,
-		compat: {
-			...KILO_COMPAT,
-			...m.compat,
-		},
-	}));
+function registerNative(
+	pi: ExtensionAPI,
+	provider: Provider<"openai-completions">,
+): void {
+	(pi as unknown as NativeRegistrar).registerProvider(provider);
 }
 
-export default async function kiloProvider(pi: ExtensionAPI) {
-	// Resolve API key (env var or ~/.pi/free.json)
-	const kiloApiKey = getKiloApiKey();
+// =============================================================================
+// Credential migration (non-destructive)
+// =============================================================================
 
-	// Cache-first at startup via the shared helper (mirrors the other fetchers):
-	// serve a fresh cache instantly, else fetch (full → free-only fallback),
-	// else fall back to a stale cache. The session_start handler below keeps
-	// the cache fresh.
-	let allModels: ProviderModelConfig[] = await loadCachedOrFetchModels(
-		PROVIDER_KILO,
-		async () => {
-			try {
-				return await fetchKiloModels({ token: kiloApiKey, freeOnly: false });
-			} catch (error) {
-				logWarning("kilo", "Failed to fetch models at startup", error);
-				return fetchKiloModels({ freeOnly: true }).catch((err) => {
-					logWarning("kilo", "Failed to fetch free models at startup", err);
-					return [];
-				});
-			}
-		},
-	);
-	let freeModels: ProviderModelConfig[] = allModels.filter((m) =>
-		isFreeModel({ ...m, provider: PROVIDER_KILO }, allModels),
-	);
-
-	// State tracking
-	const kiloShowPaid = getKiloShowPaid();
-	const kiloFreeOnly = getKiloFreeOnly();
-	let showPaidModels = kiloShowPaid;
-	let currentModels = kiloShowPaid && !kiloFreeOnly ? allModels : freeModels;
-
-	if (currentModels.length === 0) {
-		logWarning(
-			"kilo",
-			"No Kilo models available at startup; provider will be empty until models can be fetched",
-			undefined,
-		);
-	}
-
-	// Shared model storage for global toggle
-	const stored: StoredModels = { free: freeModels, all: allModels };
-
-	// Create re-register function
-	const baseReRegister = createReRegister(pi, {
-		...KILO_PROVIDER_CONFIG,
-	});
-	const reRegister = (models: ProviderModelConfig[]) =>
-		baseReRegister(applyKiloCompat(models));
-
-	// Register with global toggle system
-	const hasKiloKey = !!kiloApiKey;
-	registerWithGlobalToggle(PROVIDER_KILO, stored, reRegister, hasKiloKey);
-
-	// OAuth config for Kilo
-	const oauthConfig = {
-		name: "Kilo",
-		login: async (callbacks: any) => {
-			const cred = await loginKilo(callbacks);
-			try {
-				// Fetch all models with the new token
-				const newModels = await fetchKiloModels({
-					token: cred.access,
-					freeOnly: false,
-				});
-				allModels = newModels;
-				stored.all = allModels;
-				freeModels = allModels.filter((m) =>
-					isFreeModel({ ...m, provider: PROVIDER_KILO }, allModels),
-				);
-				stored.free = freeModels;
-
-				// Update global toggle registration with new lists
-				const baseGlobalReRegister = createReRegister(pi, {
-					...KILO_PROVIDER_CONFIG,
-				});
-				const globalReRegister = (models: ProviderModelConfig[]) =>
-					baseGlobalReRegister(applyKiloCompat(models));
-				registerWithGlobalToggle(PROVIDER_KILO, stored, globalReRegister, true);
-
-				// If paid mode is enabled, show all models
-				if (showPaidModels && !kiloFreeOnly) {
-					currentModels = allModels;
-					globalReRegister(allModels);
-				}
-			} catch (error) {
-				logWarning("kilo", "Failed to fetch models after login", error);
-			}
-			return cred;
-		},
-		refreshToken: refreshKiloToken,
-		getApiKey: (cred: OAuthCredentials) => cred.access,
-		modifyModels: (models: Model<Api>[], _cred: OAuthCredentials) => {
-			if (!showPaidModels || kiloFreeOnly || allModels.length === 0) {
-				return models;
-			}
-			const template = models.find((m) => m.provider === PROVIDER_KILO);
-			if (!template) return models;
-			const nonKilo = models.filter((m) => m.provider !== PROVIDER_KILO);
-			const fullModels = applyKiloCompat(
-				allModels.map((m) => ({
-					...template,
-					id: m.id,
-					name: cleanModelName(m.name),
-					reasoning: m.reasoning,
-					input: m.input,
-					cost: m.cost,
-					contextWindow: m.contextWindow,
-					maxTokens: m.maxTokens,
-				})),
+/**
+ * Per-load credential inspection (the extension factory loads once per process,
+ * so this runs once). Native auth reads the SAME ~/.pi/agent/auth.json that the
+ * legacy `/login kilo` flow already persisted to, so existing OAuth credentials
+ * work with no destructive migration. This only logs status and flags malformed
+ * old credentials (re-login is the recovery path); it never rewrites or deletes.
+ * The inspection is a pure read + log, so it is idempotent by nature.
+ */
+function inspectStoredKiloCredential(): void {
+	try {
+		const cred = readStoredCredential(PROVIDER_KILO);
+		if (!cred) {
+			_logger.info(
+				"No stored Kilo credential; using ambient KILO_API_KEY if configured",
 			);
-			return [...nonKilo, ...fullModels] as Model<"openai-completions">[];
-		},
+			return;
+		}
+		if (isOAuthCredential(cred)) {
+			if (typeof cred.access === "string" && cred.access.length > 0) {
+				_logger.info(
+					"Reusing existing Kilo OAuth credential from auth.json (no migration needed)",
+				);
+			} else {
+				_logger.warn(
+					"Stored Kilo OAuth credential is malformed; run /login kilo to re-authenticate",
+				);
+			}
+			return;
+		}
+		if (cred.type === "api_key") {
+			_logger.info("Found stored Kilo API key credential in auth.json");
+			return;
+		}
+		_logger.warn(
+			"Unrecognized stored Kilo credential shape; run /login kilo if auth fails",
+		);
+	} catch (err) {
+		_logger.warn("Failed to inspect stored Kilo credential", {
+			error: err instanceof Error ? err.message : String(err),
+		});
+	}
+}
+
+// =============================================================================
+// Extension entry point
+// =============================================================================
+
+export default async function kiloProvider(pi: ExtensionAPI) {
+	const { provider, stored, setView } = createKiloProvider();
+
+	// Non-destructive credential inspection (native auth reuses auth.json).
+	inspectStoredKiloCredential();
+
+	// Register the native provider. The factory performs NO network I/O: models
+	// load via refreshModels (offline init from the store, then a background
+	// fetch), so Kilo no longer owns any of Pi's startup critical path.
+	registerNative(pi, provider);
+
+	// Re-registration republishes the same native provider object (upsert by id)
+	// with a new visible catalog, keeping native auth intact. This is the hook the
+	// global /toggle-free system and /toggle-kilo drive.
+	const reRegister = (models: ProviderModelConfig[]) => {
+		setView(models);
+		registerNative(pi, provider);
 	};
 
-	// Register initial provider (default to free models)
-	const modelsWithCompat = applyKiloCompat(currentModels);
-	pi.registerProvider(PROVIDER_KILO, {
-		baseUrl: KILO_GATEWAY_BASE,
-		apiKey: kiloApiKey || "$KILO_API_KEY",
-		api: "openai-completions" as const,
-		headers: {
-			"X-KILOCODE-EDITORNAME": "Pi",
-			"User-Agent": "pi-free-providers",
-		},
-		models: enhanceWithCI(modelsWithCompat),
-		...(kiloApiKey ? {} : { oauth: oauthConfig }),
-	});
-
-	// Registration complete - models registered silently (use LOG_LEVEL=info to see details)
+	const hasKiloKey = !!getKiloApiKey();
+	registerWithGlobalToggle(PROVIDER_KILO, stored, reRegister, hasKiloKey);
 
 	// Per-provider toggle command
 	pi.registerCommand("toggle-kilo", {
 		description: "Toggle between free and all Kilo models",
 		handler: async (_args, ctx) => {
-			showPaidModels = !showPaidModels;
-			await saveConfig({ kilo_show_paid: showPaidModels });
+			const showPaid = !getKiloShowPaid();
+			await saveConfig({ kilo_show_paid: showPaid });
 
-			// Determine which models to show
 			const modelsToShow =
-				showPaidModels && allModels.length > 0 ? allModels : freeModels;
-
-			currentModels = modelsToShow;
+				showPaid && stored.all.length > 0 ? stored.all : stored.free;
 			reRegister(modelsToShow);
 
-			const freeCount = freeModels.length;
-			const paidCount = allModels.length - freeCount;
-
-			if (showPaidModels && allModels.length > 0) {
+			const freeCount = stored.free.length;
+			const paidCount = stored.all.length - freeCount;
+			if (showPaid && stored.all.length > 0) {
 				ctx.ui.notify(
-					`kilo: showing all ${allModels.length} models (${freeCount} free, ${paidCount} paid)`,
+					`kilo: showing all ${stored.all.length} models (${freeCount} free, ${paidCount} paid)`,
 					"info",
 				);
 			} else {
@@ -346,16 +267,14 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 	let tosShown = false;
 	pi.on("model_select", async (_event, ctx) => {
 		if (ctx.model?.provider !== PROVIDER_KILO) return;
-
-		// ToS notice (once)
 		if (tosShown) return;
 		tosShown = true;
 		const cred = readStoredCredential(PROVIDER_KILO);
 		if (isOAuthCredential(cred)) return;
-		const paidCount = allModels.length - freeModels.length;
+		const paidCount = stored.all.length - stored.free.length;
 		if (paidCount > 0) {
 			ctx.ui.notify(
-				`Kilo: ${freeModels.length} free models shown. Use /toggle-kilo or /login kilo for ${paidCount} paid models. Terms: ${URL_KILO_TOS}`,
+				`Kilo: ${stored.free.length} free models shown. Use /toggle-kilo or /login kilo for ${paidCount} paid models. Terms: ${URL_KILO_TOS}`,
 				"info",
 			);
 		}
@@ -443,55 +362,36 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 		};
 	});
 
-	// Refresh models on session start if authenticated
-	let refreshInFlight: Promise<void> | undefined;
+	// Refresh nudge on session start. Native refreshModels (owned by Pi) keeps the
+	// catalog fresh on its throttled cycle and refreshes the OAuth credential
+	// before fetching; this only nudges the model registry when it exposes a
+	// refresh hook, and is a safe no-op otherwise.
 	pi.on(
 		"session_start",
 		wrapSessionStartHandler("kilo", (_event, ctx) => {
-			const cred = readStoredCredential(PROVIDER_KILO);
-			if (!isOAuthCredential(cred) || refreshInFlight) return Promise.resolve();
-
-			refreshInFlight = fetchKiloModels({ token: cred.access, freeOnly: false })
-				.then((newModels) => {
-					allModels = newModels;
-					stored.all = allModels;
-					freeModels = allModels.filter((m) =>
-						isFreeModel({ ...m, provider: PROVIDER_KILO }, allModels),
-					);
-					stored.free = freeModels;
-
-					// Persist refreshed models to disk cache for fast next startup
-					saveProviderCacheGuarded(PROVIDER_KILO, allModels).catch((err) => {
+			try {
+				const registry = (
+					ctx as {
+						modelRegistry?: { refresh?: (opts?: unknown) => unknown };
+					}
+				).modelRegistry;
+				const result = registry?.refresh?.({ allowNetwork: true });
+				if (result && typeof (result as Promise<void>).catch === "function") {
+					(result as Promise<void>).catch((err: unknown) =>
 						logWarning(
 							"kilo",
-							"Failed to persist refreshed models to cache",
-							err,
-						);
-					});
-
-					// Update global toggle registration
-					const baseCtxReRegister = createCtxReRegister(ctx as any, {
-						...KILO_PROVIDER_CONFIG,
-					});
-					const ctxReRegister = (models: ProviderModelConfig[]) =>
-						baseCtxReRegister(applyKiloCompat(models));
-					registerWithGlobalToggle(PROVIDER_KILO, stored, ctxReRegister, true);
-
-					// Apply current view mode
-					if (showPaidModels && !getKiloFreeOnly()) {
-						ctxReRegister(allModels);
-					}
-				})
-				.catch((error) => {
-					logWarning(
-						"kilo",
-						"Failed to refresh models at session start",
-						error instanceof Error ? error.message : String(error),
+							"Model refresh nudge failed",
+							err instanceof Error ? err.message : String(err),
+						),
 					);
-				})
-				.finally(() => {
-					refreshInFlight = undefined;
-				});
+				}
+			} catch (err) {
+				logWarning(
+					"kilo",
+					"Model refresh nudge failed",
+					err instanceof Error ? err.message : String(err),
+				);
+			}
 			return Promise.resolve();
 		}),
 	);

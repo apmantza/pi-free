@@ -1,48 +1,38 @@
 /**
- * Kilo toggle behavior tests
+ * Kilo toggle interop tests (end-to-end: extension wiring + real native provider,
+ * network mocked). Verifies /toggle-kilo and the global /toggle-free re-register
+ * hook both drive the native provider's visible catalog without dropping auth.
  */
 
+import type {
+	ModelsStoreEntry,
+	ProviderModelsStore,
+} from "@earendil-works/pi-ai/compat";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockFetchKiloModels = vi.fn();
-const mockRegisterWithGlobalToggle = vi.fn();
-let capturedToggleArgs: any[] = [];
-const mockGetKiloApiKey = vi.hoisted(() => vi.fn(() => undefined));
+const mockFetchKiloCatalog = vi.hoisted(() =>
+	vi.fn<(...args: unknown[]) => unknown>(),
+);
+const mockGetKiloApiKey = vi.hoisted(() => vi.fn((): string | undefined => undefined));
+const mockGetKiloShowPaid = vi.hoisted(() => vi.fn(() => false));
+const mockGetKiloFreeOnly = vi.hoisted(() => vi.fn(() => false));
+const mockGetGlobalFreeOnly = vi.hoisted(() => vi.fn(() => true));
+const mockSaveConfig = vi.hoisted(() =>
+	vi.fn<(...args: unknown[]) => Promise<void>>(),
+);
+const mockRegisterWithGlobalToggle = vi.hoisted(() =>
+	vi.fn<(...args: unknown[]) => void>(),
+);
+
+let capturedToggleArgs: unknown[][] = [];
 
 vi.mock("../config.ts", () => ({
-	getKiloFreeOnly: vi.fn(() => false),
-	getKiloShowPaid: vi.fn(() => false),
 	getKiloApiKey: () => mockGetKiloApiKey(),
+	getKiloShowPaid: () => mockGetKiloShowPaid(),
+	getKiloFreeOnly: () => mockGetKiloFreeOnly(),
+	saveConfig: (...args: unknown[]) => mockSaveConfig(...args),
 	PROVIDER_KILO: "kilo",
-}));
-
-vi.mock("../providers/kilo/kilo-models.ts", () => ({
-	fetchKiloModels: (...args: unknown[]) => mockFetchKiloModels(...args),
-	KILO_GATEWAY_BASE: "https://api.kilo.ai/api/gateway",
-}));
-
-vi.mock("../providers/kilo/kilo-auth.ts", () => ({
-	loginKilo: vi.fn().mockResolvedValue({ access: "oauth-token" }),
-	refreshKiloToken: vi.fn(),
-}));
-
-vi.mock("../provider-helper.ts", () => ({
-	enhanceWithCI: (models: unknown[]) => models,
-	createReRegister: vi.fn(() => vi.fn()),
-	createCtxReRegister: vi.fn(() => vi.fn()),
-	// Cold-path simulation matching the real helper with an empty (mocked) cache:
-	// invoke the fetcher, return [] on rejection.
-	loadCachedOrFetchModels: async (
-		_id: string,
-		fetcher: () => Promise<unknown[]>,
-	) => {
-		try {
-			return await fetcher();
-		} catch {
-			return [];
-		}
-	},
 }));
 
 vi.mock("../lib/registry.ts", () => ({
@@ -50,123 +40,155 @@ vi.mock("../lib/registry.ts", () => ({
 		capturedToggleArgs.push(args);
 		mockRegisterWithGlobalToggle(...args);
 	},
+	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
 	isFreeModel: (m: { cost?: { input?: number } }) => (m.cost?.input ?? 0) === 0,
 }));
 
-vi.mock("../lib/util.ts", () => ({
-	cleanModelName: (name: string) => name,
-	logWarning: vi.fn(),
+vi.mock("../provider-helper.ts", async () => {
+	const actual = await vi.importActual<Record<string, unknown>>(
+		"../provider-helper.ts",
+	);
+	return { ...actual, enhanceWithCI: (models: unknown[]) => models };
+});
+
+vi.mock("../providers/kilo/kilo-models.ts", async () => {
+	const actual = await vi.importActual<Record<string, unknown>>(
+		"../providers/kilo/kilo-models.ts",
+	);
+	return {
+		...actual,
+		fetchKiloCatalog: (...args: unknown[]) => mockFetchKiloCatalog(...args),
+	};
+});
+
+vi.mock("@earendil-works/pi-coding-agent", () => ({
+	readStoredCredential: () => undefined,
 }));
 
-vi.mock("../lib/provider-cache.ts", () => ({
-	DEFAULT_PROVIDER_CACHE_TTL_MS: 60 * 60 * 1000,
-	isProviderCacheFresh: () => false,
-	loadProviderCache: () => undefined,
-	saveProviderCache: vi.fn().mockResolvedValue(undefined),
-	saveProviderCacheGuarded: vi.fn().mockResolvedValue(true),
-	clearProviderCache: vi.fn(),
-	clearAllProviderCaches: vi.fn(),
+vi.mock("../lib/logger.ts", () => ({
+	createLogger: () => ({
+		info: vi.fn(),
+		warn: vi.fn(),
+		error: vi.fn(),
+		debug: vi.fn(),
+	}),
 }));
 
 import kiloProvider from "../providers/kilo/kilo.ts";
 
-describe("Kilo toggle behavior", () => {
+function cfg(over: Record<string, unknown> = {}) {
+	return {
+		id: "m",
+		name: "Model",
+		reasoning: false,
+		input: ["text"] as ("text" | "image")[],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: 128000,
+		maxTokens: 4096,
+		...over,
+	};
+}
+
+function makeStore(): ProviderModelsStore {
+	let entry: ModelsStoreEntry | undefined;
+	return {
+		read: async () => entry,
+		write: async (e: ModelsStoreEntry) => {
+			entry = e;
+		},
+		delete: async () => {
+			entry = undefined;
+		},
+	};
+}
+
+describe("Kilo toggle interop", () => {
 	let mockPi: ExtensionAPI;
 	let mockRegisterProvider: ReturnType<typeof vi.fn>;
+	let mockRegisterCommand: ReturnType<typeof vi.fn>;
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		mockFetchKiloModels.mockReset();
-		mockRegisterWithGlobalToggle.mockReset();
 		capturedToggleArgs = [];
+		mockGetKiloApiKey.mockReturnValue(undefined);
+		mockGetKiloShowPaid.mockReturnValue(false);
+		mockGetKiloFreeOnly.mockReturnValue(false);
+		mockGetGlobalFreeOnly.mockReturnValue(true);
+		mockFetchKiloCatalog.mockResolvedValue({
+			all: [cfg({ id: "free-1" }), cfg({ id: "paid-1", cost: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 } })],
+			free: [cfg({ id: "free-1" })],
+		});
 
 		mockRegisterProvider = vi.fn();
+		mockRegisterCommand = vi.fn();
 		mockPi = {
 			registerProvider: mockRegisterProvider,
 			on: vi.fn(),
-			registerCommand: vi.fn(),
+			registerCommand: mockRegisterCommand,
 		} as unknown as ExtensionAPI;
 	});
 
-	it("uses free models by default and switches to all models after toggle", async () => {
-		const freeModels = [
-			{
-				id: "mimo-v2-pro-free",
-				name: "MiMo V2 Pro Free",
-				reasoning: false,
-				input: ["text"],
-				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-				contextWindow: 128000,
-				maxTokens: 4096,
-			},
-		];
-
-		const allModels = [
-			{
-				id: "mimo-v2-pro-free",
-				name: "MiMo V2 Pro Free",
-				reasoning: false,
-				input: ["text"],
-				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-				contextWindow: 128000,
-				maxTokens: 4096,
-			},
-			{
-				id: "claude-3-7-sonnet",
-				name: "Claude 3.7 Sonnet",
-				reasoning: true,
-				input: ["text"],
-				cost: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 },
-				contextWindow: 200000,
-				maxTokens: 8192,
-			},
-		];
-
-		// Startup free model fetch, then post-login full fetch
-		mockFetchKiloModels
-			.mockResolvedValueOnce(freeModels)
-			.mockResolvedValueOnce(allModels);
-
+	it("factory registers empty; refreshModels populates; toggle republishes", async () => {
 		await kiloProvider(mockPi);
 
-		const providerConfig = mockRegisterProvider.mock.calls[0][1];
-		const oauth = providerConfig.oauth;
-		expect(oauth).toBeDefined();
+		// Native provider object registered (single arg).
+		const provider = mockRegisterProvider.mock.calls[0][0];
+		expect(provider.id).toBe("kilo");
+		expect(provider.getModels()).toEqual([]);
 
-		// Simulate successful OAuth login -> cached all models
-		await oauth.login({ onProgress: vi.fn() });
-
-		const templateModels = [
-			{
-				provider: "kilo",
-				id: "template",
-				name: "Template",
-				reasoning: false,
-				input: ["text"],
-				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-				contextWindow: 128000,
-				maxTokens: 4096,
-			},
+		// Global toggle hook captured with mutable stored catalogs.
+		expect(capturedToggleArgs).toHaveLength(1);
+		const [providerId, stored, reRegister, hasKey] = capturedToggleArgs[0] as [
+			string,
+			{ free: unknown[]; all: unknown[] },
+			(models: unknown[]) => void,
+			boolean,
 		];
-
-		// Before toggle, should stay free-only (no paid models without OAuth)
-		const beforeToggle = oauth.modifyModels(templateModels, {
-			access: "oauth-token",
-		});
-		expect(beforeToggle).toBe(templateModels);
-
-		// Verify registerWithGlobalToggle was called with correct stored models
-		expect(capturedToggleArgs.length).toBeGreaterThan(0);
-		const [providerId, stored, reRegister, hasKey] = capturedToggleArgs[0];
 		expect(providerId).toBe("kilo");
-		expect(stored.free).toHaveLength(1);
-		expect(stored.all).toHaveLength(2);
-		expect(typeof reRegister).toBe("function");
-		expect(hasKey).toBe(false); // No API key initially
+		expect(hasKey).toBe(false);
 
-		// Verify reRegister function can be called with different model sets
-		// (This is what happens when /free toggle or /kilo-toggle is used)
-		expect(() => reRegister(stored.all)).not.toThrow();
-		expect(() => reRegister(stored.free)).not.toThrow();
+		// Pi refreshes (online) -> catalogs populate.
+		await provider.refreshModels({ store: makeStore(), allowNetwork: true });
+		expect(stored.all).toHaveLength(2);
+		expect(stored.free).toHaveLength(1);
+
+		// Global /toggle-free showing all -> reRegister(stored.all).
+		mockRegisterProvider.mockClear();
+		reRegister(stored.all);
+		expect(provider.getModels().map((m: { id: string }) => m.id).sort()).toEqual([
+			"free-1",
+			"paid-1",
+		]);
+		// Re-registration reused the SAME native provider object (auth preserved).
+		expect(mockRegisterProvider).toHaveBeenCalledWith(provider);
+
+		// Global /toggle-free showing free -> reRegister(stored.free).
+		reRegister(stored.free);
+		expect(provider.getModels().map((m: { id: string }) => m.id)).toEqual([
+			"free-1",
+		]);
+	});
+
+	it("/toggle-kilo flips show_paid and shows the full catalog", async () => {
+		await kiloProvider(mockPi);
+		const provider = mockRegisterProvider.mock.calls[0][0];
+		await provider.refreshModels({ store: makeStore(), allowNetwork: true });
+
+		const call = mockRegisterCommand.mock.calls.find(
+			(c) => c[0] === "toggle-kilo",
+		);
+		if (!call) throw new Error("toggle-kilo not registered");
+		const notify = vi.fn();
+		await call[1].handler({}, { ui: { notify } });
+
+		expect(mockSaveConfig).toHaveBeenCalledWith({ kilo_show_paid: true });
+		expect(provider.getModels().map((m: { id: string }) => m.id).sort()).toEqual([
+			"free-1",
+			"paid-1",
+		]);
+		expect(notify).toHaveBeenCalledWith(
+			expect.stringContaining("showing all 2 models"),
+			"info",
+		);
 	});
 });
