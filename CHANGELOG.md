@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.3.0] - 2026-08-01
 
 ### Added
 
@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Pi peer dependency minimum** — bumped the `@earendil-works/pi-*` peerDependencies from `>=0.80.8` to `>=0.81.0`, the first release that exposes the native `createProvider` / `registerProvider(provider)` extension surface publicly (verified: 0.80.10 lacks the overload, 0.83.0 has it). The range stays permissive (no upper bound) and the lockfile now resolves the peers to 0.83.0.
 - **Non-blocking file logging** — the structured logger (`lib/logger.ts`) now writes through a lazily-opened buffered append stream and ensures the log directory once, instead of a synchronous `appendFileSync` plus a directory check on every line. Removes ~15–20ms of synchronous disk I/O from warm startup (logging now adds ~0ms to the factory); log format, destination, and levels are unchanged, with a synchronous fallback if streams are unavailable.
 - **Startup fetch accounting** — legacy and dynamic model-fetch attempts now record per-provider cache/network attribution, elapsed wait time, and failures even when the startup deadline or provider API rejects. Cache persistence is no longer misreported as a network fetch.
+- **Remaining providers migrated to native registration** — All remaining pi-free providers now register through Pi's native provider surface. LLM7, ZenMux, TokenRouter, Ollama Cloud, B.AI, CrofAI, AnyAPI, SambaNova, Novita, DeepInfra, Routeway, and OpenModel join Kilo and Cline as native pi-ai `Provider` objects: the extension factory performs no catalog network I/O on startup, credentials and catalogs persist to Pi's stores, and `refreshModels(context)` handles offline init, abort, and the empty-result poisoning guard via shared lifecycle helpers (`registerNativeOpenAIProvider`, registrar/store-restore extraction). LLM7 and OpenModel keep keyless public catalogs (the pi-ai `faux` pattern); Ollama Cloud retains `/api/show` capability discovery, its provider-cache reuse, `/probe-ollama`, and auto-hide; TokenRouter preserves its custom streaming api, MiniMax thinking payload patching, high-load retry, and `<think>` normalization; OpenModel keeps its Anthropic Messages wire format and public-pricing-plus-authenticated-protocol merge; DeepInfra, RouteWay, SambaNova, and Novita probes now share a common OpenAI probe helper.
+- **Native free-model filtering capstone** — Native providers now expose their complete catalog from `getModels()`, with Pi applying the free/paid policy through each provider's native `filterModels` (`getShowPaid`), so catalog refreshes can never clobber the selected free/all view. Per-provider and global toggles re-register the same provider object only to invalidate Pi's availability snapshot, completing the native-provider migration across all extension providers.
+- **OpenCode free-model preservation and protocol routing** — pi-free now preserves Pi's authoritative free-model metadata and per-model protocol routing for OpenCode discovery. `big-pickle` stays in the free-only view even though `/models` omits pricing and the ID lacks a `-free` suffix; GPT, Claude/Qwen, Gemini, and chat-completions models are routed through the matching pi-ai adapters (`openai-responses`, `anthropic-messages`, `google-generative-ai`, `openai-completions`); warm/stale cached catalogs get the same normalization as fresh discovery; and OpenCode probes reuse the CLI-compatible session/request headers the stream wrapper sends (per Pi issue #2824).
 
 ### Removed
 
@@ -33,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Cold-cache startup stall** — pi-free's extension factory awaits every provider model fetch, so on a cold or stale cache an unresponsive provider API could block Pi session start for tens of seconds (measured up to ~66s with several keyed providers). Startup model fetches are now bounded by an 8s deadline (`STARTUP_FETCH_DEADLINE_MS`, override with `PI_FREE_STARTUP_FETCH_TIMEOUT_MS`); on timeout a provider serves its stale cache — or an empty list on a true cold start — and refreshes on the next `session_start`. Worst-case cold startup drops from ~66s to ~8s; warm-cache startup (no network) is unaffected.
+- **Benchmark malformed-cache reporting** — The startup benchmark now reports malformed provider-cache JSON with the offending path. A corrupt `~/.pi/provider-cache.json` previously failed the bench with an uncontextualized `JSON.parse` exception; the cache root, `providers` object, and per-provider entries are now validated and reported explicitly.
 
 ## [2.2.10] - 2026-07-28
 
