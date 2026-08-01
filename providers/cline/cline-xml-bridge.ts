@@ -979,8 +979,7 @@ function parseToolArguments(
 		// `content` and selected provider-specific fields are explicitly string
 		// parameters (file bodies, SEARCH/REPLACE diffs). Parsing them as JSON
 		// corrupts JSON file content into "[object Object]".
-		const shouldParseJson =
-			tag !== "content" && !preserveStringTags.has(tag);
+		const shouldParseJson = tag !== "content" && !preserveStringTags.has(tag);
 		if (shouldParseJson) {
 			try {
 				args[tag] = JSON.parse(raw);
@@ -1011,8 +1010,7 @@ type ParsedToolCalls = {
  * pattern is static; tool names are checked against the current Pi context
  * after matching rather than interpolated into a regular expression.
  */
-const DSML_TOOL_CALL_RE =
-	/<｜DSML｜([^>\s]+)>([^]*?)<\/｜DSML｜\1>/g;
+const DSML_TOOL_CALL_RE = /<｜DSML｜([^>\s]+)>([^]*?)<\/｜DSML｜\1>/g;
 const DSML_INVOKE_RE =
 	/<｜DSML｜invoke(?:\s+name=(?:"([^"]*)"|'([^']*)'))?[^>]*>([^]*?)<\/｜DSML｜invoke>/g;
 const DSML_WRAPPER_RE =
@@ -1021,6 +1019,8 @@ const DSML_PARAMETER_RE =
 	/<｜DSML｜parameter\s+name=(?:"([^"]*)"|'([^']*)')(?:\s+string=(?:"([^"]*)"|'([^']*)'))?[^>]*>([^]*?)<\/｜DSML｜parameter>/g;
 const DSML_MALFORMED_PARAMETER_RE =
 	/<([A-Za-z_][A-Za-z0-9_.-]*)>\s*([^]*?)<\/｜DSML｜parameter>/g;
+const DSML_NAMED_FIELD_RE =
+	/<｜DSML｜([A-Za-z_][A-Za-z0-9_.-]*)>([^]*?)<\/｜DSML｜\1>/g;
 
 function dsmlParameterXml(body: string): string | undefined {
 	const parameters: string[] = [];
@@ -1043,6 +1043,22 @@ function dsmlParameterXml(body: string): string | undefined {
 		return body.slice(cursor).trim() ? undefined : parameters.join("\n");
 	}
 	if (!body.trim()) return "";
+
+	// Some models wrap fields in DSML tags instead of using the standard
+	// `parameter name=...` form, for example:
+	// `<｜DSML｜path>file</｜DSML｜path>`. Convert only a fully-consumed field
+	// sequence; unknown or partial markup remains ordinary text.
+	DSML_NAMED_FIELD_RE.lastIndex = 0;
+	while ((match = DSML_NAMED_FIELD_RE.exec(body)) !== null) {
+		if (body.slice(cursor, match.index).trim()) return undefined;
+		parameters.push(
+			`<${match[1]}>${xmlEscape(decodeXmlEntities(match[2].trim()))}</${match[1]}>`,
+		);
+		cursor = match.index + match[0].length;
+	}
+	if (parameters.length > 0) {
+		return body.slice(cursor).trim() ? undefined : parameters.join("\n");
+	}
 
 	// Some models omit the parameter opener but retain its DSML closer, for
 	// example `<path>file</｜DSML｜parameter>`. Recover this only when the
@@ -1107,11 +1123,8 @@ function normalizeDsmlToolCalls(
 	normalized = normalized.replace(
 		DSML_INVOKE_RE,
 		(match, quotedName, alternateName, body) =>
-			normalizeDsmlInvoke(
-				quotedName ?? alternateName,
-				body,
-				toolNames,
-			) ?? match,
+			normalizeDsmlInvoke(quotedName ?? alternateName, body, toolNames) ??
+			match,
 	);
 
 	// Finally normalize the direct named form. The name is deliberately looked
@@ -1123,8 +1136,7 @@ function normalizeDsmlToolCalls(
 	);
 
 	// Recover the observed mismatched form where a named call closes as invoke.
-	const malformedDirectCallRe =
-		/<｜DSML｜([^>\s]+)>([^]*?)<\/｜DSML｜invoke>/g;
+	const malformedDirectCallRe = /<｜DSML｜([^>\s]+)>([^]*?)<\/｜DSML｜invoke>/g;
 	return normalized.replace(
 		malformedDirectCallRe,
 		(match, name: string, body: string) =>
