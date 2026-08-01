@@ -32,6 +32,9 @@ jobs:
       - name: Audit production dependencies
         run: npm run audit:prod
 
+      - name: Build compiled package
+        run: npm run build
+
       - name: TypeScript lint
         run: npm run lint
 
@@ -92,7 +95,7 @@ jobs:
           INSTALL_DIR=$(npm root -g)/pi-free
           node scripts/check-extensions.mjs "$INSTALL_DIR"
 
-      - name: Smoke-load extension entry (catches missing runtime modules)
+      - name: Smoke-load compiled extension entry (catches missing runtime modules)
         shell: bash
         run: |
           INSTALL_DIR=$(npm root -g)/pi-free
@@ -101,5 +104,5 @@ jobs:
           fi
           export P="$INSTALL_DIR/package.json"
           ENTRY=$(node -p "require(process.env.P).pi.extensions[0]")
-          echo "Loading entry: $INSTALL_DIR/$ENTRY"
-          node --import tsx "$INSTALL_DIR/$ENTRY"
+          echo "Loading compiled entry: $INSTALL_DIR/$ENTRY"
+          node scripts/smoke-compiled.mjs "$INSTALL_DIR/$ENTRY"

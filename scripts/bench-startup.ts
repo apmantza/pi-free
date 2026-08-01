@@ -10,7 +10,8 @@
  * it before and after a change to get a real before/after delta.
  *
  * Usage (via tsx, which is already a dev dependency):
- *   npx tsx scripts/bench-startup.ts <warm|cold|fastcold>
+ *   npx tsx scripts/bench-startup.ts <warm|cold|fastcold> [source|compiled]
+ *   npm run build && npx tsx scripts/bench-startup.ts warm compiled
  *
  * Modes:
  *   warm     - Sandbox seeded with your real ~/.pi/provider-cache.json (timestamps
@@ -36,7 +37,8 @@
  *   for i in 1 2 3 4 5; do npx tsx scripts/bench-startup.ts warm; done
  *
  * Prints a human-readable summary plus a `RESULT {...}` JSON line for scripting.
- * Both include importMs, factoryMs, and import-inclusive totalMs.
+ * Both include importMs, factoryMs, and import-inclusive totalMs. Pass
+ * `compiled` as the second argument after `npm run build` to measure dist/.
  */
 import {
 	copyFileSync,
@@ -51,8 +53,15 @@ import { join } from "node:path";
 import { freshenProviderCache } from "./bench-startup-cache.ts";
 
 const mode = process.argv[2] ?? "warm";
-if (!["warm", "cold", "fastcold"].includes(mode)) {
-	console.error("Usage: tsx scripts/bench-startup.ts <warm|cold|fastcold>");
+const entryKind = process.argv[3] ?? "source";
+if (!["warm", "cold", "fastcold"].includes(mode) || !["source", "compiled"].includes(entryKind)) {
+	console.error(
+		"Usage: tsx scripts/bench-startup.ts <warm|cold|fastcold> [source|compiled]",
+	);
+	process.exit(2);
+}
+if (entryKind === "compiled" && !existsSync(join(process.cwd(), "dist", "index.js"))) {
+	console.error("Compiled entry is missing; run `npm run build` first.");
 	process.exit(2);
 }
 
@@ -186,10 +195,13 @@ const mockPi: any = {
 // but keep its dynamic import inside the phase for a complete import boundary.
 // ---------------------------------------------------------------------------
 const importStart = performance.now();
-const mod = await import("../index.ts");
-const { getStartupSummary, formatStartupSummary } = await import(
-	"../lib/startup-timing.ts"
-);
+const entryModule = entryKind === "compiled" ? "../dist/index.js" : "../index.ts";
+const timingModule =
+	entryKind === "compiled"
+		? "../dist/lib/startup-timing.js"
+		: "../lib/startup-timing.ts";
+const mod = await import(entryModule);
+const { getStartupSummary, formatStartupSummary } = await import(timingModule);
 const importEnd = performance.now();
 const importMs = Math.round((importEnd - importStart) * 10) / 10;
 
@@ -303,7 +315,7 @@ const clineFactoryNetworkCalls = fetchUrls.filter((u) =>
 	u.includes("cline"),
 ).length;
 
-console.log(`\nmode: ${mode}`);
+console.log(`\nmode: ${mode} (${entryKind})`);
 console.log(
 	`import (loader/transpilation/module graph; outside runtime log): ${importMs}ms`,
 );
@@ -328,6 +340,7 @@ console.log(formatStartupSummary());
 
 const result = {
 	mode,
+	entryKind,
 	importMs,
 	factoryMs,
 	totalMs,

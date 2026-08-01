@@ -89,6 +89,10 @@ jobs:
         if: steps.meta.outputs.needs_npm_publish == 'true'
         run: npm run audit:prod
 
+      - name: Build compiled package
+        if: steps.meta.outputs.needs_npm_publish == 'true'
+        run: npm run build
+
       - name: Type-check
         if: steps.meta.outputs.needs_npm_publish == 'true'
         run: npm run lint
@@ -112,13 +116,13 @@ jobs:
           TARBALL=$(ls pi-free-*.tgz)
           node scripts/check-tarball.mjs "$TARBALL"
 
-      - name: Smoke-load source entry
+      - name: Smoke-load compiled entry
         if: steps.meta.outputs.needs_npm_publish == 'true'
         shell: bash
         run: |
           ENTRY=$(node -p "require('./package.json').pi.extensions[0]")
-          echo "Loading entry: $ENTRY"
-          node --import tsx "$ENTRY"
+          echo "Loading compiled entry: $ENTRY"
+          node scripts/smoke-compiled.mjs "$ENTRY"
 
   release:
     runs-on: ubuntu-latest

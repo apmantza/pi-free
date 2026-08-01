@@ -10,9 +10,11 @@ import {
 	readdirSync,
 	readFileSync,
 	rmSync,
+	symlinkSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 function fail(message) {
 	console.error(`ERROR: ${message}`);
@@ -79,11 +81,8 @@ const entrySet = new Set(entries);
 
 const required = [
 	"package/package.json",
-	"package/index.ts",
-	"package/config.ts",
-	"package/constants.ts",
-	"package/provider-helper.ts",
-	"package/provider-failover/benchmarks.json",
+	"package/dist/index.js",
+	"package/dist/provider-failover/benchmarks.json",
 	"package/README.md",
 	"package/CHANGELOG.md",
 	"package/LICENSE",
@@ -97,7 +96,6 @@ for (const file of required) {
 
 const forbiddenPatterns = [
 	/^package\/(?:node_modules|tests|\.github|\.pi|\.claude|\.pisessionsummaries)\//,
-	/^package\/dist\//,
 	/^package\/.+\.log$/,
 	/^package\/.+\.tsbuildinfo$/,
 	/^package\/.+\.tgz$/,
@@ -126,12 +124,14 @@ try {
 	if (!Array.isArray(extensions) || extensions.length === 0) {
 		fail("package.json has no pi.extensions entries");
 	}
+	let compiledEntry;
 	for (const extension of extensions) {
 		const normalized = String(extension).replace(/^\.\//, "");
 		if (!entrySet.has(`package/${normalized}`)) {
 			fail(`pi.extensions entry missing from tarball: ${extension}`);
 		}
 		console.log(`OK: pi.extensions -> ${extension}`);
+		if (normalized === "dist/index.js") compiledEntry = join(packageDir, normalized);
 	}
 	if (pkg.main) {
 		const normalized = String(pkg.main).replace(/^\.\//, "");
@@ -139,6 +139,35 @@ try {
 			fail(`package.json main points to missing file: ${pkg.main}`);
 		}
 		console.log(`OK: main -> ${pkg.main}`);
+	}
+	if (!compiledEntry) fail("compiled dist/index.js is not the Pi extension entry");
+
+	// Always validate JavaScript syntax. When run from a checkout after npm ci,
+	// temporarily link its peer dependencies so Node can import the extracted
+	// package exactly like the installed package smoke check does.
+	const projectNodeModules = join(process.cwd(), "node_modules");
+	const extractedNodeModules = join(packageDir, "node_modules");
+	if (existsSync(projectNodeModules)) {
+		symlinkSync(projectNodeModules, extractedNodeModules, "junction");
+		try {
+			execFileSync(
+				process.execPath,
+				[
+					"--input-type=module",
+					"-e",
+					`await import(${JSON.stringify(pathToFileURL(compiledEntry).href)});`,
+				],
+				{ stdio: "inherit" },
+			);
+			console.log("OK: compiled extension entry loads");
+		} finally {
+			rmSync(extractedNodeModules, { recursive: true, force: true });
+		}
+	} else {
+		execFileSync(process.execPath, ["--check", compiledEntry], {
+			stdio: "inherit",
+		});
+		console.log("OK: compiled extension entry syntax");
 	}
 } finally {
 	rmSync(extractDir, { recursive: true, force: true });
