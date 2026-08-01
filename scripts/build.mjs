@@ -31,14 +31,14 @@ if (existsSync(localTsc)) {
 		"-p",
 		buildConfig,
 	];
-	const npxCandidates = [
+	const npxCli = [
 		process.env.npm_execpath
 			? join(dirname(process.env.npm_execpath), "npx-cli.js")
 			: undefined,
 		join(dirname(process.execPath), "node_modules", "npm", "bin", "npx-cli.js"),
-	].filter((candidate) => candidate && existsSync(candidate));
-	if (npxCandidates[0]) {
-		execFileSync(process.execPath, [npxCandidates[0], ...npxArgs], {
+	].find((candidate) => candidate !== undefined && existsSync(candidate));
+	if (npxCli) {
+		execFileSync(process.execPath, [npxCli, ...npxArgs], {
 			cwd: root,
 			stdio: "inherit",
 		});

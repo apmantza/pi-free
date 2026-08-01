@@ -55,7 +55,8 @@ jobs:
       # omitted, but npm still runs prepare. The build must fetch its pinned
       # compiler transiently rather than require a pre-existing node_modules.
       - name: Install source checkout with production dependencies
-        run: npm install --omit=dev --no-audit --no-fund
+        # Required here: prepare is the behavior under test. # NOSONAR
+        run: npm ci --omit=dev --no-audit --no-fund # NOSONAR
 
       - name: Verify production source build
         run: |
