@@ -45,7 +45,11 @@ function sseResponse(chunks: unknown[], status = 200): Response {
 
 function requestBody(fetchMock: ReturnType<typeof vi.spyOn>, index: number) {
 	const init = fetchMock.mock.calls[index]?.[1] as RequestInit | undefined;
-	return JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+	try {
+		return JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+	} catch {
+		return {};
+	}
 }
 
 afterEach(() => {
