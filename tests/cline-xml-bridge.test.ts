@@ -87,6 +87,106 @@ describe("Cline XML bridge", () => {
 			]);
 		});
 
+		it("normalizes the reported DSML web-content call into an arbitrary Pi tool call", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"<｜DSML｜aio-webcontent>",
+					" <url>https://github.com/runningZ1/union-search-skill</url>",
+					" <budgetTokens>3000</budgetTokens>",
+					" <query>支持的平台 supported platforms list general search engines google bing startpage mojeek</query>",
+					" <diff>false</diff>",
+					"</｜DSML｜aio-webcontent>",
+				].join("\n"),
+				[tool("aio-webcontent")],
+			);
+
+			expect(parsed).toEqual({
+				text: "",
+				toolCalls: [
+					{
+						name: "aio-webcontent",
+						arguments: {
+							url: "https://github.com/runningZ1/union-search-skill",
+							budgetTokens: 3000,
+							query:
+								"支持的平台 supported platforms list general search engines google bing startpage mojeek",
+							diff: false,
+						},
+					},
+				],
+			});
+		});
+
+		it("parses multiline JSON arguments in DSML calls", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"<｜DSML｜general-tool>",
+					"  {",
+					'    "message": "hello",',
+					'    "enabled": true',
+					"  }",
+					"</｜DSML｜general-tool>",
+				].join("\n"),
+				[tool("general-tool")],
+			);
+
+			expect(parsed).toEqual({
+				text: "",
+				toolCalls: [
+					{
+						name: "general-tool",
+						arguments: { message: "hello", enabled: true },
+					},
+				],
+			});
+		});
+
+		it("parses multiple DSML calls while preserving surrounding ordinary text", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"Before",
+					"<｜DSML｜first-tool>",
+					" <value>one</value>",
+					"</｜DSML｜first-tool>",
+					"Between",
+					"<｜DSML｜second-tool>",
+					" <value>two</value>",
+					"</｜DSML｜second-tool>",
+					"After",
+				].join("\n"),
+				[tool("first-tool"), tool("second-tool")],
+			);
+
+			expect(parsed.text).toBe("Before\n\nBetween\n\nAfter");
+			expect(parsed.toolCalls).toEqual([
+				{ name: "first-tool", arguments: { value: "one" } },
+				{ name: "second-tool", arguments: { value: "two" } },
+			]);
+		});
+
+		it("leaves malformed or unregistered DSML markup as ordinary text", () => {
+			const malformed = [
+				"Keep this text.",
+				"<｜DSML｜general-tool>",
+				" <value>missing the closing call tag</value>",
+			].join("\n");
+			const parsed = __test__.parseXmlToolCalls(
+				malformed,
+				[tool("general-tool")],
+			);
+
+			expect(parsed).toEqual({ text: malformed, toolCalls: [] });
+
+			const unknown = __test__.parseXmlToolCalls(
+				"<｜DSML｜not-registered><value>x</value></｜DSML｜not-registered>",
+				[tool("general-tool")],
+			);
+			expect(unknown).toEqual({
+				text: "<｜DSML｜not-registered><value>x</value></｜DSML｜not-registered>",
+				toolCalls: [],
+			});
+		});
+
 		it("recovers Cline heredoc file writes as Pi write tool calls", () => {
 			const parsed = __test__.parseXmlToolCalls(
 				[

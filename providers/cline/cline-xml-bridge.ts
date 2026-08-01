@@ -929,7 +929,22 @@ function extractTagContent(text: string, tag: string): string | undefined {
 	return decodeXmlEntities(text.slice(valueStart, end).trim());
 }
 
-function parseToolArguments(block: string): Record<string, unknown> {
+function parseToolArguments(
+	block: string,
+	preserveStringTags: ReadonlySet<string> = new Set(),
+): Record<string, unknown> {
+	const decodedBlock = decodeXmlEntities(block).trim();
+	if (decodedBlock.startsWith("{") && decodedBlock.endsWith("}")) {
+		try {
+			const parsed = JSON.parse(decodedBlock);
+			if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+				return parsed as Record<string, unknown>;
+			}
+		} catch {
+			return { arguments: decodedBlock };
+		}
+	}
+
 	const explicitArgs = extractTagContent(block, "arguments");
 	if (explicitArgs) {
 		try {
@@ -956,15 +971,16 @@ function parseToolArguments(block: string): Record<string, unknown> {
 		}
 		const close = `</${tag}>`;
 		const closeStart =
-			tag === "content" || tag === "diff"
+			tag === "content" || preserveStringTags.has(tag)
 				? block.lastIndexOf(close)
 				: block.indexOf(close, openEnd + 1);
 		if (closeStart === -1 || closeStart < openEnd) break;
 		const raw = decodeXmlEntities(block.slice(openEnd + 1, closeStart).trim());
-		// `content` and `diff` are explicitly string parameters (file bodies,
-		// SEARCH/REPLACE diffs). Parsing them as JSON corrupts JSON file content
-		// into "[object Object]".
-		const shouldParseJson = tag !== "content" && tag !== "diff";
+		// `content` and selected provider-specific fields are explicitly string
+		// parameters (file bodies, SEARCH/REPLACE diffs). Parsing them as JSON
+		// corrupts JSON file content into "[object Object]".
+		const shouldParseJson =
+			tag !== "content" && !preserveStringTags.has(tag);
 		if (shouldParseJson) {
 			try {
 				args[tag] = JSON.parse(raw);
@@ -983,6 +999,29 @@ type ParsedToolCalls = {
 	text: string;
 	toolCalls: Array<{ name: string; arguments: Record<string, unknown> }>;
 };
+
+/**
+ * Normalize the DSML variant emitted by some Cline models:
+ *
+ *   <｜DSML｜tool-name><arg>value</arg></｜DSML｜tool-name>
+ *
+ * Only complete calls for tools available in the current Pi context are
+ * normalized. In particular, an incomplete or unknown DSML fragment remains
+ * ordinary assistant text instead of being mistaken for a tool call. The
+ * pattern is static; tool names are checked against the current Pi context
+ * after matching rather than interpolated into a regular expression.
+ */
+const DSML_TOOL_CALL_RE =
+	/<｜DSML｜([^>]+)>([^]*?)<\/｜DSML｜\1>/g;
+
+function normalizeDsmlToolCalls(text: string, toolNames: Set<string>): string {
+	if (toolNames.size === 0) return text;
+	return text.replace(
+		DSML_TOOL_CALL_RE,
+		(match, name: string, body: string) =>
+			toolNames.has(name) ? `<${name}>${body}</${name}>` : match,
+	);
+}
 
 /**
  * Some MiMo/Cline models emit Pi SDK `<function=name>` tool-call syntax
@@ -1048,8 +1087,13 @@ function parseXmlToolCalls(
 	);
 	const toolNames = new Set(bridgeByName.keys());
 
+	const normalizedDsmlText = normalizeDsmlToolCalls(rawText, toolNames);
+
 	// Extract <function=name> Pi SDK tool calls directly (no Cline XML intermediate)
-	const fnResult = extractFunctionTagToolCalls(rawText, bridgeByRemoteName);
+	const fnResult = extractFunctionTagToolCalls(
+		normalizedDsmlText,
+		bridgeByRemoteName,
+	);
 	const textWithoutThinking = extractThinkingXml(fnResult.text).text;
 	if (toolNames.size === 0) {
 		return { text: textWithoutThinking.trim(), toolCalls: fnResult.toolCalls };
@@ -1076,7 +1120,10 @@ function parseXmlToolCalls(
 		pushTextFragment(textParts, sourceText.slice(cursor, next.index));
 		const blockEnd = closeStart === -1 ? sourceText.length : closeStart;
 		const block = sourceText.slice(next.index + next.openTag.length, blockEnd);
-		const remoteArgs = parseToolArguments(block);
+		const remoteArgs = parseToolArguments(
+			block,
+			remoteName === "replace_in_file" ? new Set(["diff"]) : undefined,
+		);
 		const writeRuntimeName = getWriteRuntimeToolName(tools);
 		const heredocWrite =
 			remoteName === "execute_command" && writeRuntimeName
@@ -1670,6 +1717,7 @@ export const __test__ = {
 	extractFunctionTagToolCalls,
 	isRetryableClineReasoningStreamError,
 	normalizeDecoratedXmlTags,
+	normalizeDsmlToolCalls,
 	parseReasoningHiddenToolCalls,
 	parseReasoningToolCalls,
 	parseXmlToolCalls,
