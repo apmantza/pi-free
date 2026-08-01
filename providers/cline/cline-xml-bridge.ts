@@ -717,6 +717,33 @@ function schemaProperties(tool: Tool): string[] {
 	return Object.keys(parameters.properties ?? {});
 }
 
+function unwrapDsmlArgumentWrapper(
+	args: Record<string, unknown>,
+	bridge: ToolBridge | undefined,
+): Record<string, unknown> {
+	if (!bridge) return args;
+	const wrapper = ["arguments", "input"].find(
+		(name) => name in args && !bridge.parameters.includes(name),
+	);
+	if (!wrapper) return args;
+
+	let inner = args[wrapper];
+	if (typeof inner === "string") {
+		try {
+			inner = JSON.parse(inner) as unknown;
+		} catch {
+			return args;
+		}
+	}
+	if (!inner || typeof inner !== "object" || Array.isArray(inner)) return args;
+
+	const innerArgs = inner as Record<string, unknown>;
+	const allowed = new Set(bridge.parameters);
+	return Object.keys(innerArgs).every((key) => allowed.has(key))
+		? innerArgs
+		: args;
+}
+
 function buildToolInstructions(tools: Tool[] | undefined): string {
 	const bridges = getToolBridges(tools);
 	if (bridges.length === 0) return "";
@@ -1049,9 +1076,7 @@ function parseMixedDsmlParameterXml(body: string): string | undefined {
 		if (cursor >= body.length) break;
 
 		const rest = body.slice(cursor);
-		const dsmlOpener = rest.match(
-			/^<｜DSML｜([A-Za-z_][A-Za-z0-9_.-]*)>/,
-		);
+		const dsmlOpener = rest.match(/^<｜DSML｜([A-Za-z_][A-Za-z0-9_.-]*)>/);
 		const plainOpener = dsmlOpener
 			? undefined
 			: rest.match(/^<([A-Za-z_][A-Za-z0-9_.-]*)>/);
@@ -1324,9 +1349,12 @@ function parseXmlToolCalls(
 		pushTextFragment(textParts, sourceText.slice(cursor, next.index));
 		const blockEnd = closeStart === -1 ? sourceText.length : closeStart;
 		const block = sourceText.slice(next.index + next.openTag.length, blockEnd);
-		const remoteArgs = parseToolArguments(
-			block,
-			remoteName === "replace_in_file" ? new Set(["diff"]) : undefined,
+		const remoteArgs = unwrapDsmlArgumentWrapper(
+			parseToolArguments(
+				block,
+				remoteName === "replace_in_file" ? new Set(["diff"]) : undefined,
+			),
+			bridge,
 		);
 		const writeRuntimeName = getWriteRuntimeToolName(tools);
 		const heredocWrite =

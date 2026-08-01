@@ -308,6 +308,24 @@ describe("Cline XML bridge", () => {
 			});
 		});
 
+		it("unwraps DeepSeek arguments wrappers using the registered tool schema", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					' <｜DSML｜invoke name="execute_command">',
+					'  <｜DSML｜parameter name="arguments" string="true">{"command":"npm test","timeout":600}</｜DSML｜parameter>',
+					" </｜DSML｜invoke>",
+				].join("\n"),
+				[tool("bash")],
+			);
+
+			expect(parsed.toolCalls).toEqual([
+				{
+					name: "bash",
+					arguments: { command: "npm test", timeout: 600 },
+				},
+			]);
+		});
+
 		it("parses multiline JSON arguments in DSML calls", () => {
 			const parsed = __test__.parseXmlToolCalls(
 				[
