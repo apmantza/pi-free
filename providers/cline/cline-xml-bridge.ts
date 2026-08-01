@@ -1012,14 +1012,143 @@ type ParsedToolCalls = {
  * after matching rather than interpolated into a regular expression.
  */
 const DSML_TOOL_CALL_RE =
-	/<｜DSML｜([^>]+)>([^]*?)<\/｜DSML｜\1>/g;
+	/<｜DSML｜([^>\s]+)>([^]*?)<\/｜DSML｜\1>/g;
+const DSML_INVOKE_RE =
+	/<｜DSML｜invoke(?:\s+name=(?:"([^"]*)"|'([^']*)'))?[^>]*>([^]*?)<\/｜DSML｜invoke>/g;
+const DSML_WRAPPER_RE =
+	/<｜DSML｜(?:function_calls|tool_calls)>([^]*?)<\/｜DSML｜(?:function_calls|tool_calls)>/g;
+const DSML_PARAMETER_RE =
+	/<｜DSML｜parameter\s+name=(?:"([^"]*)"|'([^']*)')(?:\s+string=(?:"([^"]*)"|'([^']*)'))?[^>]*>([^]*?)<\/｜DSML｜parameter>/g;
+const DSML_MALFORMED_PARAMETER_RE =
+	/<([A-Za-z_][A-Za-z0-9_.-]*)>\s*([^]*?)<\/｜DSML｜parameter>/g;
 
-function normalizeDsmlToolCalls(text: string, toolNames: Set<string>): string {
+function resolveDsmlToolName(
+	name: string,
+	toolNames: ReadonlySet<string>,
+): string | undefined {
+	if (toolNames.has(name)) return name;
+
+	// Pi exposes MCP tools with a collision-safe name such as
+	// `mcp__server__tool_name`, while DSML models commonly emit just
+	// `tool_name`. Resolve that short form only when it identifies exactly one
+	// registered tool; never turn an arbitrary or ambiguous tag into a call.
+	const suffix = `__${name}`;
+	const matches = [...toolNames].filter(
+		(toolName) => toolName.startsWith("mcp__") && toolName.endsWith(suffix),
+	);
+	return matches.length === 1 ? matches[0] : undefined;
+}
+
+function dsmlParameterXml(body: string): string | undefined {
+	const parameters: string[] = [];
+	let cursor = 0;
+	let match: RegExpExecArray | null;
+	DSML_PARAMETER_RE.lastIndex = 0;
+	while ((match = DSML_PARAMETER_RE.exec(body)) !== null) {
+		if (body.slice(cursor, match.index).trim()) return undefined;
+		const name = match[1] ?? match[2];
+		if (!name) return undefined;
+		const stringFlag = match[3] ?? match[4];
+		const value = decodeXmlEntities(match[5].trim());
+		// Quoting string=true values makes the existing XML argument parser
+		// preserve `"5"` as a string instead of coercing it to the number 5.
+		const encodedValue =
+			stringFlag?.toLowerCase() === "true"
+				? JSON.stringify(value)
+				: value;
+		parameters.push(`<${name}>${xmlEscape(encodedValue)}</${name}>`);
+		cursor = match.index + match[0].length;
+	}
+	if (parameters.length > 0) {
+		return body.slice(cursor).trim() ? undefined : parameters.join("\n");
+	}
+	if (!body.trim()) return "";
+
+	// A few models omit the DSML parameter opener but still emit its closer,
+	// e.g. `<path>file</｜DSML｜parameter>`. Recover this only when the field
+	// name and mismatched closer make the intended argument unambiguous.
+	DSML_MALFORMED_PARAMETER_RE.lastIndex = 0;
+	while ((match = DSML_MALFORMED_PARAMETER_RE.exec(body)) !== null) {
+		if (body.slice(cursor, match.index).trim()) return undefined;
+		parameters.push(
+			`<${match[1]}>${xmlEscape(decodeXmlEntities(match[2].trim()))}</${match[1]}>`,
+		);
+		cursor = match.index + match[0].length;
+	}
+	if (parameters.length === 0 || body.slice(cursor).trim()) return undefined;
+	return parameters.join("\n");
+}
+
+function normalizeDsmlInvoke(
+	name: string | undefined,
+	body: string,
+	toolNames: ReadonlySet<string>,
+): string | undefined {
+	if (!name) return undefined;
+	const resolvedName = resolveDsmlToolName(decodeXmlEntities(name), toolNames);
+	if (!resolvedName) return undefined;
+	const parameterXml = dsmlParameterXml(body);
+	if (parameterXml === undefined) return undefined;
+	return `<${resolvedName}>${parameterXml}</${resolvedName}>`;
+}
+
+function normalizeDsmlToolCalls(
+	text: string,
+	toolNames: Set<string>,
+): string {
 	if (toolNames.size === 0) return text;
-	return text.replace(
+
+	// DeepSeek DSML's documented form wraps one or more invokes in
+	// function_calls/tool_calls. Normalize the entire wrapper only when every
+	// invoke is complete and registered, so unknown or partial output remains
+	// ordinary assistant text.
+	let normalized = text.replace(DSML_WRAPPER_RE, (match, body: string) => {
+		const calls: string[] = [];
+		let cursor = 0;
+		let invokeMatch: RegExpExecArray | null;
+		DSML_INVOKE_RE.lastIndex = 0;
+		while ((invokeMatch = DSML_INVOKE_RE.exec(body)) !== null) {
+			if (body.slice(cursor, invokeMatch.index).trim()) return match;
+			const call = normalizeDsmlInvoke(
+				invokeMatch[1] ?? invokeMatch[2],
+				invokeMatch[3],
+				toolNames,
+			);
+			if (!call) return match;
+			calls.push(call);
+			cursor = invokeMatch.index + invokeMatch[0].length;
+		}
+		if (calls.length === 0 || body.slice(cursor).trim()) return match;
+		return calls.join("\n\n");
+	});
+
+	// Also accept an unwrapped `<｜DSML｜invoke name=...>` call.
+	normalized = normalized.replace(DSML_INVOKE_RE, (match, quotedName, altName, body) =>
+		normalizeDsmlInvoke(quotedName ?? altName, body, toolNames) ?? match,
+	);
+
+	// Cline/MiMo variants sometimes use the tool name as the DSML wrapper.
+	normalized = normalized.replace(
 		DSML_TOOL_CALL_RE,
-		(match, name: string, body: string) =>
-			toolNames.has(name) ? `<${name}>${body}</${name}>` : match,
+		(match, name: string, body: string) => {
+			const resolvedName = resolveDsmlToolName(name, toolNames);
+			return resolvedName ? `<${resolvedName}>${body}</${resolvedName}>` : match;
+		},
+	);
+
+	// Finally recover the observed malformed form where the named outer call
+	// closes as `</｜DSML｜invoke>` and its field closes as `</｜DSML｜parameter>`.
+	const malformedDirectCallRe =
+		/<｜DSML｜([^>\s]+)>([^]*?)<\/｜DSML｜invoke>/g;
+	return normalized.replace(
+		malformedDirectCallRe,
+		(match, name: string, body: string) => {
+			const resolvedName = resolveDsmlToolName(name, toolNames);
+			const parameterXml = resolvedName ? dsmlParameterXml(body) : undefined;
+			return resolvedName && parameterXml !== undefined
+				? `<${resolvedName}>${parameterXml}</${resolvedName}>`
+				: match;
+		},
 	);
 }
 

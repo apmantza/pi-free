@@ -117,6 +117,91 @@ describe("Cline XML bridge", () => {
 			});
 		});
 
+		it("recovers the exact DSML search call from an MCP-qualified Pi tool", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"<｜DSML｜aio-websearch>",
+					" <query>mojeek search results html structure results-standard li h2 a title p s snippet</query>",
+					" <max>5</max>",
+					" <google>false</google>",
+					" <compact>true</compact>",
+					" <prefetch>false</prefetch>",
+					" <goggles>docs-first</goggles>",
+					"</｜DSML｜aio-websearch>",
+				].join("\n"),
+				[tool("mcp__webaio__aio-websearch")],
+			);
+
+			expect(parsed.text).not.toContain("<｜DSML｜");
+			expect(parsed.toolCalls).toEqual([
+				{
+					name: "mcp__webaio__aio-websearch",
+					arguments: {
+						query:
+							"mojeek search results html structure results-standard li h2 a title p s snippet",
+						max: 5,
+						google: false,
+						compact: true,
+						prefetch: false,
+						goggles: "docs-first",
+					},
+				},
+			]);
+		});
+
+		it("recovers the exact malformed DSML read call when its parameter and invoke wrappers disagree", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"<｜DSML｜read_file>",
+					" <path>C:/Users/apman/OneDrive/Desktop/pi-webaio/src/strategy-memory.ts</｜DSML｜parameter>",
+					"</｜DSML｜invoke>",
+				].join("\n"),
+				[tool("read")],
+			);
+
+			expect(__test__.normalizeDsmlToolCalls(
+				[
+					"<｜DSML｜read_file>",
+					" <path>C:/Users/apman/OneDrive/Desktop/pi-webaio/src/strategy-memory.ts</｜DSML｜parameter>",
+					"</｜DSML｜invoke>",
+				].join("\n"),
+				new Set(["read_file"]),
+			)).toContain("<read_file>");
+			expect(parsed.text).not.toContain("<｜DSML｜");
+			expect(parsed.toolCalls).toEqual([
+				{
+					name: "read",
+					arguments: {
+						path: "C:/Users/apman/OneDrive/Desktop/pi-webaio/src/strategy-memory.ts",
+					},
+				},
+			]);
+		});
+
+		it("parses the standard DSML invoke/parameter dialect", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"<｜DSML｜function_calls>",
+					' <｜DSML｜invoke name="aio-websearch">',
+					'  <｜DSML｜parameter name="query" string="true">hello</｜DSML｜parameter>',
+					'  <｜DSML｜parameter name="max" string="false">5</｜DSML｜parameter>',
+					" </｜DSML｜invoke>",
+					"</｜DSML｜function_calls>",
+				].join("\n"),
+				[tool("mcp__webaio__aio-websearch")],
+			);
+
+			expect(parsed).toEqual({
+				text: "",
+				toolCalls: [
+					{
+						name: "mcp__webaio__aio-websearch",
+						arguments: { query: "hello", max: 5 },
+					},
+				],
+			});
+		});
+
 		it("parses multiline JSON arguments in DSML calls", () => {
 			const parsed = __test__.parseXmlToolCalls(
 				[
@@ -822,6 +907,48 @@ describe("Cline XML bridge", () => {
 					}),
 				]),
 			);
+		});
+
+		it("dispatches a DSML MCP call instead of returning its literal markup", async () => {
+			const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+				sseResponse([
+					{
+						choices: [
+							{
+								delta: {
+									content:
+										"<｜DSML｜aio-websearch>\n<query>hello</query>\n</｜DSML｜aio-websearch>",
+								},
+								finish_reason: "stop",
+							},
+						],
+					},
+				]),
+			);
+
+			const stream = streamClineXml(
+				clineModel(),
+				{ ...clineContext(), tools: [tool("mcp__webaio__aio-websearch")] },
+				{ apiKey: "token" },
+				{},
+			);
+			const result = await stream.result();
+
+			expect(result.stopReason).toBe("toolUse");
+			expect(result.content).not.toContainEqual(
+				expect.objectContaining({
+					type: "text",
+					text: expect.stringContaining("<｜DSML｜"),
+				}),
+			);
+			expect(result.content).toContainEqual(
+				expect.objectContaining({
+					type: "toolCall",
+					name: "mcp__webaio__aio-websearch",
+					arguments: { query: "hello" },
+				}),
+			);
+			expect(fetchMock).toHaveBeenCalledTimes(1);
 		});
 
 		it("returns an error instead of a blank stop when Cline streams no content", async () => {
