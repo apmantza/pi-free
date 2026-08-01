@@ -27,6 +27,24 @@ export interface JSONStore<T> {
 	load(): T;
 	save(data: T): void;
 	update(updater: (data: T) => T): Promise<T>;
+	/**
+	 * Force any pending debounced disk write to complete. No-op when the
+	 * store was created with the default (synchronous) write mode.
+	 */
+	flush(): Promise<void>;
+}
+
+export interface JSONStoreOptions {
+	/**
+	 * Debounce disk writes by this many milliseconds, coalescing rapid
+	 * successive updates into a single write. The in-memory cache is always
+	 * updated immediately so `load()` returns fresh data right away; only the
+	 * disk flush is deferred. `0` (default) writes synchronously on every
+	 * save, preserving the historical behavior. A positive value schedules a
+	 * single coalesced write after the burst settles — ideal for hot paths
+	 * like telemetry that would otherwise do one sync `writeFileSync` per turn.
+	 */
+	debounceMs?: number;
 }
 
 class Lock {
@@ -50,9 +68,12 @@ class Lock {
 export function createJSONStore<T extends object>(
 	filepath: string,
 	defaultValue: T,
+	options: JSONStoreOptions = {},
 ): JSONStore<T> {
 	let cached: T | null = null;
 	const lock = new Lock();
+	const debounceMs = options.debounceMs ?? 0;
+	let flushTimer: ReturnType<typeof setTimeout> | undefined;
 
 	function load(): T {
 		if (cached) return cached;
@@ -74,14 +95,38 @@ export function createJSONStore<T extends object>(
 		return cached;
 	}
 
-	function save(data: T): void {
-		cached = data;
+	function writeDisk(data: T): void {
 		try {
 			ensureDir(dirname(filepath));
 			writeFileSync(filepath, `${JSON.stringify(data, null, 2)}\n`, "utf-8");
 		} catch (err) {
 			_logger.warn("Failed to save JSON store", { filepath, error: err });
 		}
+	}
+
+	function save(data: T): void {
+		// The in-memory cache is always updated immediately so load() returns
+		// fresh data right away. Only the disk flush is deferred when debouncing.
+		cached = data;
+		if (debounceMs <= 0) {
+			writeDisk(data);
+			return;
+		}
+		// Coalesce rapid successive updates: reset the pending timer so only
+		// the final state is written once the burst settles.
+		if (flushTimer !== undefined) clearTimeout(flushTimer);
+		flushTimer = setTimeout(() => {
+			flushTimer = undefined;
+			if (cached !== null) writeDisk(cached);
+		}, debounceMs);
+	}
+
+	async function flush(): Promise<void> {
+		if (flushTimer !== undefined) {
+			clearTimeout(flushTimer);
+			flushTimer = undefined;
+		}
+		if (cached !== null) writeDisk(cached);
 	}
 
 	async function update(updater: (data: T) => T): Promise<T> {
@@ -96,7 +141,7 @@ export function createJSONStore<T extends object>(
 		}
 	}
 
-	return { load, save, update };
+	return { load, save, update, flush };
 }
 
 /**

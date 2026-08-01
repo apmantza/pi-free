@@ -9,9 +9,6 @@
  * ENHANCED: Added debug logging and provider-specific normalizers
  */
 
-import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { createLogger } from "../lib/logger.ts";
 import type { ModelMatchHints } from "../lib/types.ts";
 
@@ -74,11 +71,10 @@ function getBenchmarkIndex(): BenchmarkIndex {
 // Debug Logging
 // =============================================================================
 
-const LOG_DIR = join(homedir(), ".pi");
-const LOG_FILE = join(LOG_DIR, "modelmatch.log");
-// Debug logging writes one sync appendFileSync per model per attempt — far too
-// expensive to leave on during startup (hundreds–thousands of blocking writes).
-// Opt in via PI_FREE_BENCHMARK_DEBUG=1 (or setDebugLogging(true)).
+// Debug logging is opt-in because it emits one line per model per match
+// attempt (hundreds–thousands at startup). When enabled, entries flow through
+// the structured logger (namespace "benchmark-lookup") to ~/.pi/free.log via
+// the buffered async stream — no per-model synchronous file writes.
 let debugEnabled = process.env.PI_FREE_BENCHMARK_DEBUG === "1";
 
 /**
@@ -89,7 +85,9 @@ export function setDebugLogging(enabled: boolean): void {
 }
 
 /**
- * Log a message to the modelmatch.log file
+ * Emit a structured debug line for a benchmark match attempt/match/miss.
+ * Routed through the shared logger so it lands in ~/.pi/free.log under the
+ * "benchmark-lookup" namespace, using the buffered stream (no sync I/O).
  */
 function logDebug(entry: {
 	provider?: string;
@@ -103,68 +101,18 @@ function logDebug(entry: {
 	details?: string;
 }): void {
 	if (!debugEnabled) return;
-
-	try {
-		// Ensure log directory exists
-		if (!existsSync(LOG_DIR)) {
-			mkdirSync(LOG_DIR, { recursive: true });
-		}
-
-		// Initialize log file with header if it doesn't exist
-		if (!existsSync(LOG_FILE)) {
-			writeFileSync(
-				LOG_FILE,
-				"timestamp|provider|modelId|modelName|action|strategy|normalizedId|matchKey|codingIndex|details\n",
-			);
-		}
-
-		const timestamp = new Date().toISOString();
-		const line = [
-			timestamp,
-			entry.provider || "unknown",
-			entry.modelId,
-			entry.modelName,
-			entry.action,
-			entry.strategy || "",
-			entry.normalizedId || "",
-			entry.matchKey || "",
-			entry.codingIndex !== undefined ? entry.codingIndex.toFixed(1) : "",
-			entry.details || "",
-		]
-			.map((f) => f.replaceAll(/[\\|]/g, "\\$&")) // Escape backslashes and pipes
-			.join("|");
-
-		appendFileSync(LOG_FILE, `${line}\n`);
-	} catch (err) {
-		_logger.warn("Debug log write failed", {
-			error: err instanceof Error ? err.message : String(err),
-		});
-	}
-}
-
-/**
- * Get the path to the log file for user reference
- */
-export function getMatchLogPath(): string {
-	return LOG_FILE;
-}
-
-/**
- * Clear the match log
- */
-export function clearMatchLog(): void {
-	try {
-		if (existsSync(LOG_FILE)) {
-			writeFileSync(
-				LOG_FILE,
-				"timestamp|provider|modelId|modelName|action|strategy|normalizedId|matchKey|codingIndex|details\n",
-			);
-		}
-	} catch (err) {
-		_logger.warn("Failed to clear match log", {
-			error: err instanceof Error ? err.message : String(err),
-		});
-	}
+	_logger.debug(entry.action, {
+		provider: entry.provider ?? "unknown",
+		modelId: entry.modelId,
+		modelName: entry.modelName,
+		...(entry.strategy ? { strategy: entry.strategy } : {}),
+		...(entry.normalizedId ? { normalizedId: entry.normalizedId } : {}),
+		...(entry.matchKey ? { matchKey: entry.matchKey } : {}),
+		...(entry.codingIndex !== undefined
+			? { codingIndex: entry.codingIndex }
+			: {}),
+		...(entry.details ? { details: entry.details } : {}),
+	});
 }
 
 // =============================================================================
@@ -827,88 +775,3 @@ export function enhanceModelNameWithCodingIndex(
 	}
 	return modelName;
 }
-
-// =============================================================================
-// Stats and Reporting
-// =============================================================================
-
-/**
- * Get statistics about model matching from the current session
- * Note: This reads the log file and computes stats
- */
-interface LogStats {
-	totalAttempts: number;
-	matches: number;
-	misses: number;
-	byProvider: Record<
-		string,
-		{ attempts: number; matches: number; misses: number }
-	>;
-}
-
-function parseLogLine(stats: LogStats, line: string): void {
-	if (!line.trim()) return;
-	const parts = line.split("|");
-	if (parts.length < 5) return;
-
-	const provider = parts[1] || "unknown";
-	const action = parts[4];
-
-	if (!stats.byProvider[provider]) {
-		stats.byProvider[provider] = { attempts: 0, matches: 0, misses: 0 };
-	}
-
-	if (action === "attempt") {
-		stats.totalAttempts++;
-		stats.byProvider[provider].attempts++;
-	} else if (action === "match") {
-		stats.matches++;
-		stats.byProvider[provider].matches++;
-	} else if (action === "miss") {
-		stats.misses++;
-		stats.byProvider[provider].misses++;
-	}
-}
-
-function computeMatchRate(stats: LogStats): number {
-	const total = stats.matches + stats.misses;
-	return total > 0 ? Math.round((stats.matches / total) * 100) : 0;
-}
-
-export function getMatchingStats(): {
-	totalAttempts: number;
-	matches: number;
-	misses: number;
-	matchRate: number;
-	byProvider: Record<
-		string,
-		{ attempts: number; matches: number; misses: number }
-	>;
-} {
-	const stats: LogStats = {
-		totalAttempts: 0,
-		matches: 0,
-		misses: 0,
-		byProvider: {},
-	};
-
-	try {
-		if (!existsSync(LOG_FILE)) {
-			return { ...stats, matchRate: 0 };
-		}
-
-		const content = readFileSync(LOG_FILE, "utf-8");
-		for (const line of content.split("\n").slice(1)) {
-			parseLogLine(stats, line);
-		}
-	} catch (err) {
-		_logger.warn("Failed to read match log stats", {
-			error: err instanceof Error ? err.message : String(err),
-		});
-	}
-
-	return { ...stats, matchRate: computeMatchRate(stats) };
-}
-
-// Need to import readFileSync for stats
-import { readFileSync } from "node:fs";

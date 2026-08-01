@@ -39,8 +39,9 @@ describe("telemetry", () => {
 	});
 
 	it("pairs start and record via call id with correct latency", async () => {
-		const { startModelCall, recordModelCall, getModelTelemetry } =
-			await import("../lib/telemetry.ts");
+		const { startModelCall, recordModelCall, getModelTelemetry } = await import(
+			"../lib/telemetry.ts"
+		);
 
 		const callId = startModelCall("prov", "mdl");
 		expect(typeof callId).toBe("string");
@@ -70,16 +71,17 @@ describe("telemetry", () => {
 	});
 
 	it("discards implausibly long latency samples", async () => {
-		const { startModelCall, recordModelCall, getModelTelemetry } =
-			await import("../lib/telemetry.ts");
+		const { startModelCall, recordModelCall, getModelTelemetry } = await import(
+			"../lib/telemetry.ts"
+		);
 
-		const callId = startModelCall("slow", "model");
-
-		// Simulate a system suspend by faking the in-flight start time
-		// (reach into the module's internals via the returned callId structure)
-		// Instead, we use vi.spyOn to override Date.now for the record call
-		const realNow = Date.now();
-		vi.spyOn(Date, "now").mockReturnValue(realNow + 15 * 60 * 1000); // 15 min later
+		// Latency is measured with the monotonic performance.now() clock, so
+		// simulate a 15-min gap by mocking performance.now for the record call.
+		const startPerf = performance.now();
+		const callId = startModelCall("slow", "model"); // captures real start
+		vi.spyOn(performance, "now").mockReturnValue(
+			startPerf + 15 * 60 * 1000, // 15 min later > MAX_SANE_LATENCY_MS
+		);
 
 		const usage = { input: 1, output: 1, totalTokens: 2 };
 		await recordModelCall(callId, "slow", "model", usage, 0, {
