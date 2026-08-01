@@ -26,8 +26,8 @@ import type {
 	SimpleStreamOptions,
 	ThinkingContent,
 } from "@earendil-works/pi-ai/compat";
-import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/compat";
-import { openAICompletionsApi } from "@earendil-works/pi-ai/compat";
+import { createAssistantMessageEventStream } from "../../lib/assistant-message-event-stream.ts";
+import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import { applyHidden } from "../../config.ts";
 import {
 	BASE_URL_TOKENROUTER,
@@ -443,7 +443,7 @@ function streamWithTokenRouterHighLoadRetry(
 		}
 	})();
 
-	return output;
+	return output as unknown as AssistantMessageEventStream;
 }
 
 export function streamSimpleTokenRouter(

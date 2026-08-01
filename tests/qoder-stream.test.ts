@@ -25,7 +25,7 @@ const mockLogger = vi.hoisted(() => ({
 
 const mockGetCachedModelConfig = vi.hoisted(() => vi.fn());
 
-vi.mock("@earendil-works/pi-ai/compat", async () => {
+vi.mock("../lib/assistant-message-event-stream.ts", async () => {
 	class MockStream implements MockStreamShape {
 		events: AssistantMessageEvent[] = [];
 		ended = false;

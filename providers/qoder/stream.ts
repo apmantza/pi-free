@@ -13,7 +13,7 @@
 import type {
 	Api,
 	AssistantMessage,
-	AssistantMessageEventStream,
+	AssistantMessageEventStream as PiAssistantMessageEventStream,
 	Context,
 	Model,
 	SimpleStreamOptions,
@@ -22,7 +22,9 @@ import type {
 	ThinkingContent,
 	ToolCall,
 } from "@earendil-works/pi-ai/compat";
-import * as PiAi from "@earendil-works/pi-ai/compat";
+import {
+	AssistantMessageEventStream as LocalAssistantMessageEventStream,
+} from "../../lib/assistant-message-event-stream.ts";
 import { BASE_URL_QODER } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { getCachedModelConfig, staticModels } from "./models.ts";
@@ -44,7 +46,7 @@ interface ToolCallState {
 
 interface StreamState {
 	output: AssistantMessage;
-	stream: AssistantMessageEventStream;
+	stream: LocalAssistantMessageEventStream;
 	contentBlockIndex: number;
 	thinkingBlockIndex: number;
 	toolCallsState: ToolCallState[];
@@ -447,13 +449,8 @@ export function streamQoder(
 	model: Model<Api>,
 	context: Context,
 	options?: SimpleStreamOptions,
-): AssistantMessageEventStream {
-	const StreamCtor = (
-		PiAi as unknown as {
-			AssistantMessageEventStream: new () => AssistantMessageEventStream;
-		}
-	).AssistantMessageEventStream;
-	const stream = new StreamCtor();
+): PiAssistantMessageEventStream {
+	const stream = new LocalAssistantMessageEventStream();
 
 	const output: AssistantMessage = {
 		role: "assistant",
@@ -482,12 +479,12 @@ export function streamQoder(
 	// Run async — AssistantMessageEventStream is a push-based pull stream
 	runStream(output, stream, model, context, options);
 
-	return stream;
+	return stream as unknown as PiAssistantMessageEventStream;
 }
 
 async function runStream(
 	output: AssistantMessage,
-	stream: AssistantMessageEventStream,
+	stream: LocalAssistantMessageEventStream,
 	model: Model<Api>,
 	context: Context,
 	options: SimpleStreamOptions | undefined,

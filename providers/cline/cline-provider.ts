@@ -38,6 +38,7 @@
 
 import type {
 	Api,
+	AssistantMessageEventStream,
 	Model,
 	Provider,
 	RefreshModelsContext,
@@ -182,7 +183,13 @@ export function createClineProvider(): ClineNativeProvider {
 		model: ClineModel,
 		context: Parameters<typeof streamClineXml>[1],
 		options: Parameters<typeof streamClineXml>[2],
-	) => streamClineXml(model, context, options, buildClineHeaders());
+	): AssistantMessageEventStream =>
+		streamClineXml(
+			model,
+			context,
+			options,
+			buildClineHeaders(),
+		) as unknown as AssistantMessageEventStream;
 
 	const provider: Provider<"cline-xml-tools"> = {
 		id: PROVIDER_CLINE,

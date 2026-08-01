@@ -33,7 +33,7 @@ import type {
 	Provider,
 	RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
-import { anthropicMessagesApi } from "@earendil-works/pi-ai/compat";
+import { anthropicMessagesApi } from "@earendil-works/pi-ai/api/anthropic-messages.lazy";
 import type {
 	ExtensionAPI,
 	ProviderModelConfig,

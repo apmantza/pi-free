@@ -12,10 +12,10 @@
 
 import type {
 	AssistantMessage,
-	AssistantMessageEventStream,
 	TextContent,
 	ThinkingContent,
 } from "@earendil-works/pi-ai/compat";
+import type { AssistantMessageEventStream } from "../../lib/assistant-message-event-stream.ts";
 
 const THINKING_TAG_VARIANTS: Array<{ open: string; close: string }> = [
 	{ open: "<thinking>", close: "</thinking>" },

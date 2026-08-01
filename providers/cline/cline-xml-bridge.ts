@@ -9,7 +9,7 @@ import type {
 	ToolResultMessage,
 	Usage,
 } from "@earendil-works/pi-ai/compat";
-import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/compat";
+import { createAssistantMessageEventStream } from "../../lib/assistant-message-event-stream.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { BASE_URL_CLINE, PROVIDER_CLINE } from "../../constants.ts";
 
