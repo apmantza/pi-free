@@ -207,6 +207,34 @@ describe("Cline XML bridge", () => {
 			});
 		});
 
+		it("recovers DSML-named fields closed by the generic parameter tag", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"<｜DSML｜replace_in_file>",
+					" <｜DSML｜path>C:/tmp/search.ts</｜DSML｜parameter>",
+					" <｜DSML｜diff>",
+					" ------- SEARCH",
+					" old value",
+					" =======",
+					" new value",
+					" +++++++ REPLACE",
+					" </｜DSML｜parameter>",
+					"</｜DSML｜invoke>",
+				].join("\n"),
+				[tool("edit")],
+			);
+
+			expect(parsed.toolCalls).toEqual([
+				{
+					name: "edit",
+					arguments: {
+						path: "C:/tmp/search.ts",
+						edits: [{ oldText: "old value", newText: "new value" }],
+					},
+				},
+			]);
+		});
+
 		it("parses DSML invoke and parameter wrappers with plain extension names", () => {
 			const parsed = __test__.parseXmlToolCalls(
 				[
@@ -226,6 +254,29 @@ describe("Cline XML bridge", () => {
 					{
 						name: "aio-websearch",
 						arguments: { query: "hello", max: 5 },
+					},
+				],
+			});
+		});
+
+		it("parses the official DSML tool_calls wrapper", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"<｜DSML｜tool_calls>",
+					' <｜DSML｜invoke name="aio-websearch">',
+					'  <｜DSML｜parameter name="query" string="true">hello</｜DSML｜parameter>',
+					" </｜DSML｜invoke>",
+					"</｜DSML｜tool_calls>",
+				].join("\n"),
+				[tool("aio-websearch")],
+			);
+
+			expect(parsed).toEqual({
+				text: "",
+				toolCalls: [
+					{
+						name: "aio-websearch",
+						arguments: { query: "hello" },
 					},
 				],
 			});
