@@ -673,6 +673,14 @@ function assistantMessageToText(
 		.join("\n\n");
 }
 
+function getCustomToolParameters(
+	bridge: ToolBridge,
+	tools: Tool[] | undefined,
+): unknown {
+	if (bridge.remoteName !== bridge.runtimeName) return undefined;
+	return tools?.find((tool) => tool.name === bridge.remoteName)?.parameters;
+}
+
 function buildClineToolDefinitions(
 	tools: Tool[] | undefined,
 ): ClineToolDefinition[] {
@@ -681,8 +689,10 @@ function buildClineToolDefinitions(
 	for (const bridge of getToolBridges(tools)) {
 		if (seen.has(bridge.remoteName)) continue;
 		seen.add(bridge.remoteName);
+		const customParameters = getCustomToolParameters(bridge, tools);
 		const parameters =
-			bridge.remoteName === "replace_in_file"
+			customParameters ??
+			(bridge.remoteName === "replace_in_file"
 				? {
 						type: "object",
 						properties: {
@@ -697,7 +707,7 @@ function buildClineToolDefinitions(
 							bridge.parameters.map((name) => [name, { type: "string" }]),
 						),
 						required: bridge.parameters,
-					};
+					});
 		definitions.push({
 			type: "function",
 			function: {
