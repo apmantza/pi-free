@@ -1131,6 +1131,65 @@ describe("Cline XML bridge", () => {
 			expect(fetchMock).toHaveBeenCalledTimes(1);
 		});
 
+		it("preserves optional and union fields for custom tool schemas", async () => {
+			const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+				sseResponse([
+					{
+						choices: [
+							{
+								delta: {
+									tool_calls: [
+										{
+											index: 0,
+											id: "call_webfetch",
+											function: {
+												name: "aio-webfetch",
+												arguments: '{"url":"https://example.com"}',
+											},
+										},
+									],
+								},
+								finish_reason: "tool_calls",
+							},
+						],
+					},
+				]),
+			);
+			const parameters = {
+				type: "object",
+				properties: {
+					url: { type: "string" },
+					urls: { type: "array", items: { type: "string" } },
+					query: { type: "string" },
+				},
+				oneOf: [{ required: ["url"] }, { required: ["urls"] }],
+			};
+			const tools = [{ ...tool("aio-webfetch"), parameters }];
+			const stream = streamClineXml(
+				clineModel(),
+				{ ...clineContext(), tools },
+				{ apiKey: "token" },
+				{},
+			);
+			const result = await stream.result();
+			const body = requestBody(fetchMock, 0);
+			const definition = (
+				body.tools as Array<{
+					function?: { name?: string; parameters?: unknown };
+				}>
+			).find((candidate) => candidate.function?.name === "aio-webfetch");
+
+			expect(result.stopReason).toBe("toolUse");
+			expect(result.content).toContainEqual(
+				expect.objectContaining({
+					type: "toolCall",
+					name: "aio-webfetch",
+					arguments: { url: "https://example.com" },
+				}),
+			);
+			expect(definition?.function?.parameters).toEqual(parameters);
+		});
+
 		it("returns an error instead of a blank stop when Cline streams no content", async () => {
 			vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(sseResponse([]));
 
