@@ -2,8 +2,8 @@
  * Cline factory wiring tests (end-to-end: extension wiring + real native
  * provider, network mocked). Mirrors tests/kilo-toggle.test.ts: verifies the
  * network-free factory, native registration, /toggle-cline, the global
- * /toggle-free re-register hook, task-id rotation, the session_start refresh
- * nudge, and the non-destructive credential inspection.
+ * /toggle-free re-register hook, task-id rotation, and the session_start
+ * refresh nudge.
  */
 
 import type {
@@ -27,10 +27,6 @@ const mockSaveConfig = vi.hoisted(() =>
 const mockRegisterWithGlobalToggle = vi.hoisted(() =>
 	vi.fn<(...args: unknown[]) => void>(),
 );
-const mockReadStoredCredential = vi.hoisted(() =>
-	vi.fn((): unknown => undefined),
-);
-
 let capturedToggleArgs: unknown[][] = [];
 
 vi.mock("../config.ts", () => ({
@@ -66,10 +62,6 @@ vi.mock("../providers/cline/cline-models.ts", async () => {
 		fetchClineCatalog: (...args: unknown[]) => mockFetchClineCatalog(...args),
 	};
 });
-
-vi.mock("@earendil-works/pi-coding-agent", () => ({
-	readStoredCredential: () => mockReadStoredCredential(),
-}));
 
 vi.mock("../lib/logger.ts", () => ({
 	createLogger: () => ({
@@ -121,7 +113,6 @@ describe("Cline factory wiring", () => {
 		mockGetClineApiKey.mockReturnValue(undefined);
 		mockGetClineShowPaid.mockReturnValue(false);
 		mockGetGlobalFreeOnly.mockReturnValue(true);
-		mockReadStoredCredential.mockReturnValue(undefined);
 		mockFetchClineCatalog.mockResolvedValue({
 			all: [
 				cfg({ id: "free-1" }),
@@ -306,26 +297,5 @@ describe("Cline factory wiring", () => {
 
 		// No modelRegistry on the context -> safe no-op.
 		await expect(handler({}, {})).resolves.toBeUndefined();
-	});
-
-	describe("non-destructive credential inspection", () => {
-		it.each([
-			["no stored credential", undefined],
-			[
-				"valid oauth credential",
-				{ type: "oauth", access: "tok", refresh: "r", expires: 1 },
-			],
-			[
-				"malformed oauth credential",
-				{ type: "oauth", access: "", refresh: "r", expires: 1 },
-			],
-			["api key credential", { type: "api_key", key: "sk" }],
-			["unrecognized credential", { type: "mystery" }],
-		])("registers normally with %s", async (_label, cred) => {
-			mockReadStoredCredential.mockReturnValue(cred);
-			await clineProvider(mockPi);
-			expect(mockRegisterProvider).toHaveBeenCalledTimes(1);
-			expect(mockRegisterProvider.mock.calls[0][0].id).toBe("cline");
-		});
 	});
 });

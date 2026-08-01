@@ -20,73 +20,19 @@
  * paid catalog.
  */
 
-import {
-	readStoredCredential,
-	type ExtensionAPI,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
 	getClineApiKey,
 	getClineShowPaid,
 	PROVIDER_CLINE,
 } from "../../config.ts";
-import { createLogger } from "../../lib/logger.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import {
 	registerNativeProvider,
 	registerNativeProviderRefresh,
 	registerNativeProviderToggle,
 } from "../../lib/native-provider.ts";
-import { isOAuthCredential } from "../../provider-helper.ts";
 import { createClineProvider, rotateClineTaskId } from "./cline-provider.ts";
-
-const _logger = createLogger("cline");
-
-// =============================================================================
-// Credential inspection (non-destructive)
-// =============================================================================
-
-/**
- * Per-load credential inspection (the extension factory loads once per process,
- * so this runs once). Native auth reads the SAME ~/.pi/agent/auth.json that the
- * legacy `/login cline` flow already persisted to, so existing OAuth credentials
- * work with no destructive migration. This only logs status and flags malformed
- * old credentials (re-login is the recovery path); it never rewrites or deletes.
- * The inspection is a pure read + log, so it is idempotent by nature.
- */
-function inspectStoredClineCredential(): void {
-	try {
-		const cred = readStoredCredential(PROVIDER_CLINE);
-		if (!cred) {
-			_logger.info(
-				"No stored Cline credential; using ambient CLINE_API_KEY if configured",
-			);
-			return;
-		}
-		if (isOAuthCredential(cred)) {
-			if (typeof cred.access === "string" && cred.access.length > 0) {
-				_logger.info(
-					"Reusing existing Cline OAuth credential from auth.json (no migration needed)",
-				);
-			} else {
-				_logger.warn(
-					"Stored Cline OAuth credential is malformed; run /login cline to re-authenticate",
-				);
-			}
-			return;
-		}
-		if (cred.type === "api_key") {
-			_logger.info("Found stored Cline API key credential in auth.json");
-			return;
-		}
-		_logger.warn(
-			"Unrecognized stored Cline credential shape; run /login cline if auth fails",
-		);
-	} catch (err) {
-		_logger.warn("Failed to inspect stored Cline credential", {
-			error: err instanceof Error ? err.message : String(err),
-		});
-	}
-}
 
 // =============================================================================
 // Extension entry point
@@ -94,9 +40,6 @@ function inspectStoredClineCredential(): void {
 
 export default async function clineProvider(pi: ExtensionAPI) {
 	const { provider, stored } = createClineProvider();
-
-	// Non-destructive credential inspection (native auth reuses auth.json).
-	inspectStoredClineCredential();
 
 	// Register the native provider. The factory performs NO network I/O: models
 	// load via refreshModels (offline init from the store, then a background

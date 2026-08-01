@@ -7,7 +7,7 @@
  *   - participates in the global toggle (registerWithGlobalToggle)
  *   - /toggle-kilo flips show_paid and re-registers the same provider object
  *   - model_select ToS notice + session_start handler
- *   - non-destructive credential migration inspection
+ *   - OAuth-aware ToS suppression through the model registry
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -22,9 +22,6 @@ const mockSaveConfig = vi.hoisted(() =>
 );
 const mockRegisterWithGlobalToggle = vi.hoisted(() =>
 	vi.fn<(...args: unknown[]) => void>(),
-);
-const mockReadStoredCredential = vi.hoisted(() =>
-	vi.fn<(...args: unknown[]) => unknown>(),
 );
 const mockProvider = vi.hoisted(() => ({
 	id: "kilo",
@@ -47,11 +44,6 @@ vi.mock("../config.ts", () => ({
 vi.mock("../lib/registry.ts", () => ({
 	registerWithGlobalToggle: (...args: unknown[]) =>
 		mockRegisterWithGlobalToggle(...args),
-}));
-
-vi.mock("@earendil-works/pi-coding-agent", () => ({
-	readStoredCredential: (...args: unknown[]) =>
-		mockReadStoredCredential(...args),
 }));
 
 vi.mock("../providers/kilo/kilo-provider.ts", () => ({
@@ -174,8 +166,7 @@ describe("Kilo extension wiring", () => {
 			expect(events).toContain("session_start");
 		});
 
-		it("shows a ToS notice on first Kilo model selection (no stored cred)", async () => {
-			mockReadStoredCredential.mockReturnValue(undefined);
+		it("shows a ToS notice on first Kilo model selection without a model registry", async () => {
 			await kiloProvider(mockPi);
 			const call = mockOn.mock.calls.find((c) => c[0] === "model_select");
 			if (!call) throw new Error("model_select not registered");
@@ -187,27 +178,19 @@ describe("Kilo extension wiring", () => {
 			);
 		});
 
-		it("skips the ToS notice when an OAuth credential is stored", async () => {
-			mockReadStoredCredential.mockReturnValue({
-				type: "oauth",
-				access: "a",
-				refresh: "r",
-				expires: Date.now() + 1000,
-			});
+		it("skips the ToS notice when the current model uses OAuth", async () => {
 			await kiloProvider(mockPi);
 			const call = mockOn.mock.calls.find((c) => c[0] === "model_select");
 			if (!call) throw new Error("model_select not registered");
 			const notify = vi.fn();
-			await call[1]({}, { model: { provider: "kilo" }, ui: { notify } });
+			const isUsingOAuth = vi.fn(() => true);
+			await call[1]({}, {
+				model: { provider: "kilo" },
+				modelRegistry: { isUsingOAuth },
+				ui: { notify },
+			});
+			expect(isUsingOAuth).toHaveBeenCalledWith({ provider: "kilo" });
 			expect(notify).not.toHaveBeenCalled();
-		});
-	});
-
-	describe("credential migration", () => {
-		it("inspects stored credentials without throwing (malformed old cred)", async () => {
-			mockReadStoredCredential.mockReturnValue({ type: "oauth", access: "" });
-			await expect(kiloProvider(mockPi)).resolves.toBeUndefined();
-			expect(mockReadStoredCredential).toHaveBeenCalledWith("kilo");
 		});
 	});
 });

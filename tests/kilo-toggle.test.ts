@@ -64,10 +64,6 @@ vi.mock("../providers/kilo/kilo-models.ts", async () => {
 	};
 });
 
-vi.mock("@earendil-works/pi-coding-agent", () => ({
-	readStoredCredential: () => undefined,
-}));
-
 vi.mock("../lib/logger.ts", () => ({
 	createLogger: () => ({
 		info: vi.fn(),
