@@ -16,13 +16,9 @@
  * Run /login kilo or use /toggle-kilo to access paid models.
  */
 
-import {
-	readStoredCredential,
-	type ExtensionAPI,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getKiloApiKey, getKiloShowPaid, PROVIDER_KILO } from "../../config.ts";
 import { URL_KILO_TOS } from "../../constants.ts";
-import { createLogger } from "../../lib/logger.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import {
 	registerNativeProvider,
@@ -30,10 +26,8 @@ import {
 	registerNativeProviderToggle,
 } from "../../lib/native-provider.ts";
 import { logWarning } from "../../lib/util.ts";
-import { isOAuthCredential } from "../../provider-helper.ts";
+import { isCurrentModelOAuth } from "../../provider-helper.ts";
 import { createKiloProvider } from "./kilo-provider.ts";
-
-const _logger = createLogger("kilo");
 
 // =============================================================================
 // XML leak detection and auto-retry
@@ -138,61 +132,11 @@ function parseXmlToolCalls(
 }
 
 // =============================================================================
-// Credential migration (non-destructive)
-// =============================================================================
-
-/**
- * Per-load credential inspection (the extension factory loads once per process,
- * so this runs once). Native auth reads the SAME ~/.pi/agent/auth.json that the
- * legacy `/login kilo` flow already persisted to, so existing OAuth credentials
- * work with no destructive migration. This only logs status and flags malformed
- * old credentials (re-login is the recovery path); it never rewrites or deletes.
- * The inspection is a pure read + log, so it is idempotent by nature.
- */
-function inspectStoredKiloCredential(): void {
-	try {
-		const cred = readStoredCredential(PROVIDER_KILO);
-		if (!cred) {
-			_logger.info(
-				"No stored Kilo credential; using ambient KILO_API_KEY if configured",
-			);
-			return;
-		}
-		if (isOAuthCredential(cred)) {
-			if (typeof cred.access === "string" && cred.access.length > 0) {
-				_logger.info(
-					"Reusing existing Kilo OAuth credential from auth.json (no migration needed)",
-				);
-			} else {
-				_logger.warn(
-					"Stored Kilo OAuth credential is malformed; run /login kilo to re-authenticate",
-				);
-			}
-			return;
-		}
-		if (cred.type === "api_key") {
-			_logger.info("Found stored Kilo API key credential in auth.json");
-			return;
-		}
-		_logger.warn(
-			"Unrecognized stored Kilo credential shape; run /login kilo if auth fails",
-		);
-	} catch (err) {
-		_logger.warn("Failed to inspect stored Kilo credential", {
-			error: err instanceof Error ? err.message : String(err),
-		});
-	}
-}
-
-// =============================================================================
 // Extension entry point
 // =============================================================================
 
 export default async function kiloProvider(pi: ExtensionAPI) {
 	const { provider, stored } = createKiloProvider();
-
-	// Non-destructive credential inspection (native auth reuses auth.json).
-	inspectStoredKiloCredential();
 
 	// Register the native provider. The factory performs NO network I/O: models
 	// load via refreshModels (offline init from the store, then a background
@@ -224,8 +168,7 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 		if (ctx.model?.provider !== PROVIDER_KILO) return;
 		if (tosShown) return;
 		tosShown = true;
-		const cred = readStoredCredential(PROVIDER_KILO);
-		if (isOAuthCredential(cred)) return;
+		if (isCurrentModelOAuth(ctx)) return;
 		const paidCount = stored.all.length - stored.free.length;
 		if (paidCount > 0) {
 			ctx.ui.notify(
