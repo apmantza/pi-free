@@ -24,9 +24,24 @@ const DEFAULT_USAGE: Usage = {
 	cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 };
 
+type ClineToolCall = {
+	id: string;
+	name: string;
+	arguments: Record<string, unknown>;
+};
+
 type ClineXmlChatMessage = {
 	role: "assistant" | "system" | "user";
 	content: string | Array<{ type: "text"; text: string }>;
+};
+
+type ClineToolDefinition = {
+	type: "function";
+	function: {
+		name: string;
+		description: string;
+		parameters: unknown;
+	};
 };
 
 type ClineXmlChunk = {
@@ -37,7 +52,16 @@ type ClineXmlChunk = {
 		total_tokens?: number;
 	};
 	choices?: Array<{
-		delta?: { content?: string | null; reasoning?: string | null };
+		delta?: {
+			content?: string | null;
+			reasoning?: string | null;
+			tool_calls?: Array<{
+				index?: number;
+				id?: string;
+				function?: { name?: string; arguments?: string };
+			}>;
+			function_call?: { name?: string; arguments?: string };
+		};
 		finish_reason?: string | null;
 		error?: { message?: string; code?: string };
 	}>;
@@ -633,6 +657,43 @@ function assistantMessageToText(
 		.join("\n\n");
 }
 
+function buildClineToolDefinitions(
+	tools: Tool[] | undefined,
+): ClineToolDefinition[] {
+	const definitions: ClineToolDefinition[] = [];
+	const seen = new Set<string>();
+	for (const bridge of getToolBridges(tools)) {
+		if (seen.has(bridge.remoteName)) continue;
+		seen.add(bridge.remoteName);
+		const parameters =
+			bridge.remoteName === "replace_in_file"
+				? {
+						type: "object",
+						properties: {
+							path: { type: "string" },
+							diff: { type: "string" },
+						},
+						required: ["path", "diff"],
+					}
+				: {
+						type: "object",
+						properties: Object.fromEntries(
+							bridge.parameters.map((name) => [name, { type: "string" }]),
+						),
+						required: bridge.parameters,
+					};
+		definitions.push({
+			type: "function",
+			function: {
+				name: bridge.remoteName,
+				description: bridge.description ?? bridge.runtimeName,
+				parameters,
+			},
+		});
+	}
+	return definitions;
+}
+
 function schemaProperties(tool: Tool): string[] {
 	const parameters = tool.parameters as unknown as {
 		properties?: Record<string, unknown>;
@@ -675,8 +736,8 @@ function buildToolInstructions(tools: Tool[] | undefined): string {
 	});
 
 	return [
-		"You have access to tools. Use XML tool calls instead of OpenAI function calling.",
-		"When you need a tool, output exactly one XML tool call using one of the tool names below.",
+		"You have access to tools. Prefer a native tool call when available; XML tool calls are supported as a fallback.",
+		"When you need a tool, call exactly one available tool. If using XML, output exactly one XML tool call using one of the tool names below.",
 		"Do not wrap XML tool calls in markdown fences. Do not invent tool names.",
 		"Available tools:",
 		sections.join("\n\n"),
@@ -1198,6 +1259,7 @@ async function* parseSse(response: Response): AsyncGenerator<ClineXmlChunk> {
 type ClineXmlResponseData = {
 	rawText: string;
 	thinking: string;
+	toolCalls: ClineToolCall[];
 	finishReason: string | null | undefined;
 	usage: ClineXmlChunk["usage"] | undefined;
 };
@@ -1208,6 +1270,61 @@ function isRetryableClineReasoningStreamError(error: unknown): boolean {
 	return message.includes("stream error occurred");
 }
 
+type NativeToolCallAccumulator = {
+	id: string;
+	name: string;
+	argumentsText: string;
+};
+
+type ClineChoice = NonNullable<ClineXmlChunk["choices"]>[number];
+
+function collectNativeToolCallDeltas(
+	choice: ClineChoice,
+	nativeToolCalls: Map<number, NativeToolCallAccumulator>,
+): void {
+	const deltas = [
+		...(choice.delta?.tool_calls ?? []),
+		...(choice.delta?.function_call
+			? [{ index: 0, function: choice.delta.function_call }]
+			: []),
+	];
+	for (const [deltaIndex, delta] of deltas.entries()) {
+		const index = delta.index ?? deltaIndex;
+		const existing = nativeToolCalls.get(index) ?? {
+			id: `cline_native_${index}`,
+			name: "",
+			argumentsText: "",
+		};
+		if (delta.id) existing.id = delta.id;
+		if (delta.function?.name) existing.name += delta.function.name;
+		existing.argumentsText += delta.function?.arguments ?? "";
+		nativeToolCalls.set(index, existing);
+	}
+}
+
+function parseNativeToolCalls(
+	nativeToolCalls: Map<number, NativeToolCallAccumulator>,
+): ClineToolCall[] {
+	const toolCalls: ClineToolCall[] = [];
+	for (const call of nativeToolCalls.values()) {
+		if (!call.name) continue;
+		let arguments_: Record<string, unknown> = {};
+		try {
+			const parsed = JSON.parse(call.argumentsText || "{}");
+			if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+				arguments_ = parsed as Record<string, unknown>;
+			}
+		} catch {
+			_logger.warn("Invalid native Cline tool arguments", {
+				name: call.name,
+				preview: call.argumentsText.slice(0, 160),
+			});
+		}
+		toolCalls.push({ id: call.id, name: call.name, arguments: arguments_ });
+	}
+	return toolCalls;
+}
+
 async function readClineXmlResponse(
 	response: Response,
 ): Promise<ClineXmlResponseData> {
@@ -1215,6 +1332,10 @@ async function readClineXmlResponse(
 	let thinking = "";
 	let finishReason: string | null | undefined;
 	let usage: ClineXmlChunk["usage"] | undefined;
+	const nativeToolCalls = new Map<
+		number,
+		{ id: string; name: string; argumentsText: string }
+	>();
 
 	for await (const chunk of parseSse(response)) {
 		if (chunk.error) {
@@ -1233,9 +1354,12 @@ async function readClineXmlResponse(
 		if (choice.finish_reason) finishReason = choice.finish_reason;
 		rawText += choice.delta?.content ?? "";
 		thinking += choice.delta?.reasoning ?? "";
+
+		collectNativeToolCallDeltas(choice, nativeToolCalls);
 	}
 
-	if (!rawText.trim() && !thinking.trim()) {
+	const toolCalls = parseNativeToolCalls(nativeToolCalls);
+	if (!rawText.trim() && !thinking.trim() && toolCalls.length === 0) {
 		throw new Error("Cline returned empty response");
 	}
 
@@ -1245,6 +1369,7 @@ async function readClineXmlResponse(
 	return {
 		rawText: normalizeDecoratedXmlTags(rawText),
 		thinking: normalizeDecoratedXmlTags(thinking),
+		toolCalls,
 		finishReason,
 		usage,
 	};
@@ -1268,6 +1393,7 @@ async function fetchClineXmlResponse(
 			model: normalizeApiModelId(model.id),
 			temperature: 0,
 			messages: buildClineXmlMessages(context),
+			tools: buildClineToolDefinitions(context.tools),
 			stream: true,
 			stream_options: { include_usage: true },
 			...(includeReasoning ? { include_reasoning: true } : {}),
@@ -1455,11 +1581,28 @@ export function streamClineXml(
 					extractedThinking.text,
 					currentContext.tools,
 				);
+				const bridges = getParseToolBridges(currentContext.tools);
+				const nativeToolCalls = data.toolCalls.map((toolCall) => {
+					const bridge = bridges.find(
+						(candidate) =>
+							candidate.remoteName === toolCall.name ||
+							candidate.runtimeName === toolCall.name,
+					);
+					return {
+						name: bridge?.runtimeName ?? toolCall.name,
+						arguments:
+							bridge?.toRuntimeArgs(toolCall.arguments) ?? toolCall.arguments,
+					};
+				});
 				output = prepareClineXmlOutput(
 					parsed.text,
 					extractedThinking.thinking,
 					parsedReasoning.thinking,
-					[...parsed.toolCalls, ...parsedReasoning.toolCalls],
+					[
+						...parsed.toolCalls,
+						...parsedReasoning.toolCalls,
+						...nativeToolCalls,
+					],
 				);
 
 				// Reasoning-only response: MiMo stopped without producing visible

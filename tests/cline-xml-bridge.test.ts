@@ -648,6 +648,82 @@ describe("Cline XML bridge", () => {
 			});
 		});
 
+		it("parses native streamed tool calls alongside reasoning", async () => {
+			const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+				sseResponse([
+					{
+						choices: [
+							{
+								delta: {
+									reasoning:
+										"Now read the file. Let me inspect the current contents.",
+							},
+							},
+						],
+					},
+					{
+						choices: [
+							{
+								delta: {
+									tool_calls: [
+										{
+											index: 0,
+											id: "call_read",
+											function: {
+												name: "read_file",
+												arguments: '{"path":"',
+											},
+										},
+									],
+								},
+							},
+						],
+					},
+					{
+						choices: [
+							{
+								delta: {
+									tool_calls: [
+										{
+											index: 0,
+											function: { arguments: "README.md\"}" },
+										},
+									],
+								},
+								finish_reason: "tool_calls",
+							},
+						],
+					},
+				]),
+			);
+
+			const stream = streamClineXml(
+				clineModel(),
+				clineContext(),
+				{ apiKey: "token" },
+				{},
+			);
+			const result = await stream.result();
+			const body = requestBody(fetchMock, 0);
+
+			expect(result.stopReason).toBe("toolUse");
+			expect(result.content).toContainEqual(
+				expect.objectContaining({
+					type: "toolCall",
+					name: "read",
+					arguments: { path: "README.md" },
+				}),
+			);
+			expect(body.tools).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						type: "function",
+						function: expect.objectContaining({ name: "read_file" }),
+					}),
+				]),
+			);
+		});
+
 		it("returns an error instead of a blank stop when Cline streams no content", async () => {
 			vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(sseResponse([]));
 
