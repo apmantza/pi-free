@@ -171,6 +171,16 @@ export BAI_API_KEY="..."
 
 Or set `bai_api_key`. Toggle with `/toggle-bai`.
 
+### StepFun
+
+StepFun Step Plan is an OpenAI-compatible paid provider. Pi uses the Chat Completions endpoint at `https://api.stepfun.ai/step_plan/v1/chat/completions`; the same Step Plan base also exposes the Anthropic-compatible Messages endpoint at `/messages` for clients such as Claude Code:
+
+```bash
+export STEPFUN_API_KEY="..."
+```
+
+Or set `stepfun_api_key`. Toggle with `/toggle-stepfun`.
+
 ## Qoder (legacy, intentionally unmigrated)
 
 Qoder remains on pi-free's legacy provider surface. It has a basic Community/free tier and premium models that consume plan credits. The provider uses a static curated catalog plus its own one-hour cache at `~/.pi/agent/qoder-models-cache.json`; it does not use Pi's native models-store refresh lifecycle.

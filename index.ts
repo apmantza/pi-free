@@ -47,6 +47,7 @@ import kilo from "./providers/kilo/kilo.ts";
 import llm7 from "./providers/llm7/llm7.ts";
 import deepinfra from "./providers/deepinfra/deepinfra.ts";
 import fastrouter from "./providers/fastrouter/fastrouter.ts";
+import stepfun from "./providers/stepfun/stepfun.ts";
 import sambanova from "./providers/sambanova/sambanova.ts";
 import novita from "./providers/novita/novita.ts";
 import routeway from "./providers/routeway/routeway.ts";
@@ -78,6 +79,7 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 	sambanova,
 	novita,
 	fastrouter,
+	stepfun,
 	routeway,
 	opengateway,
 	tokenRouter,
