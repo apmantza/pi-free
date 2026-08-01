@@ -147,7 +147,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	routeway_show_paid: false,
 	opengateway_show_paid: false,
 	fastrouter_show_paid: false,
-	stepfun_show_paid: false,
+	stepfun_show_paid: true,
 	tokenrouter_show_paid: false,
 	anyapi_show_paid: false,
 	bai_show_paid: false,
@@ -525,7 +525,10 @@ export function getFastrouterShowPaid(): boolean {
 }
 
 export function getStepfunShowPaid(): boolean {
-	return resolveBool("STEPFUN_SHOW_PAID", loadConfigFile().stepfun_show_paid);
+	return resolveBool(
+		"STEPFUN_SHOW_PAID",
+		loadConfigFile().stepfun_show_paid ?? true,
+	);
 }
 
 export function getOllamaShowPaid(): boolean {
