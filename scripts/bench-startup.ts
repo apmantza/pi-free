@@ -1,10 +1,13 @@
 /**
  * Startup benchmark for pi-free.
  *
- * Times the `piFreeEntry` extension factory — the exact thing Pi awaits before
- * flushing provider registrations — under controlled cache/network conditions,
- * so startup performance can be measured rather than guessed. Run it before and
- * after a change to get a real before/after delta.
+ * Measures the TypeScript import/loader phase separately from the `piFreeEntry`
+ * extension factory — the exact thing Pi awaits before flushing provider
+ * registrations — under controlled cache/network conditions, so startup
+ * performance can be measured rather than guessed. The import measurement
+ * includes loader/transpilation and module-graph initialization; it is not a
+ * pure compiler measurement and is outside pi-free's runtime startup log. Run
+ * it before and after a change to get a real before/after delta.
  *
  * Usage (via tsx, which is already a dev dependency):
  *   npx tsx scripts/bench-startup.ts <warm|cold|fastcold>
@@ -33,6 +36,7 @@
  *   for i in 1 2 3 4 5; do npx tsx scripts/bench-startup.ts warm; done
  *
  * Prints a human-readable summary plus a `RESULT {...}` JSON line for scripting.
+ * Both include importMs, factoryMs, and import-inclusive totalMs.
  */
 import {
 	copyFileSync,
@@ -176,20 +180,29 @@ const mockPi: any = {
 };
 
 // ---------------------------------------------------------------------------
-// Import (tsx transpile happens here, OUTSIDE the timed region), then time only
-// the factory — that is what Pi awaits before flushing registrations.
+// Measure imports separately from the factory. With tsx this phase includes
+// TypeScript loader/transpilation and module-graph initialization, not just
+// compiler work. The startup-timing module is already part of index.ts's graph,
+// but keep its dynamic import inside the phase for a complete import boundary.
 // ---------------------------------------------------------------------------
+const importStart = performance.now();
 const mod = await import("../index.ts");
 const { getStartupSummary, formatStartupSummary } = await import(
 	"../lib/startup-timing.ts"
 );
+const importEnd = performance.now();
+const importMs = Math.round((importEnd - importStart) * 10) / 10;
 
+// This remains the factory-only measurement: it is the work Pi awaits before
+// flushing provider registrations and is the duration recorded by pi-free's
+// runtime startup-timing module.
 const t0 = performance.now();
 await mod.default(mockPi);
 const t1 = performance.now();
 
 const summary = getStartupSummary();
 const factoryMs = Math.round((t1 - t0) * 10) / 10;
+const totalMs = Math.round((t1 - importStart) * 10) / 10;
 
 // ---------------------------------------------------------------------------
 // Exercise Kilo's native offline-init path. Kilo no longer fetches in the
@@ -291,7 +304,11 @@ const clineFactoryNetworkCalls = fetchUrls.filter((u) =>
 ).length;
 
 console.log(`\nmode: ${mode}`);
-console.log(`factory (awaited by Pi): ${factoryMs}ms`);
+console.log(
+	`import (loader/transpilation/module graph; outside runtime log): ${importMs}ms`,
+);
+console.log(`factory (awaited by Pi; runtime log): ${factoryMs}ms`);
+console.log(`total (import + factory): ${totalMs}ms`);
 console.log(`registered providers: ${registered.size}`);
 console.log(`network calls during factory: ${fetchCalls}`);
 console.log(`kilo factory network calls: ${kiloFactoryNetworkCalls}`);
@@ -311,7 +328,9 @@ console.log(formatStartupSummary());
 
 const result = {
 	mode,
+	importMs,
 	factoryMs,
+	totalMs,
 	summaryTotalMs: summary.totalMs,
 	seededProviders,
 	registeredProviders: registered.size,

@@ -62,6 +62,8 @@ Telemetry is local and opt-in through actual use of free models. It records aggr
 
 `/free-startup` reports the latest extension startup timing, including provider setup durations, per-provider cache/network activity, failed network attempts, session-start handler durations, detached post-handler work, and failures. `/pi-free-health` adds a credential-free status summary, registered-provider count, problem list, and the path to `~/.pi/free.log` (or the configured log path). Legacy/dynamic startup model fetches have an 8-second default deadline, configurable with `PI_FREE_STARTUP_FETCH_TIMEOUT_MS`; native provider refresh is handled by Pi after registration and its session-start nudge is measured without blocking the event.
 
+For reproducible import-inclusive measurements, run `npx tsx scripts/bench-startup.ts <warm|cold|fastcold>`. The benchmark reports `importMs` (tsx loader/transpilation and module-graph initialization, not pure compiler time and outside pi-free's runtime log), `factoryMs` (the awaited factory measured by runtime startup timing), and `totalMs` (import plus factory) in both its human summary and `RESULT` JSON. Native offline-init checks are reported separately.
+
 ## Provider protocols
 
 Most providers use OpenAI-compatible APIs. Notable custom integrations are:
