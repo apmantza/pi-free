@@ -13,7 +13,6 @@ import type {
 	ProviderHeaders,
 	SimpleStreamOptions,
 } from "@earendil-works/pi-ai/compat";
-import { registerApiProvider } from "@earendil-works/pi-ai/compat";
 import type {
 	ProviderConfig,
 	ProviderModelConfig,
@@ -583,35 +582,46 @@ export function createOpenCodeStreamSimple(
 // Registering the API here ensures the compat path also works.
 
 let _apiProviderRegistrationSourceId: string | undefined;
+let _apiProviderRegistrationPromise: Promise<void> | undefined;
 
 /**
  * Register the opencode-dynamic API in compat's global API registry
  * so that fallback code paths (compat streamSimple) can resolve it.
  * Safe to call multiple times — registers once per tracker instance.
+ *
+ * The registry is only needed after Pi has captured a built-in OpenCode
+ * catalog. Defer loading the compatibility entrypoint until this path is
+ * actually used; the normal OpenCode stream imports its API subpaths lazily.
  */
 export function ensureOpenCodeApiProviderRegistered(
 	tracker: OpenCodeSessionTracker,
 ): void {
-	if (_apiProviderRegistrationSourceId) return;
+	if (_apiProviderRegistrationSourceId || _apiProviderRegistrationPromise) return;
 
 	const streamFn = createOpenCodeStreamSimple(tracker);
 	const sourceId = `pi-free-opencode-${randomBytes(4).toString("hex")}`;
-
-	// registerApiProvider expects { api, stream, streamSimple }. Both
-	// stream and streamSimple return async-iterable streams; using the
-	// same implementation for both is safe — the compat wrappers only
-	// validate model.api and forward the call.
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	registerApiProvider(
-		{
-			api: OPENCODE_DYNAMIC_API,
-			stream: streamFn as any,
-			streamSimple: streamFn,
-		},
-		sourceId,
-	);
-
-	_apiProviderRegistrationSourceId = sourceId;
+	_apiProviderRegistrationPromise = import("@earendil-works/pi-ai/compat")
+		.then(({ registerApiProvider }) => {
+			// registerApiProvider expects { api, stream, streamSimple }. Both
+			// stream and streamSimple return async-iterable streams; using the
+			// same implementation for both is safe — the compat wrappers only
+			// validate model.api and forward the call.
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			registerApiProvider(
+				{
+					api: OPENCODE_DYNAMIC_API,
+					stream: streamFn as any,
+					streamSimple: streamFn,
+				},
+				sourceId,
+			);
+			_apiProviderRegistrationSourceId = sourceId;
+		})
+		.catch(() => {
+			// The normal OpenCode path does not require compat registration, so a
+			// failed optional fallback import must not break the built-in toggle.
+			_apiProviderRegistrationPromise = undefined;
+		});
 }
 
 /**
