@@ -82,14 +82,14 @@ Migrated native providers restore and persist catalogs through Pi's model lifecy
 - `~/.pi/agent/models-store.json` — Pi-owned native provider catalogs.
 - `~/.pi/agent/auth.json` — Pi-owned native credentials, including Kilo and Cline OAuth/API-key credentials.
 
-Legacy and dynamic network catalogs use the pi-free cache:
+Remaining legacy network catalogs use the pi-free cache:
 
-- `~/.pi/provider-cache.json` — one-hour cache used by dynamic catalog fetches.
+- `~/.pi/provider-cache.json` — one-hour cache used by legacy catalog fetches.
 - `~/.pi/agent/qoder-models-cache.json` — Qoder's separate legacy model/config cache; Qoder intentionally remains unmigrated.
 
 Ollama Cloud is native but intentionally retains `~/.pi/provider-cache.json` for `/api/show` capability reuse and `/ollama-cloud-refresh`. This does not replace its Pi native model store.
 
-Native providers restore the store first and Pi controls online refresh throttling. A native provider's refresh retains the previous catalog when a fetch is empty or fails. Dynamic/legacy startup fetches are bounded by the 8-second default `PI_FREE_STARTUP_FETCH_TIMEOUT_MS` deadline and fall back to stale cache where available.
+Native providers restore the store first and Pi controls online refresh throttling. A native provider's refresh retains the previous catalog when a fetch is empty or fails. Legacy startup fetches are bounded by the 8-second default `PI_FREE_STARTUP_FETCH_TIMEOUT_MS` deadline and fall back to stale cache where available.
 
 ## Logging
 
@@ -133,7 +133,7 @@ The telemetry file defaults to `~/.pi/free-telemetry.json`.
 | `~/.pi/free.json` | pi-free config, flags, and extension-provider keys |
 | `~/.pi/free.log` | Extension log (includes opt-in `benchmark-lookup` diagnostics) |
 | `~/.pi/free-telemetry.json` | Local model performance telemetry |
-| `~/.pi/provider-cache.json` | Dynamic/legacy cache and Ollama compatibility data |
+| `~/.pi/provider-cache.json` | Legacy cache and Ollama compatibility data |
 | `~/.pi/agent/models-store.json` | Pi native provider catalogs |
 | `~/.pi/agent/auth.json` | Pi native credentials and Qoder credentials |
 | `~/.pi/agent/qoder-models-cache.json` | Qoder legacy model/config cache |

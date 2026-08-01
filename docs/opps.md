@@ -43,7 +43,7 @@ that enabled the migration:
 | | pi-free today | Pi 0.81 `refreshModels` |
 | --- | --- | --- |
 | Disk cache | `~/.pi/provider-cache.json` (hand-rolled JSON store) | `~/.pi/agent/models-store.json` (built-in, per-provider) |
-| Network gating | `Promise.allSettled` on every startup if cache is stale | Pi refreshes only "configured dynamic providers" — gated, throttled, abortable |
+| Network gating | Legacy providers may fetch during startup if cache is stale | Pi refreshes native providers only when configured — gated, throttled, abortable |
 | Throttling | None — every cold cache = a network call | Built-in 4-hour throttle (added in 0.80.8), plus `force` flag for `pi update --models` |
 | OAuth refresh | Manual in `kilo-auth.ts` / `cline-auth.ts` | Handled inside `Models.refresh()` — credential is refreshed before `refreshModels` is called |
 | Background refresh | None — startup is sequential | `/model` refreshes in the background with partial results streaming into the open selector |
@@ -65,7 +65,7 @@ interface RefreshModelsContext {
 
 Native providers now keep the complete catalog as the source of truth and use
 `filterModels` plus same-object re-registration for invalidation. Legacy Qoder
-and dynamic/built-in integrations retain their specialized array/filter paths.
+and Pi-built-in integrations retain their specialized array/filter paths.
 `Models.getAvailable()` runs native `filterModels` after confirming auth, so the
 free/all policy composes with credential-aware visibility.
 

@@ -46,6 +46,7 @@ import crofai from "./providers/crofai/crofai.ts";
 import kilo from "./providers/kilo/kilo.ts";
 import llm7 from "./providers/llm7/llm7.ts";
 import deepinfra from "./providers/deepinfra/deepinfra.ts";
+import fastrouter from "./providers/fastrouter/fastrouter.ts";
 import sambanova from "./providers/sambanova/sambanova.ts";
 import novita from "./providers/novita/novita.ts";
 import routeway from "./providers/routeway/routeway.ts";
@@ -76,6 +77,7 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 	deepinfra,
 	sambanova,
 	novita,
+	fastrouter,
 	routeway,
 	opengateway,
 	tokenRouter,
@@ -452,42 +454,17 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 	}
 	endPhase("global-handlers");
 
-	// Load all unique providers + dynamic built-in providers CONCURRENTLY.
-	// Running the dynamic phase (e.g. FastRouter) in parallel with the static
-	// providers avoids serializing two independent network windows at startup.
-	// Each provider registers itself with the global toggle system.
-	const dynamicSetup = (async () => {
-		try {
-			const { setupDynamicBuiltInProviders } = await import(
-				"./providers/dynamic-built-in/index.ts"
-			);
-			await setupDynamicBuiltInProviders(pi);
-		} catch (err) {
-			// Dynamic providers are a best-effort enhancement — if the import
-			// or init fails (e.g. upstream API change), continue with the
-			// already-registered static providers rather than failing the whole
-			// extension load. Log full error (message + stack) to the structured
-			// log so the user can investigate, but never block startup.
-			_logger.error("[pi-free] Dynamic built-in providers failed to load", {
-				error: err instanceof Error ? err.message : String(err),
-				stack: err instanceof Error ? err.stack : undefined,
-			});
-		}
-	})();
-
 	// Time each provider setup individually so slow providers are visible in
-	// the startup summary. timeProvider rethrows, so Promise.allSettled keeps
-	// its exact never-throws semantics.
+	// the startup summary. Native providers register network-free Provider
+	// objects here; Pi owns their model-store refresh lifecycle. timeProvider
+	// rethrows, so Promise.allSettled keeps its exact never-throws semantics.
 	startPhase("providers");
 	const providerSetups = UNIQUE_PROVIDERS.map((setup) => {
 		const name = (setup.name || "provider").replace(/Provider$/, "");
 		return timeProvider(name, () => setup(pi));
 	});
 
-	await Promise.allSettled([
-		...providerSetups,
-		timeProvider("dynamic-built-in", () => dynamicSetup),
-	]);
+	await Promise.allSettled(providerSetups);
 	endPhase("providers");
 
 	// Setup toggles for pi's built-in providers (e.g., OpenCode)

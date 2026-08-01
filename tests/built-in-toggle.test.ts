@@ -4,14 +4,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockGetGlobalFreeOnly = vi.fn();
 const mockGetOpencodeShowPaid = vi.fn();
 const mockGetOpenrouterShowPaid = vi.fn();
-const mockGetOpencodeApiKey = vi.fn();
 const mockGetOpenrouterApiKey = vi.fn();
 const mockSaveConfig = vi.fn();
 const mockRegisterWithGlobalToggle = vi.fn();
 const mockProviderRegistry = new Map<string, unknown>();
 
 vi.mock("../config.ts", () => ({
-	getOpencodeApiKey: () => mockGetOpencodeApiKey(),
 	getOpencodeShowPaid: () => mockGetOpencodeShowPaid(),
 	getOpenrouterApiKey: () => mockGetOpenrouterApiKey(),
 	getOpenrouterShowPaid: () => mockGetOpenrouterShowPaid(),
@@ -65,9 +63,7 @@ describe("built-in provider toggles", () => {
 		mockGetGlobalFreeOnly.mockReturnValue(true);
 		mockGetOpencodeShowPaid.mockReturnValue(false);
 		mockGetOpenrouterShowPaid.mockReturnValue(false);
-		mockGetOpencodeApiKey.mockReturnValue(undefined);
 		mockGetOpenrouterApiKey.mockReturnValue(undefined);
-		globalThis.fetch = vi.fn();
 
 		mockPi = {
 			registerCommand: vi.fn((name: string, config: { handler: Function }) => {
@@ -197,76 +193,7 @@ describe("built-in provider toggles", () => {
 		expect(mockPi.on).not.toHaveBeenCalled();
 	});
 
-	it("discovers OpenCode models on-demand when Pi registry has not loaded them", async () => {
-		mockGetOpencodeApiKey.mockReturnValue("opencode-token");
-		setupBuiltInProviderToggles(mockPi);
-
-		vi.mocked(globalThis.fetch).mockResolvedValue({
-			ok: true,
-			status: 200,
-			json: async () => ({
-				data: [
-					{ id: "claude-fable-5", object: "model" },
-					{ id: "deepseek-v4-flash-free", object: "model" },
-				],
-			}),
-		} as unknown as Response);
-
-		const notify = vi.fn();
-		await commands["toggle-opencode"](
-			{},
-			{
-				ui: { notify },
-				modelRegistry: { getAvailable: () => [] },
-			},
-		);
-
-		expect(globalThis.fetch).toHaveBeenCalledWith(
-			"https://opencode.ai/zen/v1/models",
-			expect.objectContaining({
-				headers: expect.objectContaining({
-					Authorization: "Bearer opencode-token",
-				}),
-			}),
-		);
-		expect(mockRegisterProvider).toHaveBeenCalledWith(
-			"opencode",
-			expect.objectContaining({
-				api: "opencode-dynamic",
-				apiKey: "opencode-token",
-				streamSimple: expect.any(Function),
-				models: expect.arrayContaining([
-					expect.objectContaining({ id: "claude-fable-5" }),
-					expect.objectContaining({ id: "deepseek-v4-flash-free" }),
-				]),
-			}),
-		);
-		const registeredModels = mockRegisterProvider.mock.calls[0][1].models;
-		const paidModel = registeredModels.find(
-			(m: { id: string }) => m.id === "claude-fable-5",
-		);
-		const freeModel = registeredModels.find(
-			(m: { id: string }) => m.id === "deepseek-v4-flash-free",
-		);
-		expect(paidModel).toMatchObject({
-			_pricingKnown: false,
-			_freeKnown: true,
-			_isFree: false,
-			cost: expect.objectContaining({ input: 0.000001, output: 0.000001 }),
-		});
-		expect(freeModel).toMatchObject({
-			_pricingKnown: false,
-			_freeKnown: true,
-			_isFree: true,
-			cost: expect.objectContaining({ input: 0, output: 0 }),
-		});
-		expect(notify).toHaveBeenCalledWith(
-			"opencode: showing all 2 models",
-			"info",
-		);
-	});
-
-	it("keeps warning when registry is empty and on-demand discovery has no key", async () => {
+	it("does not perform on-demand discovery when built-in models are unavailable", async () => {
 		setupBuiltInProviderToggles(mockPi);
 
 		const notify = vi.fn();
@@ -278,9 +205,8 @@ describe("built-in provider toggles", () => {
 			},
 		);
 
-		expect(globalThis.fetch).not.toHaveBeenCalled();
 		expect(notify).toHaveBeenCalledWith(
-			"opencode: models not loaded yet and on-demand discovery failed. Check your API key, then try again.",
+			"opencode: models not loaded yet. Start a session first, then try again.",
 			"warning",
 		);
 	});

@@ -42,6 +42,8 @@ interface FetchModelsOptions {
 	freeOnly?: boolean;
 	/** Additional headers to include */
 	extraHeaders?: Record<string, string>;
+	/** Abort signal owned by the native provider refresh lifecycle. */
+	signal?: AbortSignal;
 	/** Number of retries for failed requests */
 	retries?: number;
 	/** Delay between retries in ms */
@@ -62,6 +64,7 @@ export async function fetchOpenRouterCompatibleModels(
 		extraHeaders = {},
 		retries = 3,
 		retryDelay = 1000,
+		signal,
 	} = options;
 
 	const headers: Record<string, string> = {
@@ -78,7 +81,7 @@ export async function fetchOpenRouterCompatibleModels(
 		`${baseUrl}/models`,
 		{
 			headers,
-			signal: AbortSignal.timeout(DEFAULT_FETCH_TIMEOUT_MS),
+			signal: signal ?? AbortSignal.timeout(DEFAULT_FETCH_TIMEOUT_MS),
 		},
 		retries,
 		retryDelay,
