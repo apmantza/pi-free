@@ -28,6 +28,13 @@ package `files` list publishes `dist/` plus user-facing documentation and the
 relative-import checker; source TypeScript, tests, and development scripts are
 not published. `dist/` is ignored and is intentionally not committed.
 
+Git installs omit devDependencies, so `scripts/build.mjs` uses the local
+TypeScript compiler during development and falls back to a pinned transient
+`npx` compiler during `prepare`. The build tsconfig is emit-only (`noCheck` and
+`types: []`); CI runs the full source type-check separately. This keeps
+`npm install --omit=dev`—the path used by `pi install git:...`—self-contained
+without requiring users to repair or manually populate `node_modules`.
+
 ## Validation
 
 Build and package checks are available with:
