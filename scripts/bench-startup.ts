@@ -316,8 +316,12 @@ const clineFactoryNetworkCalls = fetchUrls.filter((u) =>
 ).length;
 
 console.log(`\nmode: ${mode} (${entryKind})`);
+const importDescription =
+	entryKind === "compiled"
+		? "native Node ESM module graph"
+		: "tsx loader/transpilation/module graph";
 console.log(
-	`import (loader/transpilation/module graph; outside runtime log): ${importMs}ms`,
+	`import (${importDescription}; outside runtime log): ${importMs}ms`,
 );
 console.log(`factory (awaited by Pi; runtime log): ${factoryMs}ms`);
 console.log(`total (import + factory): ${totalMs}ms`);
