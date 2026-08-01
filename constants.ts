@@ -24,6 +24,7 @@ export const PROVIDER_BAI = "bai";
 export const PROVIDER_OPENMODEL = "openmodel";
 export const PROVIDER_QODER = "qoder";
 export const PROVIDER_FASTROUTER = "fastrouter";
+export const PROVIDER_STEPFUN = "stepfun";
 
 // Built-in pi providers that pi-free wraps with toggles
 export const PROVIDER_OPENROUTER = "openrouter";
@@ -47,6 +48,8 @@ export const BASE_URL_TOKENROUTER = "https://api.tokenrouter.com/v1";
 export const BASE_URL_ANYAPI = "https://api.anyapi.ai/v1";
 export const BASE_URL_BAI = "https://api.b.ai/v1";
 export const BASE_URL_FASTROUTER = "https://api.fastrouter.ai/api/v1";
+/** StepFun Step Plan OpenAI-compatible Chat Completions API base URL. */
+export const BASE_URL_STEPFUN = "https://api.stepfun.ai/step_plan/v1";
 /**
  * OpenModel is registered with `api: "anthropic-messages"`. The pi-ai
  * Anthropic SDK appends `/v1/messages` to `baseURL`, so the base must

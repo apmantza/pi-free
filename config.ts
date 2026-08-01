@@ -23,6 +23,7 @@ import {
 	PROVIDER_BAI,
 	PROVIDER_CLINE,
 	PROVIDER_FASTROUTER,
+	PROVIDER_STEPFUN,
 	PROVIDER_KILO,
 	PROVIDER_OLLAMA,
 	PROVIDER_OPENCODE,
@@ -44,6 +45,7 @@ export {
 	PROVIDER_BAI,
 	PROVIDER_CLINE,
 	PROVIDER_FASTROUTER,
+	PROVIDER_STEPFUN,
 	PROVIDER_KILO,
 	PROVIDER_OPENCODE,
 	PROVIDER_OPENROUTER,
@@ -78,6 +80,7 @@ interface PiFreeConfig {
 	routeway_api_key?: string;
 	opengateway_api_key?: string;
 	fastrouter_api_key?: string;
+	stepfun_api_key?: string;
 	tokenrouter_api_key?: string;
 	anyapi_api_key?: string;
 	bai_api_key?: string;
@@ -99,6 +102,7 @@ interface PiFreeConfig {
 	routeway_show_paid?: boolean;
 	opengateway_show_paid?: boolean;
 	fastrouter_show_paid?: boolean;
+	stepfun_show_paid?: boolean;
 	tokenrouter_show_paid?: boolean;
 	anyapi_show_paid?: boolean;
 	bai_show_paid?: boolean;
@@ -120,6 +124,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	routeway_api_key: "",
 	opengateway_api_key: "",
 	fastrouter_api_key: "",
+	stepfun_api_key: "",
 	tokenrouter_api_key: "",
 	anyapi_api_key: "",
 	bai_api_key: "",
@@ -142,6 +147,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	routeway_show_paid: false,
 	opengateway_show_paid: false,
 	fastrouter_show_paid: false,
+	stepfun_show_paid: false,
 	tokenrouter_show_paid: false,
 	anyapi_show_paid: false,
 	bai_show_paid: false,
@@ -400,6 +406,11 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 		prefix: "FASTROUTER",
 		showPaidKey: "fastrouter_show_paid",
 	},
+	{
+		id: PROVIDER_STEPFUN,
+		prefix: "STEPFUN",
+		showPaidKey: "stepfun_show_paid",
+	},
 	{ id: PROVIDER_OLLAMA, prefix: "OLLAMA", showPaidKey: "ollama_show_paid" },
 	{
 		id: PROVIDER_OPENROUTER,
@@ -513,6 +524,10 @@ export function getFastrouterShowPaid(): boolean {
 	);
 }
 
+export function getStepfunShowPaid(): boolean {
+	return resolveBool("STEPFUN_SHOW_PAID", loadConfigFile().stepfun_show_paid);
+}
+
 export function getOllamaShowPaid(): boolean {
 	return resolveBool("OLLAMA_SHOW_PAID", loadConfigFile().ollama_show_paid);
 }
@@ -586,6 +601,10 @@ export function getOpengatewayApiKey(): string | undefined {
 
 export function getFastrouterApiKey(): string | undefined {
 	return resolve("FASTROUTER_API_KEY", loadConfigFile().fastrouter_api_key);
+}
+
+export function getStepfunApiKey(): string | undefined {
+	return resolve("STEPFUN_API_KEY", loadConfigFile().stepfun_api_key);
 }
 
 export function getTokenrouterApiKey(): string | undefined {
