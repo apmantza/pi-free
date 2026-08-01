@@ -56,11 +56,12 @@ NVIDIA, Together, Mistral, Groq, Cerebras, xAI, and Hugging Face are Pi-built-in
 {
   "free_only": true,
   "kilo_show_paid": true,
+  "stepfun_show_paid": true,
   "qoder_show_paid": false
 }
 ```
 
-`free_only` controls the global filter. Each provider's `<provider>_show_paid` value controls its provider toggle. Environment flags use the uppercase form, for example `PI_FREE_ONLY`, `KILO_SHOW_PAID`, and `QODER_SHOW_PAID`. The legacy `kilo_free_only` setting is also supported as `PI_FREE_KILO_FREE_ONLY`.
+`free_only` controls the global filter. Each provider's `<provider>_show_paid` value controls its provider toggle. StepFun defaults to showing its paid catalog because the Step Plan catalog has no free models; set `stepfun_show_paid` or `STEPFUN_SHOW_PAID=false` to hide it. Environment flags use the uppercase form, for example `PI_FREE_ONLY`, `KILO_SHOW_PAID`, and `QODER_SHOW_PAID`. The legacy `kilo_free_only` setting is also supported as `PI_FREE_KILO_FREE_ONLY`.
 
 ### Hidden models
 

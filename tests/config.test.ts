@@ -161,6 +161,22 @@ describe("show-paid getters", () => {
 		expect(getKiloShowPaid()).toBe(false);
 	});
 
+	it("getStepfunShowPaid defaults to true for the paid-only catalog", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const { getStepfunShowPaid } = await import("../config.ts");
+		expect(getStepfunShowPaid()).toBe(true);
+	});
+
+	it("getStepfunShowPaid respects an explicit false setting", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(configPath(), JSON.stringify({ stepfun_show_paid: false }));
+
+		const { getStepfunShowPaid } = await import("../config.ts");
+		expect(getStepfunShowPaid()).toBe(false);
+	});
+
 	it("getKiloShowPaid reads from file", async () => {
 		vi.stubEnv("HOME", "/tmp");
 		const fs = await import("node:fs");
