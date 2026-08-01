@@ -207,6 +207,32 @@ describe("Cline XML bridge", () => {
 			});
 		});
 
+		it("recovers mixed DSML and ordinary fields from an execute_command invoke", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"<｜DSML｜execute_command>",
+					" <｜DSML｜command>cd 'C:/Users/apman/OneDrive/Desktop/pi-webaio' && npm run test:all 2>&1 | tail -30</｜DSML｜parameter>",
+					" <timeout>600</timeout>",
+					"</｜DSML｜invoke>",
+				].join("\n"),
+				[tool("bash")],
+			);
+
+			expect(parsed).toEqual({
+				text: "",
+				toolCalls: [
+					{
+						name: "bash",
+						arguments: {
+							command:
+								"cd 'C:/Users/apman/OneDrive/Desktop/pi-webaio' && npm run test:all 2>&1 | tail -30",
+							timeout: 600,
+						},
+					},
+				],
+			});
+		});
+
 		it("recovers DSML-named fields closed by the generic parameter tag", () => {
 			const parsed = __test__.parseXmlToolCalls(
 				[

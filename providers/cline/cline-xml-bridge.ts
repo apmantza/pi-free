@@ -258,10 +258,13 @@ function parseSearchReplaceBlocks(
 	const edits: Array<{ oldText: string; newText: string }> = [];
 	const lines = diff.replaceAll("\r\n", "\n").split("\n");
 	const markerIndents = lines
-		.filter((line) => /^(?:\s*)(?:------- SEARCH|=======|\+{7} REPLACE)\s*$/.test(line))
+		.filter((line) =>
+			/^(?:\s*)(?:------- SEARCH|=======|\+{7} REPLACE)\s*$/.test(line),
+		)
 		.map((line) => line.length - line.trimStart().length)
 		.filter((indent) => indent > 0);
-	const commonIndent = markerIndents.length > 0 ? Math.min(...markerIndents) : 0;
+	const commonIndent =
+		markerIndents.length > 0 ? Math.min(...markerIndents) : 0;
 	const normalized = lines
 		.map((line) => {
 			const indent = line.length - line.trimStart().length;
@@ -1037,6 +1040,49 @@ const DSML_NAMED_FIELD_RE =
 const DSML_NAMED_PARAMETER_RE =
 	/<｜DSML｜([A-Za-z_][A-Za-z0-9_.-]*)>([^]*?)<\/｜DSML｜parameter>/g;
 
+function parseMixedDsmlParameterXml(body: string): string | undefined {
+	const parameters: string[] = [];
+	let cursor = 0;
+
+	while (cursor < body.length) {
+		while (/\s/.test(body[cursor] ?? "")) cursor++;
+		if (cursor >= body.length) break;
+
+		const rest = body.slice(cursor);
+		const dsmlOpener = rest.match(
+			/^<｜DSML｜([A-Za-z_][A-Za-z0-9_.-]*)>/,
+		);
+		const plainOpener = dsmlOpener
+			? undefined
+			: rest.match(/^<([A-Za-z_][A-Za-z0-9_.-]*)>/);
+		const name = dsmlOpener?.[1] ?? plainOpener?.[1];
+		const openerLength = dsmlOpener?.[0].length ?? plainOpener?.[0].length;
+		if (!name || !openerLength) return undefined;
+
+		const valueStart = cursor + openerLength;
+		const closers = dsmlOpener
+			? [`</｜DSML｜parameter>`, `</｜DSML｜${name}>`]
+			: [`</${name}>`];
+		let closeStart = -1;
+		let closeLength = 0;
+		for (const closer of closers) {
+			const candidate = body.indexOf(closer, valueStart);
+			if (candidate !== -1 && (closeStart === -1 || candidate < closeStart)) {
+				closeStart = candidate;
+				closeLength = closer.length;
+			}
+		}
+		if (closeStart === -1) return undefined;
+
+		parameters.push(
+			`<${name}>${xmlEscape(decodeXmlEntities(body.slice(valueStart, closeStart).trim()))}</${name}>`,
+		);
+		cursor = closeStart + closeLength;
+	}
+
+	return parameters.length > 0 ? parameters.join("\n") : undefined;
+}
+
 function dsmlParameterXml(body: string): string | undefined {
 	const parameters: string[] = [];
 	let cursor = 0;
@@ -1058,6 +1104,12 @@ function dsmlParameterXml(body: string): string | undefined {
 		return body.slice(cursor).trim() ? undefined : parameters.join("\n");
 	}
 	if (!body.trim()) return "";
+
+	// DeepSeek-derived endpoints sometimes mix DSML-named fields closed by
+	// `parameter` with ordinary XML fields in one invoke, e.g. `command` plus
+	// `<timeout>600</timeout>`. Accept only a complete field sequence.
+	const mixedFields = parseMixedDsmlParameterXml(body);
+	if (mixedFields !== undefined) return mixedFields;
 
 	// Some models wrap fields in DSML tags but close every field with the
 	// generic `parameter` tag, for example:
