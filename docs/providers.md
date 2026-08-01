@@ -11,7 +11,7 @@ Provider catalog, authentication, and setup for pi-free. Catalog contents and pr
 | **Free/free-tier** | The provider offers free models or a free/basic plan. |
 | **Freemium** | A free quota or tier exists alongside paid usage. |
 | **Paid/trial** | Credits, payment, or a trial balance is required. |
-| **Dynamic/built-in** | The catalog is discovered from a built-in Pi provider or a public/API endpoint. |
+| **Built-in/native** | Pi owns the catalog lifecycle, including native model-store refresh. |
 
 ## Native providers
 
@@ -186,7 +186,7 @@ Authenticate with either method:
 
 `/toggle-qoder` switches between basic and all Qoder models. Qoder's API is currently OpenAI-compatible, but its authentication and legacy provider integration remain Qoder-specific.
 
-## Dynamic and Pi built-in providers
+## Pi built-in providers
 
 ### OpenRouter
 
@@ -200,18 +200,16 @@ pi-free adds the `/toggle-openrouter` filter but does not own OpenRouter's catal
 
 ### OpenCode and OpenCode Go
 
-These are Pi-built-in providers wrapped by pi-free for filtering. Their dynamic catalogs use `OPENCODE_API_KEY` (from the environment or Pi's auth storage). Commands:
+These are Pi-built-in providers wrapped by pi-free for filtering. Pi owns their catalogs and credentials; pi-free does not perform startup discovery. Commands:
 
 ```text
 /toggle-opencode
 /toggle-opencode-go
 ```
 
-Free-promotion availability is checked by `/probe-opencode` and `/probe-opencode-go`.
+### FastRouter (native)
 
-### FastRouter
-
-FastRouter's model catalog is publicly discoverable, so model listing does not require a key. Set `FASTROUTER_API_KEY` or `fastrouter_api_key` for chat requests:
+FastRouter uses Pi's native provider lifecycle. Its model catalog is publicly discoverable, so model listing does not require a key; Pi restores the native model store first and refreshes the public catalog asynchronously at session start. Set `FASTROUTER_API_KEY` or `fastrouter_api_key` for chat requests:
 
 ```bash
 export FASTROUTER_API_KEY="..."
@@ -226,6 +224,6 @@ Pi owns the following providers; pi-free does not register duplicate catalogs or
 ## Storage summary
 
 - Native providers: `~/.pi/agent/models-store.json` and Pi's `~/.pi/agent/auth.json`.
-- Dynamic catalog cache: `~/.pi/provider-cache.json`.
+- Legacy catalog cache: `~/.pi/provider-cache.json`.
 - Ollama compatibility data: `~/.pi/provider-cache.json` in addition to the native store.
 - Qoder legacy catalog/config cache: `~/.pi/agent/qoder-models-cache.json`.

@@ -113,7 +113,7 @@ runtime — see facts 4–6) is:
 
 Completed in the native-provider migration and cleanup PRs. The native
 filter and re-registration paths have focused tests for the eventual filtered
-availability snapshot; Qoder and dynamic/built-in providers retain their
+availability snapshot; Qoder and Pi-built-in providers retain their
 specialized legacy surfaces by design.
 
 ### Parking lot (unordered, low urgency)
@@ -123,12 +123,6 @@ specialized legacy surfaces by design.
   only if users miss them. Requires a pricing check per native catalog first
   (Route A/B detection depends on it; opencode-go's native catalog has zero
   free models, illustrating the risk).
-+ **opencode/opencode-go**: deliberately kept as dynamic fetchers (user
-  decision). Their free classification + `runOpenCodeProbe` expired-promo
-  detection carry value the native catalog doesn't (native store lists
-  `big-pickle` as 0-cost without a `-free` name; opencode-go has zero
-  natively-free models). Revisit only if Pi starts exposing promo/pricing
-  metadata natively.
 + **Compiled packaging** — evaluate the proposed plain-TypeScript `dist`
   strategy in [`docs/build-strategy.md`](build-strategy.md) only after an
   import-inclusive benchmark shows a user-visible benefit.

@@ -87,6 +87,8 @@ export interface NativeOpenAIProviderOptions {
 		apiKey: string,
 		signal?: AbortSignal,
 	) => Promise<ProviderModelConfig[]>;
+	/** Allow refresh to fetch a public catalog with an empty credential. */
+	allowUnauthenticated?: boolean;
 	tosUrl?: string;
 	suppressTosWhenKey?: boolean;
 }
@@ -183,9 +185,8 @@ export function createNativeOpenAIProvider(
 
 	const initialModels = options.initialModels ?? [];
 	if (initialModels.length > 0) {
-		const all = enhanceWithCI(initialModels, options.providerId).map(
-			(model) =>
-				toNativeOpenAIModel(model, options.providerId, options.baseUrl),
+		const all = enhanceWithCI(initialModels, options.providerId).map((model) =>
+			toNativeOpenAIModel(model, options.providerId, options.baseUrl),
 		);
 		stored.all = all;
 		stored.free = classifyFree(all);
@@ -204,8 +205,8 @@ export function createNativeOpenAIProvider(
 					context.credential,
 					options.getApiKey,
 				);
-				if (!token) return [];
-				const all = await options.fetchModels(token, context.signal);
+				if (!token && !options.allowUnauthenticated) return [];
+				const all = await options.fetchModels(token ?? "", context.signal);
 				return enhanceWithCI(all, options.providerId).map((model) =>
 					toNativeOpenAIModel(model, options.providerId, options.baseUrl),
 				);
@@ -398,7 +399,10 @@ export function registerNativeProviderRefresh(
 					}
 				).modelRegistry;
 				const result = registry?.refresh?.({ allowNetwork: true });
-				if (result && typeof (result as PromiseLike<unknown>).then === "function") {
+				if (
+					result &&
+					typeof (result as PromiseLike<unknown>).then === "function"
+				) {
 					const refreshTask = Promise.resolve(result).then((value) => {
 						const errors = (value as { errors?: { size?: number } } | undefined)
 							?.errors;

@@ -224,6 +224,27 @@ describe("createNativeOpenAIProvider", () => {
 		});
 	});
 
+	it("fetches a public catalog without a credential when enabled", async () => {
+		const fetchModels = vi.fn(async (key: string) => {
+			expect(key).toBe("");
+			return [model("public", "Public free")];
+		});
+		const { store, written } = makeStore();
+		const handle = createNativeOpenAIProvider({
+			...options,
+			getApiKey: () => undefined,
+			allowUnauthenticated: true,
+			fetchModels,
+		});
+
+		await handle.provider.refreshModels?.(
+			context(store, { allowNetwork: true }),
+		);
+
+		expect(fetchModels).toHaveBeenCalledOnce();
+		expect(written[0].models[0]).toMatchObject({ id: "public" });
+	});
+
 	it("registers one stable provider object and shared lifecycle hooks", () => {
 		const registerProvider = vi.fn();
 		const registerCommand = vi.fn();

@@ -38,11 +38,11 @@ Run `/toggle-{provider}` to switch between a provider's free/basic view and its 
 | `/toggle-openmodel` | OpenModel | Native |
 | `/toggle-qoder` | Qoder | Legacy |
 | `/toggle-openrouter` | OpenRouter | Pi built-in |
-| `/toggle-opencode` | OpenCode | Pi built-in/dynamic |
-| `/toggle-opencode-go` | OpenCode Go | Pi built-in/dynamic |
-| `/toggle-fastrouter` | FastRouter | Dynamic |
+| `/toggle-opencode` | OpenCode | Pi built-in |
+| `/toggle-opencode-go` | OpenCode Go | Pi built-in |
+| `/toggle-fastrouter` | FastRouter | Native |
 
-Native providers retain their complete catalog and let Pi apply the current filter. Qoder and dynamic providers re-register the selected model list.
+Native providers retain their complete catalog and let Pi apply the current filter. Qoder and remaining legacy providers re-register the selected model list.
 
 ## Authentication Commands
 
@@ -72,8 +72,6 @@ Probes test model availability. Automatic checks use a 24-hour probe cache; runn
 | --- | --- | --- |
 | `/probe-ollama` | Ollama Cloud | Test for 403 access-denied models and auto-hide them. |
 | `/probe-routeway` | Routeway | Test for 5xx/404 errors and auto-hide broken models. |
-| `/probe-opencode` | OpenCode | Test expired free promotions; report only. |
-| `/probe-opencode-go` | OpenCode Go | Test expired free promotions; report only. |
 | `/probe-deepinfra` | DeepInfra | Test for 404/5xx errors and auto-hide broken models. |
 | `/probe-sambanova` | SambaNova | Test for 404/5xx errors and auto-hide broken models. |
 | `/probe-novita` | Novita AI | Test for 404/5xx errors and auto-hide broken models. |

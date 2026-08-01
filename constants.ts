@@ -23,11 +23,11 @@ export const PROVIDER_ANYAPI = "anyapi";
 export const PROVIDER_BAI = "bai";
 export const PROVIDER_OPENMODEL = "openmodel";
 export const PROVIDER_QODER = "qoder";
+export const PROVIDER_FASTROUTER = "fastrouter";
 
 // Built-in pi providers that pi-free wraps with toggles
 export const PROVIDER_OPENROUTER = "openrouter";
 export const PROVIDER_OPENCODE = "opencode";
-export const PROVIDER_FASTROUTER = "fastrouter";
 
 // =============================================================================
 // Provider base URLs
@@ -46,6 +46,7 @@ export const BASE_URL_OPENGATEWAY = "https://opengateway.gitlawb.com/v1";
 export const BASE_URL_TOKENROUTER = "https://api.tokenrouter.com/v1";
 export const BASE_URL_ANYAPI = "https://api.anyapi.ai/v1";
 export const BASE_URL_BAI = "https://api.b.ai/v1";
+export const BASE_URL_FASTROUTER = "https://api.fastrouter.ai/api/v1";
 /**
  * OpenModel is registered with `api: "anthropic-messages"`. The pi-ai
  * Anthropic SDK appends `/v1/messages` to `baseURL`, so the base must
