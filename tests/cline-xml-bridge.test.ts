@@ -184,6 +184,29 @@ describe("Cline XML bridge", () => {
 			});
 		});
 
+		it("recovers DSML-nested fields from the observed invoke wrapper", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"<｜DSML｜read_file>",
+					" <｜DSML｜path>C:/Users/apman/OneDrive/Desktop/pi-webaio/src/strategy-memory.ts</｜DSML｜path>",
+					"</｜DSML｜invoke>",
+				].join("\n"),
+				[tool("read")],
+			);
+
+			expect(parsed).toEqual({
+				text: "",
+				toolCalls: [
+					{
+						name: "read",
+						arguments: {
+							path: "C:/Users/apman/OneDrive/Desktop/pi-webaio/src/strategy-memory.ts",
+						},
+					},
+				],
+			});
+		});
+
 		it("parses DSML invoke and parameter wrappers with plain extension names", () => {
 			const parsed = __test__.parseXmlToolCalls(
 				[
@@ -261,10 +284,9 @@ describe("Cline XML bridge", () => {
 				"<｜DSML｜general-tool>",
 				" <value>missing the closing call tag</value>",
 			].join("\n");
-			const parsed = __test__.parseXmlToolCalls(
-				malformed,
-				[tool("general-tool")],
-			);
+			const parsed = __test__.parseXmlToolCalls(malformed, [
+				tool("general-tool"),
+			]);
 
 			expect(parsed).toEqual({ text: malformed, toolCalls: [] });
 
@@ -590,11 +612,11 @@ describe("Cline XML bridge", () => {
 
 			expect(parsed.thinking).toEqual(["I should search before answering."]);
 			expect(parsed.toolCalls).toEqual([
-			{
-				name: "aio-websearch",
-				arguments: { query: "reasoning field" },
-			},
-		]);
+				{
+					name: "aio-websearch",
+					arguments: { query: "reasoning field" },
+				},
+			]);
 		});
 
 		it("does not leak XML code fence markers as text", () => {
@@ -868,7 +890,7 @@ describe("Cline XML bridge", () => {
 								delta: {
 									reasoning:
 										"Now read the file. Let me inspect the current contents.",
-							},
+								},
 							},
 						],
 					},
@@ -897,7 +919,7 @@ describe("Cline XML bridge", () => {
 									tool_calls: [
 										{
 											index: 0,
-											function: { arguments: "README.md\"}" },
+											function: { arguments: 'README.md"}' },
 										},
 									],
 								},
@@ -944,9 +966,9 @@ describe("Cline XML bridge", () => {
 								delta: {
 									reasoning:
 										"<｜DSML｜aio-websearch><query>live context</query></｜DSML｜aio-websearch>",
-								content:
-									"<｜DSML｜extension-notify><message>done</message></｜DSML｜extension-notify>",
-							},
+									content:
+										"<｜DSML｜extension-notify><message>done</message></｜DSML｜extension-notify>",
+								},
 								finish_reason: "stop",
 							},
 						],
@@ -986,32 +1008,32 @@ describe("Cline XML bridge", () => {
 					type: "text",
 					text: expect.stringContaining("<｜DSML｜"),
 				}),
-		);
+			);
 			expect(result.content).toContainEqual(
 				expect.objectContaining({
 					type: "toolCall",
 					name: "aio-websearch",
 					arguments: { query: "live context" },
 				}),
-		);
+			);
 			expect(result.content).toContainEqual(
-			expect.objectContaining({
+				expect.objectContaining({
 					type: "toolCall",
 					name: "extension-notify",
 					arguments: { message: "done" },
 				}),
-		);
-		expect(body.tools).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					function: expect.objectContaining({ name: "aio-websearch" }),
-				}),
-				expect.objectContaining({
-					function: expect.objectContaining({ name: "extension-notify" }),
-				}),
-			]),
-		);
-		expect(fetchMock).toHaveBeenCalledTimes(1);
+			);
+			expect(body.tools).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						function: expect.objectContaining({ name: "aio-websearch" }),
+					}),
+					expect.objectContaining({
+						function: expect.objectContaining({ name: "extension-notify" }),
+					}),
+				]),
+			);
+			expect(fetchMock).toHaveBeenCalledTimes(1);
 		});
 
 		it("returns an error instead of a blank stop when Cline streams no content", async () => {
