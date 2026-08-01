@@ -11,7 +11,7 @@ import type {
 	ProviderAuth,
 	RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
-import { openAICompletionsApi } from "@earendil-works/pi-ai/compat";
+import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import type {
 	ExtensionAPI,
 	ProviderModelConfig,

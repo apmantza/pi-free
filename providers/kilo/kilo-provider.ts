@@ -31,7 +31,7 @@ import type {
 	Provider,
 	RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
-import { openAICompletionsApi } from "@earendil-works/pi-ai/compat";
+import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import {
 	getKiloApiKey,
