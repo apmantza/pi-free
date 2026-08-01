@@ -45,7 +45,11 @@ function sseResponse(chunks: unknown[], status = 200): Response {
 
 function requestBody(fetchMock: ReturnType<typeof vi.spyOn>, index: number) {
 	const init = fetchMock.mock.calls[index]?.[1] as RequestInit | undefined;
-	return JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+	try {
+		return JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+	} catch {
+		return {};
+	}
 }
 
 afterEach(() => {
@@ -112,6 +116,93 @@ describe("Cline XML bridge", () => {
 								"支持的平台 supported platforms list general search engines google bing startpage mojeek",
 							diff: false,
 						},
+					},
+				],
+			});
+		});
+
+		it("normalizes exact plain extension tool names without provider-specific aliases", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"<｜DSML｜aio-websearch>",
+					" <query>pi extension tools</query>",
+					" <max>5</max>",
+					"</｜DSML｜aio-websearch>",
+					"<｜DSML｜extension-notify>",
+					" <message>done</message>",
+					"</｜DSML｜extension-notify>",
+				].join("\n"),
+				[
+					{
+						...tool("aio-websearch"),
+						parameters: {
+							type: "object",
+							properties: {
+								query: { type: "string" },
+								max: { type: "number" },
+							},
+						},
+					},
+					{
+						...tool("extension-notify"),
+						parameters: {
+							type: "object",
+							properties: { message: { type: "string" } },
+						},
+					},
+				],
+			);
+
+			expect(parsed).toEqual({
+				text: "",
+				toolCalls: [
+					{
+						name: "aio-websearch",
+						arguments: { query: "pi extension tools", max: 5 },
+					},
+					{ name: "extension-notify", arguments: { message: "done" } },
+				],
+			});
+		});
+
+		it("recovers malformed DSML parameter and invoke wrappers for an exact registered core name", () => {
+			const malformed = [
+				"<｜DSML｜read_file>",
+				" <path>C:/tmp/strategy-memory.ts</｜DSML｜parameter>",
+				"</｜DSML｜invoke>",
+			].join("\n");
+			const parsed = __test__.parseXmlToolCalls(malformed, [tool("read")]);
+
+			expect(parsed).toEqual({
+				text: "",
+				toolCalls: [
+					{
+						name: "read",
+						arguments: { path: "C:/tmp/strategy-memory.ts" },
+					},
+				],
+			});
+		});
+
+		it("parses DSML invoke and parameter wrappers with plain extension names", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"<｜DSML｜function_calls>",
+					' <｜DSML｜invoke name="aio-websearch">',
+					'  <｜DSML｜parameter name="query" string="true">hello</｜DSML｜parameter>',
+					'  <｜DSML｜parameter name="max" string="false">5</｜DSML｜parameter>',
+					" </｜DSML｜invoke>",
+					"</｜DSML｜function_calls>",
+				].join("\n"),
+				[tool("aio-websearch")],
+			);
+
+			expect(parsed).toEqual({
+				text: "",
+				toolCalls: [
+					{
+						name: "aio-websearch",
+						arguments: { query: "hello", max: 5 },
 					},
 				],
 			});
@@ -486,6 +577,26 @@ describe("Cline XML bridge", () => {
 			]);
 		});
 
+		it("recovers a plain extension DSML call emitted in the reasoning field", () => {
+			const parsed = __test__.parseReasoningToolCalls(
+				[
+					"I should search before answering.",
+					"<｜DSML｜aio-websearch>",
+					" <query>reasoning field</query>",
+					"</｜DSML｜aio-websearch>",
+				].join("\n"),
+				[tool("aio-websearch"), tool("extension-notify")],
+			);
+
+			expect(parsed.thinking).toEqual(["I should search before answering."]);
+			expect(parsed.toolCalls).toEqual([
+			{
+				name: "aio-websearch",
+				arguments: { query: "reasoning field" },
+			},
+		]);
+		});
+
 		it("does not leak XML code fence markers as text", () => {
 			const parsed = __test__.parseXmlToolCalls(
 				[
@@ -822,6 +933,85 @@ describe("Cline XML bridge", () => {
 					}),
 				]),
 			);
+		});
+
+		it("dispatches plain extension DSML from content and reasoning with the real provider context shape", async () => {
+			const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+				sseResponse([
+					{
+						choices: [
+							{
+								delta: {
+									reasoning:
+										"<｜DSML｜aio-websearch><query>live context</query></｜DSML｜aio-websearch>",
+								content:
+									"<｜DSML｜extension-notify><message>done</message></｜DSML｜extension-notify>",
+							},
+								finish_reason: "stop",
+							},
+						],
+					},
+				]),
+			);
+			const tools = [
+				tool("read"),
+				{
+					...tool("aio-websearch"),
+					parameters: {
+						type: "object",
+						properties: { query: { type: "string" } },
+						required: ["query"],
+					},
+				},
+				{
+					...tool("extension-notify"),
+					parameters: {
+						type: "object",
+						properties: { message: { type: "string" } },
+					},
+				},
+			];
+			const stream = streamClineXml(
+				clineModel(),
+				{ ...clineContext(), tools },
+				{ apiKey: "token" },
+				{},
+			);
+			const result = await stream.result();
+			const body = requestBody(fetchMock, 0);
+
+			expect(result.stopReason).toBe("toolUse");
+			expect(result.content).not.toContainEqual(
+				expect.objectContaining({
+					type: "text",
+					text: expect.stringContaining("<｜DSML｜"),
+				}),
+		);
+			expect(result.content).toContainEqual(
+				expect.objectContaining({
+					type: "toolCall",
+					name: "aio-websearch",
+					arguments: { query: "live context" },
+				}),
+		);
+			expect(result.content).toContainEqual(
+			expect.objectContaining({
+					type: "toolCall",
+					name: "extension-notify",
+					arguments: { message: "done" },
+				}),
+		);
+		expect(body.tools).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					function: expect.objectContaining({ name: "aio-websearch" }),
+				}),
+				expect.objectContaining({
+					function: expect.objectContaining({ name: "extension-notify" }),
+				}),
+			]),
+		);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
 		});
 
 		it("returns an error instead of a blank stop when Cline streams no content", async () => {
