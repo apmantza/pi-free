@@ -1,20 +1,56 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdirSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const tsc = join(root, "node_modules", "typescript", "bin", "tsc");
+const localTsc = join(root, "node_modules", "typescript", "bin", "tsc");
+const buildConfig = join(root, "tsconfig.build.json");
 
 execFileSync(process.execPath, [join(root, "scripts", "clean.mjs")], {
 	cwd: root,
 	stdio: "inherit",
 });
-execFileSync(process.execPath, [tsc, "-p", join(root, "tsconfig.build.json")], {
-	cwd: root,
-	stdio: "inherit",
-});
+// Git-based Pi installs run `npm install --omit=dev`, so the local compiler is
+// intentionally absent during `prepare`. Match pi-lens's production-install
+// strategy: use the pinned local compiler when available, otherwise fetch the
+// exact compiler transiently with npx instead of asking users to repair the
+// checkout manually.
+if (existsSync(localTsc)) {
+	execFileSync(process.execPath, [localTsc, "-p", buildConfig], {
+		cwd: root,
+		stdio: "inherit",
+	});
+} else {
+	const npxArgs = [
+		"--yes",
+		"-p",
+		"typescript@7.0.2",
+		"tsc",
+		"-p",
+		buildConfig,
+	];
+	const npxCli = [
+		process.env.npm_execpath
+			? join(dirname(process.env.npm_execpath), "npx-cli.js")
+			: undefined,
+		join(dirname(process.execPath), "node_modules", "npm", "bin", "npx-cli.js"),
+	].find((candidate) => candidate !== undefined && existsSync(candidate));
+	if (npxCli) {
+		execFileSync(process.execPath, [npxCli, ...npxArgs], {
+			cwd: root,
+			stdio: "inherit",
+		});
+	} else {
+		const npx = process.platform === "win32" ? "npx.cmd" : "npx";
+		execFileSync(npx, npxArgs, {
+			cwd: root,
+			stdio: "inherit",
+			shell: process.platform === "win32",
+		});
+	}
+}
 
 const assetDir = join(root, "dist", "provider-failover");
 mkdirSync(assetDir, { recursive: true });
