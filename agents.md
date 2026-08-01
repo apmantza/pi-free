@@ -151,7 +151,7 @@ This avoids false positives where providers default all costs to 0 without expos
 3. Provider-specific normalization (strip NVIDIA prefixes, Groq suffixes, etc.)
 4. Prefix fallback with base model extraction + size token reordering
 
-Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DEBUG=1` (off by default for startup speed).
+Debug logging writes to `~/.pi/free.log` under the `benchmark-lookup` namespace: opt-in via `PI_FREE_BENCHMARK_DEBUG=1` (off by default for startup speed). Routed through the shared structured logger (buffered async stream, no per-model synchronous writes).
 
 ### Config Resolution
 
@@ -191,8 +191,7 @@ Debug logging writes to `~/.pi/modelmatch.log`: opt-in via `PI_FREE_BENCHMARK_DE
 ## File Locations (User-Facing)
 
 - **Config:** `~/.pi/free.json` (auto-created)
-- **Extension log:** `~/.pi/free.log`
-- **Model match log:** `~/.pi/modelmatch.log`
+- **Extension log:** `~/.pi/free.log` (includes opt-in `benchmark-lookup` debug diagnostics)
 - **Provider cache:** `~/.pi/provider-cache.json` (legacy/dynamic providers only)
 - **Native models store:** `~/.pi/agent/models-store.json` (all native providers, owned by Pi)
 - **Native auth store:** `~/.pi/agent/auth.json` (native-provider credentials, owned by Pi)

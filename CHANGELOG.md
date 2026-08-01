@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Telemetry latency uses a monotonic clock** — `startModelCall`/`recordModelCall` now measure elapsed latency with `performance.now()` instead of `Date.now()`, matching the startup-timing module. Wall-clock skew from NTP adjustments or system suspend can no longer corrupt recorded per-call latency; `Date.now()` is retained only for the stored entry timestamp. The 10-minute implausible-latency guard remains as a sanity backstop.
+- **Telemetry disk writes are debounced** — `recordModelCall` no longer performs one synchronous `writeFileSync` of the whole telemetry store on every `turn_end`. The JSON store (`lib/json-persistence.ts`) gained an optional `debounceMs` (telemetry uses 1500ms) that updates the in-memory cache immediately — so `/free-telemetry` always shows current data — while coalescing the disk flush into a single write once the burst settles. `clearTelemetry` flushes immediately so the explicit `/clear-free-telemetry` action is durable. Removes the per-turn event-loop block from chatty sessions; probe-cache and config keep synchronous writes.
+- **Benchmark debug logging routed through the structured logger** — Coding Index match diagnostics (`PI_FREE_BENCHMARK_DEBUG=1`) now flow through `createLogger("benchmark-lookup")` to `~/.pi/free.log` via the buffered async stream, instead of a parallel `appendFileSync`-based pipe-delimited `~/.pi/modelmatch.log`. Eliminates the per-model synchronous file writes when debug logging is enabled and consolidates diagnostics into the single extension log. The unused `getMatchingStats`/`getMatchLogPath`/`clearMatchLog` helpers were removed.
+
 ## [2.3.0] - 2026-08-01
 
 ### Added

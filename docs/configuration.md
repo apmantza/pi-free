@@ -100,14 +100,14 @@ Native providers restore the store first and Pi controls online refresh throttli
 
 Provider startup messages and configuration errors are written here.
 
-### Model match log
+### Coding Index debug diagnostics
 
-Coding Index diagnostics are written to:
+Coding Index match diagnostics (attempt/match/miss per model) are written to the shared extension log under the `benchmark-lookup` namespace:
 
-- **Windows:** `%USERPROFILE%\.pi\modelmatch.log`
-- **Linux/macOS:** `~/.pi/modelmatch.log`
+- **Windows:** `%USERPROFILE%\.pi\free.log`
+- **Linux/macOS:** `~/.pi/free.log`
 
-Matching diagnostics are opt-in:
+Diagnostics are opt-in (one line per model per match attempt, so off by default for startup speed):
 
 ```bash
 export PI_FREE_BENCHMARK_DEBUG=1
@@ -131,8 +131,7 @@ The telemetry file defaults to `~/.pi/free-telemetry.json`.
 | File | Purpose |
 | --- | --- |
 | `~/.pi/free.json` | pi-free config, flags, and extension-provider keys |
-| `~/.pi/free.log` | Extension log |
-| `~/.pi/modelmatch.log` | Optional Coding Index diagnostics |
+| `~/.pi/free.log` | Extension log (includes opt-in `benchmark-lookup` diagnostics) |
 | `~/.pi/free-telemetry.json` | Local model performance telemetry |
 | `~/.pi/provider-cache.json` | Dynamic/legacy cache and Ollama compatibility data |
 | `~/.pi/agent/models-store.json` | Pi native provider catalogs |

@@ -28,7 +28,7 @@ Qoder intentionally remains on the legacy registration surface. Dynamic built-in
 
 Where a model matches the benchmark catalog, pi-free appends a Coding Index score such as `CI: 52.3` to its display name. Matching uses direct, alias, provider-normalization, and prefix-fallback strategies. Missing scores are not fabricated.
 
-Set `PI_FREE_BENCHMARK_DEBUG=1` to record match diagnostics in `~/.pi/modelmatch.log`.
+Set `PI_FREE_BENCHMARK_DEBUG=1` to record match diagnostics in `~/.pi/free.log` under the `benchmark-lookup` namespace.
 
 ## Model availability probing
 

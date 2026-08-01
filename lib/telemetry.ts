@@ -98,7 +98,7 @@ function reapStaleInFlight(now: number): void {
 			_logger.info("Reaped stale in-flight telemetry entry", {
 				callId: id,
 				key: entry.key,
-				ageMs: now - entry.startTime,
+				ageMs: Math.round(now - entry.startTime),
 			});
 			_inFlight.delete(id);
 		}
@@ -117,18 +117,23 @@ function telemetryKey(provider: string, model: string): string {
 // Storage
 // =============================================================================
 
-const _store = createJSONStore<TelemetryStore>(TELEMETRY_FILE, {
-	models: {},
-	lastUpdated: Date.now(),
-});
+// Debounce disk writes so a chatty session does not perform one synchronous
+// writeFileSync per turn_end. The in-memory cache stays fresh (load() returns
+// the latest state immediately), so /free-telemetry always shows current data;
+// only the disk flush is coalesced. clearTelemetry() calls flush() to make the
+// explicit user action durable right away.
+const TELEMETRY_WRITE_DEBOUNCE_MS = 1500;
+const _store = createJSONStore<TelemetryStore>(
+	TELEMETRY_FILE,
+	{ models: {}, lastUpdated: Date.now() },
+	{ debounceMs: TELEMETRY_WRITE_DEBOUNCE_MS },
+);
 
 // =============================================================================
 // Entry management
 // =============================================================================
 
-function deriveModelTelemetry(
-	entries: TelemetryEntry[],
-): ModelTelemetry {
+function deriveModelTelemetry(entries: TelemetryEntry[]): ModelTelemetry {
 	const recent = entries.slice(-MAX_RECENT_CALLS);
 
 	let successCalls = 0;
@@ -175,7 +180,7 @@ function deriveModelTelemetry(
 							totalTokensFromSuccessful /
 							(totalLatencyFromSuccessful / 1000)
 						).toFixed(1),
-				)
+					)
 				: 0,
 		successRate:
 			totalCalls > 0
@@ -285,10 +290,16 @@ export function getProviderTelemetry(provider: string): {
  * Pass this id to {@link recordModelCall} to pair the start/end correctly.
  */
 export function startModelCall(provider: string, model: string): string {
-	const now = Date.now();
-	reapStaleInFlight(now);
-	const callId = `${telemetryKey(provider, model)}:${now}:${++_callIdCounter}`;
-	_inFlight.set(callId, { key: telemetryKey(provider, model), startTime: now });
+	// Monotonic clock for latency measurement (immune to NTP skew / system
+	// suspend); wall clock only for the human-readable call id correlation tag.
+	const start = performance.now();
+	const ts = Date.now();
+	reapStaleInFlight(start);
+	const callId = `${telemetryKey(provider, model)}:${ts}:${++_callIdCounter}`;
+	_inFlight.set(callId, {
+		key: telemetryKey(provider, model),
+		startTime: start,
+	});
 	return callId;
 }
 
@@ -320,12 +331,16 @@ export async function recordModelCall(
 	options: RecordModelCallOptions,
 ): Promise<void> {
 	const { success, stopReason, errorMessage } = options;
+	// Wall clock for the stored entry timestamp; monotonic clock for the
+	// elapsed-latency measurement so NTP adjustments or system suspend cannot
+	// corrupt the recorded duration.
 	const now = Date.now();
+	const end = performance.now();
 
 	let latencyMs: number;
 	if (callId && _inFlight.has(callId)) {
 		const entry = _inFlight.get(callId)!;
-		latencyMs = now - entry.startTime;
+		latencyMs = Math.round(end - entry.startTime);
 		_inFlight.delete(callId);
 	} else {
 		// No matching start — record 0 latency rather than a bogus value.
@@ -389,6 +404,9 @@ export async function clearTelemetry(): Promise<void> {
 		models: {},
 		lastUpdated: Date.now(),
 	}));
+	// Explicit user action (/clear-free-telemetry) — flush the debounced
+	// write so the clear is durable immediately rather than after the debounce.
+	await _store.flush();
 }
 
 /**
