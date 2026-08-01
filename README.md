@@ -14,7 +14,7 @@ Free and paid AI model providers for [Pi](https://pi.dev). Access models from mu
 
 When you install pi-free, it:
 
-1. Registers native providers such as Kilo, Cline, LLM7, FastRouter, Ollama Cloud, OpenModel, and more.
+1. Registers native providers such as Kilo, Cline, LLM7, FastRouter, Ollama Cloud, OpenModel, StepFun, and more.
 2. Keeps Qoder on its legacy provider surface and supports Pi's built-in OpenCode, OpenCode Go, and OpenRouter integrations.
 3. Uses Pi's native model and auth stores for migrated providers; remaining legacy catalogs use their documented cache paths.
 4. Applies the global free-only filter by default, while preserving provider-specific paid/trial behavior.
@@ -72,8 +72,8 @@ First run creates `~/.pi/free.json`. Add extension-provider keys there or use th
 | --- | --- |
 | Free/free-tier | Kilo, Cline, LLM7, OpenModel, TokenRouter, Qoder basic tier, and eligible models from other catalogs |
 | Freemium | AnyAPI, Ollama Cloud, SambaNova |
-| Paid/trial | ZenMux, CrofAI, DeepInfra trial, Novita, Routeway, OpenGateway, B.AI, and paid catalog entries from other providers |
-| Native | FastRouter |
+| Paid/trial | ZenMux, CrofAI, DeepInfra trial, Novita, Routeway, OpenGateway, B.AI, StepFun, and paid catalog entries from other providers |
+| Native | FastRouter, StepFun |
 | Built-in | OpenCode, OpenCode Go, OpenRouter |
 
 Provider availability, authentication, and exact API-key names are maintained in [docs/providers.md](docs/providers.md). pi-free does not publish model counts because provider catalogs change.

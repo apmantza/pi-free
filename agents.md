@@ -68,7 +68,8 @@ index.ts                          ← Extension entry point (piFreeEntry)
       ├─ openmodel/openmodel.ts   ← OpenModel Anthropic-compatible gateway
       ├─ qoder/                   ← Qoder/Cosy OAuth and streaming provider
       ├─ bai/bai.ts               ← BAI gateway provider
-      └─ fastrouter/              ← FastRouter native provider (public catalog + API-key chat)
+      ├─ fastrouter/              ← FastRouter native provider (public catalog + API-key chat)
+      └─ stepfun/                 ← StepFun Step Plan native provider (OpenAI-compatible chat)
 
 tests/                            ← Vitest test suite
 ```
@@ -102,7 +103,7 @@ For a new OpenAI-compatible native provider, use `registerNativeOpenAIProvider()
 
 ### Native `Provider` providers
 
-Kilo, Cline, LLM7, ZenMux, TokenRouter, Ollama Cloud, B.AI, AnyAPI, CrofAI, SambaNova, Novita, DeepInfra, Routeway, OpenGateway, OpenModel, and FastRouter use Pi's modern provider API (Pi `>=0.81.0`). Instead of the legacy `registerProvider(id, { baseUrl, apiKey, models, oauth })` form, each builds a native pi-ai `Provider` object and registers it via the single-argument `registerProvider(provider)`. Pi then owns credential refresh, background model refresh (4h throttle, abortable), and offline initialization — so these extension factories perform no catalog network I/O on startup.
+Kilo, Cline, LLM7, ZenMux, TokenRouter, Ollama Cloud, B.AI, AnyAPI, CrofAI, SambaNova, Novita, DeepInfra, Routeway, OpenGateway, OpenModel, FastRouter, and StepFun use Pi's modern provider API (Pi `>=0.81.0`). Instead of the legacy `registerProvider(id, { baseUrl, apiKey, models, oauth })` form, each builds a native pi-ai `Provider` object and registers it via the single-argument `registerProvider(provider)`. Pi then owns credential refresh, background model refresh (4h throttle, abortable), and offline initialization — so these extension factories perform no catalog network I/O on startup.
 
 ```
 providers/kilo/kilo-provider.ts   ← createKiloProvider(): assembles the Provider
@@ -183,8 +184,8 @@ Debug logging writes to `~/.pi/free.log` under the `benchmark-lookup` namespace:
 | ----------- | -------------------------------------------------- | ----------------- | -------------------------------- |
 | ✅ Free / free-tier | kilo, cline, llm7, openmodel, tokenrouter, qoder basic | OAuth, API key, or none | Free models or tier; toggles can expose paid models |
 | 🔄 Freemium | anyapi, ollama-cloud, sambanova | API key | Free allowance with limits |
-| 💳 Paid / trial | zenmux, crofai, deepinfra, novita, routeway, opengateway, bai, qoder premium | API key, OAuth, or credits | Paid access, trial credit, or premium tier |
-| 🔧 Native | fastrouter | API key or none | Public catalog; Pi owns store refresh |
+| 💳 Paid / trial | zenmux, crofai, deepinfra, novita, routeway, opengateway, bai, stepfun, qoder premium | API key, OAuth, or credits | Paid access, trial credit, or premium tier |
+| 🔧 Native | fastrouter, stepfun | API key or none | Public catalog; Pi owns store refresh |
 | 🔧 Built-in | opencode, opencode-go, openrouter | Built-in Pi auth | Built-in toggles; Pi owns catalogs |
 
 ---
@@ -211,7 +212,7 @@ Debug logging writes to `~/.pi/free.log` under the `benchmark-lookup` namespace:
 8. **Error handling is graceful** — providers that fail at startup are silently skipped
 9. **Model filtering is provider-specific** — native providers filter complete catalogs with `filterModels`; catalog fetchers may apply provider-specific modality or quality filters (NVIDIA retains its own 70B threshold)
 10. **All pi-free-registered catalogs use `enhanceWithCI()`** before registration to add CI scores
-11. **Legacy network-fetching extension providers are cache-first** (1h TTL via `lib/provider-cache.ts`); native providers, including FastRouter, use Pi's models store + `refreshModels` instead. Pi's built-in OpenCode, OpenCode Go, and OpenRouter providers are not managed by either extension cache.
+11. **Legacy network-fetching extension providers are cache-first** (1h TTL via `lib/provider-cache.ts`); native providers, including FastRouter and StepFun, use Pi's models store + `refreshModels` instead. Pi's built-in OpenCode, OpenCode Go, and OpenRouter providers are not managed by either extension cache.
 12. **Startup and session-start work are observable and bounded** — legacy `loadCachedOrFetchModels` network attempts use `STARTUP_FETCH_DEADLINE_MS` (8s, override `PI_FREE_STARTUP_FETCH_TIMEOUT_MS`) via `withFetchDeadline` in `lib/util.ts`; failed and timed-out attempts are counted with duration and per-provider status. Native providers, including FastRouter, restore from Pi's store and their session-start refresh nudges and detached probes are measured without making intentionally background work block the event. `/free-startup` exposes the post-finalize handler/task timings.
 13. **Compiled packaging is not shipped yet** — the proposed plain-TypeScript `dist` strategy, peer externalization, JSON asset layout, and validation plan live in [`docs/build-strategy.md`](docs/build-strategy.md). Keep source-mode loading until an import-inclusive benchmark justifies the change.
 14. **Health output is credential-free** — `/pi-free-health` reports provider counts, timing/failure labels, and the configured log path; it must not print API keys, OAuth tokens, model payloads, or raw log contents.
