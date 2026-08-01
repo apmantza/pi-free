@@ -258,10 +258,13 @@ function parseSearchReplaceBlocks(
 	const edits: Array<{ oldText: string; newText: string }> = [];
 	const lines = diff.replaceAll("\r\n", "\n").split("\n");
 	const markerIndents = lines
-		.filter((line) => /^(?:\s*)(?:------- SEARCH|=======|\+{7} REPLACE)\s*$/.test(line))
+		.filter((line) =>
+			/^(?:\s*)(?:------- SEARCH|=======|\+{7} REPLACE)\s*$/.test(line),
+		)
 		.map((line) => line.length - line.trimStart().length)
 		.filter((indent) => indent > 0);
-	const commonIndent = markerIndents.length > 0 ? Math.min(...markerIndents) : 0;
+	const commonIndent =
+		markerIndents.length > 0 ? Math.min(...markerIndents) : 0;
 	const normalized = lines
 		.map((line) => {
 			const indent = line.length - line.trimStart().length;
@@ -714,6 +717,33 @@ function schemaProperties(tool: Tool): string[] {
 	return Object.keys(parameters.properties ?? {});
 }
 
+function unwrapDsmlArgumentWrapper(
+	args: Record<string, unknown>,
+	bridge: ToolBridge | undefined,
+): Record<string, unknown> {
+	if (!bridge) return args;
+	const wrapper = ["arguments", "input"].find(
+		(name) => name in args && !bridge.parameters.includes(name),
+	);
+	if (!wrapper) return args;
+
+	let inner = args[wrapper];
+	if (typeof inner === "string") {
+		try {
+			inner = JSON.parse(inner) as unknown;
+		} catch {
+			return args;
+		}
+	}
+	if (!inner || typeof inner !== "object" || Array.isArray(inner)) return args;
+
+	const innerArgs = inner as Record<string, unknown>;
+	const allowed = new Set(bridge.parameters);
+	return Object.keys(innerArgs).every((key) => allowed.has(key))
+		? innerArgs
+		: args;
+}
+
 function buildToolInstructions(tools: Tool[] | undefined): string {
 	const bridges = getToolBridges(tools);
 	if (bridges.length === 0) return "";
@@ -1037,6 +1067,47 @@ const DSML_NAMED_FIELD_RE =
 const DSML_NAMED_PARAMETER_RE =
 	/<｜DSML｜([A-Za-z_][A-Za-z0-9_.-]*)>([^]*?)<\/｜DSML｜parameter>/g;
 
+function parseMixedDsmlParameterXml(body: string): string | undefined {
+	const parameters: string[] = [];
+	let cursor = 0;
+
+	while (cursor < body.length) {
+		while (/\s/.test(body[cursor] ?? "")) cursor++;
+		if (cursor >= body.length) break;
+
+		const rest = body.slice(cursor);
+		const dsmlOpener = rest.match(/^<｜DSML｜([A-Za-z_][A-Za-z0-9_.-]*)>/);
+		const plainOpener = dsmlOpener
+			? undefined
+			: rest.match(/^<([A-Za-z_][A-Za-z0-9_.-]*)>/);
+		const name = dsmlOpener?.[1] ?? plainOpener?.[1];
+		const openerLength = dsmlOpener?.[0].length ?? plainOpener?.[0].length;
+		if (!name || !openerLength) return undefined;
+
+		const valueStart = cursor + openerLength;
+		const closers = dsmlOpener
+			? [`</｜DSML｜parameter>`, `</｜DSML｜${name}>`]
+			: [`</${name}>`];
+		let closeStart = -1;
+		let closeLength = 0;
+		for (const closer of closers) {
+			const candidate = body.indexOf(closer, valueStart);
+			if (candidate !== -1 && (closeStart === -1 || candidate < closeStart)) {
+				closeStart = candidate;
+				closeLength = closer.length;
+			}
+		}
+		if (closeStart === -1) return undefined;
+
+		parameters.push(
+			`<${name}>${xmlEscape(decodeXmlEntities(body.slice(valueStart, closeStart).trim()))}</${name}>`,
+		);
+		cursor = closeStart + closeLength;
+	}
+
+	return parameters.length > 0 ? parameters.join("\n") : undefined;
+}
+
 function dsmlParameterXml(body: string): string | undefined {
 	const parameters: string[] = [];
 	let cursor = 0;
@@ -1058,6 +1129,12 @@ function dsmlParameterXml(body: string): string | undefined {
 		return body.slice(cursor).trim() ? undefined : parameters.join("\n");
 	}
 	if (!body.trim()) return "";
+
+	// DeepSeek-derived endpoints sometimes mix DSML-named fields closed by
+	// `parameter` with ordinary XML fields in one invoke, e.g. `command` plus
+	// `<timeout>600</timeout>`. Accept only a complete field sequence.
+	const mixedFields = parseMixedDsmlParameterXml(body);
+	if (mixedFields !== undefined) return mixedFields;
 
 	// Some models wrap fields in DSML tags but close every field with the
 	// generic `parameter` tag, for example:
@@ -1272,9 +1349,12 @@ function parseXmlToolCalls(
 		pushTextFragment(textParts, sourceText.slice(cursor, next.index));
 		const blockEnd = closeStart === -1 ? sourceText.length : closeStart;
 		const block = sourceText.slice(next.index + next.openTag.length, blockEnd);
-		const remoteArgs = parseToolArguments(
-			block,
-			remoteName === "replace_in_file" ? new Set(["diff"]) : undefined,
+		const remoteArgs = unwrapDsmlArgumentWrapper(
+			parseToolArguments(
+				block,
+				remoteName === "replace_in_file" ? new Set(["diff"]) : undefined,
+			),
+			bridge,
 		);
 		const writeRuntimeName = getWriteRuntimeToolName(tools);
 		const heredocWrite =

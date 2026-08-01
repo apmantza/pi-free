@@ -207,6 +207,32 @@ describe("Cline XML bridge", () => {
 			});
 		});
 
+		it("recovers mixed DSML and ordinary fields from an execute_command invoke", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					"<｜DSML｜execute_command>",
+					" <｜DSML｜command>cd 'C:/Users/apman/OneDrive/Desktop/pi-webaio' && npm run test:all 2>&1 | tail -30</｜DSML｜parameter>",
+					" <timeout>600</timeout>",
+					"</｜DSML｜invoke>",
+				].join("\n"),
+				[tool("bash")],
+			);
+
+			expect(parsed).toEqual({
+				text: "",
+				toolCalls: [
+					{
+						name: "bash",
+						arguments: {
+							command:
+								"cd 'C:/Users/apman/OneDrive/Desktop/pi-webaio' && npm run test:all 2>&1 | tail -30",
+							timeout: 600,
+						},
+					},
+				],
+			});
+		});
+
 		it("recovers DSML-named fields closed by the generic parameter tag", () => {
 			const parsed = __test__.parseXmlToolCalls(
 				[
@@ -280,6 +306,24 @@ describe("Cline XML bridge", () => {
 					},
 				],
 			});
+		});
+
+		it("unwraps DeepSeek arguments wrappers using the registered tool schema", () => {
+			const parsed = __test__.parseXmlToolCalls(
+				[
+					' <｜DSML｜invoke name="execute_command">',
+					'  <｜DSML｜parameter name="arguments" string="true">{"command":"npm test","timeout":600}</｜DSML｜parameter>',
+					" </｜DSML｜invoke>",
+				].join("\n"),
+				[tool("bash")],
+			);
+
+			expect(parsed.toolCalls).toEqual([
+				{
+					name: "bash",
+					arguments: { command: "npm test", timeout: 600 },
+				},
+			]);
 		});
 
 		it("parses multiline JSON arguments in DSML calls", () => {
