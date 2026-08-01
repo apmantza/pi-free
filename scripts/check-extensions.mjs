@@ -29,7 +29,7 @@ function resolveNpmCli() {
 function runNpmPackDryRun() {
 	return execFileSync(
 		process.execPath,
-		[resolveNpmCli(), "pack", "--dry-run", "--json"],
+		[resolveNpmCli(), "pack", "--dry-run", "--json", "--ignore-scripts"],
 		{ encoding: "utf8" },
 	);
 }
@@ -53,17 +53,25 @@ function getFiles() {
 		// Use npm pack --dry-run to inspect exactly what would be published.
 		const out = runNpmPackDryRun();
 		return parsePackFileList(out)
-			.filter((f) => f && (f.endsWith(".ts") || f.endsWith(".mjs")))
+			.filter(
+				(f) =>
+					f &&
+					(f.endsWith(".js") || f.endsWith(".ts") || f.endsWith(".mjs")),
+			)
 			.map((f) => join(installDir, f));
 	}
-	// Installed location: walk all .ts/.mjs files
+	// Installed location: walk all runtime module files
 	const files = [];
 	function walk(dir) {
 		for (const entry of readdirSync(dir)) {
 			const full = join(dir, entry);
 			if (entry === "node_modules") continue;
 			if (statSync(full).isDirectory()) walk(full);
-			else if (entry.endsWith(".ts") || entry.endsWith(".mjs"))
+			else if (
+				entry.endsWith(".js") ||
+				entry.endsWith(".ts") ||
+				entry.endsWith(".mjs")
+			)
 				files.push(full);
 		}
 	}
@@ -76,8 +84,11 @@ function resolveImport(fromFile, importPath) {
 	for (const candidate of [
 		base,
 		base.replace(/\.js$/, ".ts"), // .js → .ts (TypeScript ESM convention)
+		base.replace(/\.ts$/, ".js"),
 		base + ".ts",
+		base + ".js",
 		join(base, "index.ts"),
+		join(base, "index.js"),
 	]) {
 		try {
 			if (statSync(candidate).isFile()) return candidate;
@@ -100,10 +111,10 @@ for (const file of files) {
 	const stripped = src
 		.replaceAll(/\/\/[^\n]*/g, "")
 		.replaceAll(/\/\*[\s\S]*?\*\//g, "");
-	const importRe = /from\s+['"](\.[^'"]+)['"]/g;
+	const importRe = /(?:from\s+|import\s*\()(['"])(\.[^'"]+)\1/g;
 	let match;
 	while ((match = importRe.exec(stripped)) !== null) {
-		const importPath = match[1];
+		const importPath = match[2];
 		const key = `${relFile}:${importPath}`;
 		if (seen.has(key)) continue;
 		seen.add(key);

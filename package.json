@@ -29,15 +29,9 @@
 	"engines": {
 		"node": ">=20.0.0"
 	},
+	"main": "./dist/index.js",
 	"files": [
-		"index.ts",
-		"providers/**/*.ts",
-		"lib/**/*.ts",
-		"provider-failover/**/*.ts",
-		"provider-failover/**/*.json",
-		"config.ts",
-		"constants.ts",
-		"provider-helper.ts",
+		"dist/**/*",
 		"README.md",
 		"LICENSE",
 		"CHANGELOG.md",
@@ -46,13 +40,18 @@
 	],
 	"scripts": {
 		"audit:prod": "npm audit --omit=dev --audit-level=high",
+		"build": "node scripts/build.mjs",
+		"clean": "node scripts/clean.mjs",
 		"check": "node scripts/check-extensions.mjs",
 		"check:lockfile": "node scripts/check-lockfile-sync.mjs",
 		"check:tarball": "node scripts/check-tarball.mjs",
 		"lint": "tsc --noEmit",
+		"prepare": "npm run build",
 		"test": "vitest",
 		"test:ui": "vitest --ui",
 		"test:run": "vitest run",
+		"bench:startup": "tsx scripts/bench-startup.ts",
+		"smoke:compiled": "node scripts/smoke-compiled.mjs",
 		"smoke:cline": "tsx scripts/smoke-cline-xml-bridge.ts",
 		"smoke:openmodel": "tsx scripts/smoke-openmodel-wire-format.ts"
 	},
@@ -82,7 +81,7 @@
 	},
 	"pi": {
 		"extensions": [
-			"./index.ts"
+			"./dist/index.js"
 		]
 	}
 }
