@@ -256,7 +256,20 @@ function parseSearchReplaceBlocks(
 	diff: string,
 ): Array<{ oldText: string; newText: string }> {
 	const edits: Array<{ oldText: string; newText: string }> = [];
-	const normalized = diff.replaceAll("\r\n", "\n");
+	const lines = diff.replaceAll("\r\n", "\n").split("\n");
+	const markerIndents = lines
+		.filter((line) => /^(?:\s*)(?:------- SEARCH|=======|\+{7} REPLACE)\s*$/.test(line))
+		.map((line) => line.length - line.trimStart().length)
+		.filter((indent) => indent > 0);
+	const commonIndent = markerIndents.length > 0 ? Math.min(...markerIndents) : 0;
+	const normalized = lines
+		.map((line) => {
+			const indent = line.length - line.trimStart().length;
+			return commonIndent > 0 && indent >= commonIndent
+				? line.slice(commonIndent)
+				: line;
+		})
+		.join("\n");
 	let cursor = 0;
 
 	while (cursor < normalized.length) {
@@ -1021,6 +1034,8 @@ const DSML_MALFORMED_PARAMETER_RE =
 	/<([A-Za-z_][A-Za-z0-9_.-]*)>\s*([^]*?)<\/｜DSML｜parameter>/g;
 const DSML_NAMED_FIELD_RE =
 	/<｜DSML｜([A-Za-z_][A-Za-z0-9_.-]*)>([^]*?)<\/｜DSML｜\1>/g;
+const DSML_NAMED_PARAMETER_RE =
+	/<｜DSML｜([A-Za-z_][A-Za-z0-9_.-]*)>([^]*?)<\/｜DSML｜parameter>/g;
 
 function dsmlParameterXml(body: string): string | undefined {
 	const parameters: string[] = [];
@@ -1043,6 +1058,22 @@ function dsmlParameterXml(body: string): string | undefined {
 		return body.slice(cursor).trim() ? undefined : parameters.join("\n");
 	}
 	if (!body.trim()) return "";
+
+	// Some models wrap fields in DSML tags but close every field with the
+	// generic `parameter` tag, for example:
+	// `<｜DSML｜path>file</｜DSML｜parameter>`. Convert only a fully-consumed
+	// field sequence; unknown or partial markup remains ordinary text.
+	DSML_NAMED_PARAMETER_RE.lastIndex = 0;
+	while ((match = DSML_NAMED_PARAMETER_RE.exec(body)) !== null) {
+		if (body.slice(cursor, match.index).trim()) return undefined;
+		parameters.push(
+			`<${match[1]}>${xmlEscape(decodeXmlEntities(match[2].trim()))}</${match[1]}>`,
+		);
+		cursor = match.index + match[0].length;
+	}
+	if (parameters.length > 0) {
+		return body.slice(cursor).trim() ? undefined : parameters.join("\n");
+	}
 
 	// Some models wrap fields in DSML tags instead of using the standard
 	// `parameter name=...` form, for example:
