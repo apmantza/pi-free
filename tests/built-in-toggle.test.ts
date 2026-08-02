@@ -140,6 +140,42 @@ describe("built-in provider toggles", () => {
 		);
 	});
 
+	it("captures the full catalog when models are not auth-available", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		const model = {
+			provider: "opencode",
+			id: "free-model",
+			name: "Free Model",
+			api: "openai-completions",
+			reasoning: false,
+			input: ["text"],
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			contextWindow: 128000,
+			maxTokens: 4096,
+			baseUrl: "https://example.com",
+		};
+		const registerProvider = vi.fn();
+
+		await handlers.session_start(
+			{},
+			{
+				modelRegistry: {
+					getAll: () => [model],
+					getAvailable: () => [],
+					registerProvider,
+				},
+			},
+		);
+
+		expect(registerProvider).toHaveBeenCalledWith(
+			"opencode",
+			expect.objectContaining({
+				models: [expect.objectContaining({ id: "free-model" })],
+			}),
+		);
+	});
+
 	it("preserves Pi-managed OpenRouter OAuth when toggling captured models", async () => {
 		setupBuiltInProviderToggles(mockPi);
 

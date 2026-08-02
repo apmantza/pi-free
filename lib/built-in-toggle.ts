@@ -16,10 +16,7 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import {
-	getOpencodeShowPaid,
-	getOpenrouterShowPaid,
-} from "../config.ts";
+import { getOpencodeShowPaid, getOpenrouterShowPaid } from "../config.ts";
 import { createLogger } from "./logger.ts";
 import {
 	getProviderRegistry,
@@ -84,14 +81,23 @@ const BUILT_IN_TOGGLE_PROVIDERS: BuiltInToggleConfig[] = [
 // State
 // =============================================================================
 
+interface CurrentModelRegistry {
+	// Kept structural because Pi exposes overloaded registerProvider signatures.
+	registerProvider: unknown;
+	getAll?: () => Model<Api>[];
+	getAvailable: () => Model<Api>[];
+}
+
 interface BuiltInProviderState {
 	stored: { free: ProviderModelConfig[]; all: ProviderModelConfig[] };
 	reRegister: (models: ProviderModelConfig[]) => void;
+	setModelRegistry: (registry: CurrentModelRegistry) => void;
 	toggleState: ReturnType<typeof createToggleState<ProviderModelConfig>>;
 }
 
 const providerStates = new Map<string, BuiltInProviderState>();
-let commandsRegistered = false;
+let commandsRegisteredFor: ExtensionAPI | undefined;
+let sessionStartRegisteredFor: ExtensionAPI | undefined;
 
 // =============================================================================
 // Setup
@@ -99,7 +105,8 @@ let commandsRegistered = false;
 
 export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 	const activeConfigs = BUILT_IN_TOGGLE_PROVIDERS.filter(
-		(config) => !getProviderRegistry().has(config.id),
+		(config) =>
+			!getProviderRegistry().has(config.id) || providerStates.has(config.id),
 	);
 
 	if (activeConfigs.length === 0) {
@@ -109,21 +116,30 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 		return;
 	}
 
-	// Register toggle commands once (available even before models load)
-	if (!commandsRegistered) {
+	// Register commands once per ExtensionAPI instance. A reload creates a new
+	// runner even though this module's state can survive, so the new runner must
+	// receive the commands again.
+	if (commandsRegisteredFor !== pi) {
 		for (const config of activeConfigs) {
 			registerToggleCommand(pi, config);
 		}
-		commandsRegistered = true;
+		commandsRegisteredFor = pi;
 	}
 
-	// Capture built-in models on session start and apply initial filter
+	// Capture built-in models on session start and apply initial filter. Avoid
+	// duplicate handlers when the entry point is invoked twice for one runner.
+	if (sessionStartRegisteredFor === pi) return;
+	sessionStartRegisteredFor = pi;
 	pi.on(
 		"session_start",
 		wrapSessionStartHandler("built-in-toggle", async (_event, ctx) => {
 			for (const config of activeConfigs) {
-				if (providerStates.has(config.id)) {
-					// Already captured — skip to avoid re-registering
+				const existing = providerStates.get(config.id);
+				if (existing) {
+					// ModelRegistry is session-scoped. Replace the registry and reapply
+					// the selected view to the new session's provider catalog.
+					existing.setModelRegistry(ctx.modelRegistry);
+					existing.toggleState.applyCurrent(existing.reRegister);
 					continue;
 				}
 
@@ -146,10 +162,14 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 function tryCaptureProvider(
 	pi: ExtensionAPI,
 	config: BuiltInToggleConfig,
-	ctx: any,
+	ctx: { modelRegistry: CurrentModelRegistry },
 ): BuiltInProviderState | undefined {
-	const available = ctx.modelRegistry.getAvailable();
-	const providerModels = available.filter(
+	// Capture the complete catalog, not only getAvailable(). getAvailable() is
+	// auth-filtered and therefore hides Pi's built-in OpenCode models before a
+	// credential is configured, which made /toggle-opencode report "not loaded".
+	const catalog =
+		ctx.modelRegistry.getAll?.() ?? ctx.modelRegistry.getAvailable();
+	const providerModels = catalog.filter(
 		(m: Model<Api>) => m.provider === config.id,
 	);
 	if (providerModels.length === 0) return undefined;
@@ -164,6 +184,7 @@ function tryCaptureProvider(
 		api: providerModels[0].api,
 		apiKey: getApiKeyEnvForProvider(config.id),
 		source: "captured",
+		modelRegistry: ctx.modelRegistry,
 	});
 }
 
@@ -176,9 +197,11 @@ function createProviderState(
 		api: Api;
 		apiKey?: string;
 		source: "captured";
+		modelRegistry: CurrentModelRegistry;
 	},
 ): BuiltInProviderState {
 	const { allModels, baseUrl, api, apiKey, source } = options;
+	let currentModelRegistry = options.modelRegistry;
 	const freeModels = allModels.filter((m: ProviderModelConfig) =>
 		isFreeModel({ ...m, provider: config.id }, allModels),
 	);
@@ -189,7 +212,7 @@ function createProviderState(
 		if (isOpenCodeProvider(config.id)) {
 			ensureOpenCodeApiProviderRegistered(getOpenCodeSession());
 		}
-		pi.registerProvider(config.id, {
+		const providerConfig = {
 			baseUrl,
 			...(apiKey !== undefined ? { apiKey } : {}),
 			api: isOpenCodeProvider(config.id) ? OPENCODE_DYNAMIC_API : api,
@@ -197,7 +220,21 @@ function createProviderState(
 				? { streamSimple: createOpenCodeStreamSimple(getOpenCodeSession()) }
 				: {}),
 			models,
-		});
+		};
+
+		// Event/command contexts expose the current session registry. Using it
+		// avoids calling the stale ExtensionAPI captured before a session switch.
+		// Keep the pi fallback for the initial load and older test/runtime shims.
+		if (typeof currentModelRegistry?.registerProvider === "function") {
+			(
+				currentModelRegistry.registerProvider as (
+					providerId: string,
+					config: unknown,
+				) => void
+			).call(currentModelRegistry, config.id, providerConfig);
+		} else {
+			pi.registerProvider(config.id, providerConfig);
+		}
 	};
 
 	const stored = { free: freeModels, all: allModels };
@@ -207,7 +244,14 @@ function createProviderState(
 		initialModels: stored,
 	});
 
-	const state: BuiltInProviderState = { stored, reRegister, toggleState };
+	const state: BuiltInProviderState = {
+		stored,
+		reRegister,
+		setModelRegistry: (registry) => {
+			currentModelRegistry = registry;
+		},
+		toggleState,
+	};
 	providerStates.set(config.id, state);
 
 	registerWithGlobalToggle(config.id, stored, reRegister, true);
@@ -235,6 +279,10 @@ function registerToggleCommand(
 			if (!state) {
 				// Models may have loaded after session_start — try capture again.
 				state = tryCaptureProvider(pi, config, ctx);
+			} else if (ctx.modelRegistry) {
+				// Commands run with the current session context; refresh the
+				// registry even when the catalog was captured in an older session.
+				state.setModelRegistry(ctx.modelRegistry);
 			}
 			if (!state) {
 				ctx.ui.notify(
