@@ -34,10 +34,11 @@ resolution). 0.81.0 is the release that exposes the public extension surface.
 
 ### A. `refreshModels` for native providers — completed for the migrated catalog
 
-Kilo, Cline, and the API-key providers that formerly hit a `models` endpoint
-on startup now use Pi's native `refreshModels` lifecycle. Qoder remains legacy
-by design; Ollama retains the provider cache only for `/api/show` capability
-reuse and its compatibility refresh command. Pi 0.81 supplies the primitives
+Kilo, Cline, Qoder, and the API-key providers that formerly hit a `models`
+endpoint on startup now use Pi's native `refreshModels` lifecycle. Qoder's
+compatibility cache is limited to optional stream metadata; Ollama retains the
+provider cache only for `/api/show` capability reuse and its compatibility
+refresh command. Pi 0.81 supplies the primitives
 that enabled the migration:
 
 | | pi-free today | Pi 0.81 `refreshModels` |
@@ -64,17 +65,17 @@ interface RefreshModelsContext {
 ### B. `filterModels` for the global free filter — completed for native providers
 
 Native providers now keep the complete catalog as the source of truth and use
-`filterModels` plus same-object re-registration for invalidation. Legacy Qoder
-and Pi-built-in integrations retain their specialized array/filter paths.
+`filterModels` plus same-object re-registration for invalidation. Pi-built-in
+integrations retain their specialized catalog/filter paths.
 `Models.getAvailable()` runs native `filterModels` after confirming auth, so the
 free/all policy composes with credential-aware visibility.
 
 ### C. Migrate Kilo/Cline OAuth to the new `createProvider` `auth` shape — completed
 
-Kilo and Cline now use native `ProviderAuth` implementations. Pi persists their
-credentials in `~/.pi/agent/auth.json` and owns refresh coordination. Cline's
-legacy callback-server flow is adapted to native `AuthInteraction`; Qoder's
-OAuth/PAT flow remains legacy.
+Kilo, Cline, and Qoder now use native `ProviderAuth` implementations. Pi
+persists their credentials in `~/.pi/agent/auth.json` and owns refresh
+coordination. Cline's legacy callback-server flow and Qoder's OAuth/PAT flow
+are adapted to native `AuthInteraction`.
 
 ### D. `refreshModels` for Ollama Cloud — completed with a compatibility exception
 
@@ -103,8 +104,8 @@ refactor.
   through the legacy config form.
 - `ctx.modelRegistry` / `ctx.model` events (`model_select`, `session_start`,
   `turn_end`) are unchanged.
-- Qoder's OAuth/PAT and custom stream remain on the legacy surface until a
-  dedicated migration is designed.
+- Qoder's OAuth/PAT and custom stream now run behind the native provider surface;
+  their protocol-specific adapters remain Qoder-owned.
 
 ---
 

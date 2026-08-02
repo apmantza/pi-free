@@ -9,8 +9,8 @@ Use staged, leaf-first lazy loading rather than replacing the provider factory
 with awaited dynamic imports. The first experiment should defer Cline's XML
 bridge, then apply the same boundary to TokenRouter and OpenModel. A later
 phase may introduce full provider stubs, but only if they preserve Pi's native
-provider contract. Keep Qoder eager until its separate native-auth/protocol
-migration is complete.
+provider contract. Qoder now uses the native provider lifecycle; its custom auth
+and protocol remain request-time concerns.
 
 ## Goals
 
@@ -110,10 +110,10 @@ infer a provider's import cost from its catalog or network timing.
   still restore the native store offline, and its `stream`/`streamSimple` must
   retain `anthropicMessagesApi()`. Preserve the terms notification and the
   key-required online refresh behavior.
-- **Qoder:** `providers/qoder/qoder.ts` is intentionally eager. Its legacy
-  `createToggleState`, `registerWithGlobalToggle`, OAuth configuration, initial
-  registration, and `streamQoder` are coupled. Revisit only after native
-  migration and dedicated auth/stream compatibility tests.
+- **Qoder:** `providers/qoder/qoder.ts` now owns only native registration,
+  toggle invalidation, and session-start refresh wiring. Its custom OAuth/PAT
+  adapter and `streamQoder` remain request-time dependencies; preserve them
+  when considering further leaf-level lazy loading.
 
 ## Candidate designs
 
@@ -317,6 +317,5 @@ loading.
   and stream errors before considering Stage 3.
 - [ ] Run the full packaging checks and update `docs/build-strategy.md` only if
   the implementation changes its stated compiled-output constraints.
-- [ ] Keep Qoder on the eager path and add a regression assertion that its
-  legacy OAuth, toggle, and `streamQoder` registration still occurs during the
-  current factory.
+- [x] Migrate Qoder to native auth, model-store refresh, filtering, and stable
+  provider registration while preserving OAuth/PAT and `streamQoder` behavior.

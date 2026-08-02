@@ -15,8 +15,8 @@ Free and paid AI model providers for [Pi](https://pi.dev). Access models from mu
 When you install pi-free, it:
 
 1. Registers native providers such as Kilo, Cline, LLM7, FastRouter, Ollama Cloud, OpenModel, StepFun, and more.
-2. Keeps Qoder on its legacy provider surface and supports Pi's built-in OpenCode, OpenCode Go, and OpenRouter integrations.
-3. Uses Pi's native model and auth stores for migrated providers; remaining legacy catalogs use their documented cache paths.
+2. Registers Qoder through Pi's native provider surface and supports Pi's built-in OpenCode, OpenCode Go, and OpenRouter integrations.
+3. Uses Pi's native model and auth stores for all extension providers; Ollama Cloud and Qoder retain documented compatibility caches only for auxiliary behavior.
 4. Applies the global free-only filter by default, while preserving provider-specific paid/trial behavior.
 5. Provides per-provider toggle commands — `/toggle-{provider}` switches between the provider's free/basic view and its full catalog.
 6. Supports OAuth and API-key authentication where a provider offers them.
@@ -42,7 +42,7 @@ Cline exposes a public catalog before login. Kilo requires an OAuth credential o
 /login kilo
 ```
 
-Qoder remains a legacy provider. Authenticate it with `/login qoder` (PAT or browser OAuth), then use `/toggle-qoder` to switch between its basic free tier and full catalog.
+Qoder supports `/login qoder` with PAT or browser OAuth, then `/toggle-qoder` switches between its basic free tier and full catalog.
 
 ### Toggle between free and paid
 
@@ -80,7 +80,7 @@ Provider availability, authentication, and exact API-key names are maintained in
 
 ### Catalog and credential storage
 
-Migrated native providers use Pi's `~/.pi/agent/models-store.json` and `~/.pi/agent/auth.json`. Qoder is intentionally unmigrated and uses its own `~/.pi/agent/qoder-models-cache.json`; Ollama Cloud retains `~/.pi/provider-cache.json` only for capability reuse and its compatibility refresh command. `/free-startup` also reports per-provider fetch attempts and post-start session work.
+Native providers use Pi's `~/.pi/agent/models-store.json` and `~/.pi/agent/auth.json`. Qoder's static catalog is persisted in the native model store; it retains its legacy cache only for optional stream metadata. Ollama Cloud retains `~/.pi/provider-cache.json` only for capability reuse and its compatibility refresh command. `/free-startup` also reports per-provider fetch attempts and post-start session work.
 
 ### Startup packaging
 

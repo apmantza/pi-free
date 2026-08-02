@@ -1,35 +1,48 @@
-/**
- * Qoder Provider Tests
- */
-
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockGetQoderShowPaid = vi.fn();
-const mockGetCachedModels = vi.fn();
-const mockIsCacheStale = vi.fn();
-const mockUpdateQoderModelsCache = vi.fn();
-const mockGetCachedCredentials = vi.fn();
-const mockLoginQoder = vi.fn();
-const mockRefreshQoderToken = vi.fn();
-const mockRegisterWithGlobalToggle = vi.fn();
-let capturedToggleArgs: unknown[] = [];
-
-vi.mock("../constants.ts", () => ({
-	BASE_URL_QODER: "https://api2-v2.qoder.sh",
-	PROVIDER_QODER: "qoder",
+const mocks = vi.hoisted(() => ({
+	getQoderShowPaid: vi.fn(() => false),
+	registerNativeProvider: vi.fn(),
+	registerNativeProviderRefresh: vi.fn(),
+	registerNativeProviderToggle: vi.fn(),
+	registerWithGlobalToggle: vi.fn(),
+	restoreNativeProviderModels: vi.fn(async (..._args: unknown[]) => undefined),
+	persistNativeProviderModels: vi.fn(async (..._args: unknown[]) => undefined),
+	filterNativeModels: vi.fn(
+		(...args: unknown[]) => (args[1] as readonly unknown[]) ?? [],
+	),
+	qoderAuth: {
+		oauth: {
+			name: "Qoder (Browser OAuth / PAT)",
+			login: vi.fn(),
+			refresh: vi.fn(),
+			toAuth: vi.fn(),
+		},
+	},
 }));
 
 vi.mock("../config.ts", () => ({
-	getProviderShowPaid: () => mockGetQoderShowPaid(),
-	saveConfig: vi.fn(),
+	getProviderShowPaid: () => mocks.getQoderShowPaid(),
 }));
 
 vi.mock("../lib/registry.ts", () => ({
-	registerWithGlobalToggle: (...args: unknown[]) => {
-		capturedToggleArgs.push(args);
-		mockRegisterWithGlobalToggle(...args);
-	},
+	registerWithGlobalToggle: (...args: unknown[]) =>
+		mocks.registerWithGlobalToggle(...args),
+}));
+
+vi.mock("../lib/native-provider.ts", () => ({
+	filterNativeModels: (...args: unknown[]) => mocks.filterNativeModels(...args),
+	persistNativeProviderModels: (...args: unknown[]) =>
+		mocks.persistNativeProviderModels(...args),
+	registerNativeProvider: (...args: unknown[]) =>
+		mocks.registerNativeProvider(...args),
+	registerNativeProviderRefresh: (...args: unknown[]) =>
+		mocks.registerNativeProviderRefresh(...args),
+	registerNativeProviderToggle: (...args: unknown[]) =>
+		mocks.registerNativeProviderToggle(...args),
+	restoreNativeProviderModels: (...args: unknown[]) =>
+		mocks.restoreNativeProviderModels(...args),
 }));
 
 vi.mock("../provider-helper.ts", () => ({
@@ -37,33 +50,25 @@ vi.mock("../provider-helper.ts", () => ({
 }));
 
 vi.mock("../providers/qoder/auth.ts", () => ({
-	getCachedCredentials: () => mockGetCachedCredentials(),
-	loginQoder: (...args: unknown[]) => mockLoginQoder(...args),
-	refreshQoderToken: (...args: unknown[]) => mockRefreshQoderToken(...args),
+	qoderAuth: mocks.qoderAuth,
 }));
-
-vi.mock("../providers/qoder/models.ts", async (importOriginal) => {
-	const actual =
-		await importOriginal<typeof import("../providers/qoder/models.ts")>();
-	return {
-		...actual,
-		getCachedModels: () => mockGetCachedModels(),
-		isCacheStale: () => mockIsCacheStale(),
-		updateQoderModelsCache: (...args: unknown[]) =>
-			mockUpdateQoderModelsCache(...args),
-		getCachedModelConfig: vi.fn(),
-		isBasicModel: (m: { id: string }) =>
-			["auto", "ultimate", "performance", "efficient", "lite"].includes(m.id),
-	};
-});
 
 import qoderProvider from "../providers/qoder/qoder.ts";
 import { isBasicModel, staticModels } from "../providers/qoder/models.ts";
 
+function getRegisteredProvider(): any {
+	return mocks.registerNativeProvider.mock.calls[0]?.[1];
+}
+
+beforeEach(() => {
+	vi.clearAllMocks();
+	mocks.getQoderShowPaid.mockReturnValue(false);
+});
+
 describe("Qoder model classification", () => {
 	it("classifies basic router models correctly", () => {
 		for (const id of ["auto", "ultimate", "performance", "efficient", "lite"]) {
-			const model = staticModels.find((m) => m.id === id);
+			const model = staticModels.find((entry) => entry.id === id);
 			expect(model).toBeDefined();
 			expect(isBasicModel(model!)).toBe(true);
 		}
@@ -71,244 +76,114 @@ describe("Qoder model classification", () => {
 
 	it("classifies premium named models as non-basic", () => {
 		for (const id of ["qmodel", "dmodel", "kmodel", "mmodel"]) {
-			const model = staticModels.find((m) => m.id === id);
+			const model = staticModels.find((entry) => entry.id === id);
 			expect(model).toBeDefined();
 			expect(isBasicModel(model!)).toBe(false);
 		}
 	});
-
-	it("classifies unknown models as non-basic", () => {
-		expect(
-			isBasicModel({
-				id: "unknown-model",
-				name: "Unknown",
-				reasoning: false,
-				input: ["text"],
-				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-				contextWindow: 1000,
-				maxTokens: 100,
-			}),
-		).toBe(false);
-	});
 });
 
-describe("Qoder Provider", () => {
-	let mockPi: ExtensionAPI;
-	let mockRegisterProvider: ReturnType<typeof vi.fn>;
-	let mockRegisterCommand: ReturnType<typeof vi.fn>;
-	let commandHandlers: Record<string, Function>;
+describe("Qoder native provider", () => {
+	const pi = {} as ExtensionAPI;
 
-	const basicModels = [
-		{
-			id: "auto",
-			name: "Qoder Auto",
-			reasoning: true,
-			input: ["text", "image"] as const,
-			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-			contextWindow: 180_000,
-			maxTokens: 32_768,
-		},
-		{
-			id: "lite",
-			name: "Qoder Lite",
-			reasoning: false,
-			input: ["text"] as const,
-			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-			contextWindow: 180_000,
-			maxTokens: 32_768,
-		},
-	];
+	it("registers the complete catalog through Pi's native provider API", async () => {
+		await qoderProvider(pi);
 
-	const premiumModels = [
-		{
-			id: "qmodel",
-			name: "Qwen3.7 Plus (Qoder)",
-			reasoning: false,
-			input: ["text", "image"] as const,
-			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-			contextWindow: 1_000_000,
-			maxTokens: 32_768,
-		},
-		{
-			id: "dmodel",
-			name: "DeepSeek V4 Pro (Qoder)",
-			reasoning: true,
-			input: ["text", "image"] as const,
-			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-			contextWindow: 1_000_000,
-			maxTokens: 32_768,
-		},
-	];
-
-	beforeEach(() => {
-		vi.clearAllMocks();
-		mockGetQoderShowPaid.mockReset().mockReturnValue(false);
-		mockGetCachedModels
-			.mockReset()
-			.mockReturnValue([...basicModels, ...premiumModels]);
-		mockIsCacheStale.mockReset().mockReturnValue(false);
-		mockUpdateQoderModelsCache.mockReset().mockResolvedValue(undefined);
-		mockGetCachedCredentials.mockReset().mockReturnValue(null);
-		mockLoginQoder.mockReset().mockResolvedValue({
-			access: "oauth-token",
-			refresh: "refresh-token",
-			expires: Date.now() + 3600_000,
+		const provider = getRegisteredProvider();
+		expect(provider).toMatchObject({
+			id: "qoder",
+			name: "Qoder",
+			baseUrl: "https://api2-v2.qoder.sh",
 		});
-		mockRefreshQoderToken.mockReset();
-		mockRegisterWithGlobalToggle.mockReset();
-		capturedToggleArgs = [];
-
-		mockRegisterProvider = vi.fn();
-		mockRegisterCommand = vi.fn(
-			(name: string, config: { handler: Function }) => {
-				commandHandlers[name] = config.handler;
-			},
+		expect(provider.getModels()).toHaveLength(staticModels.length);
+		expect(provider.getModels()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: "auto", api: "qoder-api" }),
+				expect.objectContaining({ id: "qmodel", api: "qoder-api" }),
+			]),
 		);
-		commandHandlers = {};
-
-		mockPi = {
-			registerProvider: mockRegisterProvider,
-			on: vi.fn(),
-			registerCommand: mockRegisterCommand,
-		} as unknown as ExtensionAPI;
+		expect(provider.auth).toBe(mocks.qoderAuth);
+		expect(provider.stream).toEqual(expect.any(Function));
+		expect(provider.streamSimple).toEqual(expect.any(Function));
+		expect(mocks.registerNativeProviderRefresh).toHaveBeenCalledWith(
+			pi,
+			"qoder",
+		);
 	});
 
-	describe("initialization", () => {
-		it("should register provider with basic (free-tier) models by default", async () => {
-			await qoderProvider(mockPi);
+	it("keeps the basic catalog in the global toggle state", async () => {
+		await qoderProvider(pi);
 
-			expect(mockRegisterProvider).toHaveBeenCalledWith(
-				"qoder",
-				expect.objectContaining({
-					baseUrl: "https://api2-v2.qoder.sh",
-					models: expect.arrayContaining([
-						expect.objectContaining({ id: "auto" }),
-						expect.objectContaining({ id: "lite" }),
-					]),
-					streamSimple: expect.any(Function),
-				}),
-			);
-
-			const registeredModels = mockRegisterProvider.mock.calls[0][1].models;
-			expect(registeredModels).toHaveLength(2);
-			expect(
-				registeredModels.some((m: { id: string }) => m.id === "qmodel"),
-			).toBe(false);
-			expect(
-				registeredModels.some((m: { id: string }) => m.id === "dmodel"),
-			).toBe(false);
-		});
-
-		it("should register all models when QODER_SHOW_PAID is true", async () => {
-			mockGetQoderShowPaid.mockReturnValue(true);
-
-			await qoderProvider(mockPi);
-
-			const registeredModels = mockRegisterProvider.mock.calls[0][1].models;
-			expect(registeredModels).toHaveLength(4);
-			expect(
-				registeredModels.some((m: { id: string }) => m.id === "qmodel"),
-			).toBe(true);
-			expect(
-				registeredModels.some((m: { id: string }) => m.id === "dmodel"),
-			).toBe(true);
-		});
-
-		it("should register with global toggle system", async () => {
-			await qoderProvider(mockPi);
-
-			expect(mockRegisterWithGlobalToggle).toHaveBeenCalledWith(
-				"qoder",
-				expect.objectContaining({
-					free: expect.arrayContaining([
-						expect.objectContaining({ id: "auto" }),
-						expect.objectContaining({ id: "lite" }),
-					]),
-					all: expect.arrayContaining([
-						expect.objectContaining({ id: "auto" }),
-						expect.objectContaining({ id: "qmodel" }),
-					]),
-				}),
-				expect.any(Function),
-				false,
-			);
+		const stored = mocks.registerWithGlobalToggle.mock.calls[0]?.[1];
+		expect(stored.free).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: "auto" }),
+				expect.objectContaining({ id: "lite" }),
+			]),
+		);
+		expect(stored.all).toHaveLength(staticModels.length);
+		expect(mocks.registerWithGlobalToggle.mock.calls[0]?.[4]).toMatchObject({
+			native: true,
+			invalidate: expect.any(Function),
 		});
 	});
 
-	describe("toggle-qoder command", () => {
-		it("should toggle from basic to all models", async () => {
-			await qoderProvider(mockPi);
-			mockRegisterProvider.mockClear();
+	it("filters to basic models by default and can expose paid models", async () => {
+		await qoderProvider(pi);
+		const provider = getRegisteredProvider();
+		const models = provider.getModels();
 
-			const notify = vi.fn();
-			await commandHandlers["toggle-qoder"]({}, { ui: { notify } });
+		provider.filterModels(models, undefined);
+		expect(mocks.filterNativeModels).toHaveBeenLastCalledWith(
+			"qoder",
+			models,
+			expect.objectContaining({ showPaid: false }),
+		);
 
-			expect(notify).toHaveBeenCalledWith(
-				"qoder: showing all 4 models (2 basic, 2 premium)",
-				"info",
-			);
-			expect(mockRegisterProvider).toHaveBeenCalledWith(
-				"qoder",
-				expect.objectContaining({
-					models: expect.arrayContaining([
-						expect.objectContaining({ id: "qmodel" }),
-					]),
-				}),
-			);
-		});
-
-		it("should toggle back to basic models", async () => {
-			await qoderProvider(mockPi);
-
-			const notify = vi.fn();
-			await commandHandlers["toggle-qoder"]({}, { ui: { notify } });
-			mockRegisterProvider.mockClear();
-			await commandHandlers["toggle-qoder"]({}, { ui: { notify } });
-
-			expect(notify).toHaveBeenLastCalledWith(
-				"qoder: showing 2 basic (free-tier) models",
-				"info",
-			);
-			const registeredModels = mockRegisterProvider.mock.calls[0][1].models;
-			expect(registeredModels).toHaveLength(2);
-			expect(
-				registeredModels.every((m: { id: string }) =>
-					["auto", "lite"].includes(m.id),
-				),
-			).toBe(true);
-		});
-
-		it("should persist paid mode to config", async () => {
-			const { saveConfig } = await import("../config.ts");
-
-			await qoderProvider(mockPi);
-
-			const notify = vi.fn();
-			await commandHandlers["toggle-qoder"]({}, { ui: { notify } });
-
-			expect(saveConfig).toHaveBeenCalledWith({ qoder_show_paid: true });
-		});
+		mocks.getQoderShowPaid.mockReturnValue(true);
+		provider.filterModels(models, undefined);
+		expect(mocks.filterNativeModels).toHaveBeenLastCalledWith(
+			"qoder",
+			models,
+			expect.objectContaining({ showPaid: true }),
+		);
 	});
 
-	describe("OAuth integration", () => {
-		it("should have OAuth configuration", async () => {
-			await qoderProvider(mockPi);
+	it("registers the native per-provider toggle and refresh hook", async () => {
+		await qoderProvider(pi);
 
-			const registerCall = mockRegisterProvider.mock.calls[0];
-			expect(registerCall[1]).toHaveProperty("oauth");
-			expect(registerCall[1].oauth).toHaveProperty("name");
-			expect(registerCall[1].oauth).toHaveProperty("login");
-			expect(registerCall[1].oauth).toHaveProperty("refreshToken");
-			expect(registerCall[1].oauth).toHaveProperty("getApiKey");
-		});
+		expect(mocks.registerNativeProviderToggle).toHaveBeenCalledWith(
+			pi,
+			expect.objectContaining({
+				providerId: "qoder",
+				stored: expect.any(Object),
+				getShowPaid: expect.any(Function),
+				reRegister: expect.any(Function),
+			}),
+		);
+		const provider = getRegisteredProvider();
+		const reRegister = mocks.registerNativeProviderToggle.mock.calls[0][1]
+			.reRegister as () => void;
+		mocks.registerNativeProvider.mockClear();
+		reRegister();
+		expect(mocks.registerNativeProvider).toHaveBeenCalledWith(pi, provider);
+	});
 
-		it("should call loginQoder on OAuth login", async () => {
-			await qoderProvider(mockPi);
+	it("restores offline catalogs without persisting a network refresh", async () => {
+		await qoderProvider(pi);
+		const provider = getRegisteredProvider();
+		const context = {
+			store: { read: vi.fn(), write: vi.fn(), delete: vi.fn() },
+			allowNetwork: false,
+			signal: new AbortController().signal,
+		};
 
-			const oauth = mockRegisterProvider.mock.calls[0][1].oauth;
-			await oauth.login({ onProgress: vi.fn() });
-
-			expect(mockLoginQoder).toHaveBeenCalled();
-		});
+		await provider.refreshModels(context);
+		expect(mocks.restoreNativeProviderModels).toHaveBeenCalledWith(
+			"qoder",
+			context,
+			expect.any(Function),
+		);
+		expect(mocks.persistNativeProviderModels).not.toHaveBeenCalled();
 	});
 });
