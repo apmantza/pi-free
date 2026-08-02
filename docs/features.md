@@ -22,7 +22,7 @@ Most pi-free providers now use Pi's native `registerProvider(provider)` surface.
 - retain the previous catalog after an empty or failed refresh; and
 - keep their complete catalog in memory while Pi applies the current free/all filter.
 
-FastRouter now uses the native provider lifecycle alongside the other migrated providers. Qoder intentionally remains on the legacy registration surface. Pi owns the OpenCode, OpenCode Go, and OpenRouter built-in catalogs. See [configuration](configuration.md#model-stores-and-caches) for cache locations, including Ollama Cloud's intentional compatibility-cache exception.
+FastRouter and Qoder now use the native provider lifecycle alongside the other migrated providers. Pi owns the OpenCode, OpenCode Go, and OpenRouter built-in catalogs. See [configuration](configuration.md#model-stores-and-caches) for cache locations, including Ollama Cloud's intentional compatibility-cache exception.
 
 ## Coding Index (CI) scores
 
@@ -46,7 +46,7 @@ See [Commands](commands.md#probe-commands) for the command list.
 - `/toggle-{provider}` switches an individual provider between its free/basic view and full catalog.
 - `/toggle-free` changes the global free-only mode.
 - Preferences persist in `~/.pi/free.json`.
-- Native providers re-register the same provider object to invalidate Pi's model snapshot; Qoder and remaining legacy providers re-register the selected model array.
+- Native providers re-register the same provider object to invalidate Pi's model snapshot; all pi-free providers now use this native invalidation path.
 
 ## Optional telemetry
 
@@ -69,6 +69,6 @@ Most providers use OpenAI-compatible APIs. Notable custom integrations are:
 
 - **Cline** — native provider with the custom `cline-xml-tools` wire API and XML message/tool reshaping.
 - **OpenModel** — native Anthropic Messages API provider.
-- **Qoder** — intentionally legacy provider with Qoder authentication, request signing, and custom streaming compatibility.
+- **Qoder** — native provider with Qoder authentication, COSY request signing, static catalog persistence, and custom streaming compatibility.
 
 See [Provider catalog & auth](providers.md) for setup details.

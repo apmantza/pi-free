@@ -17,12 +17,13 @@ Merged and in production:
 | #350 | Startup observability (`lib/startup-timing.ts`, `/free-startup`) | Production logs expose factory, provider, and detached session-start timings |
 | #351 | 8s startup fetch deadline + buffered async logging | Cold network work is bounded; warm logging is effectively non-blocking |
 | #352 | Built-in alignment and retired duplicate fetchers | Pi-owned built-ins no longer have duplicate pi-free catalog discovery |
-| #353–#386 | Native provider lifecycle, filtering, and startup import-graph cleanup | All pi-free providers except Qoder use Pi's native lifecycle; compiled import p50 improved ~1.14s → ~0.43s and total p50 ~1.18s → ~0.47s; measured graph 904 → 226 modules |
+| #353–#386 | Native provider lifecycle, filtering, and startup import-graph cleanup | All migrated providers use Pi's native lifecycle; compiled import p50 improved ~1.14s → ~0.43s and total p50 ~1.18s → ~0.47s; measured graph 904 → 226 modules |
 | #387–#388 | StepFun native provider and paid-by-default behavior | StepFun uses Pi's native model store and OpenAI Chat Completions at `api.stepfun.ai/step_plan/v1` |
+| Qoder follow-up | Qoder native provider migration | Native auth/model-store lifecycle preserves OAuth/PAT, COSY signing, static catalog, custom stream, and basic/all filtering |
 | #380–#384 | Generic DeepSeek/Cline DSML and custom-tool schema compatibility | Registered extension-tool schemas are preserved; mixed DSML forms are normalized without provider-specific allowlists |
 | Follow-up | Session-start and fetch observability | `/free-startup` reports per-provider attempts, failures, handler durations, and detached post-handler work; background work remains non-blocking |
 
-Current focus: **Qoder remains the only static legacy provider**; any future migration is a separate protocol/auth project. Compiled `dist/` packaging is shipped and is the Pi/npm entry. The startup numbers above are controlled compiled extension benchmarks; a full Pi-host A/B result has not been claimed.
+Current focus: all pi-free providers use Pi's native lifecycle; remaining work is optional built-in filtering and compatibility hardening. Compiled `dist/` packaging is shipped and is the Pi/npm entry. The startup numbers above are controlled compiled extension benchmarks; a full Pi-host A/B result has not been claimed.
 
 ---
 
@@ -66,13 +67,12 @@ These drive every recommendation below. Re-verify on major Pi bumps.
 
 ## Phases
 
-### Phase 0 — Cline migration (completed)
+### Phase 0 — Provider migration (completed)
 
-Cline now uses the native `Provider` surface with its custom XML wire API,
-public keyless catalog, adapted OAuth flow, request-scoped headers, and Pi-owned
-models store. The remaining static providers were migrated in the same arc;
-Qoder is intentionally deferred because its PAT exchange, COSY signing, and
-custom stream need a separate design.
+Cline and Qoder now use the native `Provider` surface. Cline retains its custom
+XML wire API and adapted OAuth flow; Qoder retains its PAT exchange, COSY
+signing, static catalog, and custom stream while using Pi-owned auth and model
+stores.
 
 **Completed criteria:** native refresh/store tests, credential reuse coverage,
 filtering and toggle coverage, and cross-platform CI for the migration PRs.
@@ -80,8 +80,8 @@ filtering and toggle coverage, and cross-platform CI for the migration PRs.
 ### Phase 1 — API-key provider batch (completed)
 
 The former candidates — `zenmux, sambanova, deepinfra, novita, routeway,
-crofai, llm7, tokenrouter, anyapi, bai, openmodel, ollama-cloud` — now use the
-native lifecycle. The value was architectural uniformity (Pi-owned refresh,
+crofai, llm7, tokenrouter, anyapi, bai, openmodel, ollama-cloud`, and Qoder — now
+use the native lifecycle. The value was architectural uniformity (Pi-owned refresh,
 credentials, cancellation, and models-store persistence), not a promise of a
 fixed startup speed.
 
@@ -92,11 +92,13 @@ fixed user-visible startup speed. Keyless-provider auth and the `>=0.81.0`
 peer surface were covered by the migration tests and CI; the lockfile was kept
 unchanged.
 
-### Phase 2 — Qoder (deferred)
+### Phase 2 — Qoder (completed)
 
 Qoder's OAuth device flow, PAT exchange, COSY signing, static catalog, and
-custom stream remain intentionally legacy. Revisit only with a dedicated
-protocol/auth migration plan and compatibility tests.
+custom stream now run behind the native `Provider` and `ProviderAuth` surfaces.
+Pi owns credential persistence, offline model restoration, refresh scheduling,
+and catalog persistence; Qoder's compatibility cache remains only for optional
+stream metadata.
 
 ### Phase 3 — `filterModels` capstone (completed)
 
@@ -114,8 +116,8 @@ runtime — see facts 4–6) is:
 
 Completed in the native-provider migration and cleanup PRs. The native
 filter and re-registration paths have focused tests for the eventual filtered
-availability snapshot; Qoder and Pi-built-in providers retain their
-specialized legacy surfaces by design.
+availability snapshot; Pi-built-in providers retain their specialized
+built-in catalog surfaces by design.
 
 ### Parking lot (unordered, low urgency)
 
@@ -124,8 +126,6 @@ specialized legacy surfaces by design.
   only if users miss them. Requires a pricing check per native catalog first
   (Route A/B detection depends on it; opencode-go's native catalog has zero
   free models, illustrating the risk).
-+ **Qoder native migration** — requires a dedicated plan for PAT exchange,
-  COSY signing, the static catalog, and its custom stream.
 + **Free-filter toggle ports** for Pi-built-in Mistral, Groq, Cerebras, xAI, and
   Hugging Face catalogs — only if users request them. pi-free would layer a
   filter/toggle over Pi's catalog without duplicating discovery; pricing

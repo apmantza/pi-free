@@ -179,9 +179,9 @@ export BAI_API_KEY="..."
 
 Or set `bai_api_key`. Toggle with `/toggle-bai`.
 
-## Qoder (legacy, intentionally unmigrated)
+## Qoder (native)
 
-Qoder remains on pi-free's legacy provider surface. It has a basic Community/free tier and premium models that consume plan credits. The provider uses a static curated catalog plus its own one-hour cache at `~/.pi/agent/qoder-models-cache.json`; it does not use Pi's native models-store refresh lifecycle.
+Qoder has a basic Community/free tier and premium models that consume plan credits. Its static curated catalog is restored and persisted through Pi's native models-store lifecycle; the legacy cache is retained only for optional stream metadata.
 
 Authenticate with either method:
 
@@ -192,7 +192,7 @@ Authenticate with either method:
 - Browser OAuth uses Qoder's device/PKCE flow.
 - PAT authentication can use `QODER_PERSONAL_ACCESS_TOKEN` or the alias `QODER_PAT`.
 
-`/toggle-qoder` switches between basic and all Qoder models. Qoder's API is currently OpenAI-compatible, but its authentication and legacy provider integration remain Qoder-specific.
+`/toggle-qoder` switches between basic and all Qoder models. Qoder's API remains OpenAI-compatible, while its authentication and custom stream integration remain Qoder-specific.
 
 ## Pi built-in providers
 
@@ -224,4 +224,4 @@ Pi owns the following providers; pi-free does not register duplicate catalogs or
 - Native providers: `~/.pi/agent/models-store.json` and Pi's `~/.pi/agent/auth.json`.
 - Legacy catalog cache: `~/.pi/provider-cache.json`.
 - Ollama compatibility data: `~/.pi/provider-cache.json` in addition to the native store.
-- Qoder legacy catalog/config cache: `~/.pi/agent/qoder-models-cache.json`.
+- Qoder's native static catalog is stored in Pi's model store; its optional stream metadata may use `~/.pi/agent/qoder-models-cache.json`.

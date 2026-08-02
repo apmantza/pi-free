@@ -10,8 +10,8 @@
  * basic (free tier) or premium (paid credits) by model ID.
  *
  * Dynamic model discovery is disabled until Qoder publishes a model-list
- * endpoint on api2-v2. Stale legacy cache entries are ignored and static
- * models in `staticModels` remain the source of truth.
+ * endpoint on api2-v2. Static models in `staticModels` remain the source of
+ * truth; Pi's native models store owns the persisted catalog.
  */
 
 import { existsSync, readFileSync } from "node:fs";
@@ -148,30 +148,13 @@ export function isBasicModel(model: ProviderModelConfig): boolean {
 	return BASIC_MODEL_IDS.has(model.id);
 }
 
-// ─── Cache management ────────────────────────────────────────────────────────
+// ─── Stream metadata cache ───────────────────────────────────────────────────
 
-/** Get models from cache, falling back to static models. */
-export function getCachedModels(): QoderModelConfig[] {
-	if (existsSync(CACHE_PATH) && !isCacheStale()) {
-		try {
-			const data = JSON.parse(readFileSync(CACHE_PATH, "utf8"));
-			if (data && Array.isArray(data.models)) {
-				return data.models as QoderModelConfig[];
-			}
-		} catch (err) {
-			_logger.warn(
-				"Failed to read Qoder model cache; falling back to static models",
-				{
-					error: err instanceof Error ? err.message : String(err),
-				},
-			);
-		}
-	}
-	return staticModels;
-}
-
-/** Check if the local model cache is stale (>1 hour old). */
-export function isCacheStale(): boolean {
+/**
+ * The legacy cache is consulted only for optional stream metadata. It is not a
+ * model catalog or freshness source; catalogs are restored/persisted by Pi.
+ */
+function isCacheStale(): boolean {
 	if (!existsSync(CACHE_PATH)) return true;
 	try {
 		const data = JSON.parse(readFileSync(CACHE_PATH, "utf8"));

@@ -85,9 +85,9 @@ Migrated native providers restore and persist catalogs through Pi's model lifecy
 - `~/.pi/agent/models-store.json` — Pi-owned native provider catalogs.
 - `~/.pi/agent/auth.json` — Pi-owned native credentials, including Kilo and Cline OAuth/API-key credentials.
 
-The remaining legacy catalog is Qoder's and uses its own cache:
+Native providers use Pi's model store; Qoder retains its separate cache only for optional stream metadata:
 
-- `~/.pi/agent/qoder-models-cache.json` — Qoder's separate legacy model/config cache; Qoder intentionally remains unmigrated.
+- `~/.pi/agent/qoder-models-cache.json` — Qoder stream metadata compatibility cache.
 - `~/.pi/provider-cache.json` — retained by native Ollama Cloud only for `/api/show` capability reuse and `/ollama-cloud-refresh` compatibility.
 
 Ollama Cloud is native but intentionally retains `~/.pi/provider-cache.json` for `/api/show` capability reuse and `/ollama-cloud-refresh`. This does not replace its Pi native model store.
@@ -139,4 +139,4 @@ The telemetry file defaults to `~/.pi/free-telemetry.json`.
 | `~/.pi/provider-cache.json` | Legacy cache and Ollama compatibility data |
 | `~/.pi/agent/models-store.json` | Pi native provider catalogs |
 | `~/.pi/agent/auth.json` | Pi native credentials and Qoder credentials |
-| `~/.pi/agent/qoder-models-cache.json` | Qoder legacy model/config cache |
+| `~/.pi/agent/qoder-models-cache.json` | Qoder optional stream metadata cache |
