@@ -7,12 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **StepFun native provider** — Added the paid StepFun Step Plan provider using Pi's native model store and refresh lifecycle. Chat requests use the OpenAI-compatible endpoint at `https://api.stepfun.ai/step_plan/v1/chat/completions`; `STEPFUN_API_KEY` and `stepfun_api_key` are supported, and paid models are shown by default.
+
 ### Changed
+
+- **Compiled startup graph** — Removed startup-only Pi credential inspection and deferred the broad pi-ai compatibility graph. Controlled compiled import-inclusive benchmarks improved from roughly **1.14s to 0.43s p50**, total from **1.18s to 0.47s p50**, and the measured import graph from **904 to 226 modules**. These figures measure the extension benchmark, not a full Pi-host A/B result.
 
 - **Cline native tool-call compatibility** — The custom Cline bridge now advertises the current OpenAI-compatible tool schema and parses streamed `delta.tool_calls` alongside the existing XML and `<function=...>` fallbacks. This prevents reasoning-capable models from stopping after planning text when their actual tool call arrives in the native stream format.
 - **Telemetry latency uses a monotonic clock** — `startModelCall`/`recordModelCall` now measure elapsed latency with `performance.now()` instead of `Date.now()`, matching the startup-timing module. Wall-clock skew from NTP adjustments or system suspend can no longer corrupt recorded per-call latency; `Date.now()` is retained only for the stored entry timestamp. The 10-minute implausible-latency guard remains as a sanity backstop.
 - **Telemetry disk writes are debounced** — `recordModelCall` no longer performs one synchronous `writeFileSync` of the whole telemetry store on every `turn_end`. The JSON store (`lib/json-persistence.ts`) gained an optional `debounceMs` (telemetry uses 1500ms) that updates the in-memory cache immediately — so `/free-telemetry` always shows current data — while coalescing the disk flush into a single write once the burst settles. `clearTelemetry` flushes immediately so the explicit `/clear-free-telemetry` action is durable. Removes the per-turn event-loop block from chatty sessions; probe-cache and config keep synchronous writes.
 - **Benchmark debug logging routed through the structured logger** — Coding Index match diagnostics (`PI_FREE_BENCHMARK_DEBUG=1`) now flow through `createLogger("benchmark-lookup")` to `~/.pi/free.log` via the buffered async stream, instead of a parallel `appendFileSync`-based pipe-delimited `~/.pi/modelmatch.log`. Eliminates the per-model synchronous file writes when debug logging is enabled and consolidates diagnostics into the single extension log. The unused `getMatchingStats`/`getMatchLogPath`/`clearMatchLog` helpers were removed.
+- **Compiled startup entry** — npm and Pi now load the generated `dist/index.js` entry, with peer dependencies externalized and build-time packaging checks covering Git installs and tarballs.
 
 ## [2.3.0] - 2026-08-01
 

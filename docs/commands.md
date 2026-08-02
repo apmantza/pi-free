@@ -43,7 +43,7 @@ Run `/toggle-{provider}` to switch between a provider's free/basic view and its 
 | `/toggle-opencode-go` | OpenCode Go | Pi built-in |
 | `/toggle-fastrouter` | FastRouter | Native |
 
-Native providers retain their complete catalog and let Pi apply the current filter. Qoder and remaining legacy providers re-register the selected model list.
+Native providers retain their complete catalog and let Pi apply the current filter. Qoder is the remaining legacy provider and re-registers its selected model list.
 
 ## Authentication Commands
 
