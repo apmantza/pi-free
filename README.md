@@ -73,14 +73,18 @@ First run creates `~/.pi/free.json`. Add extension-provider keys there or use th
 | Free/free-tier | Kilo, Cline, LLM7, OpenModel, TokenRouter, Qoder basic tier, and eligible models from other catalogs |
 | Freemium | AnyAPI, Ollama Cloud, SambaNova |
 | Paid/trial | ZenMux, CrofAI, DeepInfra trial, Novita, Routeway, OpenGateway, B.AI, StepFun, and paid catalog entries from other providers |
-| Native | FastRouter, StepFun |
+| Native lifecycle | Kilo, Cline, LLM7, Ollama Cloud, AnyAPI, SambaNova, TokenRouter, OpenModel, ZenMux, CrofAI, DeepInfra, Novita, Routeway, OpenGateway, B.AI, FastRouter, StepFun |
 | Built-in | OpenCode, OpenCode Go, OpenRouter |
 
 Provider availability, authentication, and exact API-key names are maintained in [docs/providers.md](docs/providers.md). pi-free does not publish model counts because provider catalogs change.
 
 ### Catalog and credential storage
 
-Migrated native providers use Pi's `~/.pi/agent/models-store.json` and `~/.pi/agent/auth.json`. Remaining legacy network catalogs use `~/.pi/provider-cache.json`; Ollama Cloud uses that cache for capability reuse and its compatibility refresh command. Qoder is intentionally unmigrated and uses its own `~/.pi/agent/qoder-models-cache.json`. `/free-startup` also reports per-provider fetch attempts and post-start session work.
+Migrated native providers use Pi's `~/.pi/agent/models-store.json` and `~/.pi/agent/auth.json`. Qoder is intentionally unmigrated and uses its own `~/.pi/agent/qoder-models-cache.json`; Ollama Cloud retains `~/.pi/provider-cache.json` only for capability reuse and its compatibility refresh command. `/free-startup` also reports per-provider fetch attempts and post-start session work.
+
+### Startup packaging
+
+Pi and npm load the compiled `dist/` entry. The compiled import-inclusive benchmark improved from roughly **1.14s to 0.43s p50** (total from **1.18s to 0.47s p50**) after reducing the measured import graph from **904 to 226 modules**. These are controlled extension benchmarks, not a full Pi-host A/B result; host startup also includes Pi and its peer dependencies.
 
 ## Docs
 
@@ -90,7 +94,7 @@ Migrated native providers use Pi's `~/.pi/agent/models-store.json` and `~/.pi/ag
 | Slash commands | [docs/commands.md](docs/commands.md) |
 | Configuration & logging | [docs/configuration.md](docs/configuration.md) |
 | Features deep dive | [docs/features.md](docs/features.md) |
-| Proposed compiled packaging | [docs/build-strategy.md](docs/build-strategy.md) |
+| Compiled packaging | [docs/build-strategy.md](docs/build-strategy.md) |
 | Adding new providers | [CONTRIBUTING.md](CONTRIBUTING.md) |
 
 ## License

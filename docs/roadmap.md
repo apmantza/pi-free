@@ -1,10 +1,10 @@
 # Roadmap — pi-free forward assessment
 
-> Updated after the observability → startup-perf → built-in-audit → native-provider
-> migration arc (PRs #350–#362). Supersedes the recommendations in
-> `docs/opps.md`, which remains historical context for *why* the native-provider
-> migration exists. This is a planning document, not a record of shipped model
-> counts or provider promotions.
+> Updated after the observability → native-provider → compiled-startup arc
+> (PRs #350–#388). Supersedes the recommendations in `docs/opps.md`, which
+> remains historical context for *why* the native-provider migration exists.
+> This is a planning document, not a record of shipped model counts or provider
+> promotions.
 
 ---
 
@@ -14,14 +14,15 @@ Merged and in production:
 
 | PR | What | Evidence it worked |
 | --- | --- | --- |
-| #350 | Startup observability (`lib/startup-timing.ts`, `/free-startup`) | Production logs: measured Kilo at 7.0s of 7.0s startup, 4/4 startups |
-| #351 | 8s startup fetch deadline + buffered async logging | Cold worst case 66s → 8s bound; warm logging cost ~15–20ms → ~0ms |
-| #352 | Built-in alignment: retired `together` + 5 superseded dynamic fetchers | Audit verified against Pi 0.83 compiled dist (42 built-ins); −463 net lines |
-| #353 | Kilo → native `createProvider` + `auth` + `refreshModels` | Native store owns the catalog; OAuth credentials are reused without migration |
-| #354–#362 | Cline plus the remaining 12 static providers → native lifecycle; `filterModels` capstone and native cleanup | 14 of 15 static providers now use Pi's native provider/model-store lifecycle; Qoder intentionally remains legacy |
-| Follow-up | Session-start and fetch observability | `/free-startup` now reports per-provider attempts, failures, handler durations, and detached post-handler work; background work remains non-blocking |
+| #350 | Startup observability (`lib/startup-timing.ts`, `/free-startup`) | Production logs expose factory, provider, and detached session-start timings |
+| #351 | 8s startup fetch deadline + buffered async logging | Cold network work is bounded; warm logging is effectively non-blocking |
+| #352 | Built-in alignment and retired duplicate fetchers | Pi-owned built-ins no longer have duplicate pi-free catalog discovery |
+| #353–#386 | Native provider lifecycle, filtering, and startup import-graph cleanup | All pi-free providers except Qoder use Pi's native lifecycle; compiled import p50 improved ~1.14s → ~0.43s and total p50 ~1.18s → ~0.47s; measured graph 904 → 226 modules |
+| #387–#388 | StepFun native provider and paid-by-default behavior | StepFun uses Pi's native model store and OpenAI Chat Completions at `api.stepfun.ai/step_plan/v1` |
+| #380–#384 | Generic DeepSeek/Cline DSML and custom-tool schema compatibility | Registered extension-tool schemas are preserved; mixed DSML forms are normalized without provider-specific allowlists |
+| Follow-up | Session-start and fetch observability | `/free-startup` reports per-provider attempts, failures, handler durations, and detached post-handler work; background work remains non-blocking |
 
-Current focus: **Qoder remains the only static legacy provider**; any future migration is a separate protocol/auth project. The proposed compiled packaging work is documented in [`build-strategy.md`](build-strategy.md) and is not shipped.
+Current focus: **Qoder remains the only static legacy provider**; any future migration is a separate protocol/auth project. Compiled `dist/` packaging is shipped and is the Pi/npm entry. The startup numbers above are controlled compiled extension benchmarks; a full Pi-host A/B result has not been claimed.
 
 ---
 
@@ -123,16 +124,18 @@ specialized legacy surfaces by design.
   only if users miss them. Requires a pricing check per native catalog first
   (Route A/B detection depends on it; opencode-go's native catalog has zero
   free models, illustrating the risk).
-+ **Compiled packaging** — evaluate the proposed plain-TypeScript `dist`
-  strategy in [`docs/build-strategy.md`](build-strategy.md) only after an
-  import-inclusive benchmark shows a user-visible benefit.
-+ **opps.md item E**: preventive XML-tool-leak stripping via
-  `before_provider_headers` for known-leaky Kilo models (detect-before-leak
-  instead of detect-after). Quality-of-life.
-+ **Banner refresh** (lists retired providers; PNG not regenerable in-agent).
-+ **Orphan cleanup**: old per-provider entries in users'
-  `~/.pi/provider-cache.json` for migrated providers (Kilo already gone on
-  the test machine; cosmetic).
++ **Qoder native migration** — requires a dedicated plan for PAT exchange,
+  COSY signing, the static catalog, and its custom stream.
++ **Free-filter toggle ports** for Pi-built-in Mistral, Groq, Cerebras, xAI, and
+  Hugging Face catalogs — only if users request them. pi-free would layer a
+  filter/toggle over Pi's catalog without duplicating discovery; pricing
+  metadata must be checked first to avoid false free classifications.
++ **Preventive XML-tool-leak handling** — the Cline bridge now recovers known
+  XML/DSML and native tool-call forms reactively. A future `before_provider_headers`
+  compatibility hook could prevent leaks for known model families, but needs
+  reliable model-specific evidence before adding request complexity.
++ **Orphan cleanup** — old per-provider entries in users' `~/.pi/provider-cache.json`
+  are cosmetic leftovers from the native migrations.
 
 ---
 
@@ -171,11 +174,10 @@ specialized legacy surfaces by design.
 
 ---
 
-## Suggested decision points
+## Suggested next decisions
 
-1. After Cline: cut 2.3.0 immediately, or batch with early Phase 1?
-   (Recommendation: cut immediately — the Kilo win deserves a release.)
-2. Phase 1 scope: forced march vs migrate-on-touch? (Recommendation:
-   migrate-on-touch, with llm7 first as the keyless-pattern proof.)
-3. `filterModels` capstone trigger: "≥ N native providers" — propose N = 8
-   (majority of the 15 toggle-participating providers).
+1. Cut the next release with the merged StepFun, DSML, schema, and startup work.
+2. Revisit Qoder only when its authentication and custom-stream compatibility can
+   be migrated without reintroducing startup network work.
+3. Consider built-in free-filter ports or preventive XML leak handling only when
+   user demand and model-specific evidence justify the maintenance cost.

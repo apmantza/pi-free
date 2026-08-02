@@ -99,6 +99,14 @@ export OPENMODEL_API_KEY="..."
 
 Or set `openmodel_api_key`. Toggle with `/toggle-openmodel`.
 
+### StepFun
+
+StepFun Step Plan is a native, paid OpenAI-compatible provider. Pi uses the Chat Completions endpoint at `https://api.stepfun.ai/step_plan/v1/chat/completions`; the same base also exposes an Anthropic-compatible Messages endpoint at `/messages` for clients such as Claude Code. Set `STEPFUN_API_KEY` or `stepfun_api_key` and toggle with `/toggle-stepfun`. StepFun shows its paid catalog by default because its catalog has no free models; set `stepfun_show_paid` or `STEPFUN_SHOW_PAID=false` to hide it.
+
+### FastRouter
+
+FastRouter is a native OpenAI-compatible provider with a public catalog. Pi restores its model store first and refreshes the catalog asynchronously; a key is required for chat requests but not model listing. Set `FASTROUTER_API_KEY` or `fastrouter_api_key`, then use `/toggle-fastrouter`.
+
 ## Paid and trial providers
 
 ### ZenMux
@@ -171,16 +179,6 @@ export BAI_API_KEY="..."
 
 Or set `bai_api_key`. Toggle with `/toggle-bai`.
 
-### StepFun
-
-StepFun Step Plan is an OpenAI-compatible paid provider. Pi uses the Chat Completions endpoint at `https://api.stepfun.ai/step_plan/v1/chat/completions`; the same Step Plan base also exposes the Anthropic-compatible Messages endpoint at `/messages` for clients such as Claude Code:
-
-```bash
-export STEPFUN_API_KEY="..."
-```
-
-Or set `stepfun_api_key`. Toggle with `/toggle-stepfun`.
-
 ## Qoder (legacy, intentionally unmigrated)
 
 Qoder remains on pi-free's legacy provider surface. It has a basic Community/free tier and premium models that consume plan credits. The provider uses a static curated catalog plus its own one-hour cache at `~/.pi/agent/qoder-models-cache.json`; it does not use Pi's native models-store refresh lifecycle.
@@ -216,16 +214,6 @@ These are Pi-built-in providers wrapped by pi-free for filtering. Pi owns their 
 /toggle-opencode
 /toggle-opencode-go
 ```
-
-### FastRouter (native)
-
-FastRouter uses Pi's native provider lifecycle. Its model catalog is publicly discoverable, so model listing does not require a key; Pi restores the native model store first and refreshes the public catalog asynchronously at session start. Set `FASTROUTER_API_KEY` or `fastrouter_api_key` for chat requests:
-
-```bash
-export FASTROUTER_API_KEY="..."
-```
-
-Toggle with `/toggle-fastrouter`.
 
 ### Other Pi-built-in providers
 
