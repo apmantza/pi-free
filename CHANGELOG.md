@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-08-02
+
 ### Added
 
 - **StepFun native provider** — Added the paid StepFun Step Plan provider using Pi's native model store and refresh lifecycle. Chat requests use the OpenAI-compatible endpoint at `https://api.stepfun.ai/step_plan/v1/chat/completions`; `STEPFUN_API_KEY` and `stepfun_api_key` are supported, and paid models are shown by default.
