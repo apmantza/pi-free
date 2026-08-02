@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Qoder native lifecycle** — Migrated Qoder to Pi's native Provider/ProviderAuth and models-store lifecycle while preserving its OAuth/PAT exchange, COSY signing, static catalog, custom stream, and basic/all filtering. Its legacy cache is now limited to optional stream metadata.
+- **Bounded non-blocking logs** — Added asynchronous size-based rotation for `free.log` (10 MiB default, three backups) without synchronous rotation or startup blocking; `PI_FREE_LOG_MAX_BYTES` controls the threshold.
 - **Compiled startup graph** — Removed startup-only Pi credential inspection and deferred the broad pi-ai compatibility graph. Controlled compiled import-inclusive benchmarks improved from roughly **1.14s to 0.43s p50**, total from **1.18s to 0.47s p50**, and the measured import graph from **904 to 226 modules**. These figures measure the extension benchmark, not a full Pi-host A/B result.
 
 - **Cline native tool-call compatibility** — The custom Cline bridge now advertises the current OpenAI-compatible tool schema and parses streamed `delta.tool_calls` alongside the existing XML and `<function=...>` fallbacks. This prevents reasoning-capable models from stopping after planning text when their actual tool call arrives in the native stream format.

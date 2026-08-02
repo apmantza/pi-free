@@ -121,20 +121,21 @@ export PI_FREE_BENCHMARK_DEBUG=1
 ```bash
 LOG_LEVEL=debug
 PI_FREE_LOG_LEVEL=debug
-PI_FREE_LOG_PATH=/tmp/pi-free.log
+PI_FREE_LOG_PATH=custom-free.log
+PI_FREE_LOG_MAX_BYTES=10485760
 PI_FREE_FILE_LOG=false
 PI_FREE_PROVIDER_CACHE=/tmp/provider-cache.json
 PI_FREE_TELEMETRY_FILE=/tmp/free-telemetry.json
 ```
 
-The telemetry file defaults to `~/.pi/free-telemetry.json`.
+The telemetry file defaults to `~/.pi/free-telemetry.json`. `free.log` rotates asynchronously at the configured size (10 MiB by default) and keeps three backups (`free.log.1` through `.3`). Rotation and the initial log-file check are lazy and do not block extension startup. `PI_FREE_LOG_PATH` accepts a filename within `~/.pi`; it does not accept an arbitrary directory path.
 
 ## File locations
 
 | File | Purpose |
 | --- | --- |
 | `~/.pi/free.json` | pi-free config, flags, and extension-provider keys |
-| `~/.pi/free.log` | Extension log (includes opt-in `benchmark-lookup` diagnostics) |
+| `~/.pi/free.log` and `.1`–`.3` | Rotating extension log (includes opt-in `benchmark-lookup` diagnostics) |
 | `~/.pi/free-telemetry.json` | Local model performance telemetry |
 | `~/.pi/provider-cache.json` | Legacy cache and Ollama compatibility data |
 | `~/.pi/agent/models-store.json` | Pi native provider catalogs |
