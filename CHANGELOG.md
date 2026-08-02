@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-08-02
+
+### Fixed
+
+- **OpenCode built-in model toggles** — Free OpenCode models are now captured from Pi's full catalog, re-registered through the current session registry, and made available when the shared credential is stored under `opencode-go` (#393, #395).
+
 ## [2.4.0] - 2026-08-02
 
 ### Added
