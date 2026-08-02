@@ -86,6 +86,7 @@ interface CurrentModelRegistry {
 	registerProvider: unknown;
 	getAll?: () => Model<Api>[];
 	getAvailable: () => Model<Api>[];
+	getApiKeyForProvider?: (providerId: string) => Promise<string | undefined>;
 }
 
 interface BuiltInProviderState {
@@ -143,7 +144,7 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 					continue;
 				}
 
-				const state = tryCaptureProvider(pi, config, ctx);
+				const state = await tryCaptureProvider(pi, config, ctx);
 				if (!state) continue;
 
 				const applied = state.toggleState.applyCurrent(state.reRegister);
@@ -159,11 +160,11 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 // Model capture (called on session start or by toggle when state is missing)
 // =============================================================================
 
-function tryCaptureProvider(
+async function tryCaptureProvider(
 	pi: ExtensionAPI,
 	config: BuiltInToggleConfig,
 	ctx: { modelRegistry: CurrentModelRegistry },
-): BuiltInProviderState | undefined {
+): Promise<BuiltInProviderState | undefined> {
 	// Capture the complete catalog, not only getAvailable(). getAvailable() is
 	// auth-filtered and therefore hides Pi's built-in OpenCode models before a
 	// credential is configured, which made /toggle-opencode report "not loaded".
@@ -182,7 +183,7 @@ function tryCaptureProvider(
 		allModels,
 		baseUrl: providerModels[0].baseUrl,
 		api: providerModels[0].api,
-		apiKey: getApiKeyEnvForProvider(config.id),
+		apiKey: await resolveApiKey(config.id, ctx.modelRegistry),
 		source: "captured",
 		modelRegistry: ctx.modelRegistry,
 	});
@@ -278,7 +279,7 @@ function registerToggleCommand(
 			let state = providerStates.get(config.id);
 			if (!state) {
 				// Models may have loaded after session_start — try capture again.
-				state = tryCaptureProvider(pi, config, ctx);
+				state = await tryCaptureProvider(pi, config, ctx);
 			} else if (ctx.modelRegistry) {
 				// Commands run with the current session context; refresh the
 				// registry even when the catalog was captured in an older session.
@@ -331,6 +332,21 @@ function modelToProviderConfig(m: Model<Api>): ProviderModelConfig {
 	// model-level API is preserved so Anthropic/Responses/Google routes remain
 	// protocol-correct.
 	return base;
+}
+
+async function resolveApiKey(
+	providerId: string,
+	modelRegistry: CurrentModelRegistry,
+): Promise<string | undefined> {
+	// OpenCode and OpenCode Go use the same Zen API key, but Pi persists
+	// credentials by provider id. Reuse a stored Go key for the regular
+	// OpenCode catalog so free OpenCode models remain available after login.
+	if (providerId === "opencode") {
+		const sharedKey = await modelRegistry.getApiKeyForProvider?.("opencode-go");
+		if (sharedKey) return sharedKey;
+	}
+
+	return getApiKeyEnvForProvider(providerId);
 }
 
 function getApiKeyEnvForProvider(providerId: string): string | undefined {

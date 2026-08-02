@@ -163,6 +163,8 @@ describe("built-in provider toggles", () => {
 				modelRegistry: {
 					getAll: () => [model],
 					getAvailable: () => [],
+					getApiKeyForProvider: async (providerId: string) =>
+						providerId === "opencode-go" ? "shared-key" : undefined,
 					registerProvider,
 				},
 			},
@@ -171,6 +173,7 @@ describe("built-in provider toggles", () => {
 		expect(registerProvider).toHaveBeenCalledWith(
 			"opencode",
 			expect.objectContaining({
+				apiKey: "shared-key",
 				models: [expect.objectContaining({ id: "free-model" })],
 			}),
 		);
