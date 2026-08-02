@@ -12,12 +12,14 @@
  */
 
 import crypto from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import type {
+	AuthInteraction,
+	ModelAuth,
+	OAuthAuth,
+	OAuthCredential,
 	OAuthCredentials,
 	OAuthLoginCallbacks,
+	ProviderAuth,
 } from "@earendil-works/pi-ai/compat";
 import { getMachineId } from "./cosy.ts";
 
@@ -27,7 +29,6 @@ const EXCHANGE_URL = "https://openapi.qoder.sh/api/v1/jobToken/exchange";
 const USERINFO_URL = "https://openapi.qoder.sh/api/v1/userinfo";
 const POLL_URL = "https://openapi.qoder.sh/api/v1/deviceToken/poll";
 const REFRESH_URL = "https://center.qoder.sh/algo/api/v3/user/refresh_token";
-const AUTH_FILE = join(homedir(), ".pi", "agent", "auth.json");
 const UA = "pi-free-providers";
 
 const PAT_REFRESH_PREFIX = "pat";
@@ -379,25 +380,6 @@ async function runDeviceFlow(
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 /**
- * Retrieve cached Qoder credentials (userID/email/name/machineID) from
- * pi's auth store. Best-effort — returns null if not found.
- */
-export function getCachedCredentials(): QoderCredentials | null {
-	if (existsSync(AUTH_FILE)) {
-		try {
-			const auth = JSON.parse(readFileSync(AUTH_FILE, "utf-8"));
-			const creds = auth?.qoder;
-			if (creds?.userID) {
-				return creds as QoderCredentials;
-			}
-		} catch {
-			// Best-effort
-		}
-	}
-	return null;
-}
-
-/**
  * Main login handler for `/login qoder`.
  *
  * Flow:
@@ -547,3 +529,57 @@ export async function refreshQoderToken(
 		expires: Date.now() + 60 * 60 * 1000,
 	};
 }
+
+// =============================================================================
+// Native ProviderAuth adapter
+// =============================================================================
+
+/** Adapt the legacy Qoder login callbacks to Pi's native auth interaction. */
+export async function loginQoderNative(
+	interaction: AuthInteraction,
+): Promise<OAuthCredential> {
+	const credentials = await loginQoder({
+		onAuth: (info: { url: string; instructions?: string }) =>
+			interaction.notify({
+				type: "auth_url",
+				url: info.url,
+				instructions: info.instructions,
+			}),
+		onProgress: (message: string) =>
+			interaction.notify({ type: "progress", message }),
+		onPrompt: (prompt: { message: string; placeholder?: string }) =>
+			interaction.prompt({
+				type: "text",
+				message: prompt.message,
+				placeholder: prompt.placeholder,
+			}),
+		signal: interaction.signal,
+	} as unknown as OAuthLoginCallbacks);
+	return { ...credentials, type: "oauth" };
+}
+
+/**
+ * Native refresh adapter. The existing PAT exchange and OAuth refresh logic is
+ * retained unchanged; Pi owns when it is called and persists the result.
+ */
+export async function refreshQoderCredential(
+	credential: OAuthCredential,
+	_signal?: AbortSignal,
+): Promise<OAuthCredential> {
+	return { ...(await refreshQoderToken(credential)), type: "oauth" };
+}
+
+export const qoderOAuthAuth: OAuthAuth = {
+	name: "Qoder (Browser OAuth / PAT)",
+	loginLabel: "Sign in with Qoder",
+	login: loginQoderNative,
+	refresh: refreshQoderCredential,
+	async toAuth(credential: OAuthCredential): Promise<ModelAuth> {
+		return { apiKey: credential.access };
+	},
+};
+
+/** Native Qoder authentication persisted by Pi in ~/.pi/agent/auth.json. */
+export const qoderAuth: ProviderAuth = {
+	oauth: qoderOAuthAuth,
+};
