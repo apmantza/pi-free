@@ -13,13 +13,40 @@
  *   node scripts/check-runtime-imports.mjs <package>  # package/dist
  */
 
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import {
+	existsSync,
+	readdirSync,
+	readFileSync,
+	realpathSync,
+	statSync,
+} from "node:fs";
 import { join, resolve } from "node:path";
 
-const packageDir = resolve(process.argv[2] ?? ".");
-const runtimeDir = existsSync(join(packageDir, "dist"))
-	? join(packageDir, "dist")
-	: packageDir;
+function resolveDirectory(input) {
+	const candidate = resolve(input);
+	let directory;
+	try {
+		directory = realpathSync(candidate);
+	} catch {
+		throw new Error(`Runtime directory cannot be resolved: ${candidate}`);
+	}
+	if (!statSync(directory).isDirectory()) {
+		throw new Error(`Runtime path is not a directory: ${directory}`);
+	}
+	return directory;
+}
+
+let packageDir;
+try {
+	packageDir = resolveDirectory(process.argv[2] ?? ".");
+} catch (error) {
+	console.error(error instanceof Error ? error.message : String(error));
+	process.exit(1);
+}
+const distCandidate = join(packageDir, "dist");
+const runtimeDir = resolveDirectory(
+	existsSync(distCandidate) ? distCandidate : packageDir,
+);
 const allowedPiAiImports = new Set([
 	"@earendil-works/pi-ai",
 	"@earendil-works/pi-ai/compat",
@@ -38,11 +65,6 @@ function collectRuntimeFiles(dir) {
 		}
 	}
 	return files;
-}
-
-if (!existsSync(runtimeDir) || !statSync(runtimeDir).isDirectory()) {
-	console.error(`Runtime directory not found: ${runtimeDir}`);
-	process.exit(1);
 }
 
 const files = collectRuntimeFiles(runtimeDir);
