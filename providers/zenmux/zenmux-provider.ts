@@ -1,11 +1,11 @@
-import type {
-	Api,
-	Credential,
-	Model,
-	Provider,
-	RefreshModelsContext,
+import {
+	openAICompletionsApi,
+	type Api,
+	type Credential,
+	type Model,
+	type Provider,
+	type RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
-import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { getZenmuxApiKey, getZenmuxShowPaid } from "../../config.ts";
 import { BASE_URL_ZENMUX, PROVIDER_ZENMUX } from "../../constants.ts";
