@@ -45,7 +45,7 @@ try {
 		"loader.js",
 	);
 	if (!existsSync(loaderPath)) {
-		throw new Error(`Pi extension loader not found: ${loaderPath}`);
+		throw new TypeError(`Pi extension loader not found: ${loaderPath}`);
 	}
 
 	const { loadExtensions } = await import(pathToFileURL(loaderPath).href);
