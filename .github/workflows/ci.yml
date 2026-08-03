@@ -124,6 +124,12 @@ jobs:
           TARBALL=$(ls pi-free-*.tgz)
           npm install -g "$TARBALL"
 
+      - name: Install pi-free through Pi and verify RPC commands
+        shell: bash
+        run: |
+          TARBALL=$(ls pi-free-*.tgz)
+          npm run smoke:pi-install -- "$PWD/$TARBALL"
+
       - name: Verify published relative imports resolve
         shell: bash
         run: |
