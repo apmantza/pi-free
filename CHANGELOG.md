@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.2] - 2026-08-03
+
+### Fixed
+
+- **Pi extension-loader compatibility** — Native provider API factories now import through Pi's allowlisted `@earendil-works/pi-ai/compat` entrypoint instead of inaccessible `pi-ai/api/*` subpaths. This fixes extension startup failures on Pi 0.83.x where no pi-free providers registered (#397, #398, #399).
+
+### Changed
+
+- **Loader-boundary CI validation** — Added compiled-runtime import-policy checks and Pi loader smoke tests so unsupported extension imports fail before release.
+
 ## [2.4.1] - 2026-08-02
 
 ### Fixed
