@@ -10,7 +10,7 @@
  *
  * Usage:
  *   node scripts/check-runtime-imports.mjs             # ./dist
- *   node scripts/check-runtime-imports.mjs <package>  # package/dist
+ *   PI_FREE_RUNTIME_DIR=/path/to/package node scripts/check-runtime-imports.mjs
  */
 
 import {
@@ -38,7 +38,7 @@ function resolveDirectory(input) {
 
 let packageDir;
 try {
-	packageDir = resolveDirectory(process.argv[2] ?? ".");
+	packageDir = resolveDirectory(process.env.PI_FREE_RUNTIME_DIR ?? ".");
 } catch (error) {
 	console.error(error instanceof Error ? error.message : String(error));
 	process.exit(1);

@@ -67,7 +67,7 @@ jobs:
       - name: Verify production source build
         run: |
           test -f dist/index.js
-          node scripts/check-runtime-imports.mjs .
+          node scripts/check-runtime-imports.mjs
           node scripts/smoke-compiled.mjs ./dist/index.js
           node scripts/smoke-pi-loader.mjs ./dist/index.js
 
@@ -129,7 +129,8 @@ jobs:
         run: |
           INSTALL_DIR=$(npm root -g)/pi-free
           node scripts/check-extensions.mjs "$INSTALL_DIR"
-          node scripts/check-runtime-imports.mjs "$INSTALL_DIR"
+          export PI_FREE_RUNTIME_DIR="$INSTALL_DIR"
+          node scripts/check-runtime-imports.mjs
 
       - name: Smoke-load compiled extension entry
         # Catches missing runtime modules.
