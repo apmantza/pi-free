@@ -36,6 +36,12 @@ jobs:
       - name: Build compiled package
         run: npm run build
 
+      - name: Check Pi extension-loader import policy
+        run: npm run check:runtime-imports
+
+      - name: Smoke-load compiled extension through Pi's loader
+        run: npm run smoke:pi-loader
+
       - name: TypeScript lint
         run: npm run lint
 
@@ -61,7 +67,9 @@ jobs:
       - name: Verify production source build
         run: |
           test -f dist/index.js
+          node scripts/check-runtime-imports.mjs .
           node scripts/smoke-compiled.mjs ./dist/index.js
+          node scripts/smoke-pi-loader.mjs ./dist/index.js
 
   test:
     name: Unit tests
@@ -121,6 +129,7 @@ jobs:
         run: |
           INSTALL_DIR=$(npm root -g)/pi-free
           node scripts/check-extensions.mjs "$INSTALL_DIR"
+          node scripts/check-runtime-imports.mjs "$INSTALL_DIR"
 
       - name: Smoke-load compiled extension entry
         # Catches missing runtime modules.
@@ -134,3 +143,4 @@ jobs:
           ENTRY=$(node -p "require(process.env.P).pi.extensions[0]")
           echo "Loading compiled entry: $INSTALL_DIR/$ENTRY"
           node scripts/smoke-compiled.mjs "$INSTALL_DIR/$ENTRY"
+          node scripts/smoke-pi-loader.mjs "$INSTALL_DIR/$ENTRY"

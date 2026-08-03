@@ -16,18 +16,18 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import type {
-	Api,
-	AssistantMessage,
-	AssistantMessageEvent,
-	AssistantMessageEventStream,
-	Context,
-	Model,
-	SimpleStreamOptions,
-	ThinkingContent,
+import {
+	openAICompletionsApi,
+	type Api,
+	type AssistantMessage,
+	type AssistantMessageEvent,
+	type AssistantMessageEventStream,
+	type Context,
+	type Model,
+	type SimpleStreamOptions,
+	type ThinkingContent,
 } from "@earendil-works/pi-ai/compat";
 import { createAssistantMessageEventStream } from "../../lib/assistant-message-event-stream.ts";
-import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import { applyHidden } from "../../config.ts";
 import {
 	BASE_URL_TOKENROUTER,
