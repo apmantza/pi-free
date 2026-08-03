@@ -32,13 +32,13 @@
  * module performs no freshness gating of its own so the two never double-throttle.
  */
 
-import type {
-	Api,
-	Model,
-	Provider,
-	RefreshModelsContext,
+import {
+	openAICompletionsApi,
+	type Api,
+	type Model,
+	type Provider,
+	type RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
-import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { getLlm7ShowPaid } from "../../config.ts";
 import { BASE_URL_LLM7, PROVIDER_LLM7 } from "../../constants.ts";

@@ -1,17 +1,17 @@
-import type {
-	Api,
-	ApiKeyAuth,
-	ApiKeyCredential,
-	AuthContext,
-	AuthInteraction,
-	AuthResult,
-	Credential,
-	Model,
-	Provider,
-	ProviderAuth,
-	RefreshModelsContext,
+import {
+	openAICompletionsApi,
+	type Api,
+	type ApiKeyAuth,
+	type ApiKeyCredential,
+	type AuthContext,
+	type AuthInteraction,
+	type AuthResult,
+	type Credential,
+	type Model,
+	type Provider,
+	type ProviderAuth,
+	type RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
-import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import type {
 	ExtensionAPI,
 	ProviderModelConfig,

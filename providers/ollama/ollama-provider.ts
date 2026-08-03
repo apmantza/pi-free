@@ -1,10 +1,10 @@
-import type {
-	Credential,
-	Model,
-	Provider,
-	RefreshModelsContext,
+import {
+	openAICompletionsApi,
+	type Credential,
+	type Model,
+	type Provider,
+	type RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
-import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import type {
 	ExtensionAPI,
 	ExtensionCommandContext,

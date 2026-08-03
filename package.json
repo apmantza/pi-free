@@ -39,11 +39,12 @@
 		"scripts/check-extensions.mjs"
 	],
 	"scripts": {
-		"audit:prod": "npm audit --omit=dev --audit-level=high",
+		"audit:prod": "npm audit --omit=dev --omit=peer --audit-level=high",
 		"build": "node scripts/build.mjs",
 		"clean": "node scripts/clean.mjs",
 		"check": "node scripts/check-extensions.mjs",
 		"check:lockfile": "node scripts/check-lockfile-sync.mjs",
+		"check:runtime-imports": "node scripts/check-runtime-imports.mjs",
 		"check:tarball": "node scripts/check-tarball.mjs",
 		"lint": "tsc --noEmit",
 		"prepare": "npm run build",
@@ -52,6 +53,7 @@
 		"test:run": "vitest run",
 		"bench:startup": "tsx scripts/bench-startup.ts",
 		"smoke:compiled": "node scripts/smoke-compiled.mjs",
+		"smoke:pi-loader": "node scripts/smoke-pi-loader.mjs",
 		"smoke:cline": "tsx scripts/smoke-cline-xml-bridge.ts",
 		"smoke:openmodel": "tsx scripts/smoke-openmodel-wire-format.ts"
 	},
