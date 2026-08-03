@@ -7,22 +7,13 @@
  * and fails on extension errors, timeouts, or missing pi-free commands.
  *
  * Usage:
- *   node scripts/rpc-load-check.mjs [path-to-pi-bin]
+ *   node scripts/rpc-load-check.mjs
  */
 import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const expectedCommands = ["toggle-free", "free-providers", "pi-free-health"];
-const suppliedPi = process.argv[2];
-
-function commandForPi(piPath) {
-	if (!piPath) return undefined;
-	if (/\.m?js$/i.test(piPath)) {
-		return { command: process.execPath, args: [piPath] };
-	}
-	return { command: piPath, args: [] };
-}
 
 function resolveInstalledPi() {
 	const piModule = fileURLToPath(
@@ -31,7 +22,7 @@ function resolveInstalledPi() {
 	return { command: process.execPath, args: [join(dirname(piModule), "cli.js")] };
 }
 
-const piCommand = commandForPi(suppliedPi) ?? resolveInstalledPi();
+const piCommand = resolveInstalledPi();
 const pi = spawn(
 	piCommand.command,
 	[...piCommand.args, "--mode", "rpc", "--no-session"],

@@ -50,10 +50,10 @@ function run(args, options, timeoutMs = 120_000) {
 			if (timedOut) {
 				rejectRun(new Error(`Node timed out after ${timeoutMs}ms`));
 			} else if (code !== 0) {
+				const signalSuffix = signal ? " (" + String(signal) + ")" : "";
+				const exitCode = code ?? "unknown";
 				rejectRun(
-					new Error(
-						`Node exited with code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}`,
-					),
+					new Error(`Node exited with code ${exitCode}${signalSuffix}`),
 				);
 			} else {
 				resolveRun();
