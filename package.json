@@ -39,7 +39,7 @@
 		"scripts/check-extensions.mjs"
 	],
 	"scripts": {
-		"audit:prod": "npm audit --omit=dev --audit-level=high",
+		"audit:prod": "npm audit --omit=dev --omit=peer --audit-level=high",
 		"build": "node scripts/build.mjs",
 		"clean": "node scripts/clean.mjs",
 		"check": "node scripts/check-extensions.mjs",
