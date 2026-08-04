@@ -25,6 +25,14 @@ When you install pi-free, it:
 
 ## Install
 
+Install the published npm package:
+
+```bash
+pi install npm:pi-free
+```
+
+For the latest unreleased GitHub changes instead:
+
 ```bash
 pi install git:github.com/apmantza/pi-free
 ```
