@@ -32,13 +32,18 @@ import {
 	registerNativeProviderRefresh,
 	registerNativeProviderToggle,
 } from "../../lib/native-provider.ts";
-import { createClineProvider, rotateClineTaskId } from "./cline-provider.ts";
+import {
+	createClineProvider,
+	registerClineXmlApiProvider,
+	rotateClineTaskId,
+} from "./cline-provider.ts";
 
 // =============================================================================
 // Extension entry point
 // =============================================================================
 
 export default async function clineProvider(pi: ExtensionAPI) {
+	await registerClineXmlApiProvider();
 	const { provider, stored } = createClineProvider();
 
 	// Register the native provider. The factory performs NO network I/O: models
@@ -53,7 +58,7 @@ export default async function clineProvider(pi: ExtensionAPI) {
 		registerNativeProvider(pi, provider);
 	};
 
-	const hasClineKey = !!getClineApiKey();
+	const hasClineKey = Boolean(getClineApiKey());
 	registerWithGlobalToggle(PROVIDER_CLINE, stored, reRegister, hasClineKey, {
 		native: true,
 		invalidate: reRegister,

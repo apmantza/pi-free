@@ -6,6 +6,7 @@
  * refresh nudge.
  */
 
+import { getApiProvider } from "@earendil-works/pi-ai/compat";
 import type {
 	ModelsStoreEntry,
 	ProviderModelsStore,
@@ -137,6 +138,10 @@ describe("Cline factory wiring", () => {
 	it("factory is network-free: registers the native provider empty", async () => {
 		await clineProvider(mockPi);
 
+		// The custom API must also be available to Pi's compat/default agent
+		// stream path, which otherwise throws before reaching the XML bridge.
+		expect(getApiProvider("cline-xml-tools")).toBeDefined();
+
 		// The factory never fetches: models load via refreshModels.
 		expect(mockFetchClineCatalog).not.toHaveBeenCalled();
 
@@ -147,6 +152,27 @@ describe("Cline factory wiring", () => {
 		expect(provider.getModels()).toEqual([]);
 		expect(provider.auth.apiKey).toBeDefined();
 		expect(provider.auth.oauth).toBeDefined();
+
+		// The registry entry delegates to the same bridge, not a generic API.
+		const compatProvider = getApiProvider("cline-xml-tools");
+		expect(compatProvider).toBeDefined();
+		const compatResult = await compatProvider!.streamSimple(
+			{
+				id: "compat-model",
+				name: "Compat Model",
+				api: "cline-xml-tools",
+				provider: "cline",
+			} as never,
+			{
+				systemPrompt: "system",
+				messages: [],
+				tools: [],
+			} as never,
+			{},
+		).result();
+		expect(compatResult.errorMessage).toContain(
+			"No Cline access token found",
+		);
 
 		// Lifecycle handlers + toggle command registered.
 		expect(mockOn).toHaveBeenCalledWith(

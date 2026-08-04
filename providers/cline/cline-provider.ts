@@ -39,9 +39,11 @@
 import type {
 	Api,
 	AssistantMessageEventStream,
+	Context,
 	Model,
 	Provider,
 	RefreshModelsContext,
+	StreamOptions,
 } from "@earendil-works/pi-ai/compat";
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { getClineShowPaid } from "../../config.ts";
@@ -107,6 +109,40 @@ export function buildClineHeaders(): Record<string, string> {
 		"X-CORE-VERSION": CLINE_EXTENSION_VERSION,
 		"X-Is-Multiroot": "false",
 	};
+}
+
+/**
+ * Register the Cline wire API for Pi's legacy/default agent stream path.
+ *
+ * Native ModelRuntime requests call the Provider object directly, but older
+ * Pi agent sessions still dispatch through pi-ai/compat's global API registry.
+ * Cline's custom API is not built into pi-ai, so without this fallback those
+ * sessions fail before the XML bridge can handle the request.
+ */
+export async function registerClineXmlApiProvider(): Promise<void> {
+	const { registerApiProvider } = await import(
+		"@earendil-works/pi-ai/compat"
+	);
+	const stream = (
+		model: Model<"cline-xml-tools">,
+		context: Context,
+		options?: StreamOptions,
+	) =>
+		streamClineXml(
+			model,
+			context,
+			options,
+			buildClineHeaders(),
+		) as unknown as AssistantMessageEventStream;
+
+	registerApiProvider(
+		{
+			api: "cline-xml-tools",
+			stream,
+			streamSimple: stream,
+		},
+		"pi-free-cline",
+	);
 }
 
 // =============================================================================
