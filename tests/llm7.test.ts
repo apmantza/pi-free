@@ -25,6 +25,12 @@ const mockRegisterWithGlobalToggle = vi.hoisted(() =>
 	vi.fn<(...args: unknown[]) => void>(),
 );
 const mockFetch = vi.hoisted(() => vi.fn());
+const mockLogger = vi.hoisted(() => ({
+	info: vi.fn(),
+	warn: vi.fn(),
+	error: vi.fn(),
+	debug: vi.fn(),
+}));
 
 let capturedToggleArgs: unknown[][] = [];
 
@@ -53,12 +59,7 @@ vi.mock("../provider-helper.ts", async () => {
 });
 
 vi.mock("../lib/logger.ts", () => ({
-	createLogger: () => ({
-		info: vi.fn(),
-		warn: vi.fn(),
-		error: vi.fn(),
-		debug: vi.fn(),
-	}),
+	createLogger: () => mockLogger,
 }));
 
 import llm7Provider from "../providers/llm7/llm7.ts";
@@ -226,12 +227,13 @@ describe("LLM7 factory wiring", () => {
 		expect(handler).toBeDefined();
 		const notify = vi.fn();
 
-		// Keyless: notice fires with the Terms link.
+		// Keyless: notice is logged instead of sent to Pi's terminal UI.
 		await handler({}, { model: { provider: "llm7" }, ui: { notify } });
-		expect(notify).toHaveBeenCalledWith(
-			expect.stringContaining("https://llm7.io/"),
-			"info",
-		);
+		expect(notify).not.toHaveBeenCalled();
+		expect(mockLogger.debug).toHaveBeenCalledWith("Free-model terms notice", {
+			provider: "llm7",
+			termsUrl: "https://llm7.io/",
+		});
 
 		// Only once per session.
 		notify.mockClear();

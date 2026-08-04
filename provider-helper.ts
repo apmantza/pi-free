@@ -398,10 +398,10 @@ export function setupProvider(
 			tosShown = true;
 			if (config.hasKey) return;
 			if (isCurrentModelOAuth(ctx)) return;
-			ctx.ui.notify(
-				`Using ${providerId} free models. Set API key for paid access. Terms: ${tosUrl}`,
-				"info",
-			);
+			_logger.debug("Free-model terms notice", {
+				provider: providerId,
+				termsUrl: tosUrl,
+			});
 		});
 	}
 }

@@ -25,6 +25,7 @@ import {
 	registerNativeProviderRefresh,
 	registerNativeProviderToggle,
 } from "../../lib/native-provider.ts";
+import { createLogger } from "../../lib/logger.ts";
 import { logWarning } from "../../lib/util.ts";
 import { isCurrentModelOAuth } from "../../provider-helper.ts";
 import { createKiloProvider } from "./kilo-provider.ts";
@@ -32,6 +33,8 @@ import { createKiloProvider } from "./kilo-provider.ts";
 // =============================================================================
 // XML leak detection and auto-retry
 // =============================================================================
+
+const _logger = createLogger("kilo");
 
 // NOTE: the "<invoke" / "<antml:tool_use>" needles are built via concatenation
 // purely so this source file does not contain a literal token that the agent
@@ -171,10 +174,12 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 		if (isCurrentModelOAuth(ctx)) return;
 		const paidCount = stored.all.length - stored.free.length;
 		if (paidCount > 0) {
-			ctx.ui.notify(
-				`Kilo: ${stored.free.length} free models shown. Use /toggle-kilo or /login kilo for ${paidCount} paid models. Terms: ${URL_KILO_TOS}`,
-				"info",
-			);
+			_logger.debug("Free-model terms notice", {
+				provider: PROVIDER_KILO,
+				freeModelCount: stored.free.length,
+				paidModelCount: paidCount,
+				termsUrl: URL_KILO_TOS,
+			});
 		}
 	});
 
