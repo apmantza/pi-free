@@ -279,10 +279,10 @@ export function registerNativeOpenAIProvider(
 			if (tosShown || ctx.model?.provider !== options.providerId) return;
 			tosShown = true;
 			if (options.suppressTosWhenKey && options.getApiKey()) return;
-			ctx.ui.notify(
-				`Using ${options.providerId} free models. Terms: ${options.tosUrl}`,
-				"info",
-			);
+			_logger.debug("Free-model terms notice", {
+				provider: options.providerId,
+				termsUrl: options.tosUrl,
+			});
 		});
 	}
 	registerNativeProviderRefresh(pi, options.providerId);

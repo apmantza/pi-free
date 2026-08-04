@@ -56,11 +56,14 @@ import {
 	registerNativeProviderRefresh,
 	registerNativeProviderToggle,
 } from "../../lib/native-provider.ts";
+import { createLogger } from "../../lib/logger.ts";
 import { createLlm7Provider } from "./llm7-provider.ts";
 
 // =============================================================================
 // Extension entry point
 // =============================================================================
+
+const _logger = createLogger("llm7");
 
 export default async function llm7Provider(pi: ExtensionAPI) {
 	const { provider, stored } = createLlm7Provider();
@@ -98,10 +101,10 @@ export default async function llm7Provider(pi: ExtensionAPI) {
 		if (tosShown || ctx.model?.provider !== PROVIDER_LLM7) return;
 		tosShown = true;
 		if (getLlm7ApiKey()) return;
-		ctx.ui.notify(
-			"Using llm7 free models. Set API key for paid access. Terms: https://llm7.io/",
-			"info",
-		);
+		_logger.debug("Free-model terms notice", {
+			provider: PROVIDER_LLM7,
+			termsUrl: "https://llm7.io/",
+		});
 	});
 
 	registerNativeProviderRefresh(pi, PROVIDER_LLM7);

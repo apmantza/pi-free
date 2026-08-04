@@ -33,6 +33,12 @@ const mockStored = vi.hoisted(() => ({
 	free: [] as unknown[],
 	all: [] as unknown[],
 }));
+const mockLogger = vi.hoisted(() => ({
+	info: vi.fn(),
+	warn: vi.fn(),
+	error: vi.fn(),
+	debug: vi.fn(),
+}));
 
 vi.mock("../config.ts", () => ({
 	getKiloApiKey: () => mockGetKiloApiKey(),
@@ -55,12 +61,7 @@ vi.mock("../providers/kilo/kilo-provider.ts", () => ({
 }));
 
 vi.mock("../lib/logger.ts", () => ({
-	createLogger: () => ({
-		info: vi.fn(),
-		warn: vi.fn(),
-		error: vi.fn(),
-		debug: vi.fn(),
-	}),
+	createLogger: () => mockLogger,
 }));
 
 import kiloProvider from "../providers/kilo/kilo.ts";
@@ -166,15 +167,16 @@ describe("Kilo extension wiring", () => {
 			expect(events).toContain("session_start");
 		});
 
-		it("shows a ToS notice on first Kilo model selection without a model registry", async () => {
+		it("logs a ToS event on first Kilo model selection without a model registry", async () => {
 			await kiloProvider(mockPi);
 			const call = mockOn.mock.calls.find((c) => c[0] === "model_select");
 			if (!call) throw new Error("model_select not registered");
 			const notify = vi.fn();
 			await call[1]({}, { model: { provider: "kilo" }, ui: { notify } });
-			expect(notify).toHaveBeenCalledWith(
-				expect.stringContaining("free models shown"),
-				"info",
+			expect(notify).not.toHaveBeenCalled();
+			expect(mockLogger.debug).toHaveBeenCalledWith(
+				"Free-model terms notice",
+				expect.objectContaining({ provider: "kilo", termsUrl: expect.any(String) }),
 			);
 		});
 

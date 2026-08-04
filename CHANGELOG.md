@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Quiet automatic provider notices** — Routine free-model terms notices are now recorded through pi-free's structured logger instead of being sent to Pi's terminal UI; explicit command results and authentication prompts remain visible.
+
 ## [2.4.3] - 2026-08-04
 
 ### Fixed

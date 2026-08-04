@@ -598,10 +598,10 @@ export default function openmodelProvider(pi: ExtensionAPI): Promise<void> {
 	pi.on("model_select", (_event, ctx) => {
 		if (tosShown || ctx.model?.provider !== PROVIDER_OPENMODEL) return;
 		tosShown = true;
-		ctx.ui.notify(
-			"Using openmodel free models. Set API key for paid access. Terms: https://docs.openmodel.ai/en/docs",
-			"info",
-		);
+			_logger.debug("Free-model terms notice", {
+			provider: PROVIDER_OPENMODEL,
+			termsUrl: "https://docs.openmodel.ai/en/docs",
+		});
 	});
 	return Promise.resolve();
 }
