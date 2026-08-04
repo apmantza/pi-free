@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.3] - 2026-08-04
+
+### Fixed
+
+- **Cline custom API registration** — Register the `cline-xml-tools` compatibility API so Pi's default agent stream path reaches the existing XML bridge instead of failing with `No API provider registered for api: cline-xml-tools` ([#409](https://github.com/apmantza/pi-free/issues/409), [#410](https://github.com/apmantza/pi-free/pull/410)).
+
 ## [2.4.2] - 2026-08-03
 
 ### Fixed
