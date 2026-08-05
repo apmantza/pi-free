@@ -56,7 +56,7 @@ describe("opencode-session fallback resolution", () => {
 				"anthropic-messages",
 				"https://opencode.ai/zen/go/v1",
 			),
-		).toBe("https://opencode.ai/zen/go");
+		).toBe("https://opencode.ai/zen/go/v1");
 	});
 
 	it("generates CLI-compatible session and request headers", () => {
