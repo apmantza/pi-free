@@ -29,6 +29,7 @@ import {
 	OPENCODE_DYNAMIC_API,
 	createOpenCodeSessionTracker,
 	createOpenCodeStreamSimple,
+	getOpenCodeModelBaseUrl,
 	ensureOpenCodeApiProviderRegistered,
 	isOpenCodeProvider,
 } from "../providers/opencode-session.ts";
@@ -319,6 +320,12 @@ function modelToProviderConfig(m: Model<Api>): ProviderModelConfig {
 		id: m.id,
 		name: m.name,
 		api: m.api,
+		// Pi's persisted OpenCode catalog may still contain the pre-/v1
+		// Anthropic base URL. Preserve per-model routing when re-registering;
+		// otherwise the first model's URL is shared by every model.
+		baseUrl: isOpenCodeProvider(m.provider)
+			? getOpenCodeModelBaseUrl(m.api, m.baseUrl)
+			: m.baseUrl,
 		reasoning: m.reasoning,
 		input: m.input,
 		cost: m.cost,

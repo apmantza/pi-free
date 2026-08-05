@@ -123,11 +123,16 @@ export function resolveOpenCodeModelApi(
 }
 
 export function getOpenCodeModelBaseUrl(
-	api: NonNullable<Api>,
+	_api: NonNullable<Api>,
 	fallbackBaseUrl: string,
 ): string {
+	// OpenCode's gateway now exposes every wire protocol below /v1:
+	// /v1/chat/completions, /v1/responses, /v1/messages, and /v1/models/...
+	// Older Pi catalogs used /zen/messages for Anthropic models, which now
+	// resolves to the website's HTML 404 page.
+	void _api; // Kept in the helper signature for callers that pass the wire API.
 	const root = fallbackBaseUrl.replace(/\/v1\/?$/u, "");
-	return api === "anthropic-messages" ? root : `${root}/v1`;
+	return `${root}/v1`;
 }
 
 export function applyOpenCodeProtocolDefaults(
@@ -147,29 +152,17 @@ export function applyOpenCodeProtocolDefaults(
 		return {
 			...model,
 			api,
-			baseUrl: model.baseUrl ?? getOpenCodeModelBaseUrl(api, fallbackBaseUrl),
+			// Normalize stale catalog URLs too, not just missing ones. OpenCode's
+			// Anthropic endpoint migrated from /zen/messages to /zen/v1/messages.
+			baseUrl: getOpenCodeModelBaseUrl(api, model.baseUrl ?? fallbackBaseUrl),
 			...(compat ? { compat } : {}),
 		};
 	});
 }
 
-function stripTrailingSlashes(value: string): string {
-	let end = value.length;
-	while (end > 0 && value.codePointAt(end - 1) === 47) {
-		end--;
-	}
-	return value.slice(0, end);
-}
-
-function isAnthropicOpenCodeEndpoint(model: Model<Api>): boolean {
-	return !stripTrailingSlashes(model.baseUrl).endsWith("/v1");
-}
-
 function resolveOpenCodeStreamApi(model: Model<Api>): string {
 	if (model.api === OPENCODE_DYNAMIC_API) {
-		return isAnthropicOpenCodeEndpoint(model)
-			? "anthropic-messages"
-			: "openai-completions";
+		return resolveOpenCodeModelApi(model.id, model.provider, model.api);
 	}
 	return model.api;
 }
@@ -483,6 +476,15 @@ export function createOpenCodeStreamSimple(
 		void (async () => {
 			try {
 				const streamApi = resolveOpenCodeStreamApi(model);
+				// Normalize here as well as during catalog conversion because Pi can
+				// supply a previously persisted model with the pre-/v1 URL.
+				const normalizedModel = {
+					...model,
+					baseUrl: getOpenCodeModelBaseUrl(
+						streamApi as NonNullable<Api>,
+						model.baseUrl,
+					),
+				};
 				if (streamApi === "anthropic-messages") {
 					const streamSimpleAnthropic = getStreamSimple(
 						await importPiAiSubpath<AnthropicStreamModule>(
@@ -494,7 +496,7 @@ export function createOpenCodeStreamSimple(
 						stream,
 						streamSimpleAnthropic(
 							{
-								...model,
+								...normalizedModel,
 								api: "anthropic-messages",
 							} as Model<"anthropic-messages">,
 							sanitizedContext,
@@ -515,7 +517,7 @@ export function createOpenCodeStreamSimple(
 						stream,
 						streamSimpleGoogle(
 							{
-								...model,
+								...normalizedModel,
 								api: "google-generative-ai",
 							} as Model<"google-generative-ai">,
 							sanitizedContext,
@@ -536,7 +538,7 @@ export function createOpenCodeStreamSimple(
 						stream,
 						streamSimpleOpenAIResponses(
 							{
-								...model,
+								...normalizedModel,
 								api: "openai-responses",
 							} as Model<"openai-responses">,
 							sanitizedContext,
@@ -556,7 +558,7 @@ export function createOpenCodeStreamSimple(
 					stream,
 					streamSimpleOpenAICompletions(
 						{
-							...model,
+							...normalizedModel,
 							api: "openai-completions",
 						} as Model<"openai-completions">,
 						sanitizedContext,
