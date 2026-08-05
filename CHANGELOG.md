@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.4] - 2026-08-05
+
+### Fixed
+
+- **OpenCode v1 API endpoint normalization** — Persisted OpenCode and OpenCode Go catalogs now normalize every model to OpenCode's current `/v1` gateway paths on re-registration, so stale Anthropic URLs like `/zen/messages` stop resolving to the website's HTML 404 page. Per-model base URLs are preserved when built-in provider toggles re-register models ([#415](https://github.com/apmantza/pi-free/pull/415)).
+
 ### Changed
 
 - **Quiet automatic provider notices** — Routine free-model terms notices are now recorded through pi-free's structured logger instead of being sent to Pi's terminal UI; explicit command results and authentication prompts remain visible.
