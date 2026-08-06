@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.5] - 2026-08-06
+
+### Fixed
+
+- **Pi 0.84 model refresh lifecycle** — Native `refreshModels` now restores from Pi 0.84+'s immutable `context.stored` snapshot and publishes `{ persist, update }` through the generation-checked `context.publish` API, while retaining a `context.store` fallback for Pi <=0.83. Superseded refresh generations can no longer overwrite a newer provider catalog ([#417](https://github.com/apmantza/pi-free/pull/417)).
+- **Session-start refresh abort storm** — A single shared session-start refresh nudge (keyed by the Pi instance) replaces one nudge per native provider registration. On Pi 0.84 — which aborts an in-flight refresh for each provider when a newer refresh starts — the per-provider handlers were aborting every provider's catalog fetch in a tight loop on session resume ([#417](https://github.com/apmantza/pi-free/pull/417)).
+- **Stale catalog ingestion race** — Six native providers (Kilo, Cline, LLM7, ZenMux, OpenModel, Qoder) no longer mutate their shared catalog state before Pi accepts the generation-safe publication; ingestion now runs inside the `publish` callback only when the refresh generation is still current ([#417](https://github.com/apmantza/pi-free/pull/417)).
+- **Abort suppression narrowed** — `AbortError` is now only swallowed when the provided request signal is actually aborted, so real provider fetch failures are no longer hidden behind a cancelled-signal heuristic ([#417](https://github.com/apmantza/pi-free/pull/417)).
+- **Native auth abort-signal compatibility** — Native `apiKey.resolve` now accepts Pi 0.84's optional `signal` argument across all native providers ([#417](https://github.com/apmantza/pi-free/pull/417)).
+
+### Changed
+
+- **Security dependency updates** — Bumped the `brace-expansion` override to `^5.0.9` (high-severity ReDoS) and resolved the lockfile to Pi `0.84.0`, which brings `undici@8.9.0` (moderate-severity vulnerability). `npm audit` now reports zero vulnerabilities ([#417](https://github.com/apmantza/pi-free/pull/417)).
+
 ## [2.4.4] - 2026-08-05
 
 ### Fixed
