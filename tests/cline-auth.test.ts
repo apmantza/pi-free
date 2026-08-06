@@ -70,7 +70,8 @@ describe("apiKey.resolve", () => {
 		const result = await clineApiKeyAuth.resolve({
 			ctx: authCtx,
 			credential: { type: "api_key", key: "sk-stored" },
-		});
+			signal: new AbortController().signal,
+		} as never);
 		expect(result).toEqual({
 			auth: { apiKey: "sk-stored" },
 			source: "stored API key",
@@ -79,7 +80,10 @@ describe("apiKey.resolve", () => {
 
 	it("falls back to the ambient CLINE_API_KEY / config value", async () => {
 		mockGetClineApiKey.mockReturnValue("sk-ambient");
-		const result = await clineApiKeyAuth.resolve({ ctx: authCtx });
+		const result = await clineApiKeyAuth.resolve({
+			ctx: authCtx,
+			signal: new AbortController().signal,
+		} as never);
 		expect(result).toEqual({
 			auth: { apiKey: "sk-ambient" },
 			source: "CLINE_API_KEY",
@@ -91,7 +95,10 @@ describe("apiKey.resolve", () => {
 		// Models.refresh() driving offline init + background catalog refresh for
 		// logged-out users (the legacy factory fetched models with no credential).
 		mockGetClineApiKey.mockReturnValue(undefined);
-		const result = await clineApiKeyAuth.resolve({ ctx: authCtx });
+		const result = await clineApiKeyAuth.resolve({
+			ctx: authCtx,
+			signal: new AbortController().signal,
+		} as never);
 		expect(result).toEqual({
 			auth: {},
 			source: "public catalog (no account)",
@@ -101,9 +108,10 @@ describe("apiKey.resolve", () => {
 
 describe("apiKey.login", () => {
 	it("prompts for a secret key and returns an api_key credential", async () => {
-		const interaction: AuthInteraction = {
+		const interaction = {
 			prompt: vi.fn().mockResolvedValue("sk-prompted"),
 			notify: vi.fn(),
+			signal: new AbortController().signal,
 		};
 		const cred = await clineApiKeyAuth.login?.(interaction);
 		expect(interaction.prompt).toHaveBeenCalledWith(

@@ -632,6 +632,11 @@ export async function fetchOpenAICompatibleModels(
 
 		return await safeEnrichModelsWithModelsDev(mapped, { providerId });
 	} catch (error) {
+		// Abort is normal when Pi supersedes a refresh or the session closes.
+		// It should not become a noisy provider failure in the console.
+		if (signal?.aborted) {
+			return [];
+		}
 		logger.error(`[${providerId}] Failed to fetch models:`, {
 			error: error instanceof Error ? error.message : String(error),
 		});

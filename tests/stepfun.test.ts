@@ -58,15 +58,24 @@ describe("StepFun native provider", () => {
 			await stepfunAuth.apiKey?.resolve({
 				ctx: {} as never,
 				credential: { type: "api_key", key: "stored-test-key" },
-			}),
+				signal: new AbortController().signal,
+			} as never),
 		).toMatchObject({ auth: { apiKey: "stored-test-key" } });
 		expect(
-			await stepfunAuth.apiKey?.resolve({ ctx: {} as never }),
+			await stepfunAuth.apiKey?.resolve({
+				ctx: {} as never,
+				signal: new AbortController().signal,
+			} as never),
 		).toMatchObject({ auth: { apiKey: "ambient-test-key" } });
 	});
 
 	it("does not resolve auth when no key is configured", async () => {
-		expect(await stepfunAuth.apiKey?.resolve({ ctx: {} as never })).toBeUndefined();
+		expect(
+			await stepfunAuth.apiKey?.resolve({
+				ctx: {} as never,
+				signal: new AbortController().signal,
+			} as never),
+		).toBeUndefined();
 	});
 
 	it("registers StepFun through the native OpenAI lifecycle", () => {

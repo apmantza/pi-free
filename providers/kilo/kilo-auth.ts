@@ -205,6 +205,7 @@ export async function refreshKiloCredential(
 async function resolveKiloApiKey(input: {
 	ctx: AuthContext;
 	credential?: ApiKeyCredential;
+	signal?: AbortSignal;
 }): Promise<AuthResult | undefined> {
 	const key = input.credential?.key ?? getKiloApiKey();
 	if (!key) return undefined;

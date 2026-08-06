@@ -77,12 +77,23 @@ export function createLlm7Provider(): Llm7NativeProvider {
 	// runtime values are full Model objects, which are assignable.
 	const stored: StoredModels = { free: [], all: [] };
 
+	function prepare(
+		all: ProviderModelConfig[],
+		free: ProviderModelConfig[],
+	): { all: Llm7Model[]; free: Llm7Model[] } {
+		return {
+			all: toLlm7Models(enhanceWithCI(all)),
+			free: toLlm7Models(enhanceWithCI(free)),
+		};
+	}
+
 	function ingest(
 		all: ProviderModelConfig[],
 		free: ProviderModelConfig[],
 	): void {
-		stored.all = toLlm7Models(enhanceWithCI(all));
-		stored.free = toLlm7Models(enhanceWithCI(free));
+		const next = prepare(all, free);
+		stored.all = next.all;
+		stored.free = next.free;
 	}
 
 	async function refreshModels(context: RefreshModelsContext): Promise<void> {
@@ -109,14 +120,17 @@ export function createLlm7Provider(): Llm7NativeProvider {
 		// e.g. every selector hidden via hidden_models config).
 		if (all.length === 0) return;
 
-		ingest(all, free);
-
+		const next = prepare(all, free);
 		await persistNativeProviderModels(
 			PROVIDER_LLM7,
 			context,
-			// stored.all holds full Model objects at runtime (toLlm7Models output);
+			// next.all holds full Model objects at runtime (toLlm7Models output);
 			// the StoredModels type widens them to ProviderModelConfig for the toggle.
-			stored.all as unknown as readonly Model<Api>[],
+			next.all as unknown as readonly Model<Api>[],
+			() => {
+				stored.all = next.all;
+				stored.free = next.free;
+			},
 		);
 	}
 

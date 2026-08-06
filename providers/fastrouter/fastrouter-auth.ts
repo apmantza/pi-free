@@ -19,6 +19,7 @@ import { getFastrouterApiKey } from "../../config.ts";
 async function resolveFastrouterApiKey(input: {
 	ctx: AuthContext;
 	credential?: ApiKeyCredential;
+	signal?: AbortSignal;
 }): Promise<AuthResult | undefined> {
 	const key = input.credential?.key ?? getFastrouterApiKey();
 	if (!key) {

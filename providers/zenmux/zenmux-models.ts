@@ -81,10 +81,7 @@ export async function fetchZenmuxCatalog(options: {
 				cost: {
 					input: extractZenmuxPrice(model.pricings, "prompt"),
 					output: extractZenmuxPrice(model.pricings, "completion"),
-					cacheRead: extractZenmuxPrice(
-						model.pricings,
-						"input_cache_read",
-					),
+					cacheRead: extractZenmuxPrice(model.pricings, "input_cache_read"),
 					cacheWrite: 0,
 				},
 				contextWindow: model.context_length || 128000,
@@ -105,6 +102,10 @@ export async function fetchZenmuxCatalog(options: {
 		);
 		return { all, free };
 	} catch (error) {
+		// Pi may abort a superseded refresh; cancellation is not a provider error.
+		if (options.signal?.aborted) {
+			return { all: [], free: [] };
+		}
 		_logger.error("Failed to fetch ZenMux models", {
 			error: error instanceof Error ? error.message : String(error),
 		});

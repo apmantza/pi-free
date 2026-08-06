@@ -39,6 +39,7 @@ import { getLlm7ApiKey } from "../../config.ts";
 async function resolveLlm7ApiKey(input: {
 	ctx: AuthContext;
 	credential?: ApiKeyCredential;
+	signal?: AbortSignal;
 }): Promise<AuthResult | undefined> {
 	const key = input.credential?.key ?? getLlm7ApiKey();
 	if (!key) {

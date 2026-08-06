@@ -123,7 +123,8 @@ describe("createNativeApiKeyAuth", () => {
 			await auth.apiKey?.resolve({
 				ctx: {} as never,
 				credential: { type: "api_key", key: "stored-key" },
-			}),
+				signal: new AbortController().signal,
+			} as never),
 		).toMatchObject({ auth: { apiKey: "stored-key" } });
 		const apiKeyAuth = auth.apiKey;
 		if (!apiKeyAuth?.login) throw new Error("API-key login was not created");
@@ -194,6 +195,59 @@ describe("createNativeOpenAIProvider", () => {
 		).toEqual(["free"]);
 	});
 
+	it("supports Pi 0.84 stored/publish model lifecycle", async () => {
+		const controller = new AbortController();
+		const publish = vi.fn(
+			async (publication: {
+				persist?: { models: readonly unknown[]; checkedAt: number };
+				update?: () => void;
+			}) => {
+				publication.update?.();
+				return true;
+			},
+		);
+		const handle = createNativeOpenAIProvider({
+			...options,
+			fetchModels: async () => [model("modern", "Modern model")],
+		});
+
+		await handle.provider.refreshModels?.({
+			allowNetwork: true,
+			credential: { type: "api_key", key: "stored-key" },
+			stored: undefined,
+			publish,
+			signal: controller.signal,
+		} as unknown as RefreshModelsContext);
+
+		expect(publish).toHaveBeenCalledOnce();
+		expect(publish.mock.calls[0][0].persist?.models[0]).toMatchObject({
+			id: "modern",
+		});
+		expect(handle.provider.getModels()[0].id).toBe("modern");
+	});
+
+	it("does not apply a stale Pi 0.84 publication", async () => {
+		const publish = vi.fn(async () => false);
+		const handle = createNativeOpenAIProvider({
+			...options,
+			fetchModels: async () => [model("stale", "Stale model")],
+		});
+
+		await handle.provider.refreshModels?.({
+			allowNetwork: true,
+			credential: { type: "api_key", key: "stored-key" },
+			stored: undefined,
+			publish,
+			signal: new AbortController().signal,
+		} as unknown as RefreshModelsContext);
+
+		expect(publish).toHaveBeenCalledOnce();
+		expect(handle.provider.getModels().map((item) => item.id)).toEqual([
+			"free",
+			"paid",
+		]);
+	});
+
 	it("fetches with the effective key and persists native models", async () => {
 		const controller = new AbortController();
 		const fetchModels = vi.fn(async (key: string, signal?: AbortSignal) => {
@@ -245,7 +299,7 @@ describe("createNativeOpenAIProvider", () => {
 		expect(written[0].models[0]).toMatchObject({ id: "public" });
 	});
 
-	it("registers one stable provider object and shared lifecycle hooks", () => {
+	it("registers one stable provider object and shared lifecycle hooks", async () => {
 		const registerProvider = vi.fn();
 		const registerCommand = vi.fn();
 		const on = vi.fn();
@@ -256,13 +310,23 @@ describe("createNativeOpenAIProvider", () => {
 		} as unknown as ExtensionAPI;
 
 		registerNativeOpenAIProvider(pi, options);
+		registerNativeOpenAIProvider(pi, options);
 
-		expect(registerProvider).toHaveBeenCalledOnce();
+		expect(registerProvider).toHaveBeenCalledTimes(2);
 		expect(registerProvider.mock.calls[0][0].id).toBe("test-native");
 		expect(registerCommand).toHaveBeenCalledWith(
 			"toggle-test-native",
 			expect.any(Object),
 		);
+		expect(on).toHaveBeenCalledOnce();
 		expect(on).toHaveBeenCalledWith("session_start", expect.any(Function));
+
+		const refresh = vi.fn(async () => ({ errors: new Map() }));
+		const sessionHandler = on.mock.calls[0][1] as (
+			event: unknown,
+			context: { modelRegistry: { refresh: typeof refresh } },
+		) => Promise<void>;
+		await sessionHandler({}, { modelRegistry: { refresh } });
+		expect(refresh).toHaveBeenCalledOnce();
 	});
 });

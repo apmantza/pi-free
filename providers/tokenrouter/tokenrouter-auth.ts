@@ -13,6 +13,7 @@ import { getTokenrouterApiKey } from "../../config.ts";
 async function resolveTokenRouterApiKey(input: {
 	ctx: AuthContext;
 	credential?: ApiKeyCredential;
+	signal?: AbortSignal;
 }): Promise<AuthResult | undefined> {
 	const key = input.credential?.key ?? getTokenrouterApiKey();
 	if (!key) return undefined;

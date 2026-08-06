@@ -545,6 +545,10 @@ export async function fetchTokenRouterModels(
 			PROVIDER_TOKENROUTER,
 		);
 	} catch (error) {
+		// Pi may abort a superseded refresh; cancellation is not a provider error.
+		if (signal?.aborted) {
+			return [];
+		}
 		_logger.error("[tokenrouter] Failed to fetch models", {
 			error: error instanceof Error ? error.message : String(error),
 		});

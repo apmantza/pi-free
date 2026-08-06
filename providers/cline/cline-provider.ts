@@ -170,12 +170,23 @@ export function createClineProvider(): ClineNativeProvider {
 	// runtime values are full Model objects, which are assignable.
 	const stored: StoredModels = { free: [], all: [] };
 
+	function prepare(
+		all: ProviderModelConfig[],
+		free: ProviderModelConfig[],
+	): { all: ClineModel[]; free: ClineModel[] } {
+		return {
+			all: toClineModels(enhanceWithCI(all)),
+			free: toClineModels(enhanceWithCI(free)),
+		};
+	}
+
 	function ingest(
 		all: ProviderModelConfig[],
 		free: ProviderModelConfig[],
 	): void {
-		stored.all = toClineModels(enhanceWithCI(all));
-		stored.free = toClineModels(enhanceWithCI(free));
+		const next = prepare(all, free);
+		stored.all = next.all;
+		stored.free = next.free;
 	}
 
 	async function refreshModels(context: RefreshModelsContext): Promise<void> {
@@ -200,14 +211,17 @@ export function createClineProvider(): ClineNativeProvider {
 		// Retain the previous list on a degenerate/failed fetch (poisoning guard).
 		if (all.length === 0) return;
 
-		ingest(all, free);
-
+		const next = prepare(all, free);
 		await persistNativeProviderModels(
 			PROVIDER_CLINE,
 			context,
-			// stored.all holds full Model objects at runtime (toClineModels output);
+			// next.all holds full Model objects at runtime (toClineModels output);
 			// the StoredModels type widens them to ProviderModelConfig for the toggle.
-			stored.all as unknown as readonly Model<Api>[],
+			next.all as unknown as readonly Model<Api>[],
+			() => {
+				stored.all = next.all;
+				stored.free = next.free;
+			},
 		);
 	}
 

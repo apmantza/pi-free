@@ -39,12 +39,23 @@ export function createZenmuxProvider(): ZenmuxNativeProvider {
 	const streams = openAICompletionsApi();
 	const stored: StoredModels = { free: [], all: [] };
 
+	function prepare(
+		all: ProviderModelConfig[],
+		free: ProviderModelConfig[],
+	): { all: ZenmuxModel[]; free: ZenmuxModel[] } {
+		return {
+			all: toZenmuxModels(enhanceWithCI(all)),
+			free: toZenmuxModels(enhanceWithCI(free)),
+		};
+	}
+
 	function ingest(
 		all: ProviderModelConfig[],
 		free: ProviderModelConfig[],
 	): void {
-		stored.all = toZenmuxModels(enhanceWithCI(all));
-		stored.free = toZenmuxModels(enhanceWithCI(free));
+		const next = prepare(all, free);
+		stored.all = next.all;
+		stored.free = next.free;
 	}
 
 	async function refreshModels(context: RefreshModelsContext): Promise<void> {
@@ -67,11 +78,15 @@ export function createZenmuxProvider(): ZenmuxNativeProvider {
 		});
 		if (context.signal?.aborted || all.length === 0) return;
 
-		ingest(all, free);
+		const next = prepare(all, free);
 		await persistNativeProviderModels(
 			PROVIDER_ZENMUX,
 			context,
-			stored.all as unknown as readonly Model<Api>[],
+			next.all as unknown as readonly Model<Api>[],
+			() => {
+				stored.all = next.all;
+				stored.free = next.free;
+			},
 		);
 	}
 

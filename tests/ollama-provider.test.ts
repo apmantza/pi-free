@@ -127,7 +127,10 @@ describe("createOllamaProvider", () => {
 		expect(provider.baseUrl).toBe("https://ollama.com/v1");
 		expect(provider.getModels().map((item) => item.id)).toEqual(["initial"]);
 		expect(
-			await ollamaAuth.apiKey?.resolve({ ctx: {} as never }),
+			await ollamaAuth.apiKey?.resolve({
+				ctx: {} as never,
+				signal: new AbortController().signal,
+			} as never),
 		).toBeUndefined();
 	});
 

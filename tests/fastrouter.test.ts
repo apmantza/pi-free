@@ -32,7 +32,10 @@ beforeEach(() => {
 
 describe("FastRouter native provider", () => {
 	it("resolves keyless auth for the public catalog", async () => {
-		const result = await fastrouterAuth.apiKey?.resolve({ ctx: {} as never });
+		const result = await fastrouterAuth.apiKey?.resolve({
+			ctx: {} as never,
+			signal: new AbortController().signal,
+		} as never);
 		expect(result).toEqual({
 			auth: {},
 			source: "public catalog (no account)",
@@ -46,10 +49,14 @@ describe("FastRouter native provider", () => {
 			await fastrouterAuth.apiKey?.resolve({
 				ctx: {} as never,
 				credential: { type: "api_key", key: "stored-key" },
-			}),
+				signal: new AbortController().signal,
+			} as never),
 		).toMatchObject({ auth: { apiKey: "stored-key" } });
 		expect(
-			await fastrouterAuth.apiKey?.resolve({ ctx: {} as never }),
+			await fastrouterAuth.apiKey?.resolve({
+				ctx: {} as never,
+				signal: new AbortController().signal,
+			} as never),
 		).toMatchObject({ auth: { apiKey: "ambient-key" } });
 	});
 

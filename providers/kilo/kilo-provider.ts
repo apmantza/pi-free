@@ -87,12 +87,23 @@ export function createKiloProvider(): KiloNativeProvider {
 	// the runtime values are full Model objects, which are assignable.
 	const stored: StoredModels = { free: [], all: [] };
 
+	function prepare(
+		all: ProviderModelConfig[],
+		free: ProviderModelConfig[],
+	): { all: KiloModel[]; free: KiloModel[] } {
+		return {
+			all: toKiloModels(enhanceWithCI(applyKiloCompat(all))),
+			free: toKiloModels(enhanceWithCI(applyKiloCompat(free))),
+		};
+	}
+
 	function ingest(
 		all: ProviderModelConfig[],
 		free: ProviderModelConfig[],
 	): void {
-		stored.all = toKiloModels(enhanceWithCI(applyKiloCompat(all)));
-		stored.free = toKiloModels(enhanceWithCI(applyKiloCompat(free)));
+		const next = prepare(all, free);
+		stored.all = next.all;
+		stored.free = next.free;
 	}
 
 	async function refreshModels(context: RefreshModelsContext): Promise<void> {
@@ -120,14 +131,17 @@ export function createKiloProvider(): KiloNativeProvider {
 		// Retain the previous list on a degenerate/failed fetch (poisoning guard).
 		if (all.length === 0) return;
 
-		ingest(all, free);
-
+		const next = prepare(all, free);
 		await persistNativeProviderModels(
 			PROVIDER_KILO,
 			context,
-			// stored.all holds full Model objects at runtime (toKiloModels output);
+			// next.all holds full Model objects at runtime (toKiloModels output);
 			// the StoredModels type widens them to ProviderModelConfig for the toggle.
-			stored.all as unknown as readonly Model<Api>[],
+			next.all as unknown as readonly Model<Api>[],
+			() => {
+				stored.all = next.all;
+				stored.free = next.free;
+			},
 		);
 	}
 

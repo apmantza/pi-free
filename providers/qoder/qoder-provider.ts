@@ -20,10 +20,8 @@ import { BASE_URL_QODER, PROVIDER_QODER } from "../../constants.ts";
 import {
 	filterNativeModels,
 	persistNativeProviderModels,
-	registerNativeProvider,
 	restoreNativeProviderModels,
 } from "../../lib/native-provider.ts";
-import { isFreeModel } from "../../lib/registry.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { qoderAuth } from "./auth.ts";
 import { isBasicModel, staticModels } from "./models.ts";
@@ -85,12 +83,14 @@ export function createQoderProvider(): QoderNativeProvider {
 		// through Pi's store instead of maintaining a second cache/freshness policy.
 		const catalog = staticCatalog();
 		if (context.signal?.aborted || catalog.all.length === 0) return;
-		stored.all = catalog.all;
-		stored.free = catalog.free;
 		await persistNativeProviderModels(
 			PROVIDER_QODER,
 			context,
-			stored.all as unknown as readonly Model<Api>[],
+			catalog.all as unknown as readonly Model<Api>[],
+			() => {
+				stored.all = catalog.all;
+				stored.free = catalog.free;
+			},
 		);
 	}
 

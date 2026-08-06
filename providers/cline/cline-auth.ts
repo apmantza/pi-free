@@ -596,6 +596,7 @@ export async function refreshClineCredential(
 async function resolveClineApiKey(input: {
 	ctx: AuthContext;
 	credential?: ApiKeyCredential;
+	signal?: AbortSignal;
 }): Promise<AuthResult | undefined> {
 	const key = input.credential?.key ?? getClineApiKey();
 	if (!key) {
