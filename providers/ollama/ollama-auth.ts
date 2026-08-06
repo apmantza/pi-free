@@ -13,6 +13,7 @@ import { getOllamaApiKey } from "../../config.ts";
 async function resolveOllamaApiKey(input: {
 	ctx: AuthContext;
 	credential?: ApiKeyCredential;
+	signal?: AbortSignal;
 }): Promise<AuthResult | undefined> {
 	const key = input.credential?.key ?? getOllamaApiKey();
 	if (!key) return undefined;

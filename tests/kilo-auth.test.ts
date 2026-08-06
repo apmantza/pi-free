@@ -69,7 +69,8 @@ describe("apiKey.resolve", () => {
 		const result = await kiloApiKeyAuth.resolve({
 			ctx: authCtx,
 			credential: { type: "api_key", key: "sk-stored" },
-		});
+			signal: new AbortController().signal,
+		} as never);
 		expect(result).toEqual({
 			auth: { apiKey: "sk-stored" },
 			source: "stored API key",
@@ -78,7 +79,10 @@ describe("apiKey.resolve", () => {
 
 	it("falls back to the ambient KILO_API_KEY / config value", async () => {
 		mockGetKiloApiKey.mockReturnValue("sk-ambient");
-		const result = await kiloApiKeyAuth.resolve({ ctx: authCtx });
+		const result = await kiloApiKeyAuth.resolve({
+			ctx: authCtx,
+			signal: new AbortController().signal,
+		} as never);
 		expect(result).toEqual({
 			auth: { apiKey: "sk-ambient" },
 			source: "KILO_API_KEY",
@@ -87,16 +91,20 @@ describe("apiKey.resolve", () => {
 
 	it("resolves undefined when nothing is configured", async () => {
 		mockGetKiloApiKey.mockReturnValue(undefined);
-		const result = await kiloApiKeyAuth.resolve({ ctx: authCtx });
+		const result = await kiloApiKeyAuth.resolve({
+			ctx: authCtx,
+			signal: new AbortController().signal,
+		} as never);
 		expect(result).toBeUndefined();
 	});
 });
 
 describe("apiKey.login", () => {
 	it("prompts for a secret key and returns an api_key credential", async () => {
-		const interaction: AuthInteraction = {
+		const interaction = {
 			prompt: vi.fn().mockResolvedValue("sk-prompted"),
 			notify: vi.fn(),
+			signal: new AbortController().signal,
 		};
 		const cred = await kiloApiKeyAuth.login?.(interaction);
 		expect(interaction.prompt).toHaveBeenCalledWith(

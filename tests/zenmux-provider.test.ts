@@ -145,7 +145,10 @@ describe("createZenmuxProvider", () => {
 		expect(await models.getAvailable()).toEqual([]);
 		// Keyed providers must not appear authenticated without a credential.
 		expect(
-			await zenmuxAuth.apiKey?.resolve({ ctx: {} as never }),
+			await zenmuxAuth.apiKey?.resolve({
+			ctx: {} as never,
+			signal: new AbortController().signal,
+		} as never),
 		).toBeUndefined();
 	});
 

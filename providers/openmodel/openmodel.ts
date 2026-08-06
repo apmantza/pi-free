@@ -515,17 +515,27 @@ export default function openmodelProvider(pi: ExtensionAPI): Promise<void> {
 	const streams = anthropicMessagesApi();
 	const stored: StoredModels = { free: [], all: [] };
 
+	function prepare(
+		all: ProviderModelConfig[],
+		free?: ProviderModelConfig[],
+	): { all: OpenModelNative[]; free: OpenModelNative[] } {
+		const nextAll = enhanceWithCI(all, PROVIDER_OPENMODEL).map(toOpenModel);
+		const nextFree = (
+			free ??
+			nextAll.filter((model) =>
+				isFreeModel({ ...model, provider: PROVIDER_OPENMODEL }, nextAll),
+			)
+		).map(toOpenModel);
+		return { all: nextAll, free: nextFree };
+	}
+
 	function ingest(
 		all: ProviderModelConfig[],
 		free?: ProviderModelConfig[],
 	): void {
-		stored.all = enhanceWithCI(all, PROVIDER_OPENMODEL).map(toOpenModel);
-		stored.free = (
-			free ??
-			stored.all.filter((model) =>
-				isFreeModel({ ...model, provider: PROVIDER_OPENMODEL }, stored.all),
-			)
-		).map(toOpenModel);
+		const next = prepare(all, free);
+		stored.all = next.all;
+		stored.free = next.free;
 	}
 
 	const provider: Provider<"anthropic-messages"> = {
@@ -564,11 +574,15 @@ export default function openmodelProvider(pi: ExtensionAPI): Promise<void> {
 			const free = models.filter((model) =>
 				isFreeModel({ ...model, provider: PROVIDER_OPENMODEL }, models),
 			);
-			ingest(models, free);
+			const next = prepare(models, free);
 			await persistNativeProviderModels(
 				PROVIDER_OPENMODEL,
 				context,
-				stored.all as unknown as readonly Model<Api>[],
+				next.all as unknown as readonly Model<Api>[],
+				() => {
+					stored.all = next.all;
+					stored.free = next.free;
+				},
 			);
 		},
 		stream: (model, context, options) =>

@@ -13,6 +13,7 @@ import { getZenmuxApiKey } from "../../config.ts";
 async function resolveZenmuxApiKey(input: {
 	ctx: AuthContext;
 	credential?: ApiKeyCredential;
+	signal?: AbortSignal;
 }): Promise<AuthResult | undefined> {
 	const key = input.credential?.key ?? getZenmuxApiKey();
 	if (!key) return undefined;

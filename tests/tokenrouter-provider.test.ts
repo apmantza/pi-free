@@ -136,7 +136,10 @@ describe("createTokenRouterProvider", () => {
 		expect(provider.baseUrl).toBe("https://api.tokenrouter.com/v1");
 		expect(provider.getModels()).toEqual([]);
 		expect(
-			await tokenRouterAuth.apiKey?.resolve({ ctx: {} as never }),
+			await tokenRouterAuth.apiKey?.resolve({
+				ctx: {} as never,
+				signal: new AbortController().signal,
+			} as never),
 		).toBeUndefined();
 	});
 
@@ -146,7 +149,8 @@ describe("createTokenRouterProvider", () => {
 			tokenRouterAuth.apiKey?.resolve({
 				ctx: {} as never,
 				credential: { type: "api_key", key: "sk-stored" },
-			}),
+				signal: new AbortController().signal,
+			} as never),
 		).resolves.toMatchObject({
 			auth: { apiKey: "sk-stored" },
 			source: "stored API key",

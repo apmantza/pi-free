@@ -384,11 +384,23 @@ export function registerNativeProviderToggle(
 	});
 }
 
-/** Nudge Pi's native model refresh at session start without owning refresh state. */
+/**
+ * Nudge Pi's native model refresh once per extension session.
+ *
+ * Pi 0.84 supersedes an in-flight refresh for each provider when a newer
+ * refresh starts. Registering this handler once per provider while calling a
+ * global refresh caused every handler to abort the previous providers' fetches
+ * in a tight loop on session resume.
+ */
+const nativeRefreshRegistrations = new WeakSet<object>();
+
 export function registerNativeProviderRefresh(
 	pi: ExtensionAPI,
 	providerId: string,
 ): void {
+	if (nativeRefreshRegistrations.has(pi as object)) return;
+	nativeRefreshRegistrations.add(pi as object);
+
 	pi.on(
 		"session_start",
 		wrapSessionStartHandler(providerId, (_event, ctx) => {
@@ -433,13 +445,51 @@ function logRefreshFailure(providerId: string, error: unknown): void {
 }
 
 /** Restore one provider's catalog from Pi's native models store. */
+type NativeModelsStoreEntry = {
+	models: readonly Model<Api>[];
+	checkedAt: number;
+};
+
+type NativeRefreshContext = {
+	allowNetwork: boolean;
+	signal?: AbortSignal;
+	/** Pi 0.84+ immutable store snapshot. */
+	stored?: NativeModelsStoreEntry;
+	/** Pi 0.84+ generation-checked publication API. */
+	publish?: (publication: {
+		persist?: NativeModelsStoreEntry | null;
+		update?: () => void;
+	}) => Promise<boolean>;
+	/** Pi <=0.83 legacy provider store. */
+	store?: {
+		read: () => Promise<NativeModelsStoreEntry | undefined>;
+		write: (entry: NativeModelsStoreEntry) => Promise<void>;
+	};
+};
+
+function getNativeRefreshContext(
+	context: RefreshModelsContext,
+): NativeRefreshContext {
+	return context as unknown as NativeRefreshContext;
+}
+
+function usesNativePublication(context: RefreshModelsContext): boolean {
+	return typeof getNativeRefreshContext(context).publish === "function";
+}
+
+/** Restore one provider's catalog from Pi's native models store. */
 export async function restoreNativeProviderModels<T extends Model<Api>>(
 	providerId: string,
 	context: RefreshModelsContext,
 	onModels: (models: T[]) => void,
 ): Promise<void> {
+	const nativeContext = getNativeRefreshContext(context);
 	try {
-		const entry = await context.store.read();
+		// Pi 0.84+ has already read the provider-scoped store and supplies an
+		// immutable snapshot. Never read the old context.store in this path.
+		const entry = usesNativePublication(context)
+			? nativeContext.stored
+			: await nativeContext.store?.read();
 		const models = (entry?.models ?? []).filter(
 			(model) => model.provider === providerId,
 		) as T[];
@@ -460,7 +510,7 @@ export async function refreshNativeProviderModels<T extends Model<Api>>(
 	context: RefreshModelsContext,
 	onRestore: (models: T[]) => void,
 	fetchModels: () => Promise<T[]>,
-	onFetched: (models: T[]) => void | Promise<void>,
+	onFetched: (models: T[]) => void,
 ): Promise<void> {
 	await restoreNativeProviderModels(providerId, context, onRestore);
 	if (!context.allowNetwork || context.signal?.aborted) return;
@@ -468,8 +518,9 @@ export async function refreshNativeProviderModels<T extends Model<Api>>(
 	try {
 		const models = await fetchModels();
 		if (context.signal?.aborted || models.length === 0) return;
-		await onFetched(models);
-		await persistNativeProviderModels(providerId, context, models);
+		await persistNativeProviderModels(providerId, context, models, () =>
+			onFetched(models),
+		);
 	} catch (err) {
 		_logger.warn(`Failed to refresh ${providerId} models; retaining previous`, {
 			error: err instanceof Error ? err.message : String(err),
@@ -482,9 +533,24 @@ export async function persistNativeProviderModels(
 	providerId: string,
 	context: RefreshModelsContext,
 	models: readonly Model<Api>[],
+	onPublished?: () => void,
 ): Promise<void> {
+	const nativeContext = getNativeRefreshContext(context);
 	try {
-		await context.store.write({
+		if (usesNativePublication(context) && nativeContext.publish) {
+			await nativeContext.publish({
+				persist: {
+					models,
+					checkedAt: Date.now(),
+				},
+				// Pi runs this only if this refresh generation is still current.
+				update: onPublished,
+			});
+			return;
+		}
+
+		onPublished?.();
+		await nativeContext.store?.write({
 			models,
 			checkedAt: Date.now(),
 		});

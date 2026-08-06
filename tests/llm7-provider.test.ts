@@ -174,7 +174,8 @@ describe("keyless auth", () => {
 		const result = await llm7Auth.apiKey?.resolve({
 			ctx: {} as never,
 			credential: undefined,
-		});
+			signal: new AbortController().signal,
+		} as never);
 		// Must RESOLVE (not undefined) so Pi's Models.refresh() does not skip
 		// the provider for logged-out users.
 		expect(result).toBeDefined();
@@ -187,7 +188,8 @@ describe("keyless auth", () => {
 		const result = await llm7Auth.apiKey?.resolve({
 			ctx: {} as never,
 			credential: undefined,
-		});
+			signal: new AbortController().signal,
+		} as never);
 		expect(result?.auth).toEqual({ apiKey: "sk-llm7" });
 	});
 
@@ -196,7 +198,8 @@ describe("keyless auth", () => {
 		const result = await llm7Auth.apiKey?.resolve({
 			ctx: {} as never,
 			credential: { type: "api_key", key: "sk-stored" },
-		});
+			signal: new AbortController().signal,
+		} as never);
 		expect(result?.auth).toEqual({ apiKey: "sk-stored" });
 	});
 

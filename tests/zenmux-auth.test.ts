@@ -1,4 +1,3 @@
-import type { AuthInteraction } from "@earendil-works/pi-ai/compat";
 import { describe, expect, it, vi } from "vitest";
 
 const mockGetZenmuxApiKey = vi.hoisted(() =>
@@ -18,7 +17,8 @@ describe("ZenMux native API-key auth", () => {
 			await zenmuxAuth.apiKey?.resolve({
 				ctx: {} as never,
 				credential: undefined,
-			}),
+				signal: new AbortController().signal,
+			} as never),
 		).toBeUndefined();
 	});
 
@@ -28,7 +28,8 @@ describe("ZenMux native API-key auth", () => {
 			await zenmuxAuth.apiKey?.resolve({
 				ctx: {} as never,
 				credential: undefined,
-			}),
+				signal: new AbortController().signal,
+			} as never),
 		).toMatchObject({ auth: { apiKey: "sk-ambient" } });
 	});
 
@@ -38,7 +39,8 @@ describe("ZenMux native API-key auth", () => {
 			await zenmuxAuth.apiKey?.resolve({
 				ctx: {} as never,
 				credential: { type: "api_key", key: "sk-stored" },
-			}),
+				signal: new AbortController().signal,
+			} as never),
 		).toMatchObject({ auth: { apiKey: "sk-stored" } });
 	});
 
@@ -48,7 +50,8 @@ describe("ZenMux native API-key auth", () => {
 		if (!login) throw new Error("ZenMux native login is unavailable");
 		const credential = await login({
 			prompt,
-		} as unknown as AuthInteraction);
+			signal: new AbortController().signal,
+		} as never);
 		expect(prompt).toHaveBeenCalledWith({
 			type: "secret",
 			message: "ZenMux API key",
