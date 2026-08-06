@@ -965,3 +965,5 @@ The following recent model IDs correctly miss `all-strategies-failed` because th
 - fetchWithRetry() now properly throws after exhausting retries
 - Auth error pattern matching now handles more message variants
 - Test isolation for free-tier-limits tests
+
+<!-- retrigger-ci -->
