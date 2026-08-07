@@ -522,6 +522,8 @@ export async function refreshNativeProviderModels<T extends Model<Api>>(
 			onFetched(models),
 		);
 	} catch (err) {
+		// Pi may abort a superseded refresh; cancellation is not a provider error.
+		if (context.signal?.aborted) return;
 		_logger.warn(`Failed to refresh ${providerId} models; retaining previous`, {
 			error: err instanceof Error ? err.message : String(err),
 		});

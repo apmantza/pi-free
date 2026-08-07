@@ -159,6 +159,8 @@ async function fetchBaiModels(
 		);
 		return applyHidden(enriched, PROVIDER_BAI);
 	} catch (error) {
+		// Pi may abort a superseded refresh; cancellation is not a provider error.
+		if (signal?.aborted) return [];
 		_logger.error("[bai] Failed to fetch models", {
 			error: error instanceof Error ? error.message : String(error),
 		});
