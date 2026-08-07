@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.6] - 2026-08-07
+
+### Fixed
+
+- **Abort errors no longer surface as visible failures across all providers** — Pi 0.84+ aborts superseded model refreshes, and `AbortError`/`"This operation was aborted"` is cancellation, not a provider failure. Every provider fetch `catch` block now guards `signal?.aborted` before logging, so expected aborts are silently swallowed instead of surfacing as visible `ERROR` notifications (routeway, openmodel, novita, bai, plus the central native-provider refresh path). A genuine (non-aborted) fetch failure is still logged ([#419](https://github.com/apmantza/pi-free/issues/419), [#420](https://github.com/apmantza/pi-free/pull/420)).
+
 ## [2.4.5] - 2026-08-06
 
 ### Fixed
