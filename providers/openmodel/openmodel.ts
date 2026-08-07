@@ -450,6 +450,8 @@ async function fetchOpenModelModels(
 ): Promise<ProviderModelConfig[]> {
 	const [catalog, protocols] = await Promise.all([
 		fetchOpenModelWebCatalog(BASE_URL_OPENMODEL, signal).catch((error) => {
+			// Pi may abort a superseded refresh; cancellation is not a provider error.
+			if (signal?.aborted) return [] as OpenModelCatalogItem[];
 			_logger.error("[openmodel] Failed to fetch public catalog", {
 				error: error instanceof Error ? error.message : String(error),
 			});
@@ -457,6 +459,7 @@ async function fetchOpenModelModels(
 		}),
 		fetchOpenModelProtocols(apiKey, BASE_URL_OPENMODEL, signal).catch(
 			(error) => {
+				if (signal?.aborted) return [] as OpenModelProtocolItem[];
 				_logger.error("[openmodel] Failed to fetch /v1/models", {
 					error: error instanceof Error ? error.message : String(error),
 				});
@@ -612,7 +615,7 @@ export default function openmodelProvider(pi: ExtensionAPI): Promise<void> {
 	pi.on("model_select", (_event, ctx) => {
 		if (tosShown || ctx.model?.provider !== PROVIDER_OPENMODEL) return;
 		tosShown = true;
-			_logger.debug("Free-model terms notice", {
+		_logger.debug("Free-model terms notice", {
 			provider: PROVIDER_OPENMODEL,
 			termsUrl: "https://docs.openmodel.ai/en/docs",
 		});

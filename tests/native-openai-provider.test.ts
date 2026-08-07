@@ -26,11 +26,13 @@ vi.mock("../lib/registry.ts", () => ({
 vi.mock("../provider-helper.ts", () => ({
 	enhanceWithCI: (models: ProviderModelConfig[]) => models,
 }));
+const mockLoggerWarn = vi.hoisted(() => vi.fn());
+const mockLoggerError = vi.hoisted(() => vi.fn());
 vi.mock("../lib/logger.ts", () => ({
 	createLogger: () => ({
 		info: vi.fn(),
-		warn: vi.fn(),
-		error: vi.fn(),
+		warn: mockLoggerWarn,
+		error: mockLoggerError,
 		debug: vi.fn(),
 	}),
 }));
@@ -42,6 +44,7 @@ import {
 	createNativeApiKeyAuth,
 	createNativeOpenAIProvider,
 	registerNativeOpenAIProvider,
+	refreshNativeProviderModels,
 } from "../lib/native-provider.ts";
 
 function model(id: string, name: string): ProviderModelConfig {
@@ -328,5 +331,79 @@ describe("createNativeOpenAIProvider", () => {
 		) => Promise<void>;
 		await sessionHandler({}, { modelRegistry: { refresh } });
 		expect(refresh).toHaveBeenCalledOnce();
+	});
+
+	it("suppresses expected abort errors without logging a failure (#419)", async () => {
+		// Pi 0.84 aborts a superseded refresh; cancellation must not surface as
+		// a visible provider failure. fetchModels rejects mid-flight while the
+		// signal is already aborted.
+		const controller = new AbortController();
+		const { store, written } = makeStore({
+			models: [
+				{
+					...model("stored", "Stored"),
+					provider: "test-native",
+					api: "openai-completions",
+					baseUrl: "https://example.test/v1",
+				},
+			],
+			checkedAt: 123,
+		} as unknown as ModelsStoreEntry);
+		const onRestore = vi.fn();
+		const onFetched = vi.fn();
+		const fetchModels = vi.fn(async () => {
+			controller.abort();
+			throw new Error("This operation was aborted");
+		});
+
+		await refreshNativeProviderModels(
+			"test-native",
+			context(store, {
+				allowNetwork: true,
+			signal: controller.signal,
+			}),
+			onRestore,
+			fetchModels,
+			onFetched,
+		);
+
+		expect(fetchModels).toHaveBeenCalledOnce();
+		// No failure was logged at warn or error level.
+		expect(mockLoggerWarn).not.toHaveBeenCalledWith(
+			expect.stringContaining("Failed to refresh"),
+			expect.anything(),
+		);
+		// The previous catalog is retained: nothing was persisted over it.
+		expect(onFetched).not.toHaveBeenCalled();
+		expect(written).toHaveLength(0);
+		// Offline restore still served the stored snapshot.
+		expect(onRestore).toHaveBeenCalledWith(
+			expect.arrayContaining([expect.objectContaining({ id: "stored" })]),
+		);
+	});
+
+	it("still logs a real fetch failure when the signal is not aborted", async () => {
+		// The guard must be narrow: a genuine provider/network failure (signal
+		// live) IS logged so it isn't hidden behind a cancelled-signal heuristic.
+		const { store } = makeStore();
+		const fetchModels = vi.fn(async () => {
+			throw new Error("boom: network unreachable");
+		});
+
+		await refreshNativeProviderModels(
+			"test-native",
+			context(store, {
+				allowNetwork: true,
+				signal: new AbortController().signal,
+			}),
+			vi.fn(),
+			fetchModels,
+			vi.fn(),
+		);
+
+		expect(mockLoggerWarn).toHaveBeenCalledWith(
+			expect.stringContaining("Failed to refresh"),
+			expect.objectContaining({ error: expect.stringContaining("boom") }),
+		);
 	});
 });
