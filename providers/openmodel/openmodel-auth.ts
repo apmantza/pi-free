@@ -6,4 +6,5 @@ export const openmodelAuth = createNativeApiKeyAuth({
 	prompt: "OpenModel API key",
 	source: "OPENMODEL_API_KEY",
 	getApiKey: getOpenmodelApiKey,
+	anonymousCatalog: true,
 });

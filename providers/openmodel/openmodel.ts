@@ -290,12 +290,15 @@ export function mergeOpenModelModels(
 
 	const seen = new Set<string>();
 	const result: MergedOpenModelModel[] = [];
+	// Without protocol data (anonymous refresh: /v1/models needs a token) the
+	// catalog cannot be filtered by protocol support — keep every catalog item.
+	const hasProtocolData = protocolItems.length > 0;
 
 	// 1) Priced catalog models, filtered to "messages" support.
 	for (const item of catalog) {
 		if (!item.key) continue;
 		const protocols = protocolsById.get(item.key) ?? [];
-		if (!protocols.includes("messages")) continue;
+		if (hasProtocolData && !protocols.includes("messages")) continue;
 		seen.add(item.key);
 		result.push({
 			item,
@@ -376,11 +379,7 @@ async function fetchOpenModelWebCatalog(
 		items.push(...json.data);
 
 		const pagination = json.meta?.pagination;
-		if (
-			!pagination ||
-			page >= pagination.totalPages ||
-			json.data.length === 0
-		) {
+		if (!pagination || page >= pagination.totalPages || json.data.length === 0) {
 			break;
 		}
 		page += 1;
@@ -403,9 +402,7 @@ async function fetchOpenModelWebCatalog(
 		});
 	}
 
-	_logger.info(
-		`[openmodel] Fetched ${items.length} models from public catalog`,
-	);
+	_logger.info(`[openmodel] Fetched ${items.length} models from public catalog`);
 	return items;
 }
 
@@ -448,6 +445,9 @@ async function fetchOpenModelModels(
 	apiKey: string,
 	signal?: AbortSignal,
 ): Promise<ProviderModelConfig[]> {
+	// The public web catalog needs no credential; the protocol list behind
+	// /v1/models does, so anonymous refreshes skip it and keep every catalog
+	// model (mergeOpenModelModels tolerates an empty protocol list).
 	const [catalog, protocols] = await Promise.all([
 		fetchOpenModelWebCatalog(BASE_URL_OPENMODEL, signal).catch((error) => {
 			// Pi may abort a superseded refresh; cancellation is not a provider error.
@@ -457,15 +457,19 @@ async function fetchOpenModelModels(
 			});
 			return [] as OpenModelCatalogItem[];
 		}),
-		fetchOpenModelProtocols(apiKey, BASE_URL_OPENMODEL, signal).catch(
-			(error) => {
-				if (signal?.aborted) return [] as OpenModelProtocolItem[];
-				_logger.error("[openmodel] Failed to fetch /v1/models", {
-					error: error instanceof Error ? error.message : String(error),
-				});
-				return [] as OpenModelProtocolItem[];
-			},
-		),
+		apiKey
+			? fetchOpenModelProtocols(
+					apiKey,
+					BASE_URL_OPENMODEL,
+					signal,
+				).catch((error) => {
+					if (signal?.aborted) return [] as OpenModelProtocolItem[];
+					_logger.error("[openmodel] Failed to fetch /v1/models", {
+						error: error instanceof Error ? error.message : String(error),
+					});
+					return [] as OpenModelProtocolItem[];
+				})
+			: Promise.resolve([] as OpenModelProtocolItem[]),
 	]);
 
 	if (catalog.length === 0 && protocols.length === 0) {
@@ -532,15 +536,6 @@ export default function openmodelProvider(pi: ExtensionAPI): Promise<void> {
 		return { all: nextAll, free: nextFree };
 	}
 
-	function ingest(
-		all: ProviderModelConfig[],
-		free?: ProviderModelConfig[],
-	): void {
-		const next = prepare(all, free);
-		stored.all = next.all;
-		stored.free = next.free;
-	}
-
 	const provider: Provider<"anthropic-messages"> = {
 		id: PROVIDER_OPENMODEL,
 		name: "OpenModel",
@@ -561,17 +556,15 @@ export default function openmodelProvider(pi: ExtensionAPI): Promise<void> {
 				(storedModels: OpenModelNative[]) => {
 					stored.all = storedModels;
 					stored.free = storedModels.filter((model) =>
-						isFreeModel(
-							{ ...model, provider: PROVIDER_OPENMODEL },
-							storedModels,
-						),
+						isFreeModel({ ...model, provider: PROVIDER_OPENMODEL }, storedModels),
 					);
 				},
 			);
 			if (!context.allowNetwork || context.signal?.aborted) return;
 
-			const token = openModelCredentialToken(context.credential);
-			if (!token) return;
+			// The public web catalog needs no credential; a configured key still
+			// unlocks the authenticated /v1/models protocol list inside the fetch.
+			const token = openModelCredentialToken(context.credential) ?? "";
 			const models = await fetchOpenModelModels(token, context.signal);
 			if (context.signal?.aborted || models.length === 0) return;
 			const free = models.filter((model) =>
@@ -588,8 +581,7 @@ export default function openmodelProvider(pi: ExtensionAPI): Promise<void> {
 				},
 			);
 		},
-		stream: (model, context, options) =>
-			streams.stream(model, context, options),
+		stream: (model, context, options) => streams.stream(model, context, options),
 		streamSimple: (model, context, options) =>
 			streams.streamSimple(model, context, options),
 	};

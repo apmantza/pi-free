@@ -247,6 +247,7 @@ Debug logging writes to `~/.pi/free.log` under the `benchmark-lookup` namespace:
 
 **Authentication notes:**
 
+- **Anonymous public catalogs** — Kilo, ZenMux, CrofAI, DeepInfra, Novita, Routeway, SambaNova, OpenModel, FastRouter, and Cline resolve a truthy keyless auth (`public catalog (no account)`) when no credential is configured, so Pi's model refresh populates their public catalogs with zero setup; chat still requires a real key or OAuth login. StepFun, TokenRouter, AnyAPI, B.AI, and OpenGateway have auth-required catalogs and keep resolving `undefined` without a key ([#421](https://github.com/apmantza/pi-free/issues/421)).
 - **Kilo** and **Cline** support both OAuth (`/login`) and direct API keys. Set `KILO_API_KEY` / `CLINE_API_KEY` (or `kilo_api_key` / `cline_api_key` in `~/.pi/free.json`) to authenticate directly. Both are native providers: their native auth carries both methods, and Pi's resolution order applies — a stored credential (from `/login`) wins, then the ambient API key. Cline's catalog is public and can refresh without a credential.
 - **Qoder** is a native provider with OAuth/PAT authentication, Pi-owned credential/model stores, COSY signing, and its custom stream. Use `/login qoder`, or set `QODER_PERSONAL_ACCESS_TOKEN` / `QODER_PAT` for headless PAT authentication.
 - **OpenCode and OpenCode Go** remain Pi-built-in providers. pi-free only captures Pi's available catalogs for filtering after session start; it performs no startup or on-demand catalog discovery.

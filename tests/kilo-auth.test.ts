@@ -89,13 +89,17 @@ describe("apiKey.resolve", () => {
 		});
 	});
 
-	it("resolves undefined when nothing is configured", async () => {
+	it("resolves keyless auth for the public catalog when nothing is configured", async () => {
 		mockGetKiloApiKey.mockReturnValue(undefined);
 		const result = await kiloApiKeyAuth.resolve({
 			ctx: authCtx,
 			signal: new AbortController().signal,
 		} as never);
-		expect(result).toBeUndefined();
+		expect(result).toEqual({
+			auth: {},
+			source: "public catalog (no account)",
+		});
+		expect(kiloApiKeyAuth).not.toHaveProperty("check");
 	});
 });
 

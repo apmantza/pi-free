@@ -77,7 +77,7 @@ async function fetchCrofaiModels(
 		`${BASE_URL_CROFAI}/models`,
 		{
 			headers: {
-				Authorization: `Bearer ${apiKey}`,
+				...(apiKey && { Authorization: `Bearer ${apiKey}` }),
 				"Content-Type": "application/json",
 			},
 			signal,
@@ -146,6 +146,7 @@ export default function crofaiProvider(pi: ExtensionAPI): Promise<void> {
 		auth: crofaiAuth,
 		getApiKey: getCrofaiApiKey,
 		getShowPaid: getCrofaiShowPaid,
+		allowUnauthenticated: true,
 		fetchModels: (apiKey, signal) => fetchCrofaiModels(apiKey, signal),
 	});
 	return Promise.resolve();

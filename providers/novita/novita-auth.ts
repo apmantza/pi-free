@@ -6,4 +6,5 @@ export const novitaAuth = createNativeApiKeyAuth({
 	prompt: "Novita API key",
 	source: "NOVITA_API_KEY",
 	getApiKey: getNovitaApiKey,
+	anonymousCatalog: true,
 });

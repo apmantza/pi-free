@@ -13,7 +13,7 @@ describe("fetchOpenRouterCompatibleModels", () => {
 
 	function stubModels(data: unknown[]) {
 		const fetchMock = vi.fn(
-			async () =>
+			async (..._args: unknown[]) =>
 				new Response(JSON.stringify({ data }), {
 					status: 200,
 					statusText: "OK",
@@ -59,6 +59,46 @@ describe("fetchOpenRouterCompatibleModels", () => {
 			"text-and-image",
 			"unknown-output",
 		]);
+	});
+
+	it("omits the Authorization header for anonymous catalog fetches (#421)", async () => {
+		const fetchMock = stubModels([
+			{
+				id: "public-model",
+				name: "Public Model",
+				context_length: 128000,
+				architecture: { output_modalities: ["text"] },
+			},
+		]);
+
+		await fetchOpenRouterCompatibleModels({
+			baseUrl: "https://example.test/api/gateway",
+			apiKey: undefined,
+		});
+		await fetchOpenRouterCompatibleModels({
+			baseUrl: "https://example.test/api/gateway",
+			apiKey: "",
+		});
+
+		for (const call of fetchMock.mock.calls) {
+			const headers = (call[1] as unknown as { headers: Record<string, string> })
+				.headers;
+			expect(headers).not.toHaveProperty("Authorization");
+		}
+	});
+
+	it("sends the Authorization header when a key is configured", async () => {
+		const fetchMock = stubModels([]);
+
+		await fetchOpenRouterCompatibleModels({
+			baseUrl: "https://example.test/api/gateway",
+			apiKey: "sk-test",
+		});
+
+		const headers = (fetchMock.mock.calls[0][1] as unknown as {
+			headers: Record<string, string>;
+		}).headers;
+		expect(headers.Authorization).toBe("Bearer sk-test");
 	});
 
 	it("maps Kilo/OpenRouter model metadata from provider catalogs", async () => {

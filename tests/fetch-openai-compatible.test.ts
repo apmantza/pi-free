@@ -339,6 +339,36 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 		expect(models).toHaveLength(0);
 	});
 
+	// ── Anonymous catalog fetches (#421) ───────────────────────
+	it("omits the Authorization header when the API key is empty", async () => {
+		mockFetchOk({ data: [{ id: "public-model" }] });
+
+		const models = await fetchOpenAICompatibleModels(
+			"test",
+			"https://api.example.com/v1",
+			"",
+		);
+
+		expect(models).toHaveLength(1);
+		const init = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+			.calls[0][1] as { headers: Record<string, string> };
+		expect(init.headers).not.toHaveProperty("Authorization");
+	});
+
+	it("sends the Authorization header when a key is configured", async () => {
+		mockFetchOk({ data: [] });
+
+		await fetchOpenAICompatibleModels(
+			"test",
+			"https://api.example.com/v1",
+			"sk-test",
+		);
+
+		const init = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+			.calls[0][1] as { headers: Record<string, string> };
+		expect(init.headers.Authorization).toBe("Bearer sk-test");
+	});
+
 	// ── Filters out models without IDs ─────────────────────────
 	it("filters out entries without an id", async () => {
 		mockFetchOk({

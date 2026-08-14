@@ -6,4 +6,5 @@ export const sambanovaAuth = createNativeApiKeyAuth({
 	prompt: "SambaNova API key",
 	source: "SAMBANOVA_API_KEY",
 	getApiKey: getSambanovaApiKey,
+	anonymousCatalog: true,
 });

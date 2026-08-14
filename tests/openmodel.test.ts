@@ -190,18 +190,24 @@ describe("mergeOpenModelModels", () => {
 		expect(merged.every((m) => m.source === "unpriced")).toBe(true);
 	});
 
-	it("handles an empty protocol list gracefully (drops everything)", () => {
+	it("keeps every catalog model when the protocol list is empty (anonymous refresh)", () => {
+		// Without a token the authenticated /v1/models protocol list is
+		// skipped; the catalog cannot be filtered by protocol, so every
+		// priced catalog model is retained (#421).
 		const merged = mergeOpenModelModels(catalog, []);
-		expect(merged).toEqual([]);
+		const ids = merged.map((m) => m.item.key).sort((a, b) => a.localeCompare(b));
+		expect(ids).toEqual(catalog.map((c) => c.key).sort((a, b) => a.localeCompare(b)));
+		expect(merged.every((m) => m.source === "priced")).toBe(true);
 	});
 
-	it("treats models missing from protocol list as non-messages", () => {
-		// pricedItem with no matching protocol entry → filtered out.
+	it("treats models missing from a non-empty protocol list as non-messages", () => {
+		// pricedItem with no matching protocol entry → filtered out when
+		// protocol data is available.
 		const merged = mergeOpenModelModels(
 			[pricedItem("orphan-model", { multiplier: 0 })],
-			[],
+			[protocol("other-model", ["messages"])],
 		);
-		expect(merged).toEqual([]);
+		expect(merged.map((m) => m.item.key)).toEqual(["other-model"]);
 	});
 });
 

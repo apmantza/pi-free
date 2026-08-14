@@ -43,6 +43,14 @@ export interface NativeApiKeyAuthOptions {
 	prompt: string;
 	source: string;
 	getApiKey: () => string | undefined;
+	/**
+	 * Opt in to anonymous catalog resolution: when no stored credential or
+	 * ambient key exists, `resolve()` returns a truthy keyless result so Pi's
+	 * `MutableModels.refresh()` still runs `refreshModels()` and the provider's
+	 * public catalog can populate. Chat requests still require a real key —
+	 * the gateway rejects unauthenticated completions.
+	 */
+	anonymousCatalog?: boolean;
 }
 
 /** Build the standard persisted API-key auth used by keyed native providers. */
@@ -63,7 +71,12 @@ export function createNativeApiKeyAuth(
 			credential?: ApiKeyCredential;
 		}): Promise<AuthResult | undefined> {
 			const key = input.credential?.key ?? options.getApiKey();
-			if (!key) return undefined;
+			if (!key) {
+				if (options.anonymousCatalog) {
+					return { auth: {}, source: "public catalog (no account)" };
+				}
+				return undefined;
+			}
 			return {
 				auth: { apiKey: key },
 				source: input.credential?.key ? "stored API key" : options.source,

@@ -6,4 +6,5 @@ export const crofaiAuth = createNativeApiKeyAuth({
 	prompt: "CrofAI API key",
 	source: "CROFAI_API_KEY",
 	getApiKey: getCrofaiApiKey,
+	anonymousCatalog: true,
 });

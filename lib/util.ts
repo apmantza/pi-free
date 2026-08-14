@@ -547,7 +547,10 @@ export async function fetchOpenAICompatibleModels(
 			`${baseUrl}/models`,
 			{
 				headers: {
-					Authorization: `Bearer ${apiKey}`,
+					// Public catalogs accept anonymous requests; an empty `Bearer `
+					// header can be rejected by gateways that would otherwise
+					// serve the endpoint anonymously.
+					...(apiKey && { Authorization: `Bearer ${apiKey}` }),
 					"Content-Type": "application/json",
 				},
 				signal,

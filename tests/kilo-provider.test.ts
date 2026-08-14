@@ -303,6 +303,24 @@ describe("refreshModels online", () => {
 		);
 	});
 
+	it("fetches the public catalog with no token when nothing is configured (#421)", async () => {
+		mockGetKiloApiKey.mockReturnValue(undefined);
+		mockFetchKiloCatalog.mockResolvedValue({
+			all: [freeCfg("public")],
+			free: [freeCfg("public")],
+		});
+		const { store, written } = makeStore();
+		const { provider } = createKiloProvider();
+
+		await provider.refreshModels?.(ctx({ store, allowNetwork: true }));
+
+		expect(mockFetchKiloCatalog).toHaveBeenCalledWith(
+			expect.objectContaining({ token: undefined }),
+		);
+		expect(written).toHaveLength(1);
+		expect(provider.getModels().map((m) => m.id)).toEqual(["public"]);
+	});
+
 	it("retains the previous catalog when a fetch returns nothing (poisoning guard)", async () => {
 		const seeded = {
 			models: [

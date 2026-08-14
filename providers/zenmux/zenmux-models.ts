@@ -40,12 +40,16 @@ export function extractZenmuxPrice(
 	return (entries[0].value ?? 0) / 1_000_000;
 }
 
-/** Fetch and convert the authenticated ZenMux catalog. */
+/**
+ * Fetch and convert the ZenMux catalog. The catalog endpoint is public, so a
+ * missing token fetches anonymously (no Authorization header); a configured
+ * token is sent when present.
+ */
 export async function fetchZenmuxCatalog(options: {
 	token?: string;
 	signal?: AbortSignal;
 }): Promise<{ all: ProviderModelConfig[]; free: ProviderModelConfig[] }> {
-	if (!options.token || options.signal?.aborted) {
+	if (options.signal?.aborted) {
 		return { all: [], free: [] };
 	}
 
@@ -54,7 +58,9 @@ export async function fetchZenmuxCatalog(options: {
 			`${BASE_URL_ZENMUX}/models`,
 			{
 				headers: {
-					Authorization: `Bearer ${options.token}`,
+					...(options.token && {
+						Authorization: `Bearer ${options.token}`,
+					}),
 					"Content-Type": "application/json",
 				},
 				signal: options.signal,
