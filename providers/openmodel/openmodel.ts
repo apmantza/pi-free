@@ -110,6 +110,8 @@ interface OpenModelCatalogItem {
 		supports_service_tier?: boolean;
 	};
 	price_multiplier: number;
+	/** Present in the live payload; items missing it are conservatively kept. */
+	supported_protocols?: string[];
 }
 
 /** A model item from the OpenAI-compatible /v1/models endpoint (auth required). */
@@ -290,15 +292,23 @@ export function mergeOpenModelModels(
 
 	const seen = new Set<string>();
 	const result: MergedOpenModelModel[] = [];
-	// Without protocol data (anonymous refresh: /v1/models needs a token) the
-	// catalog cannot be filtered by protocol support — keep every catalog item.
+	// Without protocol data (anonymous refresh: /v1/models needs a token) fall
+	// back to the per-item supported_protocols the catalog payload itself
+	// carries; items missing the field are conservatively kept.
 	const hasProtocolData = protocolItems.length > 0;
 
 	// 1) Priced catalog models, filtered to "messages" support.
 	for (const item of catalog) {
 		if (!item.key) continue;
-		const protocols = protocolsById.get(item.key) ?? [];
-		if (hasProtocolData && !protocols.includes("messages")) continue;
+		if (hasProtocolData) {
+			const protocols = protocolsById.get(item.key) ?? [];
+			if (!protocols.includes("messages")) continue;
+		} else if (
+			Array.isArray(item.supported_protocols) &&
+			!item.supported_protocols.includes("messages")
+		) {
+			continue;
+		}
 		seen.add(item.key);
 		result.push({
 			item,

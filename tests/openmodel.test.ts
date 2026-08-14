@@ -189,16 +189,43 @@ describe("mergeOpenModelModels", () => {
 		expect(merged.every((m) => m.source === "unpriced")).toBe(true);
 	});
 
-	it("keeps every catalog model when the protocol list is empty (anonymous refresh)", () => {
+	it("keeps catalog models without protocol info when the protocol list is empty (anonymous refresh)", () => {
 		// Without a token the authenticated /v1/models protocol list is
-		// skipped; the catalog cannot be filtered by protocol, so every
-		// priced catalog model is retained (#421).
+		// skipped; catalog items lacking their own supported_protocols field
+		// are conservatively retained (#421).
 		const merged = mergeOpenModelModels(catalog, []);
 		const ids = merged.map((m) => m.item.key).sort((a, b) => a.localeCompare(b));
 		expect(ids).toEqual(
 			catalog.map((c) => c.key).sort((a, b) => a.localeCompare(b)),
 		);
 		expect(merged.every((m) => m.source === "priced")).toBe(true);
+	});
+
+	it("filters anonymous refreshes on the catalog item's own supported_protocols", () => {
+		// The /web/v1/models payload carries per-item supported_protocols; when
+		// the authenticated protocol list is unavailable, non-messages models
+		// (e.g. gemini-protocol or image-only) must not reach the chat picker
+		// (#425 review M1).
+		const withField = [
+			{
+				...pricedItem("claude-fable-5", { multiplier: 0 }),
+				supported_protocols: ["messages"],
+			},
+			{
+				...pricedItem("gemini-3.7-flash", { multiplier: 0.5 }),
+				supported_protocols: ["gemini"],
+			},
+			{
+				...pricedItem("codex-auto-review", { multiplier: 1 }),
+				supported_protocols: ["responses"],
+			},
+			pricedItem("legacy-no-field", { multiplier: 0 }),
+		];
+		const merged = mergeOpenModelModels(withField, []);
+		expect(merged.map((m) => m.item.key).sort()).toEqual([
+			"claude-fable-5",
+			"legacy-no-field",
+		]);
 	});
 
 	it("treats models missing from a non-empty protocol list as non-messages", () => {

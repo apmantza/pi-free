@@ -11,9 +11,10 @@
  * compat import resolves. Import or call failures surface as a proper stream
  * error event instead of a swallowed promise rejection.
  *
- * Only `@earendil-works/pi-ai/compat` itself may be imported here (dynamically):
- * it is the only entry point on Pi's extension-loader allow-list besides the
- * ones already used statically — see scripts/check-runtime-imports.mjs.
+ * Only `@earendil-works/pi-ai/compat` is imported here (dynamically). Both
+ * it and `@earendil-works/pi-ai/providers/all` (used lazily by
+ * lib/model-metadata.ts) are on the runtime allow-list — see
+ * scripts/check-runtime-imports.mjs.
  */
 
 import type {
@@ -26,14 +27,32 @@ import type {
 } from "@earendil-works/pi-ai/compat";
 import { createAssistantMessageEventStream } from "./assistant-message-event-stream.ts";
 
-type PiAiCompat = typeof import("@earendil-works/pi-ai/compat");
+/** The only compat exports the bridge consumes; keeps the test seam narrow. */
+type PiAiCompat = Pick<
+	typeof import("@earendil-works/pi-ai/compat"),
+	"openAICompletionsApi" | "anthropicMessagesApi"
+>;
 
 let compatPromise: Promise<PiAiCompat> | undefined;
+let compatLoader: () => Promise<PiAiCompat> = () =>
+	import("@earendil-works/pi-ai/compat");
+
+/**
+ * Test seam only: swap the compat loader (e.g. for failure injection) and
+ * reset the single-flight cache. Pass `undefined` to restore the real
+ * dynamic import. Production code must never call this.
+ */
+export function __setCompatLoaderForTests(
+	loader: (() => Promise<PiAiCompat>) | undefined,
+): void {
+	compatPromise = undefined;
+	compatLoader = loader ?? (() => import("@earendil-works/pi-ai/compat"));
+}
 
 /** Single-flight cached dynamic import of the heavy compat entry point. */
 export function loadPiAiCompat(): Promise<PiAiCompat> {
 	if (!compatPromise) {
-		compatPromise = import("@earendil-works/pi-ai/compat").catch((error) => {
+		compatPromise = compatLoader().catch((error) => {
 			// Do not cache failures: a transient load error must not break
 			// every later stream.
 			compatPromise = undefined;
@@ -83,8 +102,11 @@ function lazyCompatStream(
 		try {
 			const inner = createInner(await loadPiAiCompat());
 			for await (const event of inner) outer.push(event);
-			// Safety net: if the inner iterable ends without a terminal
-			// done/error event, still complete the shell with its result.
+			// Safety net for an inner stream that ends without a terminal
+			// done/error event. Current pi-ai APIs always push one, so this
+			// normally re-resolves an already-settled shell; if the inner
+			// result itself never settles, neither does the shell — same
+			// semantics as consuming the inner stream directly.
 			if (typeof inner.result === "function") {
 				outer.end(await inner.result());
 			} else {

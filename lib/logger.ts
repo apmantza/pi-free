@@ -243,6 +243,13 @@ async function openLogStream(forceRotate = false): Promise<void> {
 		flushQueuedFallback();
 		return;
 	}
+	// Re-check after the remaining awaits: a synchronous flush may have
+	// declared streams unavailable while this open was still in flight; bail
+	// out instead of re-attaching a stream that would buffer lines again.
+	if (logStreamUnavailable) {
+		flushQueuedFallback();
+		return;
+	}
 	const stream = createWriteStream(LOG_PATH, {
 		flags: "a",
 		encoding: "utf8",
@@ -370,6 +377,9 @@ export function getLogPath(): string {
  * 2. Appends everything (recovered + still-queued lines) with
  *    `appendFileSync`, honoring the MAX_LOG_BYTES rotation policy via a
  *    synchronous rotation when the size limit would be exceeded.
+ * 3. Schedules a delayed (unref'd) re-enable of the async WriteStream so a
+ *    long-running session does not pay `appendFileSync` for every later line;
+ *    until then (and if the process exits first) logging stays synchronous.
  *
  * Best-effort: never throws. Intended to be called once at the end of
  * `piFreeEntry`, after `logStartupSummary()`.
@@ -402,9 +412,36 @@ export function flushLogsSync(): void {
 			logStreamUnavailable = true;
 		}
 		flushQueuedFallback();
+		scheduleAsyncLogReenable();
 	} catch (err) {
 		// Never break startup for an observability flush.
 		console.error("Failed to flush logs synchronously:", err);
+	}
+}
+
+/**
+ * Re-open the async WriteStream a short while after {@link flushLogsSync}, so
+ * runtime logging in a long-lived session goes back to buffered async writes
+ * instead of paying `appendFileSync` per line. The hard-exit risk this module
+ * guards against is Pi's immediate `process.exit(0)` right after startup; if
+ * the process is still alive when the timer fires, plain buffered logging is
+ * the right trade-off again. `unref()` keeps the timer from holding the
+ * process open. Best-effort: never throws.
+ */
+function scheduleAsyncLogReenable(): void {
+	try {
+		const timer = setTimeout(() => {
+			try {
+				if (logStream || logStreamReady) return;
+				logStreamUnavailable = false;
+				if (queuedLines.length > 0) startLogStream(false);
+			} catch {
+				logStreamUnavailable = true;
+			}
+		}, 5_000);
+		timer.unref?.();
+	} catch {
+		// best-effort; stay synchronous
 	}
 }
 

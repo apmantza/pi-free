@@ -92,6 +92,12 @@ export interface StartupSummary {
 	 * the time since the original load.
 	 */
 	moduleGraphMs: number;
+	/**
+	 * True when this run is an extension reload: the module is not
+	 * re-evaluated, so totalMs/moduleGraphMs measure time since the FIRST
+	 * module load, which may be long before this run.
+	 */
+	reloaded: boolean;
 	/** Named phases in the order they completed. */
 	phases: PhaseTiming[];
 	/** Per-provider timings, sorted slowest-first. */
@@ -125,6 +131,12 @@ interface StartupState {
 	start: number;
 	/** Elapsed ms from module load to beginStartup(). */
 	moduleGraphMs: number;
+	/**
+	 * True when this run is an extension reload: the module is not
+	 * re-evaluated, so the origin (and thus totalMs/moduleGraphMs) measures
+	 * time since the FIRST module load, which may be long before this run.
+	 */
+	reloaded: boolean;
 	/** Total elapsed ms, filled in on finalize. */
 	totalMs: number;
 	finalized: boolean;
@@ -162,6 +174,7 @@ function freshState(): StartupState {
 		startedAt: new Date().toISOString(),
 		start: MODULE_LOAD_ORIGIN,
 		moduleGraphMs: 0,
+		reloaded: false,
 		totalMs: 0,
 		finalized: false,
 		phases: [],
@@ -180,6 +193,8 @@ function freshState(): StartupState {
 // Module-level state. Always present so recording before beginStartup() is a
 // harmless no-op relative to module load rather than a crash.
 let _state: StartupState = freshState();
+/** Number of beginStartup() calls; >1 means extension reloads occurred. */
+let _startupRuns = 0;
 
 function round(ms: number): number {
 	return Math.max(0, Math.round(ms));
@@ -203,7 +218,9 @@ function round(ms: number): number {
  */
 export function beginStartup(): void {
 	try {
+		_startupRuns += 1;
 		_state = freshState();
+		_state.reloaded = _startupRuns > 1;
 		_state.moduleGraphMs = round(monotonicNow() - MODULE_LOAD_ORIGIN);
 	} catch (err) {
 		_logger.warn("beginStartup failed", {
@@ -448,6 +465,7 @@ export function getStartupSummary(): StartupSummary {
 		startedAt: _state.startedAt,
 		totalMs,
 		moduleGraphMs: _state.moduleGraphMs,
+		reloaded: _state.reloaded,
 		phases: [..._state.phases],
 		providers,
 		cacheHits: _state.cacheHits,
@@ -515,7 +533,10 @@ export function formatStartupSummary(maxProviders = 15): string {
 	const s = getStartupSummary();
 	const lines: string[] = [
 		`⏱  Pi-Free Startup: ${s.totalMs}ms (run ${s.runId})`,
-		`   Measured from first module load — includes module graph (${s.moduleGraphMs}ms) + entry factory`,
+		`   Measured from first module load — includes module graph (${s.moduleGraphMs}ms) + entry factory` +
+			(s.reloaded
+				? " (RELOADED: origin is the first module load, so this total includes time since then)"
+				: ""),
 		"",
 		...renderPhaseLines(s.phases),
 		...renderProviderLines(s.providers, maxProviders),

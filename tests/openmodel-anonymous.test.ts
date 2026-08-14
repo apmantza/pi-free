@@ -73,7 +73,9 @@ import openmodelProvider from "../providers/openmodel/openmodel.ts";
 function webPage(items: unknown[]) {
 	return {
 		success: true,
-		meta: { pagination: { page: 1, pageSize: 20, total: items.length, totalPages: 1 } },
+		meta: {
+			pagination: { page: 1, pageSize: 20, total: items.length, totalPages: 1 },
+		},
 		data: items,
 	};
 }
@@ -152,7 +154,12 @@ describe("OpenModel anonymous refresh (#421)", () => {
 							]),
 					};
 				}
-				return { ok: false, status: 401, statusText: "Unauthorized", json: async () => ({}) };
+				return {
+					ok: false,
+					status: 401,
+					statusText: "Unauthorized",
+					json: async () => ({}),
+				};
 			}),
 		);
 
@@ -181,9 +188,9 @@ describe("OpenModel anonymous refresh (#421)", () => {
 			"paid-model",
 		]);
 		// Free view reflects the multiplier-0 promo model.
-		expect(
-			provider.filterModels!(models, undefined).map((m) => m.id),
-		).toEqual(["free-promo-model"]);
+		expect(provider.filterModels!(models, undefined).map((m) => m.id)).toEqual([
+			"free-promo-model",
+		]);
 	});
 
 	it("resolves keyless auth so Pi's refresh runs without a configured key", async () => {
