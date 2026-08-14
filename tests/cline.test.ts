@@ -138,10 +138,6 @@ describe("Cline factory wiring", () => {
 	it("factory is network-free: registers the native provider empty", async () => {
 		await clineProvider(mockPi);
 
-		// The custom API must also be available to Pi's compat/default agent
-		// stream path, which otherwise throws before reaching the XML bridge.
-		expect(getApiProvider("cline-xml-tools")).toBeDefined();
-
 		// The factory never fetches: models load via refreshModels.
 		expect(mockFetchClineCatalog).not.toHaveBeenCalled();
 
@@ -153,7 +149,17 @@ describe("Cline factory wiring", () => {
 		expect(provider.auth.apiKey).toBeDefined();
 		expect(provider.auth.oauth).toBeDefined();
 
-		// The registry entry delegates to the same bridge, not a generic API.
+		// The legacy compat-registry fallback registers lazily on the first
+		// Cline agent start (compat loads lazily and must not block boot), not
+		// during the factory.
+		const beforeAgent = mockOn.mock.calls.find(
+			(call) => call[0] === "before_agent_start",
+		)?.[1];
+		expect(beforeAgent).toBeDefined();
+		await beforeAgent({}, { model: { provider: "cline" } });
+
+		// The custom API must also be available to Pi's compat/default agent
+		// stream path, which otherwise throws before reaching the XML bridge.
 		const compatProvider = getApiProvider("cline-xml-tools");
 		expect(compatProvider).toBeDefined();
 		const compatResult = await compatProvider!.streamSimple(

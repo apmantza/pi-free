@@ -24,13 +24,12 @@
  * module performs no freshness gating of its own so the two never double-throttle.
  */
 
-import {
-	openAICompletionsApi,
-	type Api,
-	type Credential,
-	type Model,
-	type Provider,
-	type RefreshModelsContext,
+import type {
+	Api,
+	Credential,
+	Model,
+	Provider,
+	RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import {
@@ -45,6 +44,7 @@ import {
 	persistNativeProviderModels,
 	restoreNativeProviderModels,
 } from "../../lib/native-provider.ts";
+import { lazyOpenAICompletionsApi } from "../../lib/lazy-compat.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { kiloAuth } from "./kilo-auth.ts";
 import {
@@ -80,7 +80,7 @@ function credentialToken(credential?: Credential): string | undefined {
  * truth.
  */
 export function createKiloProvider(): KiloNativeProvider {
-	const streams = openAICompletionsApi();
+	const streams = lazyOpenAICompletionsApi();
 
 	// Display-ready catalogs (CI-enhanced + compat-shaped + converted to Model).
 	// Typed as StoredModels (ProviderModelConfig[]) for registerWithGlobalToggle;
@@ -163,8 +163,7 @@ export function createKiloProvider(): KiloNativeProvider {
 				forceFree: getKiloFreeOnly(),
 			}),
 		refreshModels,
-		stream: (model, context, options) =>
-			streams.stream(model, context, options),
+		stream: (model, context, options) => streams.stream(model, context, options),
 		streamSimple: (model, context, options) =>
 			streams.streamSimple(model, context, options),
 	};

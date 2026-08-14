@@ -1,9 +1,8 @@
-import {
-	openAICompletionsApi,
-	type Credential,
-	type Model,
-	type Provider,
-	type RefreshModelsContext,
+import type {
+	Credential,
+	Model,
+	Provider,
+	RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
 import type {
 	ExtensionAPI,
@@ -29,6 +28,7 @@ import {
 	wrapSessionStartHandler,
 } from "../../lib/session-start-metrics.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
+import { lazyOpenAICompletionsApi } from "../../lib/lazy-compat.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { ollamaAuth } from "./ollama-auth.ts";
 
@@ -81,7 +81,7 @@ export function createOllamaProvider(
 	deps: OllamaProviderDeps,
 	initialModels: ProviderModelConfig[] = deps.fallbackModels,
 ): OllamaNativeProvider {
-	const streams = openAICompletionsApi();
+	const streams = lazyOpenAICompletionsApi();
 	const stored: StoredModels = { free: [], all: [] };
 
 	function ingest(
@@ -138,8 +138,7 @@ export function createOllamaProvider(
 				freeModels: stored.free,
 			}),
 		refreshModels: refreshOllamaModels,
-		stream: (model, context, options) =>
-			streams.stream(model, context, options),
+		stream: (model, context, options) => streams.stream(model, context, options),
 		streamSimple: (model, context, options) =>
 			streams.streamSimple(model, context, options),
 	};
@@ -153,13 +152,8 @@ export function registerOllamaProvider(
 ): void {
 	const cachedModels = loadProviderCache(PROVIDER_OLLAMA);
 	const initialModels =
-		cachedModels && cachedModels.length > 0
-			? cachedModels
-			: deps.fallbackModels;
-	const { provider, stored, ingest } = createOllamaProvider(
-		deps,
-		initialModels,
-	);
+		cachedModels && cachedModels.length > 0 ? cachedModels : deps.fallbackModels;
+	const { provider, stored, ingest } = createOllamaProvider(deps, initialModels);
 	registerNativeProvider(pi, provider);
 
 	const reRegister = () => {

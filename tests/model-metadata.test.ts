@@ -214,8 +214,8 @@ describe("models.dev metadata enrichment", () => {
 		expect(globalThis.fetch).toHaveBeenCalledTimes(1);
 	});
 
-	it("preserves native OpenCode protocol metadata during discovery", () => {
-		const [model] = applyNativeProtocolMetadata(
+	it("preserves native OpenCode protocol metadata during discovery", async () => {
+		const [model] = await applyNativeProtocolMetadata(
 			[
 				{
 					...baseModel,
@@ -233,8 +233,8 @@ describe("models.dev metadata enrichment", () => {
 		});
 	});
 
-	it("preserves known OpenCode free metadata when discovery omits pricing", () => {
-		const models = applyNativeFreeMetadata(
+	it("preserves known OpenCode free metadata when discovery omits pricing", async () => {
+		const models = await applyNativeFreeMetadata(
 			[
 				{
 					...baseModel,

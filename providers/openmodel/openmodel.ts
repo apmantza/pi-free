@@ -26,13 +26,12 @@
  *   # or add openmodel_api_key to ~/.pi/free.json
  */
 
-import {
-	anthropicMessagesApi,
-	type Api,
-	type Credential,
-	type Model,
-	type Provider,
-	type RefreshModelsContext,
+import type {
+	Api,
+	Credential,
+	Model,
+	Provider,
+	RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
 import type {
 	ExtensionAPI,
@@ -60,6 +59,7 @@ import {
 	registerNativeProviderRefresh,
 	registerNativeProviderToggle,
 } from "../../lib/native-provider.ts";
+import { lazyAnthropicMessagesApi } from "../../lib/lazy-compat.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { openmodelAuth } from "./openmodel-auth.ts";
@@ -515,7 +515,7 @@ function openModelCredentialToken(
 // =============================================================================
 
 export default function openmodelProvider(pi: ExtensionAPI): Promise<void> {
-	const streams = anthropicMessagesApi();
+	const streams = lazyAnthropicMessagesApi();
 	const stored: StoredModels = { free: [], all: [] };
 
 	function prepare(

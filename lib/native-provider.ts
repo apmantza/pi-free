@@ -1,16 +1,15 @@
-import {
-	openAICompletionsApi,
-	type Api,
-	type ApiKeyAuth,
-	type ApiKeyCredential,
-	type AuthContext,
-	type AuthInteraction,
-	type AuthResult,
-	type Credential,
-	type Model,
-	type Provider,
-	type ProviderAuth,
-	type RefreshModelsContext,
+import type {
+	Api,
+	ApiKeyAuth,
+	ApiKeyCredential,
+	AuthContext,
+	AuthInteraction,
+	AuthResult,
+	Credential,
+	Model,
+	Provider,
+	ProviderAuth,
+	RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
 import type {
 	ExtensionAPI,
@@ -29,6 +28,7 @@ import {
 	wrapSessionStartHandler,
 } from "./session-start-metrics.ts";
 import type { ProviderProbe } from "./provider-probe.ts";
+import { lazyOpenAICompletionsApi } from "./lazy-compat.ts";
 import { enhanceWithCI, type StoredModels } from "../provider-helper.ts";
 
 const _logger = createLogger("native-provider");
@@ -134,8 +134,7 @@ export function filterNativeModels<T extends Model<Api>>(
 ): readonly T[] {
 	const forceFree =
 		options.forceFree === true ||
-		(typeof getGlobalFreeOnlyForced === "function" &&
-			getGlobalFreeOnlyForced());
+		(typeof getGlobalFreeOnlyForced === "function" && getGlobalFreeOnlyForced());
 	const freeOnly = getGlobalFreeOnly() && (forceFree || !options.showPaid);
 	const freeIds = new Set(options.freeModels.map((model) => model.id));
 	const visible = freeOnly
@@ -151,7 +150,7 @@ export function filterNativeModels<T extends Model<Api>>(
 export function createNativeOpenAIProvider(
 	options: NativeOpenAIProviderOptions,
 ): NativeOpenAIProviderHandle {
-	const streams = openAICompletionsApi();
+	const streams = lazyOpenAICompletionsApi();
 	const stored: StoredModels = { free: [], all: [] };
 	let showPaidOverride = options.initialShowPaid;
 
@@ -201,10 +200,7 @@ export function createNativeOpenAIProvider(
 				stored.free = classifyFree(storedModels);
 			},
 			async () => {
-				const token = nativeCredentialToken(
-					context.credential,
-					options.getApiKey,
-				);
+				const token = nativeCredentialToken(context.credential, options.getApiKey);
 				if (!token && !options.allowUnauthenticated) return [];
 				const all = await options.fetchModels(token ?? "", context.signal);
 				return enhanceWithCI(all, options.providerId).map((model) =>
@@ -411,10 +407,7 @@ export function registerNativeProviderRefresh(
 					}
 				).modelRegistry;
 				const result = registry?.refresh?.({ allowNetwork: true });
-				if (
-					result &&
-					typeof (result as PromiseLike<unknown>).then === "function"
-				) {
+				if (result && typeof (result as PromiseLike<unknown>).then === "function") {
 					const refreshTask = Promise.resolve(result).then((value) => {
 						const errors = (value as { errors?: { size?: number } } | undefined)
 							?.errors;
@@ -495,12 +488,9 @@ export async function restoreNativeProviderModels<T extends Model<Api>>(
 		) as T[];
 		if (models.length > 0) onModels(models);
 	} catch (err) {
-		_logger.warn(
-			`Failed to read ${providerId} models store; continuing empty`,
-			{
-				error: err instanceof Error ? err.message : String(err),
-			},
-		);
+		_logger.warn(`Failed to read ${providerId} models store; continuing empty`, {
+			error: err instanceof Error ? err.message : String(err),
+		});
 	}
 }
 
