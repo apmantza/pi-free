@@ -458,17 +458,15 @@ async function fetchOpenModelModels(
 			return [] as OpenModelCatalogItem[];
 		}),
 		apiKey
-			? fetchOpenModelProtocols(
-					apiKey,
-					BASE_URL_OPENMODEL,
-					signal,
-				).catch((error) => {
-					if (signal?.aborted) return [] as OpenModelProtocolItem[];
-					_logger.error("[openmodel] Failed to fetch /v1/models", {
-						error: error instanceof Error ? error.message : String(error),
-					});
-					return [] as OpenModelProtocolItem[];
-				})
+			? fetchOpenModelProtocols(apiKey, BASE_URL_OPENMODEL, signal).catch(
+					(error) => {
+						if (signal?.aborted) return [] as OpenModelProtocolItem[];
+						_logger.error("[openmodel] Failed to fetch /v1/models", {
+							error: error instanceof Error ? error.message : String(error),
+						});
+						return [] as OpenModelProtocolItem[];
+					},
+				)
 			: Promise.resolve([] as OpenModelProtocolItem[]),
 	]);
 

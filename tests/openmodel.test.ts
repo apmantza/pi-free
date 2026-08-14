@@ -49,8 +49,7 @@ function pricedItem(
 			input_cost_per_token: overrides.input_cost_per_token ?? 1.4e-7,
 			output_cost_per_token: overrides.output_cost_per_token ?? 2.8e-7,
 			cache_read_input_token_cost: overrides.cache_read_input_token_cost,
-			cache_creation_input_token_cost:
-				overrides.cache_creation_input_token_cost,
+			cache_creation_input_token_cost: overrides.cache_creation_input_token_cost,
 		},
 		max: {
 			max_input_tokens: overrides.max_input_tokens ?? 1_000_000,
@@ -196,7 +195,9 @@ describe("mergeOpenModelModels", () => {
 		// priced catalog model is retained (#421).
 		const merged = mergeOpenModelModels(catalog, []);
 		const ids = merged.map((m) => m.item.key).sort((a, b) => a.localeCompare(b));
-		expect(ids).toEqual(catalog.map((c) => c.key).sort((a, b) => a.localeCompare(b)));
+		expect(ids).toEqual(
+			catalog.map((c) => c.key).sort((a, b) => a.localeCompare(b)),
+		);
 		expect(merged.every((m) => m.source === "priced")).toBe(true);
 	});
 

@@ -8,7 +8,9 @@ import type {
 } from "@earendil-works/pi-ai/compat";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockGetKiloApiKey = vi.hoisted(() => vi.fn((): string | undefined => undefined));
+const mockGetKiloApiKey = vi.hoisted(() =>
+	vi.fn((): string | undefined => undefined),
+);
 const mockOpenBrowser = vi.hoisted(() => vi.fn());
 
 vi.mock("../config.ts", () => ({
@@ -21,9 +23,8 @@ vi.mock("../lib/open-browser.ts", () => ({
 
 // Shrink the device-flow poll interval so login tests don't wait seconds.
 vi.mock("../constants.ts", async () => {
-	const actual = await vi.importActual<Record<string, unknown>>(
-		"../constants.ts",
-	);
+	const actual =
+		await vi.importActual<Record<string, unknown>>("../constants.ts");
 	return {
 		...actual,
 		KILO_POLL_INTERVAL_MS: 1,

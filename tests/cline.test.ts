@@ -162,23 +162,23 @@ describe("Cline factory wiring", () => {
 		// stream path, which otherwise throws before reaching the XML bridge.
 		const compatProvider = getApiProvider("cline-xml-tools");
 		expect(compatProvider).toBeDefined();
-		const compatResult = await compatProvider!.streamSimple(
-			{
-				id: "compat-model",
-				name: "Compat Model",
-				api: "cline-xml-tools",
-				provider: "cline",
-			} as never,
-			{
-				systemPrompt: "system",
-				messages: [],
-				tools: [],
-			} as never,
-			{},
-		).result();
-		expect(compatResult.errorMessage).toContain(
-			"No Cline access token found",
-		);
+		const compatResult = await compatProvider!
+			.streamSimple(
+				{
+					id: "compat-model",
+					name: "Compat Model",
+					api: "cline-xml-tools",
+					provider: "cline",
+				} as never,
+				{
+					systemPrompt: "system",
+					messages: [],
+					tools: [],
+				} as never,
+				{},
+			)
+			.result();
+		expect(compatResult.errorMessage).toContain("No Cline access token found");
 
 		// Lifecycle handlers + toggle command registered.
 		expect(mockOn).toHaveBeenCalledWith(

@@ -127,9 +127,7 @@ let _clineXmlApiRegistration: Promise<void> | undefined;
 
 export function registerClineXmlApiProvider(): Promise<void> {
 	_clineXmlApiRegistration ??= (async () => {
-		const { registerApiProvider } = await import(
-			"@earendil-works/pi-ai/compat"
-		);
+		const { registerApiProvider } = await import("@earendil-works/pi-ai/compat");
 		const stream = (
 			model: Model<"cline-xml-tools">,
 			context: Context,

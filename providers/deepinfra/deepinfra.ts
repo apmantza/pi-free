@@ -166,8 +166,7 @@ export default function deepinfraProvider(pi: ExtensionAPI): Promise<void> {
 		getShowPaid: getDeepinfraShowPaid,
 		initialShowPaid: true,
 		allowUnauthenticated: true,
-		fetchModels: (apiKey, signal) =>
-			fetchDeepinfraModels(apiKey, signal),
+		fetchModels: (apiKey, signal) => fetchDeepinfraModels(apiKey, signal),
 		tosUrl: "https://deepinfra.com/pricing",
 	});
 

@@ -95,9 +95,11 @@ describe("fetchOpenRouterCompatibleModels", () => {
 			apiKey: "sk-test",
 		});
 
-		const headers = (fetchMock.mock.calls[0][1] as unknown as {
-			headers: Record<string, string>;
-		}).headers;
+		const headers = (
+			fetchMock.mock.calls[0][1] as unknown as {
+				headers: Record<string, string>;
+			}
+		).headers;
 		expect(headers.Authorization).toBe("Bearer sk-test");
 	});
 

@@ -115,8 +115,9 @@ describe("createNativeApiKeyAuth anonymousCatalog option", () => {
 				signal: new AbortController().signal,
 			} as never),
 		).toMatchObject({ auth: { apiKey: "stored-key" }, source: "stored API key" });
-		expect(
-			await auth.apiKey?.resolve(resolveInput()),
-		).toMatchObject({ auth: { apiKey: "ambient-key" }, source: "TEST_API_KEY" });
+		expect(await auth.apiKey?.resolve(resolveInput())).toMatchObject({
+			auth: { apiKey: "ambient-key" },
+			source: "TEST_API_KEY",
+		});
 	});
 });
