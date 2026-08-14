@@ -86,8 +86,7 @@ describe("lazy-compat bridge", () => {
 		const doneEvent = { type: "done", message: doneMessage };
 		__setCompatLoaderForTests(async () =>
 			makeFakeCompat({
-				streamImpl: () =>
-					makeFakeStream([textEvent, doneEvent], doneMessage),
+				streamImpl: () => makeFakeStream([textEvent, doneEvent], doneMessage),
 			}),
 		);
 
