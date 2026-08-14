@@ -85,7 +85,7 @@ async function fetchDeepinfraModels(
 		`${BASE_URL_DEEPINFRA}/models`,
 		{
 			headers: {
-				Authorization: `Bearer ${apiKey}`,
+				...(apiKey && { Authorization: `Bearer ${apiKey}` }),
 				"Content-Type": "application/json",
 			},
 			signal,
@@ -165,8 +165,8 @@ export default function deepinfraProvider(pi: ExtensionAPI): Promise<void> {
 		getApiKey: getDeepinfraApiKey,
 		getShowPaid: getDeepinfraShowPaid,
 		initialShowPaid: true,
-		fetchModels: (apiKey, signal) =>
-			fetchDeepinfraModels(apiKey, signal),
+		allowUnauthenticated: true,
+		fetchModels: (apiKey, signal) => fetchDeepinfraModels(apiKey, signal),
 		tosUrl: "https://deepinfra.com/pricing",
 	});
 

@@ -118,31 +118,41 @@ export function buildClineHeaders(): Record<string, string> {
  * Pi agent sessions still dispatch through pi-ai/compat's global API registry.
  * Cline's custom API is not built into pi-ai, so without this fallback those
  * sessions fail before the XML bridge can handle the request.
+ *
+ * compat is heavy and loads lazily, so this is single-flight and must only be
+ * triggered on first need (a Cline agent starting), never at extension boot.
+ * Failures are not cached: the next agent start retries.
  */
-export async function registerClineXmlApiProvider(): Promise<void> {
-	const { registerApiProvider } = await import(
-		"@earendil-works/pi-ai/compat"
-	);
-	const stream = (
-		model: Model<"cline-xml-tools">,
-		context: Context,
-		options?: StreamOptions,
-	) =>
-		streamClineXml(
-			model,
-			context,
-			options,
-			buildClineHeaders(),
-		) as unknown as AssistantMessageEventStream;
+let _clineXmlApiRegistration: Promise<void> | undefined;
 
-	registerApiProvider(
-		{
-			api: "cline-xml-tools",
-			stream,
-			streamSimple: stream,
-		},
-		"pi-free-cline",
-	);
+export function registerClineXmlApiProvider(): Promise<void> {
+	_clineXmlApiRegistration ??= (async () => {
+		const { registerApiProvider } = await import("@earendil-works/pi-ai/compat");
+		const stream = (
+			model: Model<"cline-xml-tools">,
+			context: Context,
+			options?: StreamOptions,
+		) =>
+			streamClineXml(
+				model,
+				context,
+				options,
+				buildClineHeaders(),
+			) as unknown as AssistantMessageEventStream;
+
+		registerApiProvider(
+			{
+				api: "cline-xml-tools",
+				stream,
+				streamSimple: stream,
+			},
+			"pi-free-cline",
+		);
+	})().catch((error) => {
+		_clineXmlApiRegistration = undefined;
+		throw error;
+	});
+	return _clineXmlApiRegistration;
 }
 
 // =============================================================================

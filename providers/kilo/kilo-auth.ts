@@ -200,7 +200,10 @@ export async function refreshKiloCredential(
 /**
  * Resolve the effective Kilo API key: a natively-stored key (from
  * `interaction.prompt` login) wins, then the ambient `KILO_API_KEY` env var /
- * `~/.pi/free.json` value via the shared config getter.
+ * `~/.pi/free.json` value via the shared config getter. When neither exists,
+ * resolve a truthy keyless result so Pi's model refresh still runs and Kilo's
+ * public gateway catalog can populate. Chat requests still require a real key
+ * or OAuth login — the gateway rejects unauthenticated completions.
  */
 async function resolveKiloApiKey(input: {
 	ctx: AuthContext;
@@ -208,7 +211,9 @@ async function resolveKiloApiKey(input: {
 	signal?: AbortSignal;
 }): Promise<AuthResult | undefined> {
 	const key = input.credential?.key ?? getKiloApiKey();
-	if (!key) return undefined;
+	if (!key) {
+		return { auth: {}, source: "public catalog (no account)" };
+	}
 	return {
 		auth: { apiKey: key },
 		source: input.credential?.key ? "stored API key" : "KILO_API_KEY",

@@ -32,12 +32,11 @@
  * module performs no freshness gating of its own so the two never double-throttle.
  */
 
-import {
-	openAICompletionsApi,
-	type Api,
-	type Model,
-	type Provider,
-	type RefreshModelsContext,
+import type {
+	Api,
+	Model,
+	Provider,
+	RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { getLlm7ShowPaid } from "../../config.ts";
@@ -48,6 +47,7 @@ import {
 	persistNativeProviderModels,
 	restoreNativeProviderModels,
 } from "../../lib/native-provider.ts";
+import { lazyOpenAICompletionsApi } from "../../lib/lazy-compat.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { llm7Auth } from "./llm7-auth.ts";
 import { fetchLlm7Catalog, toLlm7Models } from "./llm7-models.ts";
@@ -70,7 +70,7 @@ export interface Llm7NativeProvider {
  * source of truth.
  */
 export function createLlm7Provider(): Llm7NativeProvider {
-	const streams = openAICompletionsApi();
+	const streams = lazyOpenAICompletionsApi();
 
 	// Display-ready catalogs (CI-enhanced + converted to Model). Typed as
 	// StoredModels (ProviderModelConfig[]) for registerWithGlobalToggle; the
@@ -150,8 +150,7 @@ export function createLlm7Provider(): Llm7NativeProvider {
 				freeModels: stored.free,
 			}),
 		refreshModels,
-		stream: (model, context, options) =>
-			streams.stream(model, context, options),
+		stream: (model, context, options) => streams.stream(model, context, options),
 		streamSimple: (model, context, options) =>
 			streams.streamSimple(model, context, options),
 	};

@@ -1,5 +1,4 @@
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
-import { getBuiltinModels } from "@earendil-works/pi-ai/providers/all";
 import { DEFAULT_FETCH_TIMEOUT_MS, URL_MODELS_DEV } from "../constants.ts";
 import { createLogger } from "./logger.ts";
 import { getProxyModelCompat } from "./provider-compat.ts";
@@ -244,9 +243,7 @@ function identityFromMeta(
 	meta: ModelsDevModel,
 ): ModelIdentity {
 	return {
-		id: [model.id, meta.id, meta.family, meta.provider]
-			.filter(Boolean)
-			.join(" "),
+		id: [model.id, meta.id, meta.family, meta.provider].filter(Boolean).join(" "),
 		name: [model.name, meta.name].filter(Boolean).join(" "),
 		family: meta.family,
 		provider: meta.provider,
@@ -310,9 +307,7 @@ function enrichModel<T extends ProviderModelConfig>(
 			? (["text", "image"] as const)
 			: model.input;
 	const reasoning =
-		ctx.enrichReasoning && modelMeta.reasoning === true
-			? true
-			: model.reasoning;
+		ctx.enrichReasoning && modelMeta.reasoning === true ? true : model.reasoning;
 	const thinkingLevelMap =
 		ctx.enrichReasoning && model.thinkingLevelMap === undefined
 			? thinkingMapFromReasoningOptions(modelMeta.reasoning_options)
@@ -422,14 +417,39 @@ type NativeCatalogModel = Pick<
 	"id" | "api" | "baseUrl" | "compat" | "contextWindow" | "maxTokens" | "cost"
 >;
 
-function getNativeCatalogModels(providerId: string): NativeCatalogModel[] {
-	try {
-		return getBuiltinModels(
-			providerId as Parameters<typeof getBuiltinModels>[0],
-		) as NativeCatalogModel[];
-	} catch {
-		return [];
+type PiAiProvidersAll = typeof import("@earendil-works/pi-ai/providers/all");
+
+let builtinModelsModulePromise: Promise<PiAiProvidersAll> | undefined;
+
+/**
+ * Single-flight cached dynamic import of Pi's build-time native catalog.
+ * The module is heavy and only needed on the models.dev enrichment fallback
+ * paths, so it must never be imported eagerly at startup.
+ */
+function loadBuiltinModelsModule(): Promise<PiAiProvidersAll> {
+	if (!builtinModelsModulePromise) {
+		builtinModelsModulePromise = import(
+			"@earendil-works/pi-ai/providers/all"
+		).catch((error) => {
+			// Do not cache failures: a transient load error must not break
+			// every later fallback lookup.
+			builtinModelsModulePromise = undefined;
+			throw error;
+		});
 	}
+	return builtinModelsModulePromise;
+}
+
+function getNativeCatalogModels(
+	providerId: string,
+): Promise<NativeCatalogModel[]> {
+	return loadBuiltinModelsModule()
+		.then(({ getBuiltinModels }) => {
+			return getBuiltinModels(
+				providerId as Parameters<typeof getBuiltinModels>[0],
+			) as NativeCatalogModel[];
+		})
+		.catch(() => []);
 }
 
 function hasZeroTokenCost(cost: CostConfig): boolean {
@@ -447,12 +467,12 @@ function hasZeroTokenCost(cost: CostConfig): boolean {
  * `-free` suffix. Preserve that authoritative native signal for dynamic
  * discovery while leaving unknown models on the normal name-based path.
  */
-export function applyNativeFreeMetadata<T extends ProviderModelConfig>(
+export async function applyNativeFreeMetadata<T extends ProviderModelConfig>(
 	models: T[],
 	providerId: string,
-): Array<T & { _freeKnown?: boolean; _isFree?: boolean }> {
+): Promise<Array<T & { _freeKnown?: boolean; _isFree?: boolean }>> {
 	const nativeById = new Map(
-		getNativeCatalogModels(providerId).map((model) => [model.id, model]),
+		(await getNativeCatalogModels(providerId)).map((model) => [model.id, model]),
 	);
 
 	return models.map((model) => {
@@ -467,12 +487,11 @@ export function applyNativeFreeMetadata<T extends ProviderModelConfig>(
  * returns model IDs. This prevents a live catalog refresh from flattening
  * Anthropic, Responses, and Google models into one OpenAI-compatible route.
  */
-export function applyNativeProtocolMetadata<T extends ProviderModelConfig>(
-	models: T[],
-	providerId: string,
-): T[] {
+export async function applyNativeProtocolMetadata<
+	T extends ProviderModelConfig,
+>(models: T[], providerId: string): Promise<T[]> {
 	const nativeById = new Map(
-		getNativeCatalogModels(providerId).map((model) => [model.id, model]),
+		(await getNativeCatalogModels(providerId)).map((model) => [model.id, model]),
 	);
 
 	return models.map((model) => {
@@ -495,16 +514,16 @@ export function applyNativeProtocolMetadata<T extends ProviderModelConfig>(
 /**
  * Fill context windows / max tokens from Pi's built-time native catalog
  * (shipped in `@earendil-works/pi-ai`) for models still carrying a generic
- * fallback value after the models.dev enrichment pass. Synchronous, local,
- * always available — no network required.
+ * fallback value after the models.dev enrichment pass. Local, always
+ * available — no network required.
  */
-export function enrichFromNativeCatalog<T extends ProviderModelConfig>(
+export async function enrichFromNativeCatalog<T extends ProviderModelConfig>(
 	models: T[],
 	providerId: string,
-): T[] {
+): Promise<T[]> {
 	if (models.length === 0) return models;
 
-	const nativeModels = getNativeCatalogModels(providerId);
+	const nativeModels = await getNativeCatalogModels(providerId);
 	if (nativeModels.length === 0) return models;
 
 	const nativeById = new Map(nativeModels.map((m) => [m.id, m]));

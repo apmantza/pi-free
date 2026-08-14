@@ -437,9 +437,7 @@ export function mapOpenRouterModel(m: {
 	const promptPrice = Number.parseFloat(m.pricing?.prompt ?? "0");
 	const completionPrice = Number.parseFloat(m.pricing?.completion ?? "0");
 	const cacheReadPrice = Number.parseFloat(m.pricing?.input_cache_read ?? "0");
-	const cacheWritePrice = Number.parseFloat(
-		m.pricing?.input_cache_write ?? "0",
-	);
+	const cacheWritePrice = Number.parseFloat(m.pricing?.input_cache_write ?? "0");
 	const supportedParameters = m.supported_parameters ?? [];
 	const reasoning =
 		supportedParameters.includes("reasoning") ||
@@ -547,7 +545,10 @@ export async function fetchOpenAICompatibleModels(
 			`${baseUrl}/models`,
 			{
 				headers: {
-					Authorization: `Bearer ${apiKey}`,
+					// Public catalogs accept anonymous requests; an empty `Bearer `
+					// header can be rejected by gateways that would otherwise
+					// serve the endpoint anonymously.
+					...(apiKey && { Authorization: `Bearer ${apiKey}` }),
 					"Content-Type": "application/json",
 				},
 				signal,
@@ -583,10 +584,7 @@ export async function fetchOpenAICompatibleModels(
 
 				// Use per-model max tokens if the API provides it (try multiple field names)
 				const maxTokens =
-					m.max_completion_tokens ??
-					m.max_tokens ??
-					defaults.maxTokens ??
-					4_096;
+					m.max_completion_tokens ?? m.max_tokens ?? defaults.maxTokens ?? 4_096;
 
 				// Use per-model reasoning flag if the API provides it
 				const reasoning = m.reasoning ?? detectReasoning({ id: m.id, name });

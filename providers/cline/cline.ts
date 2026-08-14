@@ -26,6 +26,7 @@ import {
 	getClineShowPaid,
 	PROVIDER_CLINE,
 } from "../../config.ts";
+import { createLogger } from "../../lib/logger.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import {
 	registerNativeProvider,
@@ -38,12 +39,13 @@ import {
 	rotateClineTaskId,
 } from "./cline-provider.ts";
 
+const _logger = createLogger("cline");
+
 // =============================================================================
 // Extension entry point
 // =============================================================================
 
 export default async function clineProvider(pi: ExtensionAPI) {
-	await registerClineXmlApiProvider();
 	const { provider, stored } = createClineProvider();
 
 	// Register the native provider. The factory performs NO network I/O: models
@@ -74,9 +76,21 @@ export default async function clineProvider(pi: ExtensionAPI) {
 	// Rotate the Cline task id when a Cline agent starts (mirrors the legacy
 	// behavior). The XML bridge builds its request headers per request, so the
 	// new X-Task-ID takes effect immediately — no re-registration needed.
-	pi.on("before_agent_start", (_event, ctx) => {
+	//
+	// Also register the legacy compat-API fallback here (single-flight, lazy):
+	// compat is heavy and must not load at extension boot, but it has to be in
+	// place before any request can dispatch through the legacy path, and every
+	// such request is preceded by a Cline agent start.
+	pi.on("before_agent_start", async (_event, ctx) => {
 		if (ctx.model?.provider !== PROVIDER_CLINE) return;
 		rotateClineTaskId();
+		try {
+			await registerClineXmlApiProvider();
+		} catch (error) {
+			_logger.warn("Failed to register Cline XML legacy API fallback", {
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
 	});
 
 	registerNativeProviderRefresh(pi, PROVIDER_CLINE);

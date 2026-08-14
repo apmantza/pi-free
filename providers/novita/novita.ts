@@ -82,7 +82,7 @@ async function fetchNovitaModels(
 			`${BASE_URL_NOVITA}/models`,
 			{
 				headers: {
-					Authorization: `Bearer ${apiKey}`,
+					...(apiKey && { Authorization: `Bearer ${apiKey}` }),
 					"Content-Type": "application/json",
 				},
 				signal,
@@ -156,6 +156,7 @@ export default function novitaProvider(pi: ExtensionAPI): Promise<void> {
 		auth: novitaAuth,
 		getApiKey: getNovitaApiKey,
 		getShowPaid: getNovitaShowPaid,
+		allowUnauthenticated: true,
 		fetchModels: (apiKey, signal) => fetchNovitaModels(apiKey, signal),
 		tosUrl: "https://novita.ai/terms",
 	});

@@ -8,9 +8,23 @@
  * `README.md` for the full provider catalog.
  */
 
+// MUST be the first import: its module body captures the startup timing
+// origin (performance.now()) at module scope, and ES modules evaluate
+// imports depth-first in declaration order — so the clock starts before any
+// provider module below executes. Do not reorder above/below casually.
+import {
+	beginSessionStart,
+	beginStartup,
+	endPhase,
+	finalizeStartup,
+	formatStartupSummary,
+	logStartupSummary,
+	startPhase,
+	timeProvider,
+} from "./lib/startup-timing.ts";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { setupBuiltInProviderToggles } from "./lib/built-in-toggle.ts";
-import { createLogger } from "./lib/logger.ts";
+import { createLogger, flushLogsSync } from "./lib/logger.ts";
 import {
 	processQuotaResponse,
 	formatQuotaStatus,
@@ -23,16 +37,6 @@ import {
 	getTelemetryPath,
 	clearTelemetry,
 } from "./lib/telemetry.ts";
-import {
-	beginSessionStart,
-	beginStartup,
-	endPhase,
-	finalizeStartup,
-	formatStartupSummary,
-	logStartupSummary,
-	startPhase,
-	timeProvider,
-} from "./lib/startup-timing.ts";
 import {
 	applyGlobalFilter,
 	getGlobalFreeOnly,
@@ -197,10 +201,7 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 			const entries = Object.entries(allTelemetry);
 
 			if (entries.length === 0) {
-				ctx.ui.notify(
-					"No telemetry data yet. Use some free models first!",
-					"info",
-				);
+				ctx.ui.notify("No telemetry data yet. Use some free models first!", "info");
 				return;
 			}
 
@@ -228,9 +229,7 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 				const calls = String(t.totalCalls).padStart(5);
 				const ok = `${t.successRate}%`.padStart(5);
 				const lat =
-					t.avgLatencyMs > 0
-						? `${t.avgLatencyMs}ms`.padStart(6)
-						: "—".padStart(6);
+					t.avgLatencyMs > 0 ? `${t.avgLatencyMs}ms`.padStart(6) : "—".padStart(6);
 				const tps =
 					t.avgTokensPerSecond > 0
 						? `${t.avgTokensPerSecond}`.padStart(6)
@@ -434,7 +433,11 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 	// no unsubscribe API, so we skip the registration block entirely on
 	// subsequent calls.
 	startPhase("global-handlers");
-	if (!_handlersRegistered) {
+	if (_handlersRegistered) {
+		_logger.info(
+			"[pi-free] Skipping global handler registration (already registered)",
+		);
+	} else {
 		_handlersRegistered = true;
 
 		// Start a fresh observability window before any provider session_start
@@ -449,10 +452,6 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 
 		// Setup model telemetry (tracks real-world performance)
 		setupTelemetry(pi);
-	} else {
-		_logger.info(
-			"[pi-free] Skipping global handler registration (already registered)",
-		);
 	}
 	endPhase("global-handlers");
 
@@ -485,6 +484,10 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 	// Finalize timing and emit the observability summary (best-effort).
 	finalizeStartup();
 	logStartupSummary();
+	// Pi's main.js calls process.exit(0) right after startup, which would
+	// drop the logger's buffered async writes; flush everything logged so far
+	// to disk synchronously so the startup summary line survives (best-effort).
+	flushLogsSync();
 
 	const registry = getProviderRegistry();
 	_logger.info(`[pi-free] Loaded with ${registry.size} providers`);

@@ -209,6 +209,32 @@ describe("startup-timing", () => {
 		expect(getStartupSummary().cacheHits).toBe(0);
 	});
 
+	it("totalMs is measured from first module load, not beginStartup", async () => {
+		const { beginStartup, getStartupSummary } = await import(
+			"../lib/startup-timing.ts"
+		);
+		beginStartup();
+
+		// The origin is the module-scope timestamp captured at import time,
+		// so any elapsed time before beginStartup/finalize is included too.
+		await sleep(20);
+		const summary = getStartupSummary();
+		expect(summary.totalMs).toBeGreaterThanOrEqual(20);
+		expect(summary.moduleGraphMs).toBeGreaterThanOrEqual(0);
+		expect(summary.moduleGraphMs).toBeLessThanOrEqual(summary.totalMs);
+	});
+
+	it("formatStartupSummary states the module-load origin", async () => {
+		const { beginStartup, formatStartupSummary } = await import(
+			"../lib/startup-timing.ts"
+		);
+		beginStartup();
+
+		const text = formatStartupSummary();
+		expect(text).toContain("first module load");
+		expect(text).toContain("module graph");
+	});
+
 	it("beginSessionStart keeps startup data but replaces the previous session", async () => {
 		const {
 			beginStartup,

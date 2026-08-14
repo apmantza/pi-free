@@ -143,13 +143,14 @@ describe("createZenmuxProvider", () => {
 		const models = createModels();
 		models.setProvider(provider);
 		expect(await models.getAvailable()).toEqual([]);
-		// Keyed providers must not appear authenticated without a credential.
+		// ZenMux's catalog is public: auth resolves anonymously so Pi's model
+		// refresh populates the catalog without a configured key.
 		expect(
 			await zenmuxAuth.apiKey?.resolve({
-			ctx: {} as never,
-			signal: new AbortController().signal,
-		} as never),
-		).toBeUndefined();
+				ctx: {} as never,
+				signal: new AbortController().signal,
+			} as never),
+		).toEqual({ auth: {}, source: "public catalog (no account)" });
 	});
 
 	it("restores the native store offline without network", async () => {
@@ -251,9 +252,7 @@ describe("createZenmuxProvider", () => {
 		const { store } = makeStore();
 		const handle = createZenmuxProvider();
 
-		await handle.provider.refreshModels?.(
-			context(store, { allowNetwork: true }),
-		);
+		await handle.provider.refreshModels?.(context(store, { allowNetwork: true }));
 		expect(mockApplyHidden).toHaveBeenCalledWith(expect.any(Array), "zenmux");
 		expect(handle.stored.all.map((model) => model.id)).toEqual(["visible"]);
 	});
@@ -307,8 +306,19 @@ describe("createZenmuxProvider", () => {
 });
 
 describe("fetchZenmuxCatalog", () => {
-	it("returns an empty catalog without a token", async () => {
+	it("fetches the public catalog anonymously when no token is configured", async () => {
+		mockFetchWithRetry.mockResolvedValue(response([]));
 		expect(await fetchZenmuxCatalog({})).toEqual({ all: [], free: [] });
-		expect(mockFetchWithRetry).not.toHaveBeenCalled();
+		expect(mockFetchWithRetry).toHaveBeenCalledWith(
+			"https://zenmux.ai/api/v1/models",
+			expect.objectContaining({
+				headers: expect.not.objectContaining({
+					Authorization: expect.anything(),
+				}),
+			}),
+			3,
+			1000,
+			10_000,
+		);
 	});
 });

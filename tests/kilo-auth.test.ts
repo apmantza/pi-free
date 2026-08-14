@@ -8,7 +8,9 @@ import type {
 } from "@earendil-works/pi-ai/compat";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockGetKiloApiKey = vi.hoisted(() => vi.fn((): string | undefined => undefined));
+const mockGetKiloApiKey = vi.hoisted(() =>
+	vi.fn((): string | undefined => undefined),
+);
 const mockOpenBrowser = vi.hoisted(() => vi.fn());
 
 vi.mock("../config.ts", () => ({
@@ -21,9 +23,8 @@ vi.mock("../lib/open-browser.ts", () => ({
 
 // Shrink the device-flow poll interval so login tests don't wait seconds.
 vi.mock("../constants.ts", async () => {
-	const actual = await vi.importActual<Record<string, unknown>>(
-		"../constants.ts",
-	);
+	const actual =
+		await vi.importActual<Record<string, unknown>>("../constants.ts");
 	return {
 		...actual,
 		KILO_POLL_INTERVAL_MS: 1,
@@ -89,13 +90,17 @@ describe("apiKey.resolve", () => {
 		});
 	});
 
-	it("resolves undefined when nothing is configured", async () => {
+	it("resolves keyless auth for the public catalog when nothing is configured", async () => {
 		mockGetKiloApiKey.mockReturnValue(undefined);
 		const result = await kiloApiKeyAuth.resolve({
 			ctx: authCtx,
 			signal: new AbortController().signal,
 		} as never);
-		expect(result).toBeUndefined();
+		expect(result).toEqual({
+			auth: {},
+			source: "public catalog (no account)",
+		});
+		expect(kiloApiKeyAuth).not.toHaveProperty("check");
 	});
 });
 

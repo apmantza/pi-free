@@ -49,8 +49,7 @@ function pricedItem(
 			input_cost_per_token: overrides.input_cost_per_token ?? 1.4e-7,
 			output_cost_per_token: overrides.output_cost_per_token ?? 2.8e-7,
 			cache_read_input_token_cost: overrides.cache_read_input_token_cost,
-			cache_creation_input_token_cost:
-				overrides.cache_creation_input_token_cost,
+			cache_creation_input_token_cost: overrides.cache_creation_input_token_cost,
 		},
 		max: {
 			max_input_tokens: overrides.max_input_tokens ?? 1_000_000,
@@ -190,18 +189,53 @@ describe("mergeOpenModelModels", () => {
 		expect(merged.every((m) => m.source === "unpriced")).toBe(true);
 	});
 
-	it("handles an empty protocol list gracefully (drops everything)", () => {
+	it("keeps catalog models without protocol info when the protocol list is empty (anonymous refresh)", () => {
+		// Without a token the authenticated /v1/models protocol list is
+		// skipped; catalog items lacking their own supported_protocols field
+		// are conservatively retained (#421).
 		const merged = mergeOpenModelModels(catalog, []);
-		expect(merged).toEqual([]);
+		const ids = merged.map((m) => m.item.key).sort((a, b) => a.localeCompare(b));
+		expect(ids).toEqual(
+			catalog.map((c) => c.key).sort((a, b) => a.localeCompare(b)),
+		);
+		expect(merged.every((m) => m.source === "priced")).toBe(true);
 	});
 
-	it("treats models missing from protocol list as non-messages", () => {
-		// pricedItem with no matching protocol entry → filtered out.
+	it("filters anonymous refreshes on the catalog item's own supported_protocols", () => {
+		// The /web/v1/models payload carries per-item supported_protocols; when
+		// the authenticated protocol list is unavailable, non-messages models
+		// (e.g. gemini-protocol or image-only) must not reach the chat picker
+		// (#425 review M1).
+		const withField = [
+			{
+				...pricedItem("claude-fable-5", { multiplier: 0 }),
+				supported_protocols: ["messages"],
+			},
+			{
+				...pricedItem("gemini-3.7-flash", { multiplier: 0.5 }),
+				supported_protocols: ["gemini"],
+			},
+			{
+				...pricedItem("codex-auto-review", { multiplier: 1 }),
+				supported_protocols: ["responses"],
+			},
+			pricedItem("legacy-no-field", { multiplier: 0 }),
+		];
+		const merged = mergeOpenModelModels(withField, []);
+		expect(merged.map((m) => m.item.key).sort()).toEqual([
+			"claude-fable-5",
+			"legacy-no-field",
+		]);
+	});
+
+	it("treats models missing from a non-empty protocol list as non-messages", () => {
+		// pricedItem with no matching protocol entry → filtered out when
+		// protocol data is available.
 		const merged = mergeOpenModelModels(
 			[pricedItem("orphan-model", { multiplier: 0 })],
-			[],
+			[protocol("other-model", ["messages"])],
 		);
-		expect(merged).toEqual([]);
+		expect(merged.map((m) => m.item.key)).toEqual(["other-model"]);
 	});
 });
 

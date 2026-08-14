@@ -1,10 +1,9 @@
-import {
-	openAICompletionsApi,
-	type Api,
-	type Credential,
-	type Model,
-	type Provider,
-	type RefreshModelsContext,
+import type {
+	Api,
+	Credential,
+	Model,
+	Provider,
+	RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { getZenmuxApiKey, getZenmuxShowPaid } from "../../config.ts";
@@ -14,6 +13,7 @@ import {
 	persistNativeProviderModels,
 	restoreNativeProviderModels,
 } from "../../lib/native-provider.ts";
+import { lazyOpenAICompletionsApi } from "../../lib/lazy-compat.ts";
 import { isFreeModel } from "../../lib/registry.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { zenmuxAuth } from "./zenmux-auth.ts";
@@ -36,7 +36,7 @@ function credentialToken(credential?: Credential): string | undefined {
 }
 
 export function createZenmuxProvider(): ZenmuxNativeProvider {
-	const streams = openAICompletionsApi();
+	const streams = lazyOpenAICompletionsApi();
 	const stored: StoredModels = { free: [], all: [] };
 
 	function prepare(
@@ -106,8 +106,7 @@ export function createZenmuxProvider(): ZenmuxNativeProvider {
 				freeModels: stored.free,
 			}),
 		refreshModels,
-		stream: (model, context, options) =>
-			streams.stream(model, context, options),
+		stream: (model, context, options) => streams.stream(model, context, options),
 		streamSimple: (model, context, options) =>
 			streams.streamSimple(model, context, options),
 	};
