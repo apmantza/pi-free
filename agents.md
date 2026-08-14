@@ -256,7 +256,7 @@ Debug logging writes to `~/.pi/free.log` under the `benchmark-lookup` namespace:
 
 - **Framework:** Vitest (`vitest` v4.1.10)
 - **Run:** `npm test` (watch), `npm run test:run` (once)
-- **Startup perf:** `npx tsx scripts/bench-startup.ts <warm|cold|fastcold> [source|compiled]` runs in a sandboxed `HOME` with mocked `fetch` (warm = no legacy network, cold = dead API worst case) and reports `importMs`, `factoryMs`, and import-inclusive `totalMs`. Run `npm run build` before `compiled` mode. Source mode includes tsx loader/transpilation; compiled mode measures native Node ESM loading. `factoryMs` remains the awaited `piFreeEntry` time recorded by `lib/startup-timing.ts`. Native Pi model refresh and session-start detached work are reported separately.
+- **Startup perf:** `npx tsx scripts/bench-startup.ts <warm|cold|fastcold> [source|compiled]` runs in a sandboxed `HOME` with mocked `fetch` (warm = no legacy network, cold = dead API worst case) and reports `importMs`, `factoryMs`, and import-inclusive `totalMs`. Run `npm run build` before `compiled` mode. Source mode includes tsx loader/transpilation; compiled mode measures native Node ESM loading. `factoryMs` is the awaited `piFreeEntry` time; `lib/startup-timing.ts` records the import-inclusive total instead — its clock origin is a module-scope `performance.now()` capture (first import of the module), so the runtime startup total covers the module graph plus the factory. Native Pi model refresh and session-start detached work are reported separately.
 - **Tests:** `tests/*.test.ts` — covers registry, toggle state, config, model detection, provider compat
 - Tests use `vi.fn()` mocks for ExtensionAPI
 

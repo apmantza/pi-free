@@ -6,8 +6,13 @@
  * registrations — under controlled cache/network conditions, so startup
  * performance can be measured rather than guessed. The import measurement
  * includes loader/transpilation and module-graph initialization; it is not a
- * pure compiler measurement and is outside pi-free's runtime startup log. Run
- * it before and after a change to get a real before/after delta.
+ * pure compiler measurement. Since the startup-timing origin moved to first
+ * module load (lib/startup-timing.ts module scope), the runtime startup
+ * total (`summaryTotalMs`) now starts when module evaluation begins — in
+ * production Pi (native ESM) that covers this import phase; under tsx the
+ * loader/transpilation cost still precedes the first module body, so
+ * `summaryTotalMs` will be smaller than `importMs` here. Run it before and
+ * after a change to get a real before/after delta.
  *
  * Usage (via tsx, which is already a dev dependency):
  *   npx tsx scripts/bench-startup.ts <warm|cold|fastcold> [source|compiled]
@@ -54,13 +59,19 @@ import { freshenProviderCache } from "./bench-startup-cache.ts";
 
 const mode = process.argv[2] ?? "warm";
 const entryKind = process.argv[3] ?? "source";
-if (!["warm", "cold", "fastcold"].includes(mode) || !["source", "compiled"].includes(entryKind)) {
+if (
+	!["warm", "cold", "fastcold"].includes(mode) ||
+	!["source", "compiled"].includes(entryKind)
+) {
 	console.error(
 		"Usage: tsx scripts/bench-startup.ts <warm|cold|fastcold> [source|compiled]",
 	);
 	process.exit(2);
 }
-if (entryKind === "compiled" && !existsSync(join(process.cwd(), "dist", "index.js"))) {
+if (
+	entryKind === "compiled" &&
+	!existsSync(join(process.cwd(), "dist", "index.js"))
+) {
 	console.error("Compiled entry is missing; run `npm run build` first.");
 	process.exit(2);
 }
@@ -191,11 +202,13 @@ const mockPi: any = {
 // ---------------------------------------------------------------------------
 // Measure imports separately from the factory. With tsx this phase includes
 // TypeScript loader/transpilation and module-graph initialization, not just
-// compiler work. The startup-timing module is already part of index.ts's graph,
-// but keep its dynamic import inside the phase for a complete import boundary.
+// compiler work. The startup-timing module is already part of index.ts's graph
+// (and its module-scope clock origin starts here), but keep its dynamic import
+// inside the phase for a complete import boundary.
 // ---------------------------------------------------------------------------
 const importStart = performance.now();
-const entryModule = entryKind === "compiled" ? "../dist/index.js" : "../index.ts";
+const entryModule =
+	entryKind === "compiled" ? "../dist/index.js" : "../index.ts";
 const timingModule =
 	entryKind === "compiled"
 		? "../dist/lib/startup-timing.js"
@@ -206,8 +219,9 @@ const importEnd = performance.now();
 const importMs = Math.round((importEnd - importStart) * 10) / 10;
 
 // This remains the factory-only measurement: it is the work Pi awaits before
-// flushing provider registrations and is the duration recorded by pi-free's
-// runtime startup-timing module.
+// flushing provider registrations. pi-free's runtime startup-timing total
+// additionally includes the module-graph phase above (origin: first module
+// load), so compare it against `totalMs`, not `factoryMs`.
 const t0 = performance.now();
 await mod.default(mockPi);
 const t1 = performance.now();
@@ -321,9 +335,9 @@ const importDescription =
 		? "native Node ESM module graph"
 		: "tsx loader/transpilation/module graph";
 console.log(
-	`import (${importDescription}; outside runtime log): ${importMs}ms`,
+	`import (${importDescription}; inside runtime startup total): ${importMs}ms`,
 );
-console.log(`factory (awaited by Pi; runtime log): ${factoryMs}ms`);
+console.log(`factory (awaited by Pi): ${factoryMs}ms`);
 console.log(`total (import + factory): ${totalMs}ms`);
 console.log(`registered providers: ${registered.size}`);
 console.log(`network calls during factory: ${fetchCalls}`);

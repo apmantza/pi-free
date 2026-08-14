@@ -3,10 +3,20 @@
  *
  * Provides a small mark/measure API (monotonic `performance.now()` based) to
  * time the phases of `piFreeEntry` and, importantly, per-provider setup
- * duration. Produces a structured startup summary (total entry time,
+ * duration. Produces a structured startup summary (total startup time,
  * per-provider timings sorted slowest-first, cache vs network counts, and
  * failures) that is logged once at the end of startup and surfaced via the
  * `/free-startup` command.
+ *
+ * Timing origin: the clock starts when THIS MODULE is first evaluated
+ * (`MODULE_LOAD_ORIGIN`, captured at module scope). `index.ts` imports
+ * `./lib/startup-timing.ts` before every provider module, and ES modules
+ * evaluate imports depth-first in declaration order, so the origin precedes
+ * the entire static module graph (all provider imports) as well as
+ * `piFreeEntry`. `totalMs` therefore covers module-graph execution plus the
+ * entry factory — the full cost pi-free adds to Pi's boot, not just the
+ * factory. On extension reload the module is not re-evaluated, so the origin
+ * remains the FIRST module load; see {@link beginStartup}.
  *
  * Design constraints:
  * - Zero/negligible overhead: everything is in-memory arithmetic on a
@@ -19,6 +29,13 @@
 import { createLogger } from "./logger.ts";
 
 const _logger = createLogger("startup-timing");
+
+/**
+ * Monotonic timestamp of this module's first evaluation — the true start of
+ * pi-free's impact on Pi boot (see file header). Captured at module scope so
+ * it precedes the evaluation of every module imported after this one.
+ */
+const MODULE_LOAD_ORIGIN = performance.now();
 
 // =============================================================================
 // Types
@@ -62,8 +79,19 @@ export interface StartupSummary {
 	runId: string;
 	/** ISO timestamp of when startup began. */
 	startedAt: string;
-	/** Total wall-clock time of the timed startup, in milliseconds. */
+	/**
+	 * Total wall-clock time in milliseconds, measured from first module load
+	 * (includes the static module graph, e.g. provider imports) through
+	 * startup finalization.
+	 */
 	totalMs: number;
+	/**
+	 * Milliseconds between first module load and `beginStartup()` — i.e. the
+	 * static module-graph evaluation time that the old timing used to miss.
+	 * On extension reload the module is not re-evaluated, so this also covers
+	 * the time since the original load.
+	 */
+	moduleGraphMs: number;
 	/** Named phases in the order they completed. */
 	phases: PhaseTiming[];
 	/** Per-provider timings, sorted slowest-first. */
@@ -89,8 +117,14 @@ export interface StartupSummary {
 interface StartupState {
 	runId: string;
 	startedAt: string;
-	/** Monotonic start timestamp (performance.now()). */
+	/**
+	 * Monotonic start timestamp (performance.now()). Always
+	 * {@link MODULE_LOAD_ORIGIN}, so the total includes module-graph
+	 * evaluation.
+	 */
 	start: number;
+	/** Elapsed ms from module load to beginStartup(). */
+	moduleGraphMs: number;
 	/** Total elapsed ms, filled in on finalize. */
 	totalMs: number;
 	finalized: boolean;
@@ -126,7 +160,8 @@ function freshState(): StartupState {
 	return {
 		runId: makeRunId(),
 		startedAt: new Date().toISOString(),
-		start: monotonicNow(),
+		start: MODULE_LOAD_ORIGIN,
+		moduleGraphMs: 0,
 		totalMs: 0,
 		finalized: false,
 		phases: [],
@@ -158,10 +193,18 @@ function round(ms: number): number {
  * Begin (or reset) a startup timing run. Call at the very top of
  * `piFreeEntry`. Safe to call multiple times (e.g. on extension reload) —
  * each call starts a fresh run.
+ *
+ * The run's clock origin is always {@link MODULE_LOAD_ORIGIN} — the first
+ * evaluation of this module — NOT the moment this function is called, so
+ * `totalMs` includes the static module graph (provider imports) that runs
+ * before `piFreeEntry`. On extension reload the module is not re-evaluated,
+ * so the origin stays the first module load and `moduleGraphMs`/`totalMs`
+ * additionally cover the time since then.
  */
 export function beginStartup(): void {
 	try {
 		_state = freshState();
+		_state.moduleGraphMs = round(monotonicNow() - MODULE_LOAD_ORIGIN);
 	} catch (err) {
 		_logger.warn("beginStartup failed", {
 			error: err instanceof Error ? err.message : String(err),
@@ -404,6 +447,7 @@ export function getStartupSummary(): StartupSummary {
 		runId: _state.runId,
 		startedAt: _state.startedAt,
 		totalMs,
+		moduleGraphMs: _state.moduleGraphMs,
 		phases: [..._state.phases],
 		providers,
 		cacheHits: _state.cacheHits,
@@ -471,6 +515,7 @@ export function formatStartupSummary(maxProviders = 15): string {
 	const s = getStartupSummary();
 	const lines: string[] = [
 		`⏱  Pi-Free Startup: ${s.totalMs}ms (run ${s.runId})`,
+		`   Measured from first module load — includes module graph (${s.moduleGraphMs}ms) + entry factory`,
 		"",
 		...renderPhaseLines(s.phases),
 		...renderProviderLines(s.providers, maxProviders),
@@ -518,10 +563,12 @@ export function logStartupSummary(): void {
 	try {
 		const s = getStartupSummary();
 		_logger.info(
-			`[pi-free] startup complete in ${s.totalMs}ms`,
+			`[pi-free] startup complete in ${s.totalMs}ms (from first module load; module graph ${s.moduleGraphMs}ms)`,
 			{
 				runId: s.runId,
 				totalMs: s.totalMs,
+				moduleGraphMs: s.moduleGraphMs,
+				origin: "first-module-load",
 				providers: s.providers.length,
 				cacheHits: s.cacheHits,
 				networkFetches: s.networkFetches,

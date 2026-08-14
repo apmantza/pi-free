@@ -9,6 +9,23 @@ async function waitForLogFlush(): Promise<void> {
 	await new Promise((resolve) => setTimeout(resolve, 250));
 }
 
+/**
+ * Remove a sandbox home dir, retrying briefly: async log rotation can still
+ * be writing files a moment after the flush window, and on Windows an rm
+ * racing with that fails with ENOTEMPTY/EBUSY. Cleanup-only hardening.
+ */
+async function removeHomeRetry(dir: string): Promise<void> {
+	for (let attempt = 0; attempt < 5; attempt++) {
+		try {
+			await rm(dir, { recursive: true, force: true, maxRetries: 2 });
+			return;
+		} catch {
+			await new Promise((resolve) => setTimeout(resolve, 100));
+		}
+	}
+	await rm(dir, { recursive: true, force: true });
+}
+
 afterEach(() => {
 	vi.unstubAllEnvs();
 });
@@ -44,10 +61,48 @@ describe("logger file rotation", () => {
 				);
 			}
 			expect(await readFile(join(logDir, files[0]), "utf8")).toContain(
-			"rotation-test",
-		);
+				"rotation-test",
+			);
 		} finally {
-			await rm(home, { recursive: true, force: true });
+			await removeHomeRetry(home);
+		}
+	});
+});
+
+describe("flushLogsSync", () => {
+	it("writes buffered log lines to disk synchronously", async () => {
+		const home = await mkdtemp(join(tmpdir(), "pi-free-logger-flush-test-"));
+		try {
+			vi.stubEnv("HOME", home);
+			vi.stubEnv("USERPROFILE", home);
+			vi.stubEnv("PI_FREE_LOG_PATH", "flush.log");
+			vi.stubEnv("PI_FREE_LOG_LEVEL", "debug");
+			vi.stubEnv("PI_FREE_FILE_LOG", "true");
+			vi.resetModules();
+
+			const { createLogger, flushLogsSync, getLogPath } = await import(
+				"../lib/logger.ts"
+			);
+			const logger = createLogger("flush-test");
+			logger.info("sync-flush-marker", { index: 1 });
+			logger.info("sync-flush-marker", { index: 2 });
+
+			// No async wait: flush must put every line on disk right now,
+			// surviving a hard process.exit immediately afterwards.
+			flushLogsSync();
+
+			const content = await readFile(getLogPath(), "utf8");
+			const matches = content.match(/sync-flush-marker/g) ?? [];
+			expect(matches).toHaveLength(2);
+			expect(content.indexOf('"index":1')).toBeLessThan(
+				content.indexOf('"index":2'),
+			);
+
+			// Subsequent logging uses the synchronous path and still lands.
+			logger.info("sync-flush-after");
+			expect(await readFile(getLogPath(), "utf8")).toContain("sync-flush-after");
+		} finally {
+			await removeHomeRetry(home);
 		}
 	});
 });

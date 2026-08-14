@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Startup timing now measures the real boot cost** — the startup clock previously started at the top of `piFreeEntry`, after the entire static module graph (18 provider imports) had already executed, so `/free-startup` and the log reported 7–20ms while pi-free actually added ~2s to Pi boot. The origin is now a module-scope `performance.now()` capture in `lib/startup-timing.ts` — imported first in `index.ts`, so it runs before every provider module — and `totalMs` includes module-graph evaluation. A new `moduleGraphMs` field and a header note in `/free-startup` make the origin explicit ([#424](https://github.com/apmantza/pi-free/issues/424)).
+- **Startup log line survives Pi's hard exit** — Pi's main.js calls `process.exit(0)` right after extension startup, which dropped the logger's buffered async WriteStream writes and made the `[pi-free] startup complete` line vanish from `~/.pi/free.log`. A new `flushLogsSync()` recovers still-buffered lines (tracked via per-write callbacks), destroys the stream, and appends everything with `appendFileSync` (honoring the rotation size limit), switching subsequent logging to the synchronous path; `piFreeEntry` calls it right after `logStartupSummary()` ([#424](https://github.com/apmantza/pi-free/issues/424)).
+
 ## [2.4.6] - 2026-08-07
 
 ### Fixed
