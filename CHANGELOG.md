@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Built-in provider toggles no longer block session start** — the first catalog capture for OpenCode / OpenCode Go / OpenRouter (credential resolution can take seconds; observed 2.25s blocking a session resume) now runs detached and is reported under `Detached session_start work` in `/free-startup`. Duplicate `session_start` events reuse the in-flight capture instead of racing a second one; until capture completes the provider shows Pi's unfiltered built-in catalog, and `/toggle-{provider}` still retries capture on demand ([#427](https://github.com/apmantza/pi-free/issues/427)).
+
 ### Changed
 
 - **Lazy pi-ai compat loading removes ~2s from Pi boot** — `@earendil-works/pi-ai/compat` costs ~1.3–1.7s of module-load time and was eagerly value-imported at all seven native provider construction sites (`openAICompletionsApi`/`anthropicMessagesApi`) plus Pi's built-in catalog (`getBuiltinModels`) in the models.dev enrichment fallback. A new `lib/lazy-compat.ts` bridge keeps the sync `stream`/`streamSimple` Provider contract by returning the local compat-free stream shell immediately and piping the real compat stream into it once a single-flight dynamic compat import resolves, with import/call failures surfacing as proper stream error events; the built-in catalog import is likewise deferred to first fallback use, and Cline's legacy compat-API registration now happens on the first Cline agent start instead of at factory time. Boot no longer loads compat at all: dist entry import drops from ~2.2s to ~80ms ([#423](https://github.com/apmantza/pi-free/issues/423)).

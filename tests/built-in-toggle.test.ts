@@ -9,6 +9,16 @@ const mockSaveConfig = vi.fn();
 const mockRegisterWithGlobalToggle = vi.fn();
 const mockProviderRegistry = new Map<string, unknown>();
 
+/**
+ * Session-start capture is detached (fires after the handler returns), so
+ * tests asserting its effects must let the pending task settle first.
+ */
+async function settleDetachedCapture(): Promise<void> {
+	for (let i = 0; i < 10; i += 1) {
+		await new Promise((resolve) => setTimeout(resolve, 0));
+	}
+}
+
 vi.mock("../config.ts", () => ({
 	getOpencodeShowPaid: () => mockGetOpencodeShowPaid(),
 	getOpenrouterApiKey: () => mockGetOpenrouterApiKey(),
@@ -119,6 +129,7 @@ describe("built-in provider toggles", () => {
 				},
 			},
 		);
+		await settleDetachedCapture();
 
 		expect(mockRegisterProvider).toHaveBeenCalledWith(
 			"opencode",
@@ -137,6 +148,51 @@ describe("built-in provider toggles", () => {
 					}),
 				]),
 			}),
+		);
+	});
+
+	it("returns from session_start before the capture completes (detached)", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		let resolveKey: ((key: string | undefined) => void) | undefined;
+		const keyGate = new Promise<string | undefined>((resolve) => {
+			resolveKey = resolve;
+		});
+
+		await handlers.session_start(
+			{},
+			{
+				modelRegistry: {
+					getAvailable: () => [
+						{
+							provider: "opencode",
+							id: "free-model",
+							name: "Free Model",
+							api: "openai-completions",
+							reasoning: false,
+							input: ["text"],
+							cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+							contextWindow: 128000,
+							maxTokens: 4096,
+							baseUrl: "https://example.com",
+						},
+					],
+					// Simulate a slow credential resolution (the real-world
+					// session-start stall this detach fixes).
+					getApiKeyForProvider: () => keyGate,
+				},
+			},
+		);
+
+		// Handler returned, but capture is still waiting on the credential.
+		expect(mockRegisterProvider).not.toHaveBeenCalled();
+
+		resolveKey?.(undefined);
+		await settleDetachedCapture();
+
+		expect(mockRegisterProvider).toHaveBeenCalledWith(
+			"opencode",
+			expect.objectContaining({ api: "opencode-dynamic" }),
 		);
 	});
 
@@ -169,6 +225,7 @@ describe("built-in provider toggles", () => {
 				},
 			},
 		);
+		await settleDetachedCapture();
 
 		expect(registerProvider).toHaveBeenCalledWith(
 			"opencode",
@@ -213,6 +270,7 @@ describe("built-in provider toggles", () => {
 			{},
 			{ modelRegistry: { getAvailable: () => models } },
 		);
+		await settleDetachedCapture();
 		await commands["toggle-openrouter"]({}, { ui: { notify: vi.fn() } });
 
 		expect(mockRegisterProvider).toHaveBeenLastCalledWith(
@@ -289,6 +347,7 @@ describe("built-in provider toggles", () => {
 				},
 			},
 		);
+		await settleDetachedCapture();
 
 		const notify = vi.fn();
 		await commands["toggle-opencode"]({}, { ui: { notify } });

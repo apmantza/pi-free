@@ -23,7 +23,10 @@ import {
 	isFreeModel,
 	registerWithGlobalToggle,
 } from "./registry.ts";
-import { wrapSessionStartHandler } from "./session-start-metrics.ts";
+import {
+	trackDetachedSessionStart,
+	wrapSessionStartHandler,
+} from "./session-start-metrics.ts";
 import { createToggleState } from "./toggle-state.ts";
 import {
 	OPENCODE_DYNAMIC_API,
@@ -98,6 +101,12 @@ interface BuiltInProviderState {
 }
 
 const providerStates = new Map<string, BuiltInProviderState>();
+/**
+ * In-flight first captures keyed by provider id. Pi can fire session_start
+ * more than once per resume; without this guard the duplicate events would
+ * race two captures (and two re-registrations) for the same provider.
+ */
+const pendingCaptures = new Map<string, Promise<void>>();
 let commandsRegisteredFor: ExtensionAPI | undefined;
 let sessionStartRegisteredFor: ExtensionAPI | undefined;
 
@@ -145,12 +154,37 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 					continue;
 				}
 
-				const state = await tryCaptureProvider(pi, config, ctx);
-				if (!state) continue;
+				// Detach the first capture: resolving OAuth/API credentials and
+				// waiting on Pi's catalog can take seconds and used to block
+				// session start. Until it completes the provider shows Pi's
+				// unfiltered built-in catalog; /toggle-{provider} retries capture
+				// on demand, and duplicate session_start events reuse the
+				// in-flight task instead of racing a second capture.
+				if (pendingCaptures.has(config.id)) continue;
+				const task = (async () => {
+					try {
+						const state = await tryCaptureProvider(pi, config, ctx);
+						if (!state) return;
 
-				const applied = state.toggleState.applyCurrent(state.reRegister);
-				_logger.info(
-					`[built-in-toggle] ${config.id}: applied ${applied.mode} mode with ${applied.models.length} models`,
+						const applied = state.toggleState.applyCurrent(state.reRegister);
+						_logger.info(
+							`[built-in-toggle] ${config.id}: applied ${applied.mode} mode with ${applied.models.length} models`,
+						);
+					} finally {
+						pendingCaptures.delete(config.id);
+					}
+				})();
+				pendingCaptures.set(config.id, task);
+				trackDetachedSessionStart(
+					`built-in-toggle-capture-${config.id}`,
+					task,
+					(err) =>
+						_logger.warn(
+							`[built-in-toggle] ${config.id}: detached capture failed`,
+							{
+								error: err instanceof Error ? err.message : String(err),
+							},
+						),
 				);
 			}
 		}),
@@ -216,7 +250,7 @@ function createProviderState(
 		}
 		const providerConfig = {
 			baseUrl,
-			...(apiKey !== undefined ? { apiKey } : {}),
+			...(apiKey === undefined ? {} : { apiKey }),
 			api: isOpenCodeProvider(config.id) ? OPENCODE_DYNAMIC_API : api,
 			...(isOpenCodeProvider(config.id)
 				? { streamSimple: createOpenCodeStreamSimple(getOpenCodeSession()) }
