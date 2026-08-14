@@ -23,7 +23,10 @@ import {
 	isFreeModel,
 	registerWithGlobalToggle,
 } from "./registry.ts";
-import { wrapSessionStartHandler } from "./session-start-metrics.ts";
+import {
+	trackDetachedSessionStart,
+	wrapSessionStartHandler,
+} from "./session-start-metrics.ts";
 import { createToggleState } from "./toggle-state.ts";
 import {
 	OPENCODE_DYNAMIC_API,
@@ -98,6 +101,25 @@ interface BuiltInProviderState {
 }
 
 const providerStates = new Map<string, BuiltInProviderState>();
+
+interface PendingCapture {
+	/** The detached capture task. */
+	task: Promise<void>;
+	/**
+	 * Latest session registry seen by ANY session_start event for this
+	 * provider. Duplicate events update this cell so the in-flight capture
+	 * registers into the CURRENT session's registry, not the one that
+	 * happened to start the capture.
+	 */
+	registry: CurrentModelRegistry;
+}
+
+/**
+ * In-flight first captures keyed by provider id. Pi can fire session_start
+ * more than once per resume; without this guard the duplicate events would
+ * race two captures (and two re-registrations) for the same provider.
+ */
+const pendingCaptures = new Map<string, PendingCapture>();
 let commandsRegisteredFor: ExtensionAPI | undefined;
 let sessionStartRegisteredFor: ExtensionAPI | undefined;
 
@@ -131,6 +153,9 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 	// Capture built-in models on session start and apply initial filter. Avoid
 	// duplicate handlers when the entry point is invoked twice for one runner.
 	if (sessionStartRegisteredFor === pi) return;
+	// A reload creates a new runner; pending captures belong to the previous
+	// runner's session and must not block or shadow the new runner's captures.
+	if (sessionStartRegisteredFor !== undefined) pendingCaptures.clear();
 	sessionStartRegisteredFor = pi;
 	pi.on(
 		"session_start",
@@ -145,12 +170,46 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 					continue;
 				}
 
-				const state = await tryCaptureProvider(pi, config, ctx);
-				if (!state) continue;
+				// Detach the first capture: resolving OAuth/API credentials and
+				// waiting on Pi's catalog can take seconds and used to block
+				// session start. Until it completes the provider shows Pi's
+				// unfiltered built-in catalog; /toggle-{provider} retries capture
+				// on demand, and duplicate session_start events reuse the
+				// in-flight task instead of racing a second capture.
+				const pending = pendingCaptures.get(config.id);
+				if (pending) {
+					// Hand the fresh session registry to the in-flight capture so it
+					// registers into the CURRENT session, not the one that started it.
+					pending.registry = ctx.modelRegistry;
+					continue;
+				}
+				const entry: PendingCapture = {
+					task: Promise.resolve(),
+					registry: ctx.modelRegistry,
+				};
+				entry.task = (async () => {
+					try {
+						const state = await tryCaptureProvider(pi, config, ctx);
+						if (!state) return;
 
-				const applied = state.toggleState.applyCurrent(state.reRegister);
-				_logger.info(
-					`[built-in-toggle] ${config.id}: applied ${applied.mode} mode with ${applied.models.length} models`,
+						// Register into the latest registry seen by any session_start
+						// event while this capture was in flight.
+						state.setModelRegistry(entry.registry);
+						const applied = state.toggleState.applyCurrent(state.reRegister);
+						_logger.info(
+							`[built-in-toggle] ${config.id}: applied ${applied.mode} mode with ${applied.models.length} models`,
+						);
+					} finally {
+						pendingCaptures.delete(config.id);
+					}
+				})();
+				pendingCaptures.set(config.id, entry);
+				trackDetachedSessionStart(
+					`built-in-toggle-capture-${config.id}`,
+					entry.task,
+					// session-start-metrics already logs the detached failure; no
+					// second warning here.
+					() => {},
 				);
 			}
 		}),
@@ -216,7 +275,7 @@ function createProviderState(
 		}
 		const providerConfig = {
 			baseUrl,
-			...(apiKey !== undefined ? { apiKey } : {}),
+			...(apiKey === undefined ? {} : { apiKey }),
 			api: isOpenCodeProvider(config.id) ? OPENCODE_DYNAMIC_API : api,
 			...(isOpenCodeProvider(config.id)
 				? { streamSimple: createOpenCodeStreamSimple(getOpenCodeSession()) }
@@ -277,6 +336,10 @@ function registerToggleCommand(
 	pi.registerCommand(commandName, {
 		description: `Toggle free/paid ${config.id} models`,
 		handler: async (_args, ctx) => {
+			// A detached session-start capture may still be in flight; wait for
+			// it instead of racing a second capture (which would overwrite
+			// provider state and could clobber the view the user is toggling).
+			await pendingCaptures.get(config.id)?.task;
 			let state = providerStates.get(config.id);
 			if (!state) {
 				// Models may have loaded after session_start — try capture again.
