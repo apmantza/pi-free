@@ -297,10 +297,7 @@ describe("built-in provider toggles", () => {
 		// user's toggle to all — no extra racy capture in between.
 		expect(mockRegisterWithGlobalToggle).toHaveBeenCalledTimes(1);
 		expect(mockRegisterProvider).toHaveBeenCalledTimes(2);
-		expect(notify).toHaveBeenCalledWith(
-			"opencode: showing all 2 models",
-			"info",
-		);
+		expect(notify).toHaveBeenCalledWith("opencode: showing all 2 models", "info");
 		expect(mockRegisterProvider).toHaveBeenLastCalledWith(
 			"opencode",
 			expect.objectContaining({ models: expect.any(Array) }),

@@ -183,7 +183,10 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 					pending.registry = ctx.modelRegistry;
 					continue;
 				}
-				const entry: PendingCapture = { task: Promise.resolve(), registry: ctx.modelRegistry };
+				const entry: PendingCapture = {
+					task: Promise.resolve(),
+					registry: ctx.modelRegistry,
+				};
 				entry.task = (async () => {
 					try {
 						const state = await tryCaptureProvider(pi, config, ctx);
