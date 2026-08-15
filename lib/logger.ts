@@ -77,7 +77,7 @@ function formatMessage(entry: LogEntry): string {
 			data = " [unserializable-data]";
 		}
 	}
-	return `[${entry.timestamp}] [${entry.level.toUpperCase()}] [${sanitizeLogText(entry.namespace)}] ${sanitizeLogText(entry.message)}${data}`;
+	return `[${entry.timestamp}] [${entry.level.toUpperCase()}] [pid ${process.pid}] [${sanitizeLogText(entry.namespace)}] ${sanitizeLogText(entry.message)}${data}`;
 }
 
 const LOG_PATH = resolveSafeDataFile(process.env.PI_FREE_LOG_PATH, "free.log");
