@@ -30,10 +30,12 @@ import {
 	formatQuotaStatus,
 } from "./lib/quota-monitor.ts";
 import { formatHealthReport } from "./lib/health.ts";
+import { logWireSignature } from "./lib/wire-signature.ts";
 import {
 	startModelCall,
 	recordModelCall,
 	getAllTelemetry,
+	getProviderErrorCounts,
 	getTelemetryPath,
 	clearTelemetry,
 } from "./lib/telemetry.ts";
@@ -242,6 +244,22 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 			}
 
 			lines.push("", `File: ${getTelemetryPath()}`);
+
+			// M2 (#437): aggregate auth-failure counts (401/403) per provider from
+			// recorded telemetry — status classes only, never error bodies.
+			const authFailures = getProviderErrorCounts();
+			const authLines: string[] = [];
+			for (const [provider, counts] of authFailures) {
+				const total = counts["401"] + counts["403"] + counts["429"] + counts["5xx"];
+				if (total === 0) continue;
+				authLines.push(
+					`  ${provider}: 401×${counts["401"]}, 403×${counts["403"]}, 429×${counts["429"]}, 5xx×${counts["5xx"]}`,
+				);
+			}
+			if (authLines.length > 0) {
+				lines.push("", "Failures by class:", ...authLines);
+			}
+
 			ctx.ui.notify(lines.join("\n"), "info");
 		},
 	});
@@ -254,7 +272,6 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 			ctx.ui.notify("Telemetry data cleared", "info");
 		},
 	});
-
 	// /pi-free-health — Show a credential-free diagnostic report and log path
 	pi.registerCommand("pi-free-health", {
 		description:
@@ -288,7 +305,7 @@ function setupQuotaMonitoring(pi: ExtensionAPI) {
 				const providerId = ctx.model?.provider;
 				if (!providerId) return;
 
-				processQuotaResponse(providerId, event.headers);
+				processQuotaResponse(providerId, event.status, event.headers);
 
 				// Update status bar with quota for the active provider
 				const status = formatQuotaStatus(providerId);
@@ -337,6 +354,16 @@ function setupTelemetry(pi: ExtensionAPI) {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	(pi as any).on("before_agent_start", (_event: any, ctx: any) => {
 		if (!ctx.model) return;
+
+		// M3 (#437): wire-signature debug log — the request contract pi-free
+		// hands pi-ai at agent start. REDACTION RULE: header NAMES only, never
+		// values — an Authorization/apiKey/token value in this line would leak
+		// credentials into the shared ~/.pi/free.log. Debug-only so normal runs
+		// don't spam the log.
+		logWireSignature(ctx.model, (providerId) =>
+			ctx.modelRegistry?.getProvider?.(providerId),
+		);
+
 		if (!isFreeModel(ctx.model as any)) return;
 		const provider = ctx.model?.provider;
 		const model = ctx.model?.id;

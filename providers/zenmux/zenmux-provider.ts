@@ -13,6 +13,11 @@ import {
 	persistNativeProviderModels,
 	restoreNativeProviderModels,
 } from "../../lib/native-provider.ts";
+import {
+	recordNativeAbort,
+	recordNativeEmptyRetain,
+	recordNativeRefreshOk,
+} from "../../lib/startup-timing.ts";
 import { lazyOpenAICompletionsApi } from "../../lib/lazy-compat.ts";
 import { isFreeModel } from "../../lib/registry.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
@@ -70,13 +75,24 @@ export function createZenmuxProvider(): ZenmuxNativeProvider {
 			},
 		);
 
-		if (!context.allowNetwork || context.signal?.aborted) return;
+		if (!context.allowNetwork) return;
+		if (context.signal?.aborted) {
+			recordNativeAbort(PROVIDER_ZENMUX);
+			return;
+		}
 
 		const { all, free } = await fetchZenmuxCatalog({
 			token: credentialToken(context.credential),
 			signal: context.signal,
 		});
-		if (context.signal?.aborted || all.length === 0) return;
+		if (context.signal?.aborted) {
+			recordNativeAbort(PROVIDER_ZENMUX);
+			return;
+		}
+		if (all.length === 0) {
+			recordNativeEmptyRetain(PROVIDER_ZENMUX);
+			return;
+		}
 
 		const next = prepare(all, free);
 		await persistNativeProviderModels(
@@ -88,6 +104,7 @@ export function createZenmuxProvider(): ZenmuxNativeProvider {
 				stored.free = next.free;
 			},
 		);
+		recordNativeRefreshOk(PROVIDER_ZENMUX, next.all.length);
 	}
 
 	const provider: Provider<"openai-completions"> = {

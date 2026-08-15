@@ -59,6 +59,11 @@ import {
 	registerNativeProviderRefresh,
 	registerNativeProviderToggle,
 } from "../../lib/native-provider.ts";
+import {
+	recordNativeAbort,
+	recordNativeEmptyRetain,
+	recordNativeRefreshOk,
+} from "../../lib/startup-timing.ts";
 import { lazyAnthropicMessagesApi } from "../../lib/lazy-compat.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
@@ -568,13 +573,24 @@ export default function openmodelProvider(pi: ExtensionAPI): Promise<void> {
 					);
 				},
 			);
-			if (!context.allowNetwork || context.signal?.aborted) return;
+			if (!context.allowNetwork) return;
+			if (context.signal?.aborted) {
+				recordNativeAbort(PROVIDER_OPENMODEL);
+				return;
+			}
 
 			// The public web catalog needs no credential; a configured key still
 			// unlocks the authenticated /v1/models protocol list inside the fetch.
 			const token = openModelCredentialToken(context.credential) ?? "";
 			const models = await fetchOpenModelModels(token, context.signal);
-			if (context.signal?.aborted || models.length === 0) return;
+			if (context.signal?.aborted) {
+				recordNativeAbort(PROVIDER_OPENMODEL);
+				return;
+			}
+			if (models.length === 0) {
+				recordNativeEmptyRetain(PROVIDER_OPENMODEL);
+				return;
+			}
 			const free = models.filter((model) =>
 				isFreeModel({ ...model, provider: PROVIDER_OPENMODEL }, models),
 			);
@@ -588,6 +604,7 @@ export default function openmodelProvider(pi: ExtensionAPI): Promise<void> {
 					stored.free = next.free;
 				},
 			);
+			recordNativeRefreshOk(PROVIDER_OPENMODEL, next.all.length);
 		},
 		stream: (model, context, options) => streams.stream(model, context, options),
 		streamSimple: (model, context, options) =>

@@ -47,6 +47,11 @@ import {
 	persistNativeProviderModels,
 	restoreNativeProviderModels,
 } from "../../lib/native-provider.ts";
+import {
+	recordNativeAbort,
+	recordNativeEmptyRetain,
+	recordNativeRefreshOk,
+} from "../../lib/startup-timing.ts";
 import { lazyOpenAICompletionsApi } from "../../lib/lazy-compat.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { llm7Auth } from "./llm7-auth.ts";
@@ -109,16 +114,26 @@ export function createLlm7Provider(): Llm7NativeProvider {
 		);
 
 		// Offline init stops here: serve the store only.
-		if (!context.allowNetwork || context.signal?.aborted) return;
+		if (!context.allowNetwork) return;
+		if (context.signal?.aborted) {
+			recordNativeAbort(PROVIDER_LLM7);
+			return;
+		}
 
 		// Online: build the static selector catalog. This is purely local (no
 		// fetch, no credential) — LLM7's selectors never change.
 		const { all, free } = fetchLlm7Catalog();
-		if (context.signal?.aborted) return;
+		if (context.signal?.aborted) {
+			recordNativeAbort(PROVIDER_LLM7);
+			return;
+		}
 
 		// Retain the previous list on a degenerate result (poisoning guard —
 		// e.g. every selector hidden via hidden_models config).
-		if (all.length === 0) return;
+		if (all.length === 0) {
+			recordNativeEmptyRetain(PROVIDER_LLM7);
+			return;
+		}
 
 		const next = prepare(all, free);
 		await persistNativeProviderModels(
@@ -132,6 +147,7 @@ export function createLlm7Provider(): Llm7NativeProvider {
 				stored.free = next.free;
 			},
 		);
+		recordNativeRefreshOk(PROVIDER_LLM7, next.all.length);
 	}
 
 	const provider: Provider<"openai-completions"> = {

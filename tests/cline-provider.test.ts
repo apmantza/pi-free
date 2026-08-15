@@ -59,10 +59,12 @@ vi.mock("../providers/cline/cline-models.ts", async () => {
 	};
 });
 
+const mockLoggerWarn = vi.hoisted(() => vi.fn());
+
 vi.mock("../lib/logger.ts", () => ({
 	createLogger: () => ({
 		info: vi.fn(),
-		warn: vi.fn(),
+		warn: mockLoggerWarn,
 		error: vi.fn(),
 		debug: vi.fn(),
 	}),
@@ -393,6 +395,63 @@ describe("normalizeStoredClineModels", () => {
 		]);
 		// The input array is not mutated.
 		expect(legacy.api).toBe(LEGACY_CLINE_API);
+	});
+
+	it("warns once per refresh when models with the retired api were normalized (Mn2)", async () => {
+		const seeded = {
+			models: [
+				{
+					...freeCfg("a"),
+					api: LEGACY_CLINE_API,
+					provider: "cline",
+					baseUrl: "https://stale.example",
+				},
+				{
+					...freeCfg("b"),
+					api: LEGACY_CLINE_API,
+					provider: "cline",
+					baseUrl: "https://stale.example",
+				},
+			],
+			checkedAt: Date.now(),
+		} as unknown as ModelsStoreEntry;
+		const { store } = makeStore(seeded);
+		const { provider } = createClineProvider();
+
+		await provider.refreshModels?.(ctx({ store, allowNetwork: false }));
+
+		// A single warn line for both normalized models, not one per model.
+		expect(mockLoggerWarn).toHaveBeenCalledWith(
+			expect.stringContaining("normalized to openai-completions"),
+			expect.objectContaining({ count: 2 }),
+		);
+		expect(provider.getModels().every((m) => m.api === "openai-completions")).toBe(
+			true,
+		);
+	});
+
+	it("warns once about a stale store entry on restore (Mn2)", async () => {
+		const seeded = {
+			models: [
+				{
+					...freeCfg("a"),
+					api: "openai-completions",
+					provider: "cline",
+					baseUrl: BASE_URL_CLINE,
+				},
+			],
+			// Older than the 7-day stale threshold.
+			checkedAt: Date.now() - 9 * 24 * 60 * 60 * 1000,
+		} as unknown as ModelsStoreEntry;
+		const { store } = makeStore(seeded);
+		const { provider } = createClineProvider();
+
+		await provider.refreshModels?.(ctx({ store, allowNetwork: false }));
+
+		expect(mockLoggerWarn).toHaveBeenCalledWith(
+			expect.stringContaining("Stale cline models store"),
+			expect.objectContaining({ modelCount: 1, ageDays: expect.any(Number) }),
+		);
 	});
 });
 

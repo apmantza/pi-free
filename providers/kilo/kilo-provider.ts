@@ -44,6 +44,11 @@ import {
 	persistNativeProviderModels,
 	restoreNativeProviderModels,
 } from "../../lib/native-provider.ts";
+import {
+	recordNativeAbort,
+	recordNativeEmptyRetain,
+	recordNativeRefreshOk,
+} from "../../lib/startup-timing.ts";
 import { lazyOpenAICompletionsApi } from "../../lib/lazy-compat.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { kiloAuth } from "./kilo-auth.ts";
@@ -119,17 +124,27 @@ export function createKiloProvider(): KiloNativeProvider {
 		);
 
 		// Offline init stops here: serve the store only.
-		if (!context.allowNetwork || context.signal?.aborted) return;
+		if (!context.allowNetwork) return;
+		if (context.signal?.aborted) {
+			recordNativeAbort(PROVIDER_KILO);
+			return;
+		}
 
 		// Online: fetch a fresh catalog with the resolved+refreshed credential.
 		const { all, free } = await fetchKiloCatalog({
 			token: credentialToken(context.credential),
 			signal: context.signal,
 		});
-		if (context.signal?.aborted) return;
+		if (context.signal?.aborted) {
+			recordNativeAbort(PROVIDER_KILO);
+			return;
+		}
 
 		// Retain the previous list on a degenerate/failed fetch (poisoning guard).
-		if (all.length === 0) return;
+		if (all.length === 0) {
+			recordNativeEmptyRetain(PROVIDER_KILO);
+			return;
+		}
 
 		const next = prepare(all, free);
 		await persistNativeProviderModels(
@@ -143,6 +158,7 @@ export function createKiloProvider(): KiloNativeProvider {
 				stored.free = next.free;
 			},
 		);
+		recordNativeRefreshOk(PROVIDER_KILO, next.all.length);
 	}
 
 	const provider: Provider<"openai-completions"> = {

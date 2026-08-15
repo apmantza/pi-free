@@ -30,8 +30,24 @@ import {
 import type { ProviderProbe } from "./provider-probe.ts";
 import { lazyOpenAICompletionsApi } from "./lazy-compat.ts";
 import { enhanceWithCI, type StoredModels } from "../provider-helper.ts";
+import {
+	recordNativeAbort,
+	recordNativeEmptyRetain,
+	recordNativeRefreshOk,
+	recordNativeRestored,
+} from "./startup-timing.ts";
 
 const _logger = createLogger("native-provider");
+
+/**
+ * Store entries older than this are flagged stale on restore (Mn2, #437).
+ * A 7-day threshold catches long-idle sessions without nagging on normal
+ * 4h-throttled refreshes.
+ */
+const STALE_STORE_WARN_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Providers that already emitted their one-time stale-store warn (Mn2). */
+const _staleWarnedProviders = new Set<string>();
 
 /** Compatibility bridge for the native single-argument registrar. */
 export type NativeRegistrar = {
@@ -499,6 +515,28 @@ export async function restoreNativeProviderModels<T extends Model<Api>>(
 		const models = (entry?.models ?? []).filter(
 			(model) => model.provider === providerId,
 		) as T[];
+		if (entry) {
+			// M1: a store restore happened (even with 0 models — that is how
+			// "refresh ok with 0 models" is later distinguished from "never ran").
+			const storeAgeMs =
+				typeof entry.checkedAt === "number"
+					? Date.now() - entry.checkedAt
+					: undefined;
+			recordNativeRestored(providerId, storeAgeMs);
+			// Mn2: warn once per provider when the restored entry is stale.
+			if (
+				storeAgeMs !== undefined &&
+				storeAgeMs > STALE_STORE_WARN_MS &&
+				!_staleWarnedProviders.has(providerId)
+			) {
+				_staleWarnedProviders.add(providerId);
+				_logger.warn(`Stale ${providerId} models store`, {
+					ageMs: Math.round(storeAgeMs),
+					ageDays: Number((storeAgeMs / (24 * 60 * 60 * 1000)).toFixed(1)),
+					modelCount: models.length,
+				});
+			}
+		}
 		if (models.length > 0) onModels(models);
 	} catch (err) {
 		_logger.warn(`Failed to read ${providerId} models store; continuing empty`, {
@@ -516,17 +554,36 @@ export async function refreshNativeProviderModels<T extends Model<Api>>(
 	onFetched: (models: T[]) => void,
 ): Promise<void> {
 	await restoreNativeProviderModels(providerId, context, onRestore);
-	if (!context.allowNetwork || context.signal?.aborted) return;
+	// Offline init (allowNetwork=false) is not an abort: the refresh never ran.
+	if (!context.allowNetwork) return;
+	if (context.signal?.aborted) {
+		// M1: cancellation is expected — count it, never log as an error (#15).
+		recordNativeAbort(providerId);
+		return;
+	}
 
 	try {
 		const models = await fetchModels();
-		if (context.signal?.aborted || models.length === 0) return;
+		if (context.signal?.aborted) {
+			recordNativeAbort(providerId);
+			return;
+		}
+		if (models.length === 0) {
+			// M1: a completed refresh that returned nothing retained the previous
+			// list — recorded so it is distinguishable from "refresh never ran".
+			recordNativeEmptyRetain(providerId);
+			return;
+		}
 		await persistNativeProviderModels(providerId, context, models, () =>
 			onFetched(models),
 		);
+		recordNativeRefreshOk(providerId, models.length);
 	} catch (err) {
 		// Pi may abort a superseded refresh; cancellation is not a provider error.
-		if (context.signal?.aborted) return;
+		if (context.signal?.aborted) {
+			recordNativeAbort(providerId);
+			return;
+		}
 		_logger.warn(`Failed to refresh ${providerId} models; retaining previous`, {
 			error: err instanceof Error ? err.message : String(err),
 		});

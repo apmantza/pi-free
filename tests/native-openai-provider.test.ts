@@ -1,4 +1,6 @@
 import type {
+	Api,
+	Model,
 	ModelsStoreEntry,
 	ProviderModelsStore,
 	RefreshModelsContext,
@@ -405,5 +407,116 @@ describe("createNativeOpenAIProvider", () => {
 			expect.stringContaining("Failed to refresh"),
 			expect.objectContaining({ error: expect.stringContaining("boom") }),
 		);
+	});
+
+	it("records abort/empty-retain/ok refresh outcomes in startup timing (M1)", async () => {
+		const startup = await import("../lib/startup-timing.ts");
+		startup.beginStartup();
+
+		// Abort: signal aborted before the fetch — counted, never logged.
+		const controller = new AbortController();
+		controller.abort();
+		await refreshNativeProviderModels(
+			"test-native",
+			context(makeStore().store, {
+				allowNetwork: true,
+				signal: controller.signal,
+			}),
+			vi.fn(),
+			vi.fn(
+				async () =>
+					[
+						{
+							...model("m", "M"),
+							provider: "test-native",
+							api: "openai-completions",
+							baseUrl: "https://example.test/v1",
+						},
+					] as Model<Api>[],
+			),
+			vi.fn(),
+		);
+
+		// Empty retain: fetch returns 0 models — previous list retained.
+		await refreshNativeProviderModels(
+			"test-native",
+			context(makeStore().store, { allowNetwork: true }),
+			vi.fn(),
+			vi.fn(async () => []),
+			vi.fn(),
+		);
+
+		// Ok: fetch publishes 2 models.
+		await refreshNativeProviderModels(
+			"test-native",
+			context(makeStore().store, { allowNetwork: true }),
+			vi.fn(),
+			vi.fn(
+				async () =>
+					[
+						{
+							...model("m1", "M1"),
+							provider: "test-native",
+							api: "openai-completions",
+							baseUrl: "https://example.test/v1",
+						},
+						{
+							...model("m2", "M2"),
+							provider: "test-native",
+							api: "openai-completions",
+							baseUrl: "https://example.test/v1",
+						},
+					] as Model<Api>[],
+			),
+			vi.fn(),
+		);
+
+		const summary = startup.getStartupSummary();
+		const entry = summary.cacheNetwork.find(
+			(entry) => entry.provider === "test-native",
+		);
+		expect(entry).toMatchObject({
+			aborts: 1,
+			emptyRetains: 1,
+			refreshOks: 1,
+			lastRefreshModelCount: 2,
+		});
+		// Aborts are expected — the abort path must not log as a failure.
+		expect(mockLoggerWarn).not.toHaveBeenCalledWith(
+			expect.stringContaining("Failed to refresh"),
+			expect.anything(),
+		);
+	});
+
+	it("records a store restore with checkedAt age (M1) and flags stale stores (Mn2)", async () => {
+		const startup = await import("../lib/startup-timing.ts");
+		startup.beginStartup();
+
+		const { store } = makeStore({
+			models: [
+				{
+					...model("stored", "Stored"),
+					provider: "test-native",
+					api: "openai-completions",
+					baseUrl: "https://example.test/v1",
+				},
+			],
+			checkedAt: Date.now() - 2 * 60 * 60 * 1000, // 2h old
+		} as unknown as ModelsStoreEntry);
+
+		await refreshNativeProviderModels(
+			"test-native",
+			context(store, { allowNetwork: false }),
+			vi.fn(),
+			vi.fn(async () => []),
+			vi.fn(),
+		);
+
+		const entry = startup
+			.getStartupSummary()
+			.cacheNetwork.find((entry) => entry.provider === "test-native");
+		expect(entry?.restoredCount).toBe(1);
+		expect(entry?.storeAgeMs).toBeLessThan(3 * 60 * 60 * 1000);
+		expect(entry?.storeAgeMs).toBeGreaterThan(60 * 60 * 1000);
 	});
 });

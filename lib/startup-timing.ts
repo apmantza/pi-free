@@ -72,6 +72,18 @@ export interface ProviderCacheNetworkTiming {
 	networkSuccesses: number;
 	networkFailures: number;
 	networkMsTotal: number;
+	/** Native refreshes cancelled via context.signal (expected — counted, never logged as errors). */
+	aborts: number;
+	/** Native fetches that returned 0 models and retained the previous list. */
+	emptyRetains: number;
+	/** Native refreshes that completed and published models. */
+	refreshOks: number;
+	/** Times the catalog was restored from Pi's models store. */
+	restoredCount: number;
+	/** Age (ms) of the store entry at the last restore. */
+	storeAgeMs?: number;
+	/** Model count of the most recent successful native refresh. */
+	lastRefreshModelCount?: number;
 }
 
 export interface StartupSummary {
@@ -369,6 +381,10 @@ function cacheNetworkEntry(provider: string): ProviderCacheNetworkTiming {
 			networkSuccesses: 0,
 			networkFailures: 0,
 			networkMsTotal: 0,
+			aborts: 0,
+			emptyRetains: 0,
+			refreshOks: 0,
+			restoredCount: 0,
 		};
 		_state.cacheNetwork.set(provider, entry);
 	}
@@ -407,6 +423,103 @@ export function recordNetworkFetch(
 	} catch {
 		// best-effort
 	}
+}
+
+// =============================================================================
+// Public API — native refresh outcomes (M1, #437)
+// =============================================================================
+
+/** Record that a native refresh was cancelled by an aborted signal. */
+export function recordNativeAbort(provider: string): void {
+	try {
+		cacheNetworkEntry(provider).aborts += 1;
+	} catch {
+		// best-effort
+	}
+}
+
+/** Record that a native fetch returned 0 models and the previous list was retained. */
+export function recordNativeEmptyRetain(provider: string): void {
+	try {
+		cacheNetworkEntry(provider).emptyRetains += 1;
+	} catch {
+		// best-effort
+	}
+}
+
+/** Record a successful native refresh that published `modelCount` models. */
+export function recordNativeRefreshOk(
+	provider: string,
+	modelCount: number,
+): void {
+	try {
+		const entry = cacheNetworkEntry(provider);
+		entry.refreshOks += 1;
+		entry.lastRefreshModelCount = modelCount;
+	} catch {
+		// best-effort
+	}
+}
+
+/** Record a catalog restore from Pi's models store, with the store entry age. */
+export function recordNativeRestored(
+	provider: string,
+	storeAgeMs?: number,
+): void {
+	try {
+		const entry = cacheNetworkEntry(provider);
+		entry.restoredCount += 1;
+		if (
+			typeof storeAgeMs === "number" &&
+			Number.isFinite(storeAgeMs) &&
+			storeAgeMs >= 0
+		) {
+			entry.storeAgeMs = Math.round(storeAgeMs);
+		}
+	} catch {
+		// best-effort
+	}
+}
+
+/** Age threshold (ms) above which a restored store entry is flagged stale (M1 surface). */
+export const STALE_STORE_FLAG_MS = 24 * 60 * 60 * 1000; // 24h
+
+function formatStoreAge(ageMs: number): string {
+	const hours = Math.round(ageMs / (60 * 60 * 1000));
+	if (hours >= 48) return `${Math.round(hours / 24)}d old`;
+	return `${hours}h old`;
+}
+
+/**
+ * Concise per-provider native-outcome flags (aborts, empty retains, stale
+ * stores) for surfacing in `/free-startup` and `/pi-free-health`. Credential
+ * free by construction — counters and ages only. (M1, #437)
+ */
+export function nativeRefreshFlags(s: StartupSummary): string[] {
+	const flags: string[] = [];
+	for (const entry of s.cacheNetwork) {
+		const parts: string[] = [];
+		if (entry.aborts > 0) {
+			parts.push(`${entry.aborts} abort${entry.aborts > 1 ? "s" : ""}`);
+		}
+		if (entry.emptyRetains > 0) {
+			parts.push(
+				`${entry.emptyRetains} empty-retain${entry.emptyRetains > 1 ? "s" : ""}`,
+			);
+		}
+		if (
+			typeof entry.storeAgeMs === "number" &&
+			daysFromMs(entry.storeAgeMs) >= 1
+		) {
+			parts.push(`store ${formatStoreAge(entry.storeAgeMs)}`);
+		}
+		if (parts.length > 0) flags.push(`${entry.provider}: ${parts.join(", ")}`);
+	}
+	return flags;
+}
+
+function daysFromMs(ms: number): number {
+	return ms / STALE_STORE_FLAG_MS;
 }
 
 export function recordSessionStartHandler(
@@ -550,7 +663,22 @@ export function formatStartupSummary(maxProviders = 15): string {
 			lines.push(
 				`  ${entry.provider}: cache ${entry.cacheHits}, network ${entry.networkFetches} (${entry.networkSuccesses} ok, ${entry.networkFailures} failed, ${entry.networkMsTotal}ms)`,
 			);
+			if (entry.restoredCount > 0 || entry.refreshOks > 0) {
+				lines.push(
+					`    native: restored ${entry.restoredCount}, refresh ok ${entry.refreshOks} (${entry.lastRefreshModelCount ?? 0} models)` +
+						(typeof entry.storeAgeMs === "number"
+							? `, store ${formatStoreAge(entry.storeAgeMs)}`
+							: ""),
+				);
+			}
 		}
+		lines.push("");
+	}
+
+	const outcomeFlags = nativeRefreshFlags(s);
+	if (outcomeFlags.length > 0) {
+		lines.push("Native refresh flags:");
+		for (const flag of outcomeFlags) lines.push(`  ${flag}`);
 		lines.push("");
 	}
 

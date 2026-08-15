@@ -54,12 +54,18 @@ import type {
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { getClineShowPaid } from "../../config.ts";
 import { BASE_URL_CLINE, PROVIDER_CLINE } from "../../constants.ts";
+import { createLogger } from "../../lib/logger.ts";
 import { isFreeModel } from "../../lib/registry.ts";
 import {
 	filterNativeModels,
 	persistNativeProviderModels,
 	restoreNativeProviderModels,
 } from "../../lib/native-provider.ts";
+import {
+	recordNativeAbort,
+	recordNativeEmptyRetain,
+	recordNativeRefreshOk,
+} from "../../lib/startup-timing.ts";
 import { lazyOpenAICompletionsApi } from "../../lib/lazy-compat.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { clineAuth } from "./cline-auth.ts";
@@ -71,6 +77,8 @@ import {
 import { fetchClineCatalog, toClineModels } from "./cline-models.ts";
 
 type ClineModel = Model<"openai-completions">;
+
+const _logger = createLogger("cline-provider");
 
 /** Api Cline models used before the OpenAI-compatible migration (#433). */
 export const LEGACY_CLINE_API = "cline-xml-tools";
@@ -155,6 +163,17 @@ export function createClineProvider(): ClineNativeProvider {
 			// `context.store` read path (restoreNativeProviderModels branches
 			// internally): rewrite retired `cline-xml-tools` entries in either.
 			(storedModels: ClineModel[]) => {
+				// Mn2 (#437): the cline-xml-tools → openai-completions migration is
+				// silent today; warn ONCE per refresh when any model was normalized.
+				const legacyCount = storedModels.filter(
+					(model) => (model as { api?: string }).api === LEGACY_CLINE_API,
+				).length;
+				if (legacyCount > 0) {
+					_logger.warn(
+						`Restored ${legacyCount} Cline model(s) with retired ${LEGACY_CLINE_API} api; normalized to openai-completions`,
+						{ count: legacyCount },
+					);
+				}
 				const normalized = normalizeStoredClineModels(storedModels);
 				stored.all = normalized;
 				stored.free = normalized.filter((model) =>
@@ -164,14 +183,24 @@ export function createClineProvider(): ClineNativeProvider {
 		);
 
 		// Offline init stops here: serve the store only.
-		if (!context.allowNetwork || context.signal?.aborted) return;
+		if (!context.allowNetwork) return;
+		if (context.signal?.aborted) {
+			recordNativeAbort(PROVIDER_CLINE);
+			return;
+		}
 
 		// Online: fetch the public catalog (no credential required).
 		const { all, free } = await fetchClineCatalog({ signal: context.signal });
-		if (context.signal?.aborted) return;
+		if (context.signal?.aborted) {
+			recordNativeAbort(PROVIDER_CLINE);
+			return;
+		}
 
 		// Retain the previous list on a degenerate/failed fetch (poisoning guard).
-		if (all.length === 0) return;
+		if (all.length === 0) {
+			recordNativeEmptyRetain(PROVIDER_CLINE);
+			return;
+		}
 
 		const next = prepare(all, free);
 		await persistNativeProviderModels(
@@ -185,6 +214,7 @@ export function createClineProvider(): ClineNativeProvider {
 				stored.free = next.free;
 			},
 		);
+		recordNativeRefreshOk(PROVIDER_CLINE, next.all.length);
 	}
 
 	const provider: Provider<"openai-completions"> = {
