@@ -66,7 +66,6 @@ Update [`README.md`](README.md), [`docs/providers.md`](docs/providers.md), and [
 
 Most providers use OpenAI-compatible APIs. For custom protocols:
 
-- **Cline** uses the native `cline-xml-tools` API and XML tool bridge.
 - **OpenModel** uses the native Anthropic Messages API.
 - **Qoder** is the intentionally legacy reference for proprietary authentication and custom streaming; do not migrate it as part of an unrelated provider change.
 

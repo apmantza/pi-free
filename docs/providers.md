@@ -39,7 +39,7 @@ Cline's model catalog is public, so models can appear before login. Login is req
 /login cline
 ```
 
-Cline also accepts `CLINE_API_KEY` or `cline_api_key`. OAuth/API-key credentials are stored by Pi in `~/.pi/agent/auth.json`. Its custom XML tool bridge is part of the native provider implementation.
+Cline also accepts `CLINE_API_KEY` or `cline_api_key`. OAuth/API-key credentials are stored by Pi in `~/.pi/agent/auth.json`. Cline's endpoint speaks standard OpenAI Chat Completions; the provider uses the `openai-completions` api with Cline identity headers.
 
 ### LLM7
 

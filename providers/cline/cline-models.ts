@@ -302,24 +302,25 @@ export async function fetchClineCatalog(options?: {
 
 /**
  * Convert a fetched ProviderModelConfig into the concrete pi-ai
- * `Model<"cline-xml-tools">` shape a native provider's getModels() returns.
- * Adds the provider id, the custom wire api, and the gateway baseUrl that the
- * legacy registerProvider config form used to supply implicitly.
+ * `Model<"openai-completions">` shape a native provider's getModels() returns.
+ * Adds the provider id, the standard OpenAI Chat Completions wire api, and the
+ * gateway baseUrl that the legacy registerProvider config form used to supply
+ * implicitly. Cline's endpoint speaks vanilla OpenAI Chat Completions (#433).
  */
-export function toClineModel(m: ProviderModelConfig): Model<"cline-xml-tools"> {
+export function toClineModel(m: ProviderModelConfig): Model<"openai-completions"> {
 	return {
 		...m,
-		api: "cline-xml-tools",
+		api: "openai-completions",
 		provider: PROVIDER_CLINE,
 		// The legacy registration supplied a single provider-level baseUrl;
 		// every Cline model shares the Cline gateway.
 		baseUrl: BASE_URL_CLINE,
-	} as Model<"cline-xml-tools">;
+	} as Model<"openai-completions">;
 }
 
 /** Convert a batch of model configs to native Model objects. */
 export function toClineModels(
 	models: ProviderModelConfig[],
-): Model<"cline-xml-tools">[] {
+): Model<"openai-completions">[] {
 	return models.map(toClineModel);
 }

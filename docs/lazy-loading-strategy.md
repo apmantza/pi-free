@@ -6,8 +6,10 @@
 ## Decision summary
 
 Use staged, leaf-first lazy loading rather than replacing the provider factory
-with awaited dynamic imports. The first experiment should defer Cline's XML
-bridge, then apply the same boundary to TokenRouter and OpenModel. A later
+with awaited dynamic imports. The first experiment deferred Cline's XML
+bridge (since superseded by #433, which deleted the bridge and moved Cline to
+the standard OpenAI api via the resulting lazy compat bridge), then applied the
+same boundary to TokenRouter and OpenModel. A later
 phase may introduce full provider stubs, but only if they preserve Pi's native
 provider contract. Qoder now uses the native provider lifecycle; its custom auth
 and protocol remain request-time concerns.
@@ -91,13 +93,14 @@ infer a provider's import cost from its catalog or network timing.
 
 ## Provider-specific boundaries
 
-- **Cline:** `providers/cline/cline-provider.ts` currently imports
-  `streamClineXml` from `cline-xml-bridge.ts` at module evaluation. The native
+- **Cline:** `providers/cline/cline-provider.ts` streams through the shared
+  lazy compat bridge (`lazyOpenAICompletionsApi()`), like every other
+  OpenAI-compatible native provider — the custom XML bridge was removed when
+  Cline's endpoint became standard OpenAI Chat Completions (#433). The native
   provider object, `clineAuth`, public catalog refresh, `filterModels`, stored
   catalogs, and `registerNativeProviderRefresh()` must remain available before
-  the bridge is loaded. `stream` and `streamSimple` are the only natural first
-  boundary; both must continue to use request-scoped `buildClineHeaders()` and
-  preserve `rotateClineTaskId()` from `providers/cline/cline.ts`.
+  compat is loaded, and `rotateClineTaskId()` keeps mutating the shared
+  headers record exposed as `provider.headers`.
 - **TokenRouter:** `providers/tokenrouter/tokenrouter.ts` combines model mapping,
   enrichment/fetching, reasoning normalization, payload patching, and the
   high-load retry stream. `tokenrouter-provider.ts` owns the native Provider,
@@ -133,7 +136,8 @@ critical factory boundary and complicates provider names in `timeProvider()`.
 
 Keep a small eager provider shell and dynamically import code needed only on
 first request or online refresh. Cache the import promise so concurrent calls
-share one load. This is appropriate for Cline's XML bridge and can later be
+share one load. This was first applied to Cline's XML bridge (since deleted by
+#433; Cline now uses the shared lazy compat bridge) and can later be
 used for TokenRouter/OpenModel stream and catalog helpers. Errors must be
 converted through the existing provider stream/error paths, not become an
 unhandled rejected import.
@@ -182,20 +186,18 @@ remaining bottleneck.
 3. Add a first-use measurement for a Cline request and a store-restored model
    picker, because the existing benchmark does not exercise a real request.
 
-### Stage 1 — defer Cline's XML bridge
+### Stage 1 — defer Cline's XML bridge (SUPERSEDED)
 
-1. In `providers/cline/cline-provider.ts`, replace the top-level
-   `streamClineXml` import with a cached dynamic loader used by both
-   `streamViaXmlBridge` entry points.
-2. Keep `createClineProvider()` synchronous and network-free. Do not move
-   `clineAuth`, catalog conversion, store restoration, filtering, toggle
-   registration, or `registerNativeProviderRefresh()` behind the loader.
-3. Preserve request-scoped headers and task-ID rotation. Ensure two concurrent
-   first requests share the same import promise and an import failure produces
-   the normal assistant error event.
-4. Run `tests/cline-provider.test.ts`, `tests/cline-xml-bridge.test.ts`,
-   `tests/cline.test.ts`, and `scripts/smoke-cline-xml-bridge.ts`, then repeat
-   the source/compiled benchmark.
+Superseded by #433: the Cline XML bridge was deleted entirely when Cline's
+endpoint became standard OpenAI Chat Completions; Cline now streams through
+the shared lazy compat bridge (`lazyOpenAICompletionsApi()`) that this roadmap
+produced.
+
+Historical plan: in `providers/cline/cline-provider.ts`, replace the top-level
+bridge import with a cached dynamic loader used by both stream entry points,
+keep `createClineProvider()` synchronous and network-free, preserve
+request-scoped headers and task-ID rotation, and ensure two concurrent first
+requests share the same import promise.
 
 ### Stage 2 — apply the boundary to TokenRouter and OpenModel
 
@@ -251,7 +253,7 @@ baseline environment:
   dynamic path from the packaged `dist/` entry, not only from tsx source.
 
 Focused existing tests to extend include `cline-provider.test.ts`,
-`cline-xml-bridge.test.ts`, `tokenrouter-provider.test.ts`,
+`tokenrouter-provider.test.ts`,
 `openmodel.test.ts`, `native-filter-models.test.ts`, `registry.test.ts`, and
 `qoder.test.ts` (the last one guards the eager/legacy boundary).
 
@@ -290,9 +292,10 @@ loading.
   can skip native store restoration or make detached work block startup.
 - **Error/race risk:** concurrent first requests, aborts during import, and
   failed compiled paths need deterministic handling and no unhandled promise.
-- **Behavior risk:** Cline XML/tool parsing, TokenRouter MiniMax payload and
+- **Behavior risk:** TokenRouter MiniMax payload and
   message normalization, and OpenModel Anthropic streaming are wire contracts;
-  import timing must not change them.
+  import timing must not change them. (Cline's XML/tool parsing risk is gone:
+  the bridge was deleted by #433.)
 - **Measurement risk:** a faster import can be offset by factory work,
   first-request latency, or Pi's own model refresh. Keep all three timings and
   first-use measurements in reports.

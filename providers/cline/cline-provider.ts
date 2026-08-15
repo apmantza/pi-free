@@ -13,17 +13,25 @@
  *       allowNetwork:true  → fetch the PUBLIC catalog (no credential needed),
  *                            persist via context.store.write, honor context.signal
  *
- * Cline differs from Kilo (the first native port) in two ways:
+ * Wire api: Cline's endpoint (https://api.cline.bot/api/v1/chat/completions)
+ * speaks vanilla OpenAI Chat Completions, so models use the standard
+ * `"openai-completions"` api and both `stream`/`streamSimple` delegate to the
+ * lazy compat bridge (`lazyOpenAICompletionsApi()`), like every other
+ * OpenAI-compatible native provider. The Cline identity headers (including the
+ * rotating `X-Task-ID`) are exposed as a single SHARED mutable record on
+ * `provider.headers`; Pi merges provider headers into the request auth on
+ * every call (`Models.getAuth`), so `rotateClineTaskId()` keeps working by
+ * mutating that same object — no re-registration needed.
  *
- *   1. Wire api: Cline uses the custom `"cline-xml-tools"` api — both `stream`
- *      and `streamSimple` delegate to the XML bridge (`streamClineXml`), exactly
- *      as the legacy composer dispatched both entry points to the extension's
- *      streamSimple for the custom api. The bridge reshapes outgoing messages for
- *      the Cline API; that behavior is carried over verbatim.
- *   2. Public catalog: the model list needs no credential, so `refreshModels`
- *      fetches without `context.credential`. (Cline's auth resolves even when
- *      unconfigured — see cline-auth.ts — so Pi still drives refresh for
- *      logged-out users, preserving the legacy "models before /login" behavior.)
+ * Public catalog: the model list needs no credential, so `refreshModels`
+ * fetches without `context.credential`. (Cline's auth resolves even when
+ * unconfigured — see cline-auth.ts — so Pi still drives refresh for
+ * logged-out users, preserving the legacy "models before /login" behavior.)
+ *
+ * Stored-store migration: users' model stores contain models with the retired
+ * `cline-xml-tools` api until their next successful network refresh. Restore
+ * normalizes those entries to `openai-completions` + the Cline baseUrl so the
+ * first session after upgrade dispatches a real api.
  *
  * The object is assembled directly against the public `Provider` interface (the
  * exact shape `createProvider()` returns) rather than through the `createProvider`
@@ -38,12 +46,9 @@
 
 import type {
 	Api,
-	AssistantMessageEventStream,
-	Context,
 	Model,
 	Provider,
 	RefreshModelsContext,
-	StreamOptions,
 } from "@earendil-works/pi-ai/compat";
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { getClineShowPaid } from "../../config.ts";
@@ -54,12 +59,15 @@ import {
 	persistNativeProviderModels,
 	restoreNativeProviderModels,
 } from "../../lib/native-provider.ts";
+import { lazyOpenAICompletionsApi } from "../../lib/lazy-compat.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { clineAuth } from "./cline-auth.ts";
 import { fetchClineCatalog, toClineModels } from "./cline-models.ts";
-import { streamClineXml } from "./cline-xml-bridge.ts";
 
-type ClineModel = Model<"cline-xml-tools">;
+type ClineModel = Model<"openai-completions">;
+
+/** Api Cline models used before the OpenAI-compatible migration (#433). */
+export const LEGACY_CLINE_API = "cline-xml-tools";
 
 // =============================================================================
 // Cline API headers (must match real Cline VS Code extension exactly)
@@ -67,8 +75,6 @@ type ClineModel = Model<"cline-xml-tools">;
 
 const VS_CODE_VERSION = "1.109.3";
 const CLINE_EXTENSION_VERSION = "3.76.0";
-
-let _currentTaskId = generateUlid();
 
 function generateUlid(): string {
 	const CHARS = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -86,22 +92,11 @@ function generateUlid(): string {
 	return ts + r;
 }
 
-/**
- * Start a fresh Cline task id. The extension factory calls this on
- * `before_agent_start` (when a Cline model is active), mirroring the legacy
- * behavior. Headers are built per request (below), so the new id takes effect
- * on the next request with no re-registration.
- */
-export function rotateClineTaskId(): void {
-	_currentTaskId = generateUlid();
-}
-
-/** Build the VS Code-spoofing request headers for the current task. */
-export function buildClineHeaders(): Record<string, string> {
+function createClineHeadersRecord(): Record<string, string> {
 	return {
 		"HTTP-Referer": "https://cline.bot",
 		"X-Title": "Cline",
-		"X-Task-ID": _currentTaskId,
+		"X-Task-ID": generateUlid(),
 		"X-PLATFORM": "Visual Studio Code",
 		"X-PLATFORM-VERSION": VS_CODE_VERSION,
 		"X-CLIENT-TYPE": "VSCode Extension",
@@ -112,47 +107,29 @@ export function buildClineHeaders(): Record<string, string> {
 }
 
 /**
- * Register the Cline wire API for Pi's legacy/default agent stream path.
- *
- * Native ModelRuntime requests call the Provider object directly, but older
- * Pi agent sessions still dispatch through pi-ai/compat's global API registry.
- * Cline's custom API is not built into pi-ai, so without this fallback those
- * sessions fail before the XML bridge can handle the request.
- *
- * compat is heavy and loads lazily, so this is single-flight and must only be
- * triggered on first need (a Cline agent starting), never at extension boot.
- * Failures are not cached: the next agent start retries.
+ * The single shared mutable Cline headers record, exposed as `provider.headers`.
+ * Pi merges provider headers into the request auth on every call, so mutating
+ * this object (e.g. `rotateClineTaskId()`) takes effect on the next request.
  */
-let _clineXmlApiRegistration: Promise<void> | undefined;
+const clineProviderHeaders: Record<string, string> = createClineHeadersRecord();
 
-export function registerClineXmlApiProvider(): Promise<void> {
-	_clineXmlApiRegistration ??= (async () => {
-		const { registerApiProvider } = await import("@earendil-works/pi-ai/compat");
-		const stream = (
-			model: Model<"cline-xml-tools">,
-			context: Context,
-			options?: StreamOptions,
-		) =>
-			streamClineXml(
-				model,
-				context,
-				options,
-				buildClineHeaders(),
-			) as unknown as AssistantMessageEventStream;
+/**
+ * Rotate the Cline task id on the shared headers record. The extension factory
+ * calls this on `before_agent_start` (when a Cline model is active), mirroring
+ * the legacy behavior. The mutated record IS `provider.headers`, so the new id
+ * takes effect on the next request with no re-registration.
+ */
+export function rotateClineTaskId(): void {
+	clineProviderHeaders["X-Task-ID"] = generateUlid();
+}
 
-		registerApiProvider(
-			{
-				api: "cline-xml-tools",
-				stream,
-				streamSimple: stream,
-			},
-			"pi-free-cline",
-		);
-	})().catch((error) => {
-		_clineXmlApiRegistration = undefined;
-		throw error;
-	});
-	return _clineXmlApiRegistration;
+/**
+ * Access the live Cline request headers record (the exact object exposed as
+ * `provider.headers`). Returns the shared record, not a copy: mutations are
+ * picked up by the next request.
+ */
+export function buildClineHeaders(): Record<string, string> {
+	return clineProviderHeaders;
 }
 
 // =============================================================================
@@ -162,7 +139,7 @@ export function registerClineXmlApiProvider(): Promise<void> {
 /** Handle returned to the extension factory for toggle/login wiring. */
 export interface ClineNativeProvider {
 	/** The native provider object to register via registerProvider(provider). */
-	provider: Provider<"cline-xml-tools">;
+	provider: Provider<"openai-completions">;
 	/** Mutable catalogs shared with registerWithGlobalToggle / /free-providers. */
 	stored: StoredModels;
 	/** Ingest a freshly fetched catalog into the complete native catalog. */
@@ -170,11 +147,33 @@ export interface ClineNativeProvider {
 }
 
 /**
- * Build the Cline native provider. All mutable catalog state lives in the
- * returned closure so the extension factory can wire toggles against a single
- * source of truth.
+ * Normalize models restored from Pi's models store. Until the next successful
+ * network refresh, users' stores still contain models with the retired
+ * `cline-xml-tools` api; rewrite those to `openai-completions` + the Cline
+ * baseUrl so the first session after upgrade dispatches a real api.
+ */
+export function normalizeStoredClineModels<T extends Model<Api>>(
+	models: readonly T[],
+): ClineModel[] {
+	return models.map((model) => {
+		const api = (model as { api?: string }).api;
+		if (api !== LEGACY_CLINE_API) return model as unknown as ClineModel;
+		return {
+			...model,
+			api: "openai-completions",
+			baseUrl: BASE_URL_CLINE,
+		} as unknown as ClineModel;
+	});
+}
+
+/**
+ * Build the Cline native provider. All mutable catalog state lives in the returned
+ * closure so the extension factory can wire toggles against a single source of
+ * truth.
  */
 export function createClineProvider(): ClineNativeProvider {
+	const streams = lazyOpenAICompletionsApi();
+
 	// Display-ready catalogs (CI-enhanced + converted to Model). Typed as
 	// StoredModels (ProviderModelConfig[]) for registerWithGlobalToggle; the
 	// runtime values are full Model objects, which are assignable.
@@ -203,10 +202,14 @@ export function createClineProvider(): ClineNativeProvider {
 		await restoreNativeProviderModels(
 			PROVIDER_CLINE,
 			context,
+			// Covers BOTH the Pi 0.84+ `context.stored` snapshot and the legacy
+			// `context.store` read path (restoreNativeProviderModels branches
+			// internally): rewrite retired `cline-xml-tools` entries in either.
 			(storedModels: ClineModel[]) => {
-				stored.all = storedModels;
-				stored.free = storedModels.filter((model) =>
-					isFreeModel({ ...model, provider: PROVIDER_CLINE }, storedModels),
+				const normalized = normalizeStoredClineModels(storedModels);
+				stored.all = normalized;
+				stored.free = normalized.filter((model) =>
+					isFreeModel({ ...model, provider: PROVIDER_CLINE }, normalized),
 				);
 			},
 		);
@@ -235,26 +238,13 @@ export function createClineProvider(): ClineNativeProvider {
 		);
 	}
 
-	// Both entry points dispatch to the XML bridge, exactly as the legacy
-	// composer routed stream AND streamSimple to the extension's streamSimple
-	// for the custom "cline-xml-tools" api. Headers are built per request so a
-	// rotated task id (before_agent_start) applies without re-registration.
-	const streamViaXmlBridge = (
-		model: ClineModel,
-		context: Parameters<typeof streamClineXml>[1],
-		options: Parameters<typeof streamClineXml>[2],
-	): AssistantMessageEventStream =>
-		streamClineXml(
-			model,
-			context,
-			options,
-			buildClineHeaders(),
-		) as unknown as AssistantMessageEventStream;
-
-	const provider: Provider<"cline-xml-tools"> = {
+	const provider: Provider<"openai-completions"> = {
 		id: PROVIDER_CLINE,
 		name: "Cline",
 		baseUrl: BASE_URL_CLINE,
+		// Shared mutable record: rotateClineTaskId() mutates it in place and Pi
+		// merges provider headers into the request on every call.
+		headers: clineProviderHeaders,
 		auth: clineAuth,
 		getModels: () =>
 			(stored.all.length > 0 ? stored.all : stored.free) as ClineModel[],
@@ -264,10 +254,9 @@ export function createClineProvider(): ClineNativeProvider {
 				freeModels: stored.free,
 			}),
 		refreshModels,
-		stream: (model, context, options) =>
-			streamViaXmlBridge(model, context, options),
+		stream: (model, context, options) => streams.stream(model, context, options),
 		streamSimple: (model, context, options) =>
-			streamViaXmlBridge(model, context, options),
+			streams.streamSimple(model, context, options),
 	};
 
 	return { provider, stored, ingest };

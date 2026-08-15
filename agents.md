@@ -51,7 +51,6 @@ index.ts                          ← Extension entry point (piFreeEntry)
       ├─ cline/cline-provider.ts  ← assembles the native Provider (offline-init store + toggle view)
       ├─ cline/cline-auth.ts      ← native ProviderAuth (API key + OAuth callback-server flow)
       ├─ cline/cline-models.ts    ← public catalog fetch + Model conversion
-      ├─ cline/cline-xml-bridge.ts ← message reshaping for the Cline API (stream + streamSimple)
       ├─ novita/novita.ts         ← Novita AI (paid credits)
       ├─ ollama/ollama.ts         ← Ollama Cloud (usage-based free tier, 403 probing)
       ├─ routeway/routeway.ts     ← RouteWay AI (paid)
@@ -97,7 +96,7 @@ Provider setup has two lifecycle patterns:
 - **Native providers** register a Pi `Provider` object (usually through `lib/native-provider.ts`). They expose the complete catalog from `getModels()`, apply free/paid and hidden-model policy in `filterModels`, and implement `refreshModels(context)` so Pi owns the models store, credentials, refresh timing, abort signal, and offline initialization.
 - **All pi-free providers** register through Pi's native lifecycle. Built-in catalogs are owned by Pi; Qoder retains only its custom auth/stream implementation and optional metadata cache.
 
-For a new OpenAI-compatible native provider, use `registerNativeOpenAIProvider()` with a `ProviderAuth`, a catalog fetcher, and `getShowPaid`. For a custom wire protocol, assemble the public `Provider` interface directly, following OpenModel or Cline. Do not add a second freshness policy or copy native catalogs into `provider-cache.json`.
+For a new OpenAI-compatible native provider, use `registerNativeOpenAIProvider()` with a `ProviderAuth`, a catalog fetcher, and `getShowPaid`. For a custom wire protocol, assemble the public `Provider` interface directly, following OpenModel. Do not add a second freshness policy or copy native catalogs into `provider-cache.json`.
 
 **Native loading.** All pi-free provider catalogs use Pi's models store (`~/.pi/agent/models-store.json`) via `refreshModels`. Qoder retains `~/.pi/agent/qoder-models-cache.json` only for optional stream metadata. Built-in OpenCode, OpenCode Go, and OpenRouter catalogs are owned by Pi; Ollama Cloud additionally retains `~/.pi/provider-cache.json` only for `/api/show` capability reuse and its manual refresh compatibility path.
 
@@ -115,7 +114,6 @@ providers/cline/cline-provider.ts ← createClineProvider(): assembles the Provi
 providers/cline/cline-auth.ts     ← native ProviderAuth (apiKey + OAuth callback-server flow)
 providers/cline/cline-models.ts   ← fetchClineCatalog + toClineModel(s) (public catalog)
 providers/cline/cline.ts          ← factory: register, toggle wiring, task-id rotation
-providers/cline/cline-xml-bridge.ts ← unchanged message reshaping (stream + streamSimple)
 ```
 
 Key points of the pattern (the recipe for porting other unique providers):
@@ -129,10 +127,10 @@ Key points of the pattern (the recipe for porting other unique providers):
 
 Cline-specific deviations from the Kilo reference (porting recipe supplements):
 
-- **Custom wire api.** Cline models use the custom `"cline-xml-tools"` api, not `openai-completions`. The native `Provider` requires both `stream` and `streamSimple`; both dispatch to the XML bridge (`streamClineXml`) with per-request headers — exactly how the legacy composer routed both entry points to the extension's `streamSimple` for a custom api. The bridge (the outgoing-message reshaping) is carried over verbatim and is registration-shape-independent.
-- **Public catalog auth.** Cline's model catalog needs no credential (legacy fetched it logged-out, so models appeared before `/login cline`). Pi's `Models.refresh()` skips providers whose auth does not resolve — a Kilo-style `resolve` (undefined when unconfigured) would leave logged-out users with no models at all. So Cline's `apiKey.resolve` always succeeds, returning an empty `auth` when no key exists (Pi's sanctioned keyless pattern — the pi-ai `faux` provider does the same), and intentionally has no `apiKey.check`: Pi runs that check before availability filtering and would hide the public catalog before `/login cline`. Chat requests without a token still fail fast in the XML bridge with an actionable message.
-- **Legacy OAuth flow adapter.** Cline's OAuth is a local callback-server flow written against the legacy `OAuthLoginCallbacks` surface. Rather than rewrite it, `cline-auth.ts` adapts it to the native `AuthInteraction` with the exact mapping Pi's own legacy-OAuth adapter (`provider-composer` `adaptOAuth`) uses — `onAuth` → `auth_url` notify, `onProgress` → `progress` notify, `onManualCodeInput` → `manual_code` prompt — and tags results `type: "oauth"`. `refresh` delegates to the proven `refreshClineToken`; `toAuth` applies the `workos:` bearer prefix (legacy `getApiKey`).
-- **Request-scoped headers.** Cline's VS Code-spoofing headers include a mutable `X-Task-ID`, so they are built per request inside the stream closures (not static `Provider.headers`); `before_agent_start` only rotates the task id — the legacy re-register-for-headers is redundant when headers are request-scoped.
+- **Standard OpenAI wire api.** Cline's endpoint (`https://api.cline.bot/api/v1/chat/completions`) speaks vanilla OpenAI Chat Completions, so models use the standard `"openai-completions"` api and both `stream`/`streamSimple` delegate to the lazy compat bridge (`lazyOpenAICompletionsApi()`), like every other OpenAI-compatible native provider. pi-ai maps `reasoning`/`reasoning_details` stream fields natively — no transform layer. Models restored from Pi's models store with the retired `cline-xml-tools` api are normalized to `openai-completions` + the Cline baseUrl on restore, until the next network refresh rewrites the store (#433).
+- **Public catalog auth.** Cline's model catalog needs no credential (legacy fetched it logged-out, so models appeared before `/login cline`). Pi's `Models.refresh()` skips providers whose auth does not resolve — a Kilo-style `resolve` (undefined when unconfigured) would leave logged-out users with no models at all. So Cline's `apiKey.resolve` always succeeds, returning an empty `auth` when no key exists (Pi's sanctioned keyless pattern — the pi-ai `faux` provider does the same), and intentionally has no `apiKey.check`: Pi runs that check before availability filtering and would hide the public catalog before `/login cline`. Chat requests without a token still fail with a 401 from the gateway.
+- **Legacy OAuth flow adapter.** Cline's OAuth is a local callback-server flow written against the legacy `OAuthLoginCallbacks` surface. Rather than rewrite it, `cline-auth.ts` adapts it to the native `AuthInteraction` with the exact mapping Pi's own legacy-OAuth adapter (`provider-composer` `adaptOAuth`) uses — `onAuth` → `auth_url` notify, `onProgress` → `progress` notify, `onManualCodeInput` → `manual_code` prompt — and tags results `type: "oauth"`. `refresh` delegates to the proven `refreshClineToken`; `toAuth` applies the `workos:` bearer prefix (required by the gateway; raw tokens 401).
+- **Shared mutable headers.** Cline's VS Code-spoofing identity headers include a rotating `X-Task-ID`, so they are exposed as a single shared mutable record on `provider.headers`; Pi merges provider headers into the request auth on every call (`Models.getAuth`), so `rotateClineTaskId()` on `before_agent_start` takes effect by mutating that same object — no re-registration needed.
 
 ### Free Model Detection (isFreeModel)
 
@@ -327,7 +325,7 @@ pi.on(event, handler); // Subscribe to events
 - `model_select` — User picked a model (update status bar)
 - `turn_end` — Conversation turn completed (error handling)
 - `before_agent_start` — Before agent starts (re-register models)
-- `context` — Intercept/transform messages (Cline uses this)
+- `context` — Intercept/transform messages
 - `after_provider_response` — After API response (quota monitoring)
 
 **Context (`ctx`):**
