@@ -138,7 +138,9 @@ critical factory boundary and complicates provider names in `timeProvider()`.
 Keep a small eager provider shell and dynamically import code needed only on
 first request or online refresh. Cache the import promise so concurrent calls
 share one load. This was first applied to Cline's XML bridge (since deleted by
+
 # 433; Cline now uses the shared lazy compat bridge) and can later be
+
 used for TokenRouter/OpenModel stream and catalog helpers. Errors must be
 converted through the existing provider stream/error paths, not become an
 unhandled rejected import.
