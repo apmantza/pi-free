@@ -12,10 +12,7 @@
  * toClineModel / normalizeStoredClineModels), and the same shared mutable
  * record is exposed as `provider.headers` for symmetry/inspection.
  */
-import {
-	CLINE_EXTENSION_VERSION,
-	VS_CODE_VERSION,
-} from "../../constants.ts";
+import { CLINE_EXTENSION_VERSION, VS_CODE_VERSION } from "../../constants.ts";
 
 function generateUlid(): string {
 	const CHARS = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -58,8 +55,7 @@ function createClineHeadersRecord(): Record<string, string> {
  * `rotateClineTaskId()`) take effect on the next request — no re-registration
  * needed, because every model holds a reference to this same object.
  */
-const clineProviderHeaders: Record<string, string> =
-	createClineHeadersRecord();
+const clineProviderHeaders: Record<string, string> = createClineHeadersRecord();
 
 /** Access the live shared Cline headers record. */
 export function getClineProviderHeaders(): Record<string, string> {

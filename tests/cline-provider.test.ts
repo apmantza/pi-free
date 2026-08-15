@@ -631,8 +631,7 @@ describe("stream wiring", () => {
 		// merges only the MODEL's headers into the request, never
 		// provider.headers. The Cline identity record must therefore be
 		// stamped on every model and actually reach the gateway.
-		const captured: Array<{ url: string; headers: Record<string, string> }> =
-			[];
+		const captured: Array<{ url: string; headers: Record<string, string> }> = [];
 		const sse = [
 			`data: ${JSON.stringify({
 				id: "gen-1",
@@ -685,11 +684,9 @@ describe("stream wiring", () => {
 			models.setProvider(provider);
 			const model = models.getModels("cline")[0];
 
-			const stream = models.stream(
-				model as never,
-				clineContext() as never,
-				{ apiKey: "workos:test-token" },
-			);
+			const stream = models.stream(model as never, clineContext() as never, {
+				apiKey: "workos:test-token",
+			});
 			for await (const _event of stream as AsyncIterable<unknown>) {
 				// drain
 			}

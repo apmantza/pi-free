@@ -100,7 +100,8 @@ infer a provider's import cost from its catalog or network timing.
   provider object, `clineAuth`, public catalog refresh, `filterModels`, stored
   catalogs, and `registerNativeProviderRefresh()` must remain available before
   compat is loaded, and `rotateClineTaskId()` keeps mutating the shared
-  headers record exposed as `provider.headers`.
+  headers record that every Cline model carries as its `headers` (pi-ai
+  merges only the model's headers into requests).
 - **TokenRouter:** `providers/tokenrouter/tokenrouter.ts` combines model mapping,
   enrichment/fetching, reasoning normalization, payload patching, and the
   high-load retry stream. `tokenrouter-provider.ts` owns the native Provider,

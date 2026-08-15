@@ -53,10 +53,7 @@ import type {
 } from "@earendil-works/pi-ai/compat";
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { getClineShowPaid } from "../../config.ts";
-import {
-	BASE_URL_CLINE,
-	PROVIDER_CLINE,
-} from "../../constants.ts";
+import { BASE_URL_CLINE, PROVIDER_CLINE } from "../../constants.ts";
 import { isFreeModel } from "../../lib/registry.ts";
 import {
 	filterNativeModels,
