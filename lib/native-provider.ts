@@ -577,9 +577,11 @@ export async function refreshNativeProviderModels<T extends Model<Api>>(
 		// Only count as "ok" if persistence actually published: a superseded
 		// generation (publish() returns false — update never ran) or a store
 		// write failure must not inflate the success counter.
-		if (await persistNativeProviderModels(providerId, context, models, () =>
-			onFetched(models),
-		)) {
+		if (
+			await persistNativeProviderModels(providerId, context, models, () =>
+				onFetched(models),
+			)
+		) {
 			recordNativeRefreshOk(providerId, models.length);
 		}
 	} catch (err) {

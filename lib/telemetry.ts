@@ -177,16 +177,13 @@ function deriveModelTelemetry(entries: TelemetryEntry[]): ModelTelemetry {
 		totalLatencyMs,
 		totalCost,
 		avgLatencyMs:
-			successCalls > 0
-				? Math.round(totalLatencyFromSuccessful / successCalls)
-				: 0,
+			successCalls > 0 ? Math.round(totalLatencyFromSuccessful / successCalls) : 0,
 		avgTokensPerSecond:
 			totalLatencyFromSuccessful > 0
 				? Number.parseFloat(
-						(
-							totalTokensFromSuccessful /
-							(totalLatencyFromSuccessful / 1000)
-						).toFixed(1),
+						(totalTokensFromSuccessful / (totalLatencyFromSuccessful / 1000)).toFixed(
+							1,
+						),
 					)
 				: 0,
 		successRate:
@@ -201,8 +198,7 @@ async function addEntry(entry: TelemetryEntry): Promise<void> {
 	await _store.update((store) => {
 		const modelKey = telemetryKey(entry.provider, entry.model);
 
-		const existing: TelemetryEntry[] =
-			store.models[modelKey]?.recentCalls ?? [];
+		const existing: TelemetryEntry[] = store.models[modelKey]?.recentCalls ?? [];
 		existing.push(entry);
 
 		// Keep only last MAX_RECENT_CALLS * 2 in raw storage (we derive stats from these)
@@ -487,7 +483,10 @@ export interface ProviderErrorCounts {
  * Aggregate failure classes per provider from recorded telemetry entries.
  * Status codes/classes only — never error bodies or messages.
  */
-export function getProviderErrorCounts(): ReadonlyMap<string, ProviderErrorCounts> {
+export function getProviderErrorCounts(): ReadonlyMap<
+	string,
+	ProviderErrorCounts
+> {
 	const counts = new Map<string, ProviderErrorCounts>();
 	const bump = (provider: string, errorClass: ErrorClass): void => {
 		let entry = counts.get(provider);

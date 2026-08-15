@@ -64,14 +64,15 @@ describe("opencode-session fallback resolution", () => {
 		const first = createOpenCodeHeaders(tracker);
 		const second = createOpenCodeHeaders(tracker);
 
-		expect(first["User-Agent"]).toBe("opencode/1.15.5");
+		expect(first["User-Agent"]).toBe("opencode/1.18.18");
 		expect(first["x-opencode-client"]).toBe("cli");
 		expect(first["x-opencode-session"]).toMatch(
-			/^ses_[0-9a-f]+[0-9A-Za-z]{14}$/,
+			/^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$/,
 		);
 		expect(first["x-opencode-request"]).toMatch(
-			/^msg_[0-9a-f]+[0-9A-Za-z]{14}$/,
+			/^prt_[0-9a-f]{12}[0-9A-Za-z]{14}$/,
 		);
+		expect(first["x-opencode-project"]).toBe("global");
 		expect(second["x-opencode-session"]).toBe(first["x-opencode-session"]);
 		expect(second["x-opencode-request"]).not.toBe(first["x-opencode-request"]);
 	});
