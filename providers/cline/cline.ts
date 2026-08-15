@@ -68,10 +68,10 @@ export default async function clineProvider(pi: ExtensionAPI) {
 	});
 
 	// Rotate the Cline task id when a Cline agent starts (mirrors the legacy
-	// behavior). The rotation mutates the shared headers record exposed as
-	// `provider.headers`, and Pi merges provider headers into the request on
-	// every call, so the new X-Task-ID takes effect immediately — no
-	// re-registration needed.
+	// behavior). The rotation mutates the shared headers record (see
+	// cline-headers.ts), which every Cline model holds as its `headers` —
+	// pi-ai merges only the model's headers into requests — so the new
+	// X-Task-ID takes effect immediately, no re-registration needed.
 	pi.on("before_agent_start", (_event, ctx) => {
 		if (ctx.model?.provider !== PROVIDER_CLINE) return;
 		rotateClineTaskId();

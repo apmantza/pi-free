@@ -25,7 +25,12 @@ import type {
 	ProviderAuth,
 } from "@earendil-works/pi-ai/compat";
 import { getClineApiKey } from "../../config.ts";
-import { BASE_URL_CLINE, CLINE_AUTH_TIMEOUT_MS } from "../../constants.ts";
+import {
+	BASE_URL_CLINE,
+	CLINE_AUTH_TIMEOUT_MS,
+	CLINE_EXTENSION_VERSION,
+	VS_CODE_VERSION,
+} from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 
 const logger = createLogger("cline-auth");
@@ -38,8 +43,6 @@ const AUTH_PATH = "/auth";
 
 // =============================================================================
 // Headers (must match real Cline VS Code extension exactly)
-const VS_CODE_VERSION = "1.109.3";
-const CLINE_EXTENSION_VERSION = "3.76.0";
 
 function buildClineHeaders(): Record<string, string> {
 	return {
@@ -199,8 +202,7 @@ font-family:system-ui,sans-serif;background:#fff;color:#333}
 		settle(() => rejectWait?.(new Error("Callback server timed out")));
 	}, CLINE_AUTH_TIMEOUT_MS);
 
-	abortListener = () =>
-		settle(() => rejectWait?.(new Error("Login cancelled")));
+	abortListener = () => settle(() => rejectWait?.(new Error("Login cancelled")));
 	if (signal) {
 		signal.addEventListener("abort", abortListener, { once: true });
 		if (signal.aborted) abortListener();
@@ -246,10 +248,7 @@ async function fetchAuthorizeUrl(
 		}
 
 		const json = (await res.json()) as { redirect_url?: string };
-		if (
-			typeof json?.redirect_url === "string" &&
-			json.redirect_url.length > 0
-		) {
+		if (typeof json?.redirect_url === "string" && json.redirect_url.length > 0) {
 			return json.redirect_url;
 		}
 		throw new Error("Unexpected response from auth server");
@@ -496,8 +495,7 @@ export async function refreshClineToken(
 			return await attemptClineTokenRefresh(credentials);
 		} catch (secondErr) {
 			logger.warn("Cline token refresh failed after retry", {
-				error:
-					secondErr instanceof Error ? secondErr.message : String(secondErr),
+				error: secondErr instanceof Error ? secondErr.message : String(secondErr),
 			});
 			throw new Error(
 				"Cline token refresh failed. Run /login cline to re-authenticate.",
@@ -538,8 +536,7 @@ export async function loginClineNative(
 				url: info.url,
 				instructions: info.instructions,
 			}),
-		onDeviceCode: (info) =>
-			interaction.notify({ type: "device_code", ...info }),
+		onDeviceCode: (info) => interaction.notify({ type: "device_code", ...info }),
 		onPrompt: (prompt) =>
 			interaction.prompt({
 				type: "text",

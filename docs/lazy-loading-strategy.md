@@ -100,7 +100,8 @@ infer a provider's import cost from its catalog or network timing.
   provider object, `clineAuth`, public catalog refresh, `filterModels`, stored
   catalogs, and `registerNativeProviderRefresh()` must remain available before
   compat is loaded, and `rotateClineTaskId()` keeps mutating the shared
-  headers record exposed as `provider.headers`.
+  headers record that every Cline model carries as its `headers` (pi-ai
+  merges only the model's headers into requests).
 - **TokenRouter:** `providers/tokenrouter/tokenrouter.ts` combines model mapping,
   enrichment/fetching, reasoning normalization, payload patching, and the
   high-load retry stream. `tokenrouter-provider.ts` owns the native Provider,
@@ -137,7 +138,9 @@ critical factory boundary and complicates provider names in `timeProvider()`.
 Keep a small eager provider shell and dynamically import code needed only on
 first request or online refresh. Cache the import promise so concurrent calls
 share one load. This was first applied to Cline's XML bridge (since deleted by
-#433; Cline now uses the shared lazy compat bridge) and can later be
+
+# 433; Cline now uses the shared lazy compat bridge) and can later be
+
 used for TokenRouter/OpenModel stream and catalog helpers. Errors must be
 converted through the existing provider stream/error paths, not become an
 unhandled rejected import.

@@ -12,11 +12,14 @@ import type { Model } from "@earendil-works/pi-ai/compat";
 import { applyHidden } from "../../config.ts";
 import {
 	BASE_URL_CLINE,
+	CLINE_EXTENSION_VERSION,
 	DEFAULT_FETCH_TIMEOUT_MS,
 	PROVIDER_CLINE,
+	VS_CODE_VERSION,
 } from "../../constants.ts";
 import { isFreeModel } from "../../lib/registry.ts";
 import type { ProviderModelConfig } from "../../lib/types.ts";
+import { getClineProviderHeaders } from "./cline-headers.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import { getProxyModelCompat } from "../../lib/provider-compat.ts";
 import { cleanModelName, fetchWithRetry } from "../../lib/util.ts";
@@ -55,9 +58,6 @@ interface ClineRecommendedModelsResponse {
 	recommended?: ClineRecommendedModel[];
 	free?: ClineRecommendedModel[];
 }
-
-const VS_CODE_VERSION = "1.109.3";
-const CLINE_EXTENSION_VERSION = "3.76.0";
 
 function buildClineFetchHeaders(): Record<string, string> {
 	return {
@@ -307,7 +307,9 @@ export async function fetchClineCatalog(options?: {
  * gateway baseUrl that the legacy registerProvider config form used to supply
  * implicitly. Cline's endpoint speaks vanilla OpenAI Chat Completions (#433).
  */
-export function toClineModel(m: ProviderModelConfig): Model<"openai-completions"> {
+export function toClineModel(
+	m: ProviderModelConfig,
+): Model<"openai-completions"> {
 	return {
 		...m,
 		api: "openai-completions",
@@ -315,6 +317,10 @@ export function toClineModel(m: ProviderModelConfig): Model<"openai-completions"
 		// The legacy registration supplied a single provider-level baseUrl;
 		// every Cline model shares the Cline gateway.
 		baseUrl: BASE_URL_CLINE,
+		// pi-ai merges only the MODEL's headers into requests (not
+		// provider.headers) — stamp the shared Cline identity record so the
+		// gateway sees a genuine Cline client (see cline-headers.ts).
+		headers: getClineProviderHeaders(),
 	} as Model<"openai-completions">;
 }
 
