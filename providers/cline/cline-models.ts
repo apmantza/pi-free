@@ -133,52 +133,11 @@ function modelFromRecommended(
 	};
 }
 
-// Cline's free endpoint can use a provider-qualified ID while the catalog
-// uses the leaf ID (or vice versa). It also occasionally gives a dated
-// catalog entry for an otherwise identical recommended model, for example
-// `deepseek-v4-flash` -> `deepseek-v4-flash-0731`.
-//
-// Keep this deliberately narrow: only valid date-shaped release suffixes are
-// removed, and two provider-qualified IDs must have the same qualifier. This
-// avoids turning similarly named paid variants (such as `-pro`) into free ones.
-const CLINE_RELEASE_DATE_SUFFIX =
-	/(?:-(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])|-(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])|-(?:19|20)\d{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01]))$/;
-
-function splitClineModelId(id: string): {
-	qualifier?: string;
-	leaf: string;
-} {
-	const separator = id.lastIndexOf("/");
-	return separator < 0
-		? { leaf: id }
-		: { qualifier: id.slice(0, separator), leaf: id.slice(separator + 1) };
-}
-
-function stripClineReleaseDateSuffix(id: string): string {
-	return id.replace(CLINE_RELEASE_DATE_SUFFIX, "");
-}
-
-function isClineFreeToTryId(
-	modelId: string,
-	freeToTryIds: ReadonlySet<string>,
-): boolean {
-	if (freeToTryIds.has(modelId)) return true;
-
-	const model = splitClineModelId(modelId);
-	const normalizedModelLeaf = stripClineReleaseDateSuffix(model.leaf);
-	for (const freeToTryId of freeToTryIds) {
-		const free = splitClineModelId(freeToTryId);
-		if (model.qualifier && free.qualifier && model.qualifier !== free.qualifier) {
-			continue;
-		}
-		if (
-			normalizedModelLeaf === stripClineReleaseDateSuffix(free.leaf)
-		) {
-			return true;
-		}
-	}
-	return false;
-}
+// Cline's recommended-models `free` list is the authoritative free-to-try
+// source, and both it and the catalog use provider-qualified IDs. Match
+// exactly: fuzzy aliasing (e.g. stripping date suffixes) turned genuinely
+// paid dated variants like `deepseek/deepseek-v4-flash-0731` into free
+// models that then fail with 402 insufficient credits at request time.
 
 function modelFromCatalog(
 	info: ClineRaw,
@@ -188,7 +147,7 @@ function modelFromCatalog(
 		info.supported_parameters?.includes("include_reasoning") ||
 		info.supported_parameters?.includes("reasoning")
 	);
-	const isFreeToTry = isClineFreeToTryId(info.id, freeToTryIds);
+	const isFreeToTry = freeToTryIds.has(info.id);
 	const inputCost = isFreeToTry ? 0 : parsePricing(info.pricing?.prompt);
 	const outputCost = isFreeToTry ? 0 : parsePricing(info.pricing?.completion);
 	const cacheRead = isFreeToTry
