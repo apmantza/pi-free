@@ -17,6 +17,9 @@ const _logger = createLogger("telemetry");
 // Types
 // =============================================================================
 
+/** Structured failure classification derived from status codes / error text (M2, #437). */
+export type ErrorClass = "401" | "403" | "429" | "5xx" | "network" | "other";
+
 export interface TelemetryEntry {
 	timestamp: number;
 	provider: string;
@@ -30,6 +33,10 @@ export interface TelemetryEntry {
 	cost: number;
 	stopReason?: string;
 	error?: string;
+	/** HTTP status code when the failure came from a provider response. */
+	statusCode?: number;
+	/** Structured failure classification (derived when not supplied). */
+	errorClass?: ErrorClass;
 }
 
 export interface ModelTelemetry {
@@ -308,6 +315,49 @@ export interface RecordModelCallOptions {
 	success: boolean;
 	stopReason?: string;
 	errorMessage?: string;
+	/** HTTP status code observed on the provider response. */
+	statusCode?: number;
+	/** Structured failure class; derived from the message when omitted. */
+	errorClass?: ErrorClass;
+}
+
+/**
+ * Derive a structured {@link ErrorClass} from a status code and/or error
+ * message. Best-effort classification used to turn opaque "failed" telemetry
+ * entries into incident-relevant buckets (Cline workos: 401 vs 403-vs-headers
+ * vs gateway 5xx). Numeric status codes win when present; otherwise the error
+ * text is scanned for embedded statuses or network-failure fingerprints.
+ */
+export function classifyError(
+	message: string | undefined,
+	statusCode?: number,
+): ErrorClass | undefined {
+	if (!message && statusCode === undefined) return undefined;
+	if (statusCode !== undefined) {
+		if (statusCode === 401) return "401";
+		if (statusCode === 403) return "403";
+		if (statusCode === 429) return "429";
+		if (statusCode >= 500 && statusCode < 600) return "5xx";
+		// A non-failure status (e.g. 200) carries no class unless the message
+		// itself describes a failure.
+		if (!message) return undefined;
+	}
+	if (message) {
+		// A fetch-level network failure (TypeError in browsers, node-style
+		// undici/fetch errors) is distinct from an HTTP status failure.
+		if (
+			/Failed to fetch|fetch failed|network error|ECONN|ENOTFOUND|EHOST|EAI_AGAIN|ETIMEDOUT|socket hang up|underlying connection|unexpected end of file/i.test(
+				message,
+			)
+		) {
+			return "network";
+		}
+		if (/\b401\b/.test(message)) return "401";
+		if (/\b403\b/.test(message)) return "403";
+		if (/\b429\b/.test(message)) return "429";
+		if (/\b5\d\d\b/.test(message)) return "5xx";
+	}
+	return "other";
 }
 
 /**
@@ -330,7 +380,7 @@ export async function recordModelCall(
 	cost: number,
 	options: RecordModelCallOptions,
 ): Promise<void> {
-	const { success, stopReason, errorMessage } = options;
+	const { success, stopReason, errorMessage, statusCode, errorClass } = options;
 	// Wall clock for the stored entry timestamp; monotonic clock for the
 	// elapsed-latency measurement so NTP adjustments or system suspend cannot
 	// corrupt the recorded duration.
@@ -369,6 +419,9 @@ export async function recordModelCall(
 		latencyMs > 0
 			? Number.parseFloat((totalTokens / (latencyMs / 1000)).toFixed(1))
 			: 0;
+	const derivedErrorClass =
+		errorClass ??
+		(errorMessage ? classifyError(errorMessage, statusCode) : undefined);
 
 	const entry: TelemetryEntry = {
 		timestamp: now,
@@ -383,6 +436,8 @@ export async function recordModelCall(
 		cost,
 		stopReason,
 		...(errorMessage ? { error: errorMessage } : {}),
+		...(statusCode !== undefined ? { statusCode } : {}),
+		...(derivedErrorClass ? { errorClass: derivedErrorClass } : {}),
 	};
 
 	await addEntry(entry);
@@ -414,4 +469,48 @@ export async function clearTelemetry(): Promise<void> {
  */
 export function getTelemetryPath(): string {
 	return TELEMETRY_FILE;
+}
+
+/** Per-provider aggregation of telemetry failure classes (M2, #437). */
+export interface ProviderErrorCounts {
+	/** 401 + 403 (auth failures). */
+	authFailures: number;
+	"401": number;
+	"403": number;
+	"429": number;
+	"5xx": number;
+	network: number;
+	other: number;
+}
+
+/**
+ * Aggregate failure classes per provider from recorded telemetry entries.
+ * Status codes/classes only — never error bodies or messages.
+ */
+export function getProviderErrorCounts(): ReadonlyMap<string, ProviderErrorCounts> {
+	const counts = new Map<string, ProviderErrorCounts>();
+	const bump = (provider: string, errorClass: ErrorClass): void => {
+		let entry = counts.get(provider);
+		if (!entry) {
+			entry = {
+				authFailures: 0,
+				"401": 0,
+				"403": 0,
+				"429": 0,
+				"5xx": 0,
+				network: 0,
+				other: 0,
+			};
+			counts.set(provider, entry);
+		}
+		entry[errorClass] += 1;
+		if (errorClass === "401" || errorClass === "403") entry.authFailures += 1;
+	};
+
+	for (const telemetry of Object.values(_store.load().models)) {
+		for (const entry of telemetry.recentCalls) {
+			if (entry.errorClass) bump(entry.provider, entry.errorClass);
+		}
+	}
+	return counts;
 }

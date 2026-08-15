@@ -22,6 +22,11 @@ import {
 	persistNativeProviderModels,
 	restoreNativeProviderModels,
 } from "../../lib/native-provider.ts";
+import {
+	recordNativeAbort,
+	recordNativeEmptyRetain,
+	recordNativeRefreshOk,
+} from "../../lib/startup-timing.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { qoderAuth } from "./auth.ts";
 import { isBasicModel, staticModels } from "./models.ts";
@@ -77,13 +82,26 @@ export function createQoderProvider(): QoderNativeProvider {
 			},
 		);
 
-		if (!context.allowNetwork || context.signal?.aborted) return;
+		if (!context.allowNetwork) return;
+		if (context.signal?.aborted) {
+			recordNativeAbort(PROVIDER_QODER);
+			return;
+		}
 
 		// Qoder has no supported catalog endpoint. Re-publish the curated catalog
 		// through Pi's store instead of maintaining a second cache/freshness policy.
 		const catalog = staticCatalog();
-		if (context.signal?.aborted || catalog.all.length === 0) return;
-		await persistNativeProviderModels(
+		if (context.signal?.aborted) {
+			recordNativeAbort(PROVIDER_QODER);
+			return;
+		}
+		if (catalog.all.length === 0) {
+			recordNativeEmptyRetain(PROVIDER_QODER);
+			return;
+		}
+				// Only count as ok when persistence actually published (a superseded
+		// generation or store write failure must not inflate the counter).
+		if (await persistNativeProviderModels(
 			PROVIDER_QODER,
 			context,
 			catalog.all as unknown as readonly Model<Api>[],
@@ -91,7 +109,10 @@ export function createQoderProvider(): QoderNativeProvider {
 				stored.all = catalog.all;
 				stored.free = catalog.free;
 			},
-		);
+		)) {
+			recordNativeRefreshOk(PROVIDER_QODER, catalog.all.length);
+		}
+
 	}
 
 	const provider: Provider<"qoder-api"> = {
@@ -108,8 +129,7 @@ export function createQoderProvider(): QoderNativeProvider {
 				freeModels: stored.free,
 			}),
 		refreshModels,
-		stream: (model, context, options) =>
-			streamQoder(model, context, options),
+		stream: (model, context, options) => streamQoder(model, context, options),
 		streamSimple: (model, context, options) =>
 			streamQoder(model, context, options),
 	};

@@ -252,4 +252,96 @@ describe("startup-timing", () => {
 		]);
 		expect(getStartupSummary().totalMs).toBeGreaterThanOrEqual(0);
 	});
+
+	it("records native refresh outcome counters per provider (M1)", async () => {
+		const {
+			beginStartup,
+			recordNativeAbort,
+			recordNativeEmptyRetain,
+			recordNativeRefreshOk,
+			recordNativeRestored,
+			getStartupSummary,
+		} = await import("../lib/startup-timing.ts");
+		beginStartup();
+
+		recordNativeAbort("prov-a");
+		recordNativeAbort("prov-a");
+		recordNativeEmptyRetain("prov-a");
+		recordNativeRefreshOk("prov-a", 12);
+		recordNativeRestored("prov-a", 3 * 60 * 60 * 1000);
+		recordNativeRestored("prov-b", 2 * 24 * 60 * 60 * 1000);
+
+		const summary = getStartupSummary();
+		const entryA = summary.cacheNetwork.find(
+			(entry) => entry.provider === "prov-a",
+		);
+		expect(entryA).toMatchObject({
+			aborts: 2,
+			emptyRetains: 1,
+			refreshOks: 1,
+			restoredCount: 1,
+			lastRefreshModelCount: 12,
+			storeAgeMs: 3 * 60 * 60 * 1000,
+		});
+		const entryB = summary.cacheNetwork.find(
+			(entry) => entry.provider === "prov-b",
+		);
+		expect(entryB?.restoredCount).toBe(1);
+		expect(entryB?.storeAgeMs).toBe(2 * 24 * 60 * 60 * 1000);
+	});
+
+	it("nativeRefreshFlags lists aborts, empty retains, and stale stores (M1)", async () => {
+		const {
+			beginStartup,
+			recordNativeAbort,
+			recordNativeEmptyRetain,
+			recordNativeRestored,
+			nativeRefreshFlags,
+			getStartupSummary,
+		} = await import("../lib/startup-timing.ts");
+		beginStartup();
+
+		recordNativeAbort("ab-prov");
+		recordNativeAbort("ab-prov");
+		recordNativeEmptyRetain("er-prov");
+		recordNativeRestored("old-prov", 8 * 24 * 60 * 60 * 1000); // 8 days > 7d flag
+
+		const flags = nativeRefreshFlags(getStartupSummary());
+		expect(flags).toEqual(
+			expect.arrayContaining([
+				expect.stringContaining("ab-prov: 2 aborts"),
+				expect.stringContaining("er-prov: 1 empty-retain"),
+				expect.stringContaining("old-prov: store"),
+			]),
+		);
+
+		// A recent restore does not flag a store age.
+		const { beginStartup: reset, recordNativeRestored: record } = await import(
+			"../lib/startup-timing.ts"
+		);
+		reset();
+		record("fresh-prov", 60 * 60 * 1000); // 1h
+		expect(nativeRefreshFlags(getStartupSummary())).toHaveLength(0);
+	});
+
+	it("formatStartupSummary surfaces native refresh outcomes (M1)", async () => {
+		const {
+			beginStartup,
+			recordNativeAbort,
+			recordNativeRefreshOk,
+			recordNativeRestored,
+			formatStartupSummary,
+		} = await import("../lib/startup-timing.ts");
+		beginStartup();
+
+		recordNativeAbort("ab-prov");
+		recordNativeRefreshOk("ok-prov", 7);
+		recordNativeRestored("ok-prov", 2 * 60 * 60 * 1000);
+
+		const text = formatStartupSummary();
+		expect(text).toContain("Native refresh flags:");
+		expect(text).toContain("ab-prov: 1 abort");
+		expect(text).toContain("refresh ok 1 (7 models)");
+		expect(text).toContain("store 2h old");
+	});
 });

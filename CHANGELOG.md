@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Refresh/abort outcome accounting** — every native `refreshModels` path now records per-provider outcomes into the startup-timing `cacheNetwork` map: aborts (cancelled via `context.signal` — counted, never logged as errors, per convention #15), empty-retains (fetch returned 0 models and the previous list was kept), refresh-oks with the published model count, and store restores with the entry's `checkedAt` age. `/free-startup` surfaces a `Native refresh flags` section (aborts, empty-retains, store age > 24h) plus a per-provider native outcome line, and `/pi-free-health` adds the same flags plus an `Empty catalogs` section that distinguishes a completed refresh that published 0 models from a refresh that never ran — the exact shape of the silent 0-model registration incident ([#437](https://github.com/apmantza/pi-free/issues/437)).
+- **Structured failure classification** — telemetry entries now carry `statusCode` and a derived `errorClass` (`401`/`403`/`429`/`5xx`/`network`/`other`) alongside the existing free-form `errorMessage`, so a Cline `workos:` 401 vs a 403-vs-headers bug vs a gateway 5xx are distinguishable. `after_provider_response` status feeds per-provider auth-failure (401/403), rate-limit (429), and server-error (5xx) counters in the quota monitor, aggregated into `/pi-free-health` (`Response issues`) and `/free-telemetry` (`Failures by class`) — status codes only, never response bodies ([#437](https://github.com/apmantza/pi-free/issues/437)).
+- **Wire-signature logging** — `before_agent_start` now debug-logs the request contract (`provider`, `model`, `api`, `baseUrl`, `headerNames`) so a header that failed to reach the wire leaves a trace. **Redaction rule: header NAMES only, never values** — an Authorization/apiKey/token value in this line would leak credentials into the shared `~/.pi/free.log` (see convention #17). Debug-only, so normal runs don't spam the log ([#437](https://github.com/apmantza/pi-free/issues/437)).
+- **Stale store and silent normalization warnings** — `restoreNativeProviderModels` warns once per provider when the restored store entry is older than 7 days, and Cline warns once per refresh when ≥1 model was normalized from the retired `cline-xml-tools` api to `openai-completions` ([#437](https://github.com/apmantza/pi-free/issues/437)).
+- **Quota header-format drift detection** — when a response carries rate-limit headers but none match a known pair, the quota monitor bumps a per-provider `quotaHeaderDrift` counter and debug-logs the present header names, surfacing the format drift that used to be silent ([#437](https://github.com/apmantza/pi-free/issues/437)).
+
 ## [2.5.0] - 2026-08-15
 ### Changed
 
