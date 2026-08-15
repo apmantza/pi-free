@@ -21,7 +21,7 @@ import type {
 export const OPENCODE_DYNAMIC_API = "opencode-dynamic" as const;
 
 export const OPENCODE_STATIC_HEADERS = {
-	"User-Agent": "opencode/1.15.5",
+	"User-Agent": "opencode/1.18.18",
 	"x-opencode-client": "cli",
 } as const;
 
@@ -29,50 +29,65 @@ export const OPENCODE_STATIC_HEADERS = {
  * OpenCode-native identifier generation.
  *
  * OpenCode's server uses checkHeaders to distinguish native CLI requests from
- * third-party clients.  Native identifiers use ULID-style prefixes:
+ * third-party clients, and applies a fallback rate limit (~2 req/day, the
+ * "freeze") when the identity looks foreign. The real CLI (v1.18.18,
+ * packages/opencode/src/session/llm/request.ts) sends:
  *
- *   Session:  ses_<hex><base62>   (e.g. ses_a1b2c3d4e5f6g7h8i9j0k1l2m3n4)
- *   Request:  msg_<hex><base62>   (e.g. msg_01KA1B2C3D4E5F6G7H8I9J0K1L2M)
+ *   x-opencode-session:  ses_ + descending ULID (26 chars: 12 hex + 14 base62)
+ *   x-opencode-request:  prt_ + ascending ULID (a SessionV1 PartID)
+ *   x-opencode-project:  the project id (schema default "global")
+ *   x-opencode-client:   "cli" (OPENCODE_CLIENT default)
+ *   User-Agent:          opencode/<version>
  *
- * If the server does not see the expected prefix it applies a fallback rate
- * limit (~2 req/day) which causes models to "freeze" after a few prompts.
+ * The ULID is `~timestamp<<12 | counter` encoded as 6 hex bytes then 14
+ * base62 bytes (crypto random) — see packages/schema/src/identifier.ts.
  */
-function generateOpenCodeId(prefix: string): string {
-	// Timestamp in ms as big-endian hex (matches ULID-style sortability).
-	const ms = BigInt(Date.now());
-	const timeHex = ms.toString(16).padStart(12, "0");
-	// Random suffix (crypto) encoded as base62 for compactness.
-	const randomLen = 14;
-	const base62Chars =
-		"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-	const bytes = randomBytes(randomLen);
-	let suffix = "";
-	for (let i = 0; i < randomLen; i++) {
-		suffix += base62Chars[bytes[i] % 62];
+const OPENCODE_ID_CHARS =
+	"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
+// Mirror the CLI's module-level timestamp/counter for exact ULID shape.
+let _lastUlidTimestamp = 0;
+let _ulidCounter = 0;
+
+function openCodeUlid(descending: boolean): string {
+	const timestamp = Date.now();
+	if (timestamp !== _lastUlidTimestamp) {
+		_lastUlidTimestamp = timestamp;
+		_ulidCounter = 0;
 	}
-	return `${prefix}${timeHex}${suffix}`;
+	_ulidCounter += 1;
+
+	const current = BigInt(timestamp) * 0x1000n + BigInt(_ulidCounter);
+	const value = descending ? ~current : current;
+	const time = Array.from({ length: 6 }, (_, index) =>
+		Number((value >> BigInt(40 - 8 * index)) & 0xffn)
+			.toString(16)
+			.padStart(2, "0"),
+	).join("");
+	const bytes = crypto.getRandomValues(new Uint8Array(14));
+	return time + Array.from(bytes, (byte) => OPENCODE_ID_CHARS[byte % 62]).join("");
 }
 
 /**
  * Shared OpenCode session/request tracking.
  *
- * OpenCode endpoints require native-format identifiers (ses_ / msg_ prefix)
- * to receive the full daily rate limit.  Without matching prefixes the server
- * falls back to a ~2 req/day limit, causing free models to freeze after a
- * couple of prompts.
+ * OpenCode endpoints require native-format identifiers to receive the full
+ * daily rate limit: session ids are `ses_` + descending ULID, request ids are
+ * `prt_` + ascending ULID (the CLI sends a PartID as x-opencode-request).
+ * Without matching prefixes the server falls back to a ~2 req/day limit.
  */
 export function createOpenCodeSessionTracker() {
 	let sessionId = "";
 
 	function getSessionId(): string {
 		if (!sessionId) {
-			sessionId = generateOpenCodeId("ses_");
+			sessionId = "ses_" + openCodeUlid(true);
 		}
 		return sessionId;
 	}
 
 	function nextRequestId(): string {
-		return generateOpenCodeId("msg_");
+		return "prt_" + openCodeUlid(false);
 	}
 
 	return {
@@ -94,6 +109,9 @@ export function createOpenCodeHeaders(
 		...OPENCODE_STATIC_HEADERS,
 		"x-opencode-session": tracker.getSessionId(),
 		"x-opencode-request": tracker.nextRequestId(),
+		// The CLI sends the project id when present (schema default "global");
+		// checkHeaders on the deployed backend expects it for full rate limits.
+		"x-opencode-project": "global",
 	};
 }
 

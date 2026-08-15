@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **OpenCode free-tier rate limits no longer trip the fallback tier** — reverse-engineered the current opencode CLI (v1.18.18) wire headers from `packages/opencode/src/session/llm/request.ts` and aligned pi-free: `User-Agent` bumped `1.15.5 → 1.18.18`, `x-opencode-request` now uses the CLI's `prt_` PartID prefix (was `msg_`), `x-opencode-project` is now sent (was missing), and the session/request ULIDs replicate the CLI's `descending()`/`ascending()` encoding exactly. The deployed Zen backend's `checkHeaders` gate falls back to a ~2 req/day limit when the identity looks foreign ([#440](https://github.com/apmantza/pi-free/issues/440)).
+
 ### Added
 
 - **Refresh/abort outcome accounting** — every native `refreshModels` path now records per-provider outcomes into the startup-timing `cacheNetwork` map: aborts (cancelled via `context.signal` — counted, never logged as errors, per convention #15), empty-retains (fetch returned 0 models and the previous list was kept), refresh-oks with the published model count, and store restores with the entry's `checkedAt` age. `/free-startup` surfaces a `Native refresh flags` section (aborts, empty-retains, store age > 24h) plus a per-provider native outcome line, and `/pi-free-health` adds the same flags plus an `Empty catalogs` section that distinguishes a completed refresh that published 0 models from a refresh that never ran — the exact shape of the silent 0-model registration incident ([#437](https://github.com/apmantza/pi-free/issues/437)).
@@ -16,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Quota header-format drift detection** — when a response carries rate-limit headers but none match a known pair, the quota monitor bumps a per-provider `quotaHeaderDrift` counter and debug-logs the present header names, surfacing the format drift that used to be silent ([#437](https://github.com/apmantza/pi-free/issues/437)).
 
 ## [2.5.0] - 2026-08-15
+
 ### Changed
 
 - **Log lines now carry the process id** — `~/.pi/free.log` is shared by every pi process on the machine; concurrent sessions interleaved into one unreadable stream. Every line is now prefixed `[pid N]` so sessions are separable ([#429](https://github.com/apmantza/pi-free/issues/429)).
