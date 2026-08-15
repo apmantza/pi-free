@@ -18,10 +18,11 @@
  * `"openai-completions"` api and both `stream`/`streamSimple` delegate to the
  * lazy compat bridge (`lazyOpenAICompletionsApi()`), like every other
  * OpenAI-compatible native provider. The Cline identity headers (including the
- * rotating `X-Task-ID`) are exposed as a single SHARED mutable record on
- * `provider.headers`; Pi merges provider headers into the request auth on
- * every call (`Models.getAuth`), so `rotateClineTaskId()` keeps working by
- * mutating that same object — no re-registration needed.
+ * rotating `X-Task-ID`) live on a single shared mutable record (see
+ * cline-headers.ts); pi-ai merges only the MODEL's `headers` into requests
+ * (`Models.getAuth`), so the record is stamped on every Cline model — and
+ * `rotateClineTaskId()` keeps working by mutating that same object, no
+ * re-registration needed.
  *
  * Public catalog: the model list needs no credential, so `refreshModels`
  * fetches without `context.credential`. (Cline's auth resolves even when
@@ -54,9 +55,7 @@ import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { getClineShowPaid } from "../../config.ts";
 import {
 	BASE_URL_CLINE,
-	CLINE_EXTENSION_VERSION,
 	PROVIDER_CLINE,
-	VS_CODE_VERSION,
 } from "../../constants.ts";
 import { isFreeModel } from "../../lib/registry.ts";
 import {
@@ -67,6 +66,11 @@ import {
 import { lazyOpenAICompletionsApi } from "../../lib/lazy-compat.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { clineAuth } from "./cline-auth.ts";
+import {
+	buildClineHeaders,
+	getClineProviderHeaders,
+	rotateClineTaskId,
+} from "./cline-headers.ts";
 import { fetchClineCatalog, toClineModels } from "./cline-models.ts";
 
 type ClineModel = Model<"openai-completions">;
@@ -74,69 +78,9 @@ type ClineModel = Model<"openai-completions">;
 /** Api Cline models used before the OpenAI-compatible migration (#433). */
 export const LEGACY_CLINE_API = "cline-xml-tools";
 
-// =============================================================================
-// Cline API headers (must match real Cline VS Code extension exactly)
-// =============================================================================
-
-function generateUlid(): string {
-	const CHARS = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-	const now = Date.now();
-	let ts = "";
-	let t = now;
-	for (let i = 0; i < 10; i++) {
-		ts = CHARS[t % 32] + ts;
-		t = Math.floor(t / 32);
-	}
-	const rand = new Uint8Array(16);
-	crypto.getRandomValues(rand);
-	let r = "";
-	for (let i = 0; i < 16; i++) r += CHARS[rand[i] % 32];
-	return ts + r;
-}
-
-function createClineHeadersRecord(): Record<string, string> {
-	return {
-		"HTTP-Referer": "https://cline.bot",
-		"X-Title": "Cline",
-		"X-Task-ID": generateUlid(),
-		"X-PLATFORM": "Visual Studio Code",
-		"X-PLATFORM-VERSION": VS_CODE_VERSION,
-		"X-CLIENT-TYPE": "VSCode Extension",
-		"X-CLIENT-VERSION": CLINE_EXTENSION_VERSION,
-		"X-CORE-VERSION": CLINE_EXTENSION_VERSION,
-		"X-Is-Multiroot": "false",
-		// Cline's gateway treats a missing/foreign User-Agent as a non-Cline
-		// client and gates product-only models (403 "only available via Cline
-		// product surfaces").
-		"User-Agent": `Cline/${CLINE_EXTENSION_VERSION}`,
-	};
-}
-
-/**
- * The single shared mutable Cline headers record, exposed as `provider.headers`.
- * Pi merges provider headers into the request auth on every call, so mutating
- * this object (e.g. `rotateClineTaskId()`) takes effect on the next request.
- */
-const clineProviderHeaders: Record<string, string> = createClineHeadersRecord();
-
-/**
- * Rotate the Cline task id on the shared headers record. The extension factory
- * calls this on `before_agent_start` (when a Cline model is active), mirroring
- * the legacy behavior. The mutated record IS `provider.headers`, so the new id
- * takes effect on the next request with no re-registration.
- */
-export function rotateClineTaskId(): void {
-	clineProviderHeaders["X-Task-ID"] = generateUlid();
-}
-
-/**
- * Access the live Cline request headers record (the exact object exposed as
- * `provider.headers`). Returns the shared record, not a copy: mutations are
- * picked up by the next request.
- */
-export function buildClineHeaders(): Record<string, string> {
-	return clineProviderHeaders;
-}
+// Cline identity headers now live in cline-headers.ts; this module re-exports
+// the two public accessors so existing imports keep working.
+export { buildClineHeaders, rotateClineTaskId };
 
 // =============================================================================
 // Native provider
@@ -163,11 +107,13 @@ export function normalizeStoredClineModels<T extends Model<Api>>(
 ): ClineModel[] {
 	return models.map((model) => {
 		const api = (model as { api?: string }).api;
-		if (api !== LEGACY_CLINE_API) return model as unknown as ClineModel;
 		return {
 			...model,
-			api: "openai-completions",
+			api: api === LEGACY_CLINE_API ? "openai-completions" : api,
 			baseUrl: BASE_URL_CLINE,
+			// Re-point at the live shared record: a restored model's serialized
+			// headers would be a stale snapshot, and rotation must keep working.
+			headers: getClineProviderHeaders(),
 		} as unknown as ClineModel;
 	});
 }
@@ -248,9 +194,9 @@ export function createClineProvider(): ClineNativeProvider {
 		id: PROVIDER_CLINE,
 		name: "Cline",
 		baseUrl: BASE_URL_CLINE,
-		// Shared mutable record: rotateClineTaskId() mutates it in place and Pi
-		// merges provider headers into the request on every call.
-		headers: clineProviderHeaders,
+		// Shared mutable record: rotateClineTaskId() mutates it in place; every
+		// model carries the same object as its headers (see cline-headers.ts).
+		headers: getClineProviderHeaders(),
 		auth: clineAuth,
 		getModels: () =>
 			(stored.all.length > 0 ? stored.all : stored.free) as ClineModel[],

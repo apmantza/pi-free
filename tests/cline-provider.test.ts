@@ -69,6 +69,7 @@ vi.mock("../lib/logger.ts", () => ({
 }));
 
 import { __setCompatLoaderForTests } from "../lib/lazy-compat.ts";
+import { getClineProviderHeaders } from "../providers/cline/cline-headers.ts";
 import {
 	buildClineHeaders,
 	createClineProvider,
@@ -362,7 +363,7 @@ describe("refreshModels offline init", () => {
 });
 
 describe("normalizeStoredClineModels", () => {
-	it("rewrites only retired legacy-api entries and leaves others untouched", () => {
+	it("rewrites legacy-api entries and stamps the live headers on every restored model", () => {
 		const legacy = {
 			id: "legacy",
 			api: LEGACY_CLINE_API,
@@ -377,8 +378,18 @@ describe("normalizeStoredClineModels", () => {
 		};
 		const normalized = normalizeStoredClineModels([legacy, modern] as never);
 		expect(normalized).toEqual([
-			{ ...legacy, api: "openai-completions", baseUrl: BASE_URL_CLINE },
-			modern,
+			{
+				...legacy,
+				api: "openai-completions",
+				baseUrl: BASE_URL_CLINE,
+				headers: getClineProviderHeaders(),
+			},
+			{
+				...modern,
+				// Restored models must carry the LIVE shared record, not a stale
+				// serialized snapshot, so task-id rotation keeps working.
+				headers: getClineProviderHeaders(),
+			},
 		]);
 		// The input array is not mutated.
 		expect(legacy.api).toBe(LEGACY_CLINE_API);
@@ -614,6 +625,89 @@ describe("stream wiring", () => {
 		})) as Parameters<typeof __setCompatLoaderForTests>[0]);
 		return doneMessage;
 	}
+
+	it("sends the Cline identity headers on the wire (model.headers, not provider.headers)", async () => {
+		// Regression test for the B1 review finding: pi-ai's Models.getAuth
+		// merges only the MODEL's headers into the request, never
+		// provider.headers. The Cline identity record must therefore be
+		// stamped on every model and actually reach the gateway.
+		const captured: Array<{ url: string; headers: Record<string, string> }> =
+			[];
+		const sse = [
+			`data: ${JSON.stringify({
+				id: "gen-1",
+				object: "chat.completion.chunk",
+				created: 0,
+				model: "nvidia/nemotron-3.5-lightning:free",
+				choices: [{ index: 0, delta: { content: "hi" } }],
+			})}\n\n`,
+			`data: ${JSON.stringify({
+				id: "gen-1",
+				object: "chat.completion.chunk",
+				created: 0,
+				model: "nvidia/nemotron-3.5-lightning:free",
+				choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+			})}\n\n`,
+			"data: [DONE]\n\n",
+		].join("");
+
+		const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+			// fetch normalizes header names to lowercase; read them back flat.
+			const flat: Record<string, string> = {};
+			const h = init?.headers as unknown as {
+				forEach(cb: (value: string, key: string) => void): void;
+			};
+			h?.forEach((v, k) => {
+				flat[k] = v;
+			});
+			captured.push({ url: String(url), headers: flat });
+			return new Response(sse, {
+				status: 200,
+				headers: { "Content-Type": "text/event-stream" },
+			});
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		try {
+			// Real compat path (the seam is reset in beforeEach, so the actual
+			// @earendil-works/pi-ai/compat module loads and issues the fetch).
+			const { createClineProvider: create } = await import(
+				"../providers/cline/cline-provider.ts"
+			);
+			const { provider, stored } = create();
+			stored.all = [
+				{
+					...clineModel(),
+					input: ["text"],
+					headers: getClineProviderHeaders(),
+				} as never,
+			];
+			const models = createModels();
+			models.setProvider(provider);
+			const model = models.getModels("cline")[0];
+
+			const stream = models.stream(
+				model as never,
+				clineContext() as never,
+				{ apiKey: "workos:test-token" },
+			);
+			for await (const _event of stream as AsyncIterable<unknown>) {
+				// drain
+			}
+
+			expect(captured).toHaveLength(1);
+			expect(captured[0].url).toBe(`${BASE_URL_CLINE}/chat/completions`);
+			const sent = captured[0].headers;
+			expect(sent["authorization"]).toBe("Bearer workos:test-token");
+			expect(sent["user-agent"]).toBe("Cline/4.1.10");
+			expect(sent["x-client-version"]).toBe("4.1.10");
+			expect(sent["x-client-type"]).toBe("VSCode Extension");
+			expect(sent["x-task-id"]).toBeTruthy();
+			expect(sent["http-referer"]).toBe("https://cline.bot");
+			expect(sent["x-title"]).toBe("Cline");
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
 
 	it("stream delegates to the lazy openai-completions compat bridge", async () => {
 		const calls = {

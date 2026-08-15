@@ -52,7 +52,11 @@ describe("logger file rotation", () => {
 			const logDir = join(home, ".pi");
 			// Async rotation may still be renaming files right after the flush;
 			// wait for the directory listing to stabilize so the size/content
-			// assertions never race a mid-check rename (ENOENT flake).
+			// assertions never race a mid-check rename (ENOENT flake). The
+			// stability loop narrows the window but does not close it — a
+			// rotation chain can still run between the last listing and a stat —
+			// so the per-file assertions tolerate a file that rotated away
+			// mid-check (it was size-bounded when written).
 			let files: string[] = [];
 			for (let attempt = 0; attempt < 40; attempt += 1) {
 				const current = (await readdir(logDir))
@@ -68,9 +72,15 @@ describe("logger file rotation", () => {
 			expect(files.length).toBeGreaterThan(1);
 			expect(files.length).toBeLessThanOrEqual(4);
 			for (const file of files) {
-				expect((await stat(join(logDir, file))).size).toBeLessThanOrEqual(
-					MAX_BYTES,
-				);
+				const size = await stat(join(logDir, file))
+					.then((s) => s.size)
+					.catch((err: NodeJS.ErrnoException) => {
+						if (err.code === "ENOENT") return undefined; // rotated away mid-check
+						throw err;
+					});
+				if (size !== undefined) {
+					expect(size).toBeLessThanOrEqual(MAX_BYTES);
+				}
 			}
 			expect(await readFile(join(logDir, files[0]), "utf8")).toContain(
 				"rotation-test",
