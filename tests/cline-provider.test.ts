@@ -68,9 +68,7 @@ vi.mock("../lib/logger.ts", () => ({
 	}),
 }));
 
-import {
-	__setCompatLoaderForTests,
-} from "../lib/lazy-compat.ts";
+import { __setCompatLoaderForTests } from "../lib/lazy-compat.ts";
 import {
 	buildClineHeaders,
 	createClineProvider,
@@ -412,9 +410,9 @@ describe("refreshModels online", () => {
 		expect(written[0].models.map((m) => m.id).sort()).toEqual(["a", "b"]);
 		expect(typeof written[0].checkedAt).toBe("number");
 		// Persisted models carry the standard OpenAI wire api + provider + baseUrl.
-		expect(
-			written[0].models.every((m) => m.api === "openai-completions"),
-		).toBe(true);
+		expect(written[0].models.every((m) => m.api === "openai-completions")).toBe(
+			true,
+		);
 		expect(written[0].models.every((m) => m.provider === "cline")).toBe(true);
 		expect(written[0].models.every((m) => m.baseUrl === BASE_URL_CLINE)).toBe(
 			true,
@@ -618,14 +616,21 @@ describe("stream wiring", () => {
 	}
 
 	it("stream delegates to the lazy openai-completions compat bridge", async () => {
-		const calls = { streamCalls: [] as unknown[][], streamSimpleCalls: [] as unknown[][] };
+		const calls = {
+			streamCalls: [] as unknown[][],
+			streamSimpleCalls: [] as unknown[][],
+		};
 		const doneMessage = stubCompat(calls);
 		const { provider } = createClineProvider();
 		const model = clineModel();
 		const context = clineContext();
 		const options = { apiKey: "workos:test-token" };
 
-		const outer = provider.stream(model as never, context as never, options as never);
+		const outer = provider.stream(
+			model as never,
+			context as never,
+			options as never,
+		);
 		const events: unknown[] = [];
 		for await (const event of outer as AsyncIterable<unknown>) {
 			events.push(event);
@@ -641,7 +646,10 @@ describe("stream wiring", () => {
 	});
 
 	it("streamSimple delegates to the lazy openai-completions compat bridge too", async () => {
-		const calls = { streamCalls: [] as unknown[][], streamSimpleCalls: [] as unknown[][] };
+		const calls = {
+			streamCalls: [] as unknown[][],
+			streamSimpleCalls: [] as unknown[][],
+		};
 		stubCompat(calls);
 		const { provider } = createClineProvider();
 		const model = clineModel();

@@ -36,6 +36,17 @@ export const PROVIDER_OPENCODE = "opencode";
 
 export const BASE_URL_OLLAMA = "https://ollama.com/v1"; // OpenAI-compatible API endpoint
 export const BASE_URL_CLINE = "https://api.cline.bot/api/v1";
+/**
+ * Cline client identity reported to the gateway in request headers.
+ * Cline gates some models (e.g. deepseek/deepseek-v4-flash) to its own
+ * product surfaces and rejects stale client versions (403 "only available
+ * via Cline product surfaces … update to the latest version"). Keep these in
+ * sync with the current Cline extension version (marketplace
+ * saoudrizwan.claude-dev). Single source of truth for cline-provider.ts,
+ * cline-auth.ts and cline-models.ts — they must not define their own copies.
+ */
+export const CLINE_EXTENSION_VERSION = "4.1.10";
+export const VS_CODE_VERSION = "1.109.3";
 export const BASE_URL_ZENMUX = "https://zenmux.ai/api/v1";
 export const BASE_URL_CROFAI = "https://crof.ai/v1";
 export const BASE_URL_LLM7 = "https://api.llm7.io/v1";

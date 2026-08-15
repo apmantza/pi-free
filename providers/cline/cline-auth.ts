@@ -25,7 +25,12 @@ import type {
 	ProviderAuth,
 } from "@earendil-works/pi-ai/compat";
 import { getClineApiKey } from "../../config.ts";
-import { BASE_URL_CLINE, CLINE_AUTH_TIMEOUT_MS } from "../../constants.ts";
+import {
+	BASE_URL_CLINE,
+	CLINE_AUTH_TIMEOUT_MS,
+	CLINE_EXTENSION_VERSION,
+	VS_CODE_VERSION,
+} from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 
 const logger = createLogger("cline-auth");
@@ -38,8 +43,6 @@ const AUTH_PATH = "/auth";
 
 // =============================================================================
 // Headers (must match real Cline VS Code extension exactly)
-const VS_CODE_VERSION = "1.109.3";
-const CLINE_EXTENSION_VERSION = "3.76.0";
 
 function buildClineHeaders(): Record<string, string> {
 	return {

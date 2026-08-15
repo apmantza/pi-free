@@ -12,8 +12,10 @@ import type { Model } from "@earendil-works/pi-ai/compat";
 import { applyHidden } from "../../config.ts";
 import {
 	BASE_URL_CLINE,
+	CLINE_EXTENSION_VERSION,
 	DEFAULT_FETCH_TIMEOUT_MS,
 	PROVIDER_CLINE,
+	VS_CODE_VERSION,
 } from "../../constants.ts";
 import { isFreeModel } from "../../lib/registry.ts";
 import type { ProviderModelConfig } from "../../lib/types.ts";
@@ -55,9 +57,6 @@ interface ClineRecommendedModelsResponse {
 	recommended?: ClineRecommendedModel[];
 	free?: ClineRecommendedModel[];
 }
-
-const VS_CODE_VERSION = "1.109.3";
-const CLINE_EXTENSION_VERSION = "3.76.0";
 
 function buildClineFetchHeaders(): Record<string, string> {
 	return {

@@ -52,7 +52,12 @@ import type {
 } from "@earendil-works/pi-ai/compat";
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { getClineShowPaid } from "../../config.ts";
-import { BASE_URL_CLINE, PROVIDER_CLINE } from "../../constants.ts";
+import {
+	BASE_URL_CLINE,
+	CLINE_EXTENSION_VERSION,
+	PROVIDER_CLINE,
+	VS_CODE_VERSION,
+} from "../../constants.ts";
 import { isFreeModel } from "../../lib/registry.ts";
 import {
 	filterNativeModels,
@@ -72,9 +77,6 @@ export const LEGACY_CLINE_API = "cline-xml-tools";
 // =============================================================================
 // Cline API headers (must match real Cline VS Code extension exactly)
 // =============================================================================
-
-const VS_CODE_VERSION = "1.109.3";
-const CLINE_EXTENSION_VERSION = "3.76.0";
 
 function generateUlid(): string {
 	const CHARS = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -103,6 +105,10 @@ function createClineHeadersRecord(): Record<string, string> {
 		"X-CLIENT-VERSION": CLINE_EXTENSION_VERSION,
 		"X-CORE-VERSION": CLINE_EXTENSION_VERSION,
 		"X-Is-Multiroot": "false",
+		// Cline's gateway treats a missing/foreign User-Agent as a non-Cline
+		// client and gates product-only models (403 "only available via Cline
+		// product surfaces").
+		"User-Agent": `Cline/${CLINE_EXTENSION_VERSION}`,
 	};
 }
 
