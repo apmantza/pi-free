@@ -99,7 +99,9 @@ export function createQoderProvider(): QoderNativeProvider {
 			recordNativeEmptyRetain(PROVIDER_QODER);
 			return;
 		}
-		await persistNativeProviderModels(
+				// Only count as ok when persistence actually published (a superseded
+		// generation or store write failure must not inflate the counter).
+		if (await persistNativeProviderModels(
 			PROVIDER_QODER,
 			context,
 			catalog.all as unknown as readonly Model<Api>[],
@@ -107,8 +109,10 @@ export function createQoderProvider(): QoderNativeProvider {
 				stored.all = catalog.all;
 				stored.free = catalog.free;
 			},
-		);
-		recordNativeRefreshOk(PROVIDER_QODER, catalog.all.length);
+		)) {
+			recordNativeRefreshOk(PROVIDER_QODER, catalog.all.length);
+		}
+
 	}
 
 	const provider: Provider<"qoder-api"> = {
@@ -125,8 +129,7 @@ export function createQoderProvider(): QoderNativeProvider {
 				freeModels: stored.free,
 			}),
 		refreshModels,
-		stream: (model, context, options) =>
-			streamQoder(model, context, options),
+		stream: (model, context, options) => streamQoder(model, context, options),
 		streamSimple: (model, context, options) =>
 			streamQoder(model, context, options),
 	};

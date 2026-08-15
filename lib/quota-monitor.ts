@@ -48,9 +48,6 @@ function responseCountersEntry(providerId: string): ProviderResponseCounters {
 	return entry;
 }
 
-/** Keys that look like rate-limit/quota headers, matched case-insensitively. */
-const QUOTA_HEADER_KEY_RE = /ratelimit|rate-limit|quota/i;
-
 /** Snapshot of quota state for a single provider. */
 export interface QuotaSnapshot {
 	/** Requests remaining in the current window. */
@@ -128,20 +125,20 @@ export function processQuotaResponse(
 
 	const extracted = extractQuota(headers);
 	if (!extracted) {
-		// Mn3: quota headers present but none matched a known pair.
-		const quotaKeys = Object.keys(headers).filter((key) =>
-			QUOTA_HEADER_KEY_RE.test(key),
-		);
-		if (quotaKeys.length > 0) {
+		// Mn3: rate-limit headers present but none matched a known pair. Only
+		// count as drift when BOTH halves of a quota pair appear to exist but
+		// no known format matched — a remaining-only or limit-only header is a
+		// legitimate half-signal, not a format drift.
+		const keys = Object.keys(headers).map((k) => k.toLowerCase());
+		const hasRemaining = keys.some((k) => /remaining|remaining-requests/.test(k));
+		const hasLimit = keys.some((k) => /(^|-)limit/.test(k));
+		if (hasRemaining && hasLimit) {
 			counters.quotaHeaderDrift += 1;
-			_logger.debug(
-				`Quota headers present but none matched for ${providerId}`,
-				{
-					provider: providerId,
-					status,
-					presentKeys: quotaKeys,
-				},
-			);
+			_logger.debug(`Quota headers present but none matched for ${providerId}`, {
+				provider: providerId,
+				status,
+				presentKeys: keys,
+			});
 		}
 		return;
 	}

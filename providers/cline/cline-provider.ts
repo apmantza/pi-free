@@ -83,6 +83,14 @@ const _logger = createLogger("cline-provider");
 /** Api Cline models used before the OpenAI-compatible migration (#433). */
 export const LEGACY_CLINE_API = "cline-xml-tools";
 
+/** Mn2 (#437): warn once per process when legacy-api store entries are normalized. */
+let _clineNormalizeWarned = false;
+
+/** Test seam: reset the once-per-process normalize warning (mirrors the compat-loader seam). */
+export function __resetClineNormalizeWarnForTests(): void {
+	_clineNormalizeWarned = false;
+}
+
 // Cline identity headers now live in cline-headers.ts; this module re-exports
 // the two public accessors so existing imports keep working.
 export { buildClineHeaders, rotateClineTaskId };
@@ -164,15 +172,20 @@ export function createClineProvider(): ClineNativeProvider {
 			// internally): rewrite retired `cline-xml-tools` entries in either.
 			(storedModels: ClineModel[]) => {
 				// Mn2 (#437): the cline-xml-tools → openai-completions migration is
-				// silent today; warn ONCE per refresh when any model was normalized.
-				const legacyCount = storedModels.filter(
-					(model) => (model as { api?: string }).api === LEGACY_CLINE_API,
-				).length;
-				if (legacyCount > 0) {
-					_logger.warn(
-						`Restored ${legacyCount} Cline model(s) with retired ${LEGACY_CLINE_API} api; normalized to openai-completions`,
-						{ count: legacyCount },
-					);
+				// silent today; warn ONCE per process when any model was normalized
+				// (the store keeps legacy entries until a network refresh rewrites
+				// it, so per-restore warning would spam every session).
+				if (!_clineNormalizeWarned) {
+					const legacyCount = storedModels.filter(
+						(model) => (model as { api?: string }).api === LEGACY_CLINE_API,
+					).length;
+					if (legacyCount > 0) {
+						_clineNormalizeWarned = true;
+						_logger.warn(
+							`Restored ${legacyCount} Cline model(s) with retired ${LEGACY_CLINE_API} api; normalized to openai-completions`,
+							{ count: legacyCount },
+						);
+					}
 				}
 				const normalized = normalizeStoredClineModels(storedModels);
 				stored.all = normalized;
@@ -203,7 +216,7 @@ export function createClineProvider(): ClineNativeProvider {
 		}
 
 		const next = prepare(all, free);
-		await persistNativeProviderModels(
+		if (await persistNativeProviderModels(
 			PROVIDER_CLINE,
 			context,
 			// next.all holds full Model objects at runtime (toClineModels output);
@@ -213,8 +226,10 @@ export function createClineProvider(): ClineNativeProvider {
 				stored.all = next.all;
 				stored.free = next.free;
 			},
-		);
-		recordNativeRefreshOk(PROVIDER_CLINE, next.all.length);
+		)) {
+			recordNativeRefreshOk(PROVIDER_CLINE, next.all.length);
+		}
+
 	}
 
 	const provider: Provider<"openai-completions"> = {

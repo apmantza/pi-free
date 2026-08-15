@@ -147,7 +147,7 @@ export function createKiloProvider(): KiloNativeProvider {
 		}
 
 		const next = prepare(all, free);
-		await persistNativeProviderModels(
+		if (await persistNativeProviderModels(
 			PROVIDER_KILO,
 			context,
 			// next.all holds full Model objects at runtime (toKiloModels output);
@@ -157,8 +157,10 @@ export function createKiloProvider(): KiloNativeProvider {
 				stored.all = next.all;
 				stored.free = next.free;
 			},
-		);
-		recordNativeRefreshOk(PROVIDER_KILO, next.all.length);
+		)) {
+			recordNativeRefreshOk(PROVIDER_KILO, next.all.length);
+		}
+
 	}
 
 	const provider: Provider<"openai-completions"> = {

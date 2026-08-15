@@ -54,20 +54,27 @@ describe("quota-monitor response outcome counters (M2 + Mn3, #437)", () => {
 		});
 	});
 
-	it("counts quota-header drift when quota headers are present but unmatched (Mn3)", async () => {
+	it("counts quota-header drift only when both halves are present but unmatched (Mn3)", async () => {
 		const { processQuotaResponse, getResponseCounters } = await import(
 			"../lib/quota-monitor.ts"
 		);
 
-		// A remaining-only pair is present but does not match any known pair.
+		// Half-pairs (remaining-only or limit-only) are legitimate signals from
+		// providers that send one half — NOT format drift (reviewer fix).
 		processQuotaResponse("drift", 200, {
 			"x-ratelimit-remaining": "5",
 		});
 		processQuotaResponse("drift", 200, {
 			"x-ratelimit-limit": "100",
 		});
+		expect(getResponseCounters("drift")?.quotaHeaderDrift).toBe(0);
 
-		expect(getResponseCounters("drift")?.quotaHeaderDrift).toBe(2);
+		// Both halves present but in a format no known pair matches → drift.
+		processQuotaResponse("drift", 200, {
+			"ratelimit-remaining-custom": "5",
+			"ratelimit-limit-custom": "100",
+		});
+		expect(getResponseCounters("drift")?.quotaHeaderDrift).toBe(1);
 	});
 
 	it("extracts quota on a matched pair and does not count drift", async () => {

@@ -472,7 +472,7 @@ export function recordNativeRestored(
 		if (
 			typeof storeAgeMs === "number" &&
 			Number.isFinite(storeAgeMs) &&
-			storeAgeMs >= 0
+			storeAgeMs > 0 // checkedAt=0 (corrupt entry) must not read as ~20k days
 		) {
 			entry.storeAgeMs = Math.round(storeAgeMs);
 		}
@@ -482,7 +482,7 @@ export function recordNativeRestored(
 }
 
 /** Age threshold (ms) above which a restored store entry is flagged stale (M1 surface). */
-export const STALE_STORE_FLAG_MS = 24 * 60 * 60 * 1000; // 24h
+export const STALE_STORE_FLAG_MS = 7 * 24 * 60 * 60 * 1000; // 7d — matches native-provider's warn threshold
 
 function formatStoreAge(ageMs: number): string {
 	const hours = Math.round(ageMs / (60 * 60 * 1000));
@@ -509,17 +509,13 @@ export function nativeRefreshFlags(s: StartupSummary): string[] {
 		}
 		if (
 			typeof entry.storeAgeMs === "number" &&
-			daysFromMs(entry.storeAgeMs) >= 1
+			entry.storeAgeMs >= STALE_STORE_FLAG_MS
 		) {
 			parts.push(`store ${formatStoreAge(entry.storeAgeMs)}`);
 		}
 		if (parts.length > 0) flags.push(`${entry.provider}: ${parts.join(", ")}`);
 	}
 	return flags;
-}
-
-function daysFromMs(ms: number): number {
-	return ms / STALE_STORE_FLAG_MS;
 }
 
 export function recordSessionStartHandler(

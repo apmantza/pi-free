@@ -40,11 +40,14 @@ describe("health report", () => {
 		);
 	});
 
-	it("distinguishes providers whose refresh never ran (Mn1)", async () => {
+	it("does not flag providers with no refresh evidence (Mn1 false-alarm fix)", async () => {
 		const { registerWithGlobalToggle } = await import("../lib/registry.ts");
 		const { formatHealthReport } = await import("../lib/health.ts");
 
-		// Registered but no cacheNetwork evidence at all — never refreshed.
+		// Registered but no cacheNetwork evidence at all — auth-required
+		// providers Pi never refreshes (StepFun, TokenRouter, AnyAPI, B.AI,
+		// OpenGateway, unconfigured Qoder) land here; flagging them would flip
+		// previously-OK installs to WARN (reviewer Major finding).
 		registerWithGlobalToggle(
 			"never-prov",
 			{ all: [], free: [] },
@@ -53,8 +56,28 @@ describe("health report", () => {
 			{ native: true },
 		);
 
+		const report = formatHealthReport();
+		expect(report).not.toContain("never-prov");
+	});
+
+	it("flags providers whose refresh was attempted but never completed (Mn1)", async () => {
+		const { registerWithGlobalToggle } = await import("../lib/registry.ts");
+		const startup = await import("../lib/startup-timing.ts");
+		const { formatHealthReport } = await import("../lib/health.ts");
+
+		// Refresh evidence exists (an abort) but no successful refresh: this
+		// is the meaningful "refresh never completed" signal.
+		startup.recordNativeAbort("attempted-prov");
+		registerWithGlobalToggle(
+			"attempted-prov",
+			{ all: [], free: [] },
+			vi.fn(),
+			false,
+			{ native: true },
+		);
+
 		expect(formatHealthReport()).toContain(
-			"never-prov: no models; refresh never completed",
+			"attempted-prov: no models; refresh never completed",
 		);
 	});
 
@@ -64,12 +87,12 @@ describe("health report", () => {
 
 		startup.recordNativeAbort("ab-prov");
 		startup.recordNativeEmptyRetain("er-prov");
-		startup.recordNativeRestored("old-prov", 48 * 60 * 60 * 1000); // 2 days
+		startup.recordNativeRestored("old-prov", 8 * 24 * 60 * 60 * 1000); // 8 days > 7d flag
 
 		const report = formatHealthReport();
 		expect(report).toContain("ab-prov: 1 abort");
 		expect(report).toContain("er-prov: 1 empty-retain");
-		expect(report).toContain("old-prov: store 2d old");
+		expect(report).toContain("old-prov: store 8d old");
 	});
 
 	it("aggregates auth-failure / rate-limit / 5xx response counters (M2, Mn3)", async () => {
@@ -81,7 +104,8 @@ describe("health report", () => {
 		quota.processQuotaResponse("busy-prov", 429, {});
 		quota.processQuotaResponse("down-prov", 503, {});
 		quota.processQuotaResponse("drift-prov", 200, {
-			"x-ratelimit-remaining": "5",
+			"ratelimit-remaining-custom": "5",
+			"ratelimit-limit-custom": "100",
 		});
 
 		const report = formatHealthReport();

@@ -296,9 +296,7 @@ describe("createNativeOpenAIProvider", () => {
 			fetchModels,
 		});
 
-		await handle.provider.refreshModels?.(
-			context(store, { allowNetwork: true }),
-		);
+		await handle.provider.refreshModels?.(context(store, { allowNetwork: true }));
 
 		expect(fetchModels).toHaveBeenCalledOnce();
 		expect(written[0].models[0]).toMatchObject({ id: "public" });
@@ -362,7 +360,7 @@ describe("createNativeOpenAIProvider", () => {
 			"test-native",
 			context(store, {
 				allowNetwork: true,
-			signal: controller.signal,
+				signal: controller.signal,
 			}),
 			onRestore,
 			fetchModels,

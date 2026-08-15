@@ -595,7 +595,9 @@ export default function openmodelProvider(pi: ExtensionAPI): Promise<void> {
 				isFreeModel({ ...model, provider: PROVIDER_OPENMODEL }, models),
 			);
 			const next = prepare(models, free);
-			await persistNativeProviderModels(
+					// Only count as ok when persistence actually published (a superseded
+		// generation or store write failure must not inflate the counter).
+			if (await persistNativeProviderModels(
 				PROVIDER_OPENMODEL,
 				context,
 				next.all as unknown as readonly Model<Api>[],
@@ -603,8 +605,10 @@ export default function openmodelProvider(pi: ExtensionAPI): Promise<void> {
 					stored.all = next.all;
 					stored.free = next.free;
 				},
-			);
-			recordNativeRefreshOk(PROVIDER_OPENMODEL, next.all.length);
+			)) {
+				recordNativeRefreshOk(PROVIDER_OPENMODEL, next.all.length);
+			}
+
 		},
 		stream: (model, context, options) => streams.stream(model, context, options),
 		streamSimple: (model, context, options) =>

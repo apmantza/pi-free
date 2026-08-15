@@ -73,6 +73,7 @@ vi.mock("../lib/logger.ts", () => ({
 import { __setCompatLoaderForTests } from "../lib/lazy-compat.ts";
 import { getClineProviderHeaders } from "../providers/cline/cline-headers.ts";
 import {
+	__resetClineNormalizeWarnForTests,
 	buildClineHeaders,
 	createClineProvider,
 	LEGACY_CLINE_API,
@@ -139,12 +140,13 @@ function ctx(over: Partial<RefreshModelsContext> = {}): RefreshModelsContext {
 }
 
 beforeEach(() => {
-	vi.clearAllMocks();
-	mockFetchClineCatalog.mockReset();
-	mockGetClineShowPaid.mockReturnValue(false);
-	mockGetClineApiKey.mockReturnValue(undefined);
-	mockGetGlobalFreeOnly.mockReturnValue(true);
-	__setCompatLoaderForTests(undefined);
+vi.clearAllMocks();
+mockFetchClineCatalog.mockReset();
+mockGetClineShowPaid.mockReturnValue(false);
+mockGetClineApiKey.mockReturnValue(undefined);
+mockGetGlobalFreeOnly.mockReturnValue(true);
+__setCompatLoaderForTests(undefined);
+__resetClineNormalizeWarnForTests();
 });
 
 afterEach(() => {

@@ -136,7 +136,9 @@ export function createLlm7Provider(): Llm7NativeProvider {
 		}
 
 		const next = prepare(all, free);
-		await persistNativeProviderModels(
+				// Only count as ok when persistence actually published (a superseded
+		// generation or store write failure must not inflate the counter).
+		if (await persistNativeProviderModels(
 			PROVIDER_LLM7,
 			context,
 			// next.all holds full Model objects at runtime (toLlm7Models output);
@@ -146,8 +148,10 @@ export function createLlm7Provider(): Llm7NativeProvider {
 				stored.all = next.all;
 				stored.free = next.free;
 			},
-		);
-		recordNativeRefreshOk(PROVIDER_LLM7, next.all.length);
+		)) {
+			recordNativeRefreshOk(PROVIDER_LLM7, next.all.length);
+		}
+
 	}
 
 	const provider: Provider<"openai-completions"> = {

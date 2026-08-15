@@ -30,7 +30,8 @@ export function formatHealthReport(): string {
 		networkFailures.length +
 		outcomeFlags.length +
 		emptyCatalogs.length +
-		responseIssues.length;	const status = registry.size === 0 || problemCount > 0 ? "WARN" : "OK";
+		responseIssues.length;
+	const status = registry.size === 0 || problemCount > 0 ? "WARN" : "OK";
 	const logSuffix = isFileLoggingEnabled() ? "" : " (file logging disabled)";
 	const lines = [
 		`🩺 Pi-Free health: ${status}`,
@@ -74,7 +75,13 @@ function emptyCatalogFlags(): string[] {
 	for (const [providerId, entry] of getProviderRegistry()) {
 		if (entry.stored.all.length > 0 || entry.stored.free.length > 0) continue;
 		const outcome = outcomeByProvider.get(providerId);
-		if (outcome && outcome.refreshOks > 0) {
+		// Only flag providers with refresh evidence. Auth-required providers
+		// whose auth resolves undefined without a key (StepFun, TokenRouter,
+		// AnyAPI, B.AI, OpenGateway, unconfigured Qoder) are never refreshed by
+		// Pi at all — flagging them would flip health to WARN on installs that
+		// were previously fine (Mn1 false-alarm regression).
+		if (!outcome) continue;
+		if (outcome.refreshOks > 0) {
 			flags.push(`${providerId}: empty after completed refresh (0 models)`);
 		} else {
 			flags.push(`${providerId}: no models; refresh never completed`);

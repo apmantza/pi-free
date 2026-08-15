@@ -574,10 +574,14 @@ export async function refreshNativeProviderModels<T extends Model<Api>>(
 			recordNativeEmptyRetain(providerId);
 			return;
 		}
-		await persistNativeProviderModels(providerId, context, models, () =>
+		// Only count as "ok" if persistence actually published: a superseded
+		// generation (publish() returns false — update never ran) or a store
+		// write failure must not inflate the success counter.
+		if (await persistNativeProviderModels(providerId, context, models, () =>
 			onFetched(models),
-		);
-		recordNativeRefreshOk(providerId, models.length);
+		)) {
+			recordNativeRefreshOk(providerId, models.length);
+		}
 	} catch (err) {
 		// Pi may abort a superseded refresh; cancellation is not a provider error.
 		if (context.signal?.aborted) {
@@ -590,17 +594,22 @@ export async function refreshNativeProviderModels<T extends Model<Api>>(
 	}
 }
 
-/** Persist a native provider catalog while retaining the previous store on failure. */
+/**
+ * Persist a native provider catalog while retaining the previous store on
+ * failure. Returns true when the catalog was actually published (a superseded
+ * generation, where Pi's publish() returns false and the update never ran,
+ * yields false — callers must not count it as a successful refresh).
+ */
 export async function persistNativeProviderModels(
 	providerId: string,
 	context: RefreshModelsContext,
 	models: readonly Model<Api>[],
 	onPublished?: () => void,
-): Promise<void> {
+): Promise<boolean> {
 	const nativeContext = getNativeRefreshContext(context);
 	try {
 		if (usesNativePublication(context) && nativeContext.publish) {
-			await nativeContext.publish({
+			const published = await nativeContext.publish({
 				persist: {
 					models,
 					checkedAt: Date.now(),
@@ -608,7 +617,7 @@ export async function persistNativeProviderModels(
 				// Pi runs this only if this refresh generation is still current.
 				update: onPublished,
 			});
-			return;
+			return published !== false;
 		}
 
 		onPublished?.();
@@ -616,9 +625,11 @@ export async function persistNativeProviderModels(
 			models,
 			checkedAt: Date.now(),
 		});
+		return true;
 	} catch (err) {
 		_logger.warn(`Failed to persist ${providerId} models to store`, {
 			error: err instanceof Error ? err.message : String(err),
 		});
+		return false;
 	}
 }

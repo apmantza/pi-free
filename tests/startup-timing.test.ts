@@ -304,7 +304,7 @@ describe("startup-timing", () => {
 		recordNativeAbort("ab-prov");
 		recordNativeAbort("ab-prov");
 		recordNativeEmptyRetain("er-prov");
-		recordNativeRestored("old-prov", 48 * 60 * 60 * 1000); // 2 days > 24h
+		recordNativeRestored("old-prov", 8 * 24 * 60 * 60 * 1000); // 8 days > 7d flag
 
 		const flags = nativeRefreshFlags(getStartupSummary());
 		expect(flags).toEqual(

@@ -95,7 +95,9 @@ export function createZenmuxProvider(): ZenmuxNativeProvider {
 		}
 
 		const next = prepare(all, free);
-		await persistNativeProviderModels(
+				// Only count as ok when persistence actually published (a superseded
+		// generation or store write failure must not inflate the counter).
+		if (await persistNativeProviderModels(
 			PROVIDER_ZENMUX,
 			context,
 			next.all as unknown as readonly Model<Api>[],
@@ -103,8 +105,10 @@ export function createZenmuxProvider(): ZenmuxNativeProvider {
 				stored.all = next.all;
 				stored.free = next.free;
 			},
-		);
-		recordNativeRefreshOk(PROVIDER_ZENMUX, next.all.length);
+		)) {
+			recordNativeRefreshOk(PROVIDER_ZENMUX, next.all.length);
+		}
+
 	}
 
 	const provider: Provider<"openai-completions"> = {
