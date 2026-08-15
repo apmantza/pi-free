@@ -306,9 +306,7 @@ export async function fetchClineCatalog(options?: {
  * Adds the provider id, the custom wire api, and the gateway baseUrl that the
  * legacy registerProvider config form used to supply implicitly.
  */
-export function toClineModel(
-	m: ProviderModelConfig,
-): Model<"cline-xml-tools"> {
+export function toClineModel(m: ProviderModelConfig): Model<"cline-xml-tools"> {
 	return {
 		...m,
 		api: "cline-xml-tools",

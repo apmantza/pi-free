@@ -76,7 +76,12 @@ describe("Cline free-to-try catalog matching", () => {
 
 		// Dated/leaf/other-provider variants are paid — the old fuzzy aliasing
 		// zero-priced dated variants that return 402 at request time.
-		for (const id of [datedQualifiedId, datedLeafId, paidVariantId, otherProviderId]) {
+		for (const id of [
+			datedQualifiedId,
+			datedLeafId,
+			paidVariantId,
+			otherProviderId,
+		]) {
 			expect(byId.get(id)?.cost.input).toBeGreaterThan(0);
 		}
 	});
