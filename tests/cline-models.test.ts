@@ -45,13 +45,13 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 
-describe("Cline free-to-try catalog aliases", () => {
-	it("applies free pricing before native free splitting for qualified and leaf date aliases", async () => {
+describe("Cline free-to-try catalog matching", () => {
+	it("marks only exact free-to-try ids free; dated variants stay paid", async () => {
 		const freeId = "deepseek/deepseek-v4-flash";
 		const datedQualifiedId = "deepseek/deepseek-v4-flash-0731";
 		const datedLeafId = "deepseek-v4-flash-0731";
 		const paidVariantId = "deepseek/deepseek-v4-flash-pro";
-		const otherProviderId = "other/deepseek-v4-flash-0731";
+		const otherProviderId = "other/deepseek-v4-flash";
 
 		stubClineEndpoints(
 			[freeId],
@@ -67,19 +67,22 @@ describe("Cline free-to-try catalog aliases", () => {
 		const { all, free } = await fetchClineCatalog();
 		const byId = new Map(all.map((model) => [model.id, model]));
 
-		for (const id of [freeId, datedQualifiedId, datedLeafId]) {
-			expect(byId.get(id)).toMatchObject({
-				cost: { input: 0, output: 0 },
-				name: expect.not.stringContaining("💰"),
-			});
-		}
+		// Exact match is free.
+		expect(byId.get(freeId)).toMatchObject({
+			cost: { input: 0, output: 0 },
+			name: expect.not.stringContaining("💰"),
+		});
+		expect(free.map((model) => model.id)).toEqual([freeId]);
 
-		expect(free.map((model) => model.id)).toEqual([
-			freeId,
+		// Dated/leaf/other-provider variants are paid — the old fuzzy aliasing
+		// zero-priced dated variants that return 402 at request time.
+		for (const id of [
 			datedQualifiedId,
 			datedLeafId,
-		]);
-		expect(byId.get(paidVariantId)?.cost.input).toBeGreaterThan(0);
-		expect(byId.get(otherProviderId)?.cost.input).toBeGreaterThan(0);
+			paidVariantId,
+			otherProviderId,
+		]) {
+			expect(byId.get(id)?.cost.input).toBeGreaterThan(0);
+		}
 	});
 });

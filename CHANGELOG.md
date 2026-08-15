@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Cline free list no longer zero-prices paid dated model variants** — the free-to-try matcher fuzzy-aliased catalog ids by stripping date suffixes, so `deepseek/deepseek-v4-flash-0731` inherited free pricing from `deepseek/deepseek-v4-flash` while the API actually bills it (402 insufficient credits at request time). Matching is now exact against Cline's authoritative `recommended-models` free list — both endpoints use provider-qualified ids, so the aliasing bought nothing and cost broken free models ([#431](https://github.com/apmantza/pi-free/issues/431)).
+
+### Fixed
+
 - **Built-in provider toggles no longer block session start** — the first catalog capture for OpenCode / OpenCode Go / OpenRouter (credential resolution can take seconds; observed 2.25s blocking a session resume) now runs detached and is reported under `Detached session_start work` in `/free-startup`. Duplicate `session_start` events reuse the in-flight capture instead of racing a second one; until capture completes the provider shows Pi's unfiltered built-in catalog, and `/toggle-{provider}` still retries capture on demand ([#427](https://github.com/apmantza/pi-free/issues/427)).
 
 ### Changed
