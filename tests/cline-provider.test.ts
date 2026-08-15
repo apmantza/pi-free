@@ -140,13 +140,13 @@ function ctx(over: Partial<RefreshModelsContext> = {}): RefreshModelsContext {
 }
 
 beforeEach(() => {
-vi.clearAllMocks();
-mockFetchClineCatalog.mockReset();
-mockGetClineShowPaid.mockReturnValue(false);
-mockGetClineApiKey.mockReturnValue(undefined);
-mockGetGlobalFreeOnly.mockReturnValue(true);
-__setCompatLoaderForTests(undefined);
-__resetClineNormalizeWarnForTests();
+	vi.clearAllMocks();
+	mockFetchClineCatalog.mockReset();
+	mockGetClineShowPaid.mockReturnValue(false);
+	mockGetClineApiKey.mockReturnValue(undefined);
+	mockGetGlobalFreeOnly.mockReturnValue(true);
+	__setCompatLoaderForTests(undefined);
+	__resetClineNormalizeWarnForTests();
 });
 
 afterEach(() => {
@@ -427,9 +427,9 @@ describe("normalizeStoredClineModels", () => {
 			expect.stringContaining("normalized to openai-completions"),
 			expect.objectContaining({ count: 2 }),
 		);
-		expect(provider.getModels().every((m) => m.api === "openai-completions")).toBe(
-			true,
-		);
+		expect(
+			provider.getModels().every((m) => m.api === "openai-completions"),
+		).toBe(true);
 	});
 
 	it("warns once about a stale store entry on restore (Mn2)", async () => {
