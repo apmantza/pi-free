@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Log lines now carry the process id** — `~/.pi/free.log` is shared by every pi process on the machine; concurrent sessions interleaved into one unreadable stream. Every line is now prefixed `[pid N]` so sessions are separable ([#429](https://github.com/apmantza/pi-free/issues/429)).
+
 ### Fixed
 
 - **Built-in provider toggles no longer block session start** — the first catalog capture for OpenCode / OpenCode Go / OpenRouter (credential resolution can take seconds; observed 2.25s blocking a session resume) now runs detached and is reported under `Detached session_start work` in `/free-startup`. Duplicate `session_start` events reuse the in-flight capture instead of racing a second one; until capture completes the provider shows Pi's unfiltered built-in catalog, and `/toggle-{provider}` still retries capture on demand ([#427](https://github.com/apmantza/pi-free/issues/427)).

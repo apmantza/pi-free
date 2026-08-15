@@ -50,9 +50,21 @@ describe("logger file rotation", () => {
 			await waitForLogFlush();
 
 			const logDir = join(home, ".pi");
-			const files = (await readdir(logDir))
-				.filter((file) => file.startsWith("rotation.log"))
-				.sort();
+			// Async rotation may still be renaming files right after the flush;
+			// wait for the directory listing to stabilize so the size/content
+			// assertions never race a mid-check rename (ENOENT flake).
+			let files: string[] = [];
+			for (let attempt = 0; attempt < 40; attempt += 1) {
+				const current = (await readdir(logDir))
+					.filter((file) => file.startsWith("rotation.log"))
+					.sort();
+				if (current.length > 0 && current.join(",") === files.join(",")) {
+					files = current;
+					break;
+				}
+				files = current;
+				await new Promise((resolve) => setTimeout(resolve, 25));
+			}
 			expect(files.length).toBeGreaterThan(1);
 			expect(files.length).toBeLessThanOrEqual(4);
 			for (const file of files) {
