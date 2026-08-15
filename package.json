@@ -57,7 +57,6 @@
 		"smoke:compiled": "node scripts/smoke-compiled.mjs",
 		"smoke:pi-loader": "node scripts/smoke-pi-loader.mjs",
 		"smoke:pi-install": "node scripts/pi-install-smoke.mjs",
-		"smoke:cline": "tsx scripts/smoke-cline-xml-bridge.ts",
 		"smoke:openmodel": "tsx scripts/smoke-openmodel-wire-format.ts"
 	},
 	"overrides": {

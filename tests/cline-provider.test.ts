@@ -2,18 +2,22 @@
  * Unit tests for the Cline native provider (createProvider object form).
  *
  * Mirrors tests/kilo-provider.test.ts, plus the Cline-specific pieces:
- *   - the custom "cline-xml-tools" wire api: stream AND streamSimple both
- *     delegate to the XML bridge (message reshaping carried over verbatim)
+ *   - the standard "openai-completions" wire api: stream AND streamSimple
+ *     delegate to the lazy OpenAI compat bridge (#433)
  *   - public catalog: refreshModels fetches without any credential
+ *   - stored-store migration: restored models with the retired legacy XML
+ *     wire api are normalized to "openai-completions"
+ *   - the shared mutable headers record (task-id rotation without re-register)
  */
 
 import { createModels } from "@earendil-works/pi-ai";
 import type {
+	AssistantMessageEventStream,
 	ModelsStoreEntry,
 	ProviderModelsStore,
 	RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockFetchClineCatalog = vi.hoisted(() => vi.fn());
 const mockGetClineShowPaid = vi.hoisted(() => vi.fn(() => false));
@@ -64,7 +68,17 @@ vi.mock("../lib/logger.ts", () => ({
 	}),
 }));
 
-import { createClineProvider } from "../providers/cline/cline-provider.ts";
+import {
+	__setCompatLoaderForTests,
+} from "../lib/lazy-compat.ts";
+import {
+	buildClineHeaders,
+	createClineProvider,
+	LEGACY_CLINE_API,
+	normalizeStoredClineModels,
+	rotateClineTaskId,
+} from "../providers/cline/cline-provider.ts";
+import { BASE_URL_CLINE } from "../constants.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -129,6 +143,11 @@ beforeEach(() => {
 	mockGetClineShowPaid.mockReturnValue(false);
 	mockGetClineApiKey.mockReturnValue(undefined);
 	mockGetGlobalFreeOnly.mockReturnValue(true);
+	__setCompatLoaderForTests(undefined);
+});
+
+afterEach(() => {
+	__setCompatLoaderForTests(undefined);
 });
 
 // ---------------------------------------------------------------------------
@@ -152,6 +171,20 @@ describe("createClineProvider shape", () => {
 		expect(provider.getModels()).toEqual([]);
 	});
 
+	it("exposes the shared Cline headers record as provider.headers", () => {
+		const { provider } = createClineProvider();
+		expect(provider.headers).toBe(buildClineHeaders());
+		expect(provider.headers).toMatchObject({
+			"HTTP-Referer": "https://cline.bot",
+			"X-Title": "Cline",
+			"X-PLATFORM": "Visual Studio Code",
+			"X-CLIENT-TYPE": "VSCode Extension",
+			"X-Is-Multiroot": "false",
+		});
+		expect(typeof provider.headers!["X-Task-ID"]).toBe("string");
+		expect(provider.headers!["X-Task-ID"]).not.toBe("");
+	});
+
 	it("keeps the public catalog available without a credential", async () => {
 		const handle = createClineProvider();
 		handle.ingest([freeCfg("public")], [freeCfg("public")]);
@@ -161,6 +194,30 @@ describe("createClineProvider shape", () => {
 
 		const available = await models.getAvailable();
 		expect(available.map((model) => model.id)).toEqual(["public"]);
+	});
+
+	it("resolves a truthy keyless auth when no key is configured (anonymous catalog)", async () => {
+		const { provider } = createClineProvider();
+		mockGetClineApiKey.mockReturnValue(undefined);
+		const result = await provider.auth.apiKey!.resolve!({
+			ctx: {} as never,
+			signal: new AbortController().signal,
+		});
+		expect(result).toEqual({
+			auth: {},
+			source: "public catalog (no account)",
+		});
+
+		// A configured ambient key is returned normally.
+		mockGetClineApiKey.mockReturnValue("sk-cline");
+		const keyed = await provider.auth.apiKey!.resolve!({
+			ctx: {} as never,
+			signal: new AbortController().signal,
+		});
+		expect(keyed).toEqual({
+			auth: { apiKey: "sk-cline" },
+			source: "CLINE_API_KEY",
+		});
 	});
 });
 
@@ -174,15 +231,15 @@ describe("refreshModels offline init", () => {
 			models: [
 				{
 					...freeCfg("a"),
-					api: "cline-xml-tools",
+					api: "openai-completions",
 					provider: "cline",
-					baseUrl: "x",
+					baseUrl: BASE_URL_CLINE,
 				},
 				{
 					...paidCfg("b"),
-					api: "cline-xml-tools",
+					api: "openai-completions",
 					provider: "cline",
-					baseUrl: "x",
+					baseUrl: BASE_URL_CLINE,
 				},
 			],
 			checkedAt: Date.now(),
@@ -201,6 +258,71 @@ describe("refreshModels offline init", () => {
 		]);
 	});
 
+	it("normalizes legacy XML-api models restored from the legacy store", async () => {
+		const seeded = {
+			models: [
+				{
+					...freeCfg("a"),
+					api: LEGACY_CLINE_API,
+					provider: "cline",
+					baseUrl: "https://stale.example",
+				},
+			],
+			checkedAt: Date.now(),
+		} as unknown as ModelsStoreEntry;
+		const { store } = makeStore(seeded);
+		const { provider } = createClineProvider();
+
+		await provider.refreshModels?.(ctx({ store, allowNetwork: false }));
+
+		const models = provider.getModels();
+		expect(models).toHaveLength(1);
+		expect(models[0].api).toBe("openai-completions");
+		expect(models[0].baseUrl).toBe(BASE_URL_CLINE);
+	});
+
+	it("normalizes legacy XML-api models restored from the Pi 0.84+ stored snapshot", async () => {
+		const published: Array<{ persist?: ModelsStoreEntry | null }> = [];
+		const context = {
+			allowNetwork: false,
+			stored: {
+				models: [
+					{
+						...freeCfg("a"),
+						api: LEGACY_CLINE_API,
+						provider: "cline",
+						baseUrl: "https://stale.example",
+					},
+					{
+						...paidCfg("b"),
+						api: "openai-completions",
+						provider: "cline",
+						baseUrl: BASE_URL_CLINE,
+					},
+				],
+				checkedAt: Date.now(),
+			},
+			publish: async (publication: {
+				persist?: ModelsStoreEntry | null;
+				update?: () => void;
+			}) => {
+				published.push(publication);
+				publication.update?.();
+				return true;
+			},
+		} as unknown as RefreshModelsContext;
+		const { provider } = createClineProvider();
+
+		await provider.refreshModels?.(context);
+
+		const models = provider.getModels();
+		expect(models.map((m) => m.id).sort()).toEqual(["a", "b"]);
+		expect(models.every((m) => m.api === "openai-completions")).toBe(true);
+		expect(models.every((m) => m.baseUrl === BASE_URL_CLINE)).toBe(true);
+		// Offline init never publishes.
+		expect(published).toHaveLength(0);
+	});
+
 	it("stays empty when the store is empty and network is disallowed", async () => {
 		const { provider } = createClineProvider();
 		await provider.refreshModels?.(ctx({ allowNetwork: false }));
@@ -213,7 +335,7 @@ describe("refreshModels offline init", () => {
 			models: [
 				{
 					...freeCfg("a"),
-					api: "cline-xml-tools",
+					api: "openai-completions",
 					provider: "other",
 					baseUrl: "x",
 				},
@@ -241,6 +363,30 @@ describe("refreshModels offline init", () => {
 	});
 });
 
+describe("normalizeStoredClineModels", () => {
+	it("rewrites only retired legacy-api entries and leaves others untouched", () => {
+		const legacy = {
+			id: "legacy",
+			api: LEGACY_CLINE_API,
+			provider: "cline",
+			baseUrl: "old",
+		};
+		const modern = {
+			id: "modern",
+			api: "openai-completions",
+			provider: "cline",
+			baseUrl: BASE_URL_CLINE,
+		};
+		const normalized = normalizeStoredClineModels([legacy, modern] as never);
+		expect(normalized).toEqual([
+			{ ...legacy, api: "openai-completions", baseUrl: BASE_URL_CLINE },
+			modern,
+		]);
+		// The input array is not mutated.
+		expect(legacy.api).toBe(LEGACY_CLINE_API);
+	});
+});
+
 // ---------------------------------------------------------------------------
 // refreshModels: online (public catalog — no credential)
 // ---------------------------------------------------------------------------
@@ -265,11 +411,14 @@ describe("refreshModels online", () => {
 		expect(written).toHaveLength(1);
 		expect(written[0].models.map((m) => m.id).sort()).toEqual(["a", "b"]);
 		expect(typeof written[0].checkedAt).toBe("number");
-		// Persisted models carry the native wire api + provider.
-		expect(written[0].models.every((m) => m.api === "cline-xml-tools")).toBe(
+		// Persisted models carry the standard OpenAI wire api + provider + baseUrl.
+		expect(
+			written[0].models.every((m) => m.api === "openai-completions"),
+		).toBe(true);
+		expect(written[0].models.every((m) => m.provider === "cline")).toBe(true);
+		expect(written[0].models.every((m) => m.baseUrl === BASE_URL_CLINE)).toBe(
 			true,
 		);
-		expect(written[0].models.every((m) => m.provider === "cline")).toBe(true);
 		// Catalogs populated for the toggle.
 		expect(stored.all).toHaveLength(2);
 		expect(stored.free).toHaveLength(1);
@@ -290,9 +439,9 @@ describe("refreshModels online", () => {
 			models: [
 				{
 					...freeCfg("a"),
-					api: "cline-xml-tools",
+					api: "openai-completions",
 					provider: "cline",
-					baseUrl: "x",
+					baseUrl: BASE_URL_CLINE,
 				},
 			],
 		} as unknown as ModelsStoreEntry;
@@ -373,16 +522,6 @@ describe("toggle interop", () => {
 		expect(
 			provider.filterModels!(provider.getModels(), undefined).map((m) => m.id),
 		).toEqual(["a"]);
-
-		expect(
-			provider
-				.getModels()
-				.map((m) => m.id)
-				.sort(),
-		).toEqual(["a", "b"]);
-		expect(
-			provider.filterModels!(provider.getModels(), undefined).map((m) => m.id),
-		).toEqual(["a"]);
 	});
 
 	it("decideView shows all when per-provider show_paid is set under global free-only", async () => {
@@ -409,16 +548,17 @@ describe("toggle interop", () => {
 });
 
 // ---------------------------------------------------------------------------
-// XML bridge delegation (the message-reshaping entry points)
+// Stream wiring (standard openai-completions via the lazy compat bridge)
 // ---------------------------------------------------------------------------
 
 describe("stream wiring", () => {
 	function clineModel() {
 		return {
-			id: "xiaomi/mimo-v2.5",
-			name: "mimo",
-			api: "cline-xml-tools",
+			id: "nvidia/nemotron-3.5-lightning:free",
+			name: "nemotron",
+			api: "openai-completions",
 			provider: "cline",
+			baseUrl: BASE_URL_CLINE,
 		};
 	}
 
@@ -436,29 +576,111 @@ describe("stream wiring", () => {
 		};
 	}
 
-	it("streamSimple delegates to the XML bridge (unchanged reshaping entry point)", async () => {
+	/** Minimal fake of pi-ai's EventStream contract (async iterable + result). */
+	function makeFakeStream(events: unknown[], finalResult: unknown) {
+		return {
+			async *[Symbol.asyncIterator]() {
+				for (const event of events) yield event;
+			},
+			result: () => Promise.resolve(finalResult),
+		};
+	}
+
+	function stubCompat(recordInto?: {
+		streamCalls: unknown[][];
+		streamSimpleCalls: unknown[][];
+	}) {
+		const doneMessage = { role: "assistant", content: [], stopReason: "stop" };
+		const textEvent = { type: "text", text: "hello" };
+		const doneEvent = { type: "done", message: doneMessage };
+		__setCompatLoaderForTests((async () => ({
+			openAICompletionsApi: () => ({
+				stream: (...args: unknown[]) => {
+					recordInto?.streamCalls.push(args);
+					return makeFakeStream(
+						[textEvent, doneEvent],
+						doneMessage,
+					) as unknown as AssistantMessageEventStream;
+				},
+				streamSimple: (...args: unknown[]) => {
+					recordInto?.streamSimpleCalls.push(args);
+					return makeFakeStream(
+						[textEvent, doneEvent],
+						doneMessage,
+					) as unknown as AssistantMessageEventStream;
+				},
+			}),
+			anthropicMessagesApi: () => {
+				throw new Error("anthropic must not be used");
+			},
+		})) as Parameters<typeof __setCompatLoaderForTests>[0]);
+		return doneMessage;
+	}
+
+	it("stream delegates to the lazy openai-completions compat bridge", async () => {
+		const calls = { streamCalls: [] as unknown[][], streamSimpleCalls: [] as unknown[][] };
+		const doneMessage = stubCompat(calls);
 		const { provider } = createClineProvider();
-		const model = provider.getModels().length
-			? provider.getModels()[0]
-			: (clineModel() as never);
+		const model = clineModel();
+		const context = clineContext();
+		const options = { apiKey: "workos:test-token" };
 
-		// No apiKey -> the bridge's own guard error, proving the native provider
-		// routes through streamClineXml rather than a generic OpenAI stream.
-		const result = await provider
-			.streamSimple(model, clineContext() as never, {})
-			.result();
+		const outer = provider.stream(model as never, context as never, options as never);
+		const events: unknown[] = [];
+		for await (const event of outer as AsyncIterable<unknown>) {
+			events.push(event);
+		}
 
-		expect(result.stopReason).toBe("error");
-		expect(result.errorMessage).toContain("No Cline access token found");
+		expect(calls.streamCalls).toHaveLength(1);
+		expect(calls.streamCalls[0]).toEqual([model, context, options]);
+		expect(events).toEqual([
+			{ type: "text", text: "hello" },
+			{ type: "done", message: doneMessage },
+		]);
+		expect(await outer.result()).toBe(doneMessage);
 	});
 
-	it("stream delegates to the XML bridge too (legacy composer routed both here)", async () => {
+	it("streamSimple delegates to the lazy openai-completions compat bridge too", async () => {
+		const calls = { streamCalls: [] as unknown[][], streamSimpleCalls: [] as unknown[][] };
+		stubCompat(calls);
 		const { provider } = createClineProvider();
-		const result = await provider
-			.stream(clineModel() as never, clineContext() as never, {})
-			.result();
+		const model = clineModel();
+		const context = clineContext();
 
-		expect(result.stopReason).toBe("error");
-		expect(result.errorMessage).toContain("No Cline access token found");
+		const outer = provider.streamSimple(model as never, context as never);
+		for await (const _event of outer as AsyncIterable<unknown>) {
+			// drain
+		}
+
+		expect(calls.streamSimpleCalls).toHaveLength(1);
+		expect(calls.streamSimpleCalls[0]).toEqual([model, context, undefined]);
+		expect(calls.streamCalls).toHaveLength(0);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Task-id rotation (shared mutable headers record)
+// ---------------------------------------------------------------------------
+
+describe("task-id rotation", () => {
+	it("rotateClineTaskId mutates the shared headers object (provider.headers)", () => {
+		const { provider } = createClineProvider();
+		const before = buildClineHeaders()["X-Task-ID"];
+		expect(provider.headers!["X-Task-ID"]).toBe(before);
+
+		rotateClineTaskId();
+
+		const after = buildClineHeaders()["X-Task-ID"];
+		expect(after).not.toBe(before);
+		// The SAME object is exposed as provider.headers — the mutation is
+		// visible there, so the next request picks it up with no re-register.
+		expect(provider.headers).toBe(buildClineHeaders());
+		expect(provider.headers!["X-Task-ID"]).toBe(after);
+		// The rest of the VS Code-spoofing headers are unchanged.
+		expect(provider.headers).toMatchObject({
+			"HTTP-Referer": "https://cline.bot",
+			"X-Title": "Cline",
+			"X-CLIENT-TYPE": "VSCode Extension",
+		});
 	});
 });

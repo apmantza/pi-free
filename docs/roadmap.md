@@ -130,10 +130,9 @@ built-in catalog surfaces by design.
   Hugging Face catalogs — only if users request them. pi-free would layer a
   filter/toggle over Pi's catalog without duplicating discovery; pricing
   metadata must be checked first to avoid false free classifications.
-+ **Preventive XML-tool-leak handling** — the Cline bridge now recovers known
-  XML/DSML and native tool-call forms reactively. A future `before_provider_headers`
-  compatibility hook could prevent leaks for known model families, but needs
-  reliable model-specific evidence before adding request complexity.
++ **Preventive XML-tool-leak handling** — MOOT: the Cline XML bridge was deleted
+  entirely when Cline's endpoint became standard OpenAI Chat Completions (#433);
+  the reactive XML/DSML recovery it hosted no longer exists.
 + **Orphan cleanup** — old per-provider entries in users' `~/.pi/provider-cache.json`
   are cosmetic leftovers from the native migrations.
 

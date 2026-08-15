@@ -67,7 +67,6 @@ For reproducible import-inclusive measurements, run `npx tsx scripts/bench-start
 
 Most providers use OpenAI-compatible APIs. Notable custom integrations are:
 
-- **Cline** — native provider with the custom `cline-xml-tools` wire API and XML message/tool reshaping.
 - **OpenModel** — native Anthropic Messages API provider.
 - **Qoder** — native provider with Qoder authentication, COSY request signing, static catalog persistence, and custom streaming compatibility.
 

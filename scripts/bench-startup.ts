@@ -281,8 +281,8 @@ const kiloFactoryNetworkCalls = fetchUrls.filter((u) =>
 ).length;
 
 // ---------------------------------------------------------------------------
-// Exercise Cline's native offline-init path (same contract as Kilo, custom
-// "cline-xml-tools" wire api). Cline's catalog is public, so at runtime Pi
+// Exercise Cline's native offline-init path (same contract as Kilo, standard
+// "openai-completions" wire api). Cline's catalog is public, so at runtime Pi
 // drives this even for logged-out users; here we only prove the store restore.
 // ---------------------------------------------------------------------------
 let clineOfflineInitMs: number | null = null;
@@ -292,7 +292,7 @@ if (cline && typeof cline.refreshModels === "function") {
 	const seededModels = [0, 1, 2].map((i) => ({
 		id: `cline-seeded-${i}`,
 		name: `Cline Seeded Free ${i}`,
-		api: "cline-xml-tools",
+		api: "openai-completions",
 		provider: "cline",
 		baseUrl: "https://api.cline.bot/api/v1",
 		reasoning: false,

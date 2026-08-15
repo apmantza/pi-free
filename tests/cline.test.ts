@@ -6,7 +6,6 @@
  * refresh nudge.
  */
 
-import { getApiProvider } from "@earendil-works/pi-ai/compat";
 import type {
 	ModelsStoreEntry,
 	ProviderModelsStore,
@@ -149,36 +148,17 @@ describe("Cline factory wiring", () => {
 		expect(provider.auth.apiKey).toBeDefined();
 		expect(provider.auth.oauth).toBeDefined();
 
-		// The legacy compat-registry fallback registers lazily on the first
-		// Cline agent start (compat loads lazily and must not block boot), not
-		// during the factory.
+		// The Cline identity headers are exposed as the shared mutable record
+		// on provider.headers; a task-id rotation on before_agent_start takes
+		// effect without re-registration.
+		expect(provider.headers).toBe(buildClineHeaders());
 		const beforeAgent = mockOn.mock.calls.find(
 			(call) => call[0] === "before_agent_start",
 		)?.[1];
 		expect(beforeAgent).toBeDefined();
+		const taskIdBefore = provider.headers["X-Task-ID"];
 		await beforeAgent({}, { model: { provider: "cline" } });
-
-		// The custom API must also be available to Pi's compat/default agent
-		// stream path, which otherwise throws before reaching the XML bridge.
-		const compatProvider = getApiProvider("cline-xml-tools");
-		expect(compatProvider).toBeDefined();
-		const compatResult = await compatProvider!
-			.streamSimple(
-				{
-					id: "compat-model",
-					name: "Compat Model",
-					api: "cline-xml-tools",
-					provider: "cline",
-				} as never,
-				{
-					systemPrompt: "system",
-					messages: [],
-					tools: [],
-				} as never,
-				{},
-			)
-			.result();
-		expect(compatResult.errorMessage).toContain("No Cline access token found");
+		expect(provider.headers["X-Task-ID"]).not.toBe(taskIdBefore);
 
 		// Lifecycle handlers + toggle command registered.
 		expect(mockOn).toHaveBeenCalledWith(
