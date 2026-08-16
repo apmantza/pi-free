@@ -5,9 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.5.1] - 2026-08-16
 
 ### Fixed
+
+- **OpenCode free tier no longer rate-limited by Pi's third-party client identity** — Pi's runtime stamps every opencode/opencode-go request with its own attribution identity (`x-opencode-client: pi` + a UUID session, `provider-attribution.js`), which OpenCode's backend treats as a foreign client and drops to the fallback rate limit (`FreeUsageLimitError`, 429) — while the same models work in the real opencode app. pi-free's fixes never reached the wire because Pi registers a built-in `opencode` provider, so the built-in-toggle capture was skipped, our stream wrapper (the only place CLI-faithful headers are injected) never ran, and Pi strips `model.headers` before dispatch. The free tier is now registered under the distinct id **`opencode-free`** (`captureFrom: "opencode"` captures Pi's built-in catalog but re-registers it under the new id): Pi has no built-in provider with that id, so OUR provider — with the CLI identity (`x-opencode-client: cli`, `ses_`/`prt_` ULIDs, `opencode/1.18.18`) and the header wrapper — is the one Pi dispatches through, and the attribution merge lets our model headers override its stamp. The toggle command is now `/toggle-opencode-free` ([#441](https://github.com/apmantza/pi-free/issues/441)).
 
 - **OpenCode wire headers aligned with the current CLI (v1.18.18)** — reverse-engineered from `packages/opencode/src/session/llm/request.ts`: `User-Agent` bumped `1.15.5 → 1.18.18`, `x-opencode-request` now uses the CLI's `prt_` PartID prefix (was `msg_`), `x-opencode-project` is now sent (was missing), and the session/request ULIDs replicate the CLI's `descending()`/`ascending()` encoding exactly. This keeps pi-free speaking the official CLI wire dialect (forward-compat if the Zen backend's `checkHeaders` gate is re-enabled); note the deployed gate is currently disabled, so today's free-tier freeze is IP-based, not header-based ([#440](https://github.com/apmantza/pi-free/issues/440)).
 
