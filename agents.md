@@ -20,7 +20,7 @@ A **Pi extension** (`@earendil-works/pi-coding-agent`) that registers free and p
 index.ts                          ← Extension entry point (piFreeEntry)
   ├─ lib/registry.ts              ← Global provider registry + isFreeModel detection
   ├─ lib/toggle-state.ts          ← Generic toggle state machine (free ↔ all)
-  ├─ lib/built-in-toggle.ts       ← Toggles for Pi's built-in providers (opencode, opencode-go, openrouter)
+  ├─ lib/built-in-toggle.ts       ← Toggles for Pi's built-in providers (opencode-free, opencode-go, openrouter)
   ├─ lib/quota-monitor.ts         ← Rate-limit header extraction → status bar
   ├─ lib/startup-timing.ts        ← Startup, cache/network, and session-start timing observability
   ├─ lib/session-start-metrics.ts ← Monotonic handler + detached session-start timing
@@ -184,7 +184,7 @@ Debug logging writes to `~/.pi/free.log` under the `benchmark-lookup` namespace:
 | 🔄 Freemium | anyapi, ollama-cloud, sambanova | API key | Free allowance with limits |
 | 💳 Paid / trial | zenmux, crofai, deepinfra, novita, routeway, opengateway, bai, stepfun, qoder premium | API key, OAuth, or credits | Paid access, trial credit, or premium tier |
 | 🔧 Native | Kilo, Cline, LLM7, Ollama Cloud, AnyAPI, SambaNova, TokenRouter, OpenModel, ZenMux, CrofAI, DeepInfra, Novita, Routeway, OpenGateway, B.AI, FastRouter, StepFun, Qoder | API key, OAuth, or none | Pi owns catalog refresh and native stores |
-| 🔧 Built-in | opencode, opencode-go, openrouter | Built-in Pi auth | Built-in toggles; Pi owns catalogs |
+| 🔧 Built-in | opencode-free, opencode-go, openrouter | Built-in Pi auth | Built-in toggles; Pi owns catalogs |
 
 ---
 
