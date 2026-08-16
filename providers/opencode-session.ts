@@ -65,7 +65,9 @@ function openCodeUlid(descending: boolean): string {
 			.padStart(2, "0"),
 	).join("");
 	const bytes = crypto.getRandomValues(new Uint8Array(14));
-	return time + Array.from(bytes, (byte) => OPENCODE_ID_CHARS[byte % 62]).join("");
+	return (
+		time + Array.from(bytes, (byte) => OPENCODE_ID_CHARS[byte % 62]).join("")
+	);
 }
 
 /**
@@ -109,14 +111,22 @@ export function createOpenCodeHeaders(
 		...OPENCODE_STATIC_HEADERS,
 		"x-opencode-session": tracker.getSessionId(),
 		"x-opencode-request": tracker.nextRequestId(),
-		// The CLI sends the project id when present (schema default "global");
-		// checkHeaders on the deployed backend expects it for full rate limits.
+		// The CLI sends the project id when present (schema default "global").
+		// Note: the deployed Zen backend's checkHeaders gate is currently
+		// disabled (production ipRateLimiter.ts hardcodes headersExist=true),
+		// so these headers are log/forward-compat only — the daily freeze is
+		// IP-based. Keep them faithful to the CLI wire format in case the gate
+		// is re-enabled.
 		"x-opencode-project": "global",
 	};
 }
 
 export function isOpenCodeProvider(providerId: string): boolean {
-	return providerId === "opencode" || providerId === "opencode-go";
+	return (
+		providerId === "opencode" ||
+		providerId === "opencode-free" ||
+		providerId === "opencode-go"
+	);
 }
 
 export function resolveOpenCodeModelApi(
@@ -339,9 +349,7 @@ function resolvePiAiSubpathFromPackage(specifier: string): string | undefined {
 		const pkgDir = findPiAiPackageDir(candidate);
 		if (!pkgDir) continue;
 		try {
-			const pkg = JSON.parse(
-				readFileSync(join(pkgDir, "package.json"), "utf-8"),
-			);
+			const pkg = JSON.parse(readFileSync(join(pkgDir, "package.json"), "utf-8"));
 			const targetPath = resolvePiAiExportTarget(pkg.exports, subpath);
 			if (targetPath) return join(pkgDir, targetPath);
 		} catch {
@@ -505,9 +513,7 @@ export function createOpenCodeStreamSimple(
 				};
 				if (streamApi === "anthropic-messages") {
 					const streamSimpleAnthropic = getStreamSimple(
-						await importPiAiSubpath<AnthropicStreamModule>(
-							"api/anthropic-messages",
-						),
+						await importPiAiSubpath<AnthropicStreamModule>("api/anthropic-messages"),
 						"streamSimpleAnthropic",
 					);
 					await pipeStream(
@@ -616,7 +622,8 @@ let _apiProviderRegistrationPromise: Promise<void> | undefined;
 export function ensureOpenCodeApiProviderRegistered(
 	tracker: OpenCodeSessionTracker,
 ): void {
-	if (_apiProviderRegistrationSourceId || _apiProviderRegistrationPromise) return;
+	if (_apiProviderRegistrationSourceId || _apiProviderRegistrationPromise)
+		return;
 
 	const streamFn = createOpenCodeStreamSimple(tracker);
 	const sourceId = `pi-free-opencode-${randomBytes(4).toString("hex")}`;
@@ -678,9 +685,7 @@ export function sanitizeMessagesForOpenCode(messages: unknown[]): unknown[] {
 		hasNonSystem = true;
 
 		// Insert placeholder user message between consecutive assistant messages
-		const last = sanitized[sanitized.length - 1] as
-			| { role?: string }
-			| undefined;
+		const last = sanitized[sanitized.length - 1] as { role?: string } | undefined;
 		if (role === "assistant" && last?.role === "assistant") {
 			sanitized.push({ role: "user", content: " " });
 		}

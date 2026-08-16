@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **OpenCode free-tier rate limits no longer trip the fallback tier** — reverse-engineered the current opencode CLI (v1.18.18) wire headers from `packages/opencode/src/session/llm/request.ts` and aligned pi-free: `User-Agent` bumped `1.15.5 → 1.18.18`, `x-opencode-request` now uses the CLI's `prt_` PartID prefix (was `msg_`), `x-opencode-project` is now sent (was missing), and the session/request ULIDs replicate the CLI's `descending()`/`ascending()` encoding exactly. The deployed Zen backend's `checkHeaders` gate falls back to a ~2 req/day limit when the identity looks foreign ([#440](https://github.com/apmantza/pi-free/issues/440)).
+- **OpenCode wire headers aligned with the current CLI (v1.18.18)** — reverse-engineered from `packages/opencode/src/session/llm/request.ts`: `User-Agent` bumped `1.15.5 → 1.18.18`, `x-opencode-request` now uses the CLI's `prt_` PartID prefix (was `msg_`), `x-opencode-project` is now sent (was missing), and the session/request ULIDs replicate the CLI's `descending()`/`ascending()` encoding exactly. This keeps pi-free speaking the official CLI wire dialect (forward-compat if the Zen backend's `checkHeaders` gate is re-enabled); note the deployed gate is currently disabled, so today's free-tier freeze is IP-based, not header-based ([#440](https://github.com/apmantza/pi-free/issues/440)).
 
 ### Added
 

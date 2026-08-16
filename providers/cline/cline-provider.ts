@@ -216,20 +216,21 @@ export function createClineProvider(): ClineNativeProvider {
 		}
 
 		const next = prepare(all, free);
-		if (await persistNativeProviderModels(
-			PROVIDER_CLINE,
-			context,
-			// next.all holds full Model objects at runtime (toClineModels output);
-			// the StoredModels type widens them to ProviderModelConfig for the toggle.
-			next.all as unknown as readonly Model<Api>[],
-			() => {
-				stored.all = next.all;
-				stored.free = next.free;
-			},
-		)) {
+		if (
+			await persistNativeProviderModels(
+				PROVIDER_CLINE,
+				context,
+				// next.all holds full Model objects at runtime (toClineModels output);
+				// the StoredModels type widens them to ProviderModelConfig for the toggle.
+				next.all as unknown as readonly Model<Api>[],
+				() => {
+					stored.all = next.all;
+					stored.free = next.free;
+				},
+			)
+		) {
 			recordNativeRefreshOk(PROVIDER_CLINE, next.all.length);
 		}
-
 	}
 
 	const provider: Provider<"openai-completions"> = {
