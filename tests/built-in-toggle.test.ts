@@ -130,7 +130,7 @@ describe("built-in provider toggles", () => {
 		await settleDetachedCapture();
 
 		expect(mockRegisterProvider).toHaveBeenCalledWith(
-			"opencode",
+			"opencode-free",
 			expect.objectContaining({
 				api: "opencode-dynamic",
 				apiKey: "$OPENCODE_API_KEY",
@@ -189,7 +189,7 @@ describe("built-in provider toggles", () => {
 		await settleDetachedCapture();
 
 		expect(mockRegisterProvider).toHaveBeenCalledWith(
-			"opencode",
+			"opencode-free",
 			expect.objectContaining({ api: "opencode-dynamic" }),
 		);
 	});
@@ -236,7 +236,7 @@ describe("built-in provider toggles", () => {
 
 		expect(firstRegistry.registerProvider).not.toHaveBeenCalled();
 		expect(secondRegistry.registerProvider).toHaveBeenCalledWith(
-			"opencode",
+			"opencode-free",
 			expect.objectContaining({ api: "opencode-dynamic" }),
 		);
 	});
@@ -289,7 +289,7 @@ describe("built-in provider toggles", () => {
 		// Toggle while the capture is still pending: it must await the
 		// in-flight capture, not start its own.
 		const notify = vi.fn();
-		const toggleDone = commands["toggle-opencode"]({}, { ui: { notify } });
+		const toggleDone = commands["toggle-opencode-free"]({}, { ui: { notify } });
 		resolveKey?.(undefined);
 		await toggleDone;
 
@@ -297,9 +297,9 @@ describe("built-in provider toggles", () => {
 		// user's toggle to all — no extra racy capture in between.
 		expect(mockRegisterWithGlobalToggle).toHaveBeenCalledTimes(1);
 		expect(mockRegisterProvider).toHaveBeenCalledTimes(2);
-		expect(notify).toHaveBeenCalledWith("opencode: showing all 2 models", "info");
+		expect(notify).toHaveBeenCalledWith("opencode-free: showing all 2 models", "info");
 		expect(mockRegisterProvider).toHaveBeenLastCalledWith(
-			"opencode",
+			"opencode-free",
 			expect.objectContaining({ models: expect.any(Array) }),
 		);
 		const lastModels = mockRegisterProvider.mock.calls.at(-1)?.[1]
@@ -361,7 +361,7 @@ describe("built-in provider toggles", () => {
 		await settleDetachedCapture();
 
 		expect(freshRegistry.registerProvider).toHaveBeenCalledWith(
-			"opencode",
+			"opencode-free",
 			expect.objectContaining({ api: "opencode-dynamic" }),
 		);
 	});
@@ -398,7 +398,7 @@ describe("built-in provider toggles", () => {
 		await settleDetachedCapture();
 
 		expect(registerProvider).toHaveBeenCalledWith(
-			"opencode",
+			"opencode-free",
 			expect.objectContaining({
 				apiKey: "shared-key",
 				models: [expect.objectContaining({ id: "free-model" })],
@@ -450,7 +450,7 @@ describe("built-in provider toggles", () => {
 	});
 
 	it("skips fallback capture for providers already registered dynamically", () => {
-		mockProviderRegistry.set("opencode", {});
+		mockProviderRegistry.set("opencode-free", {});
 		mockProviderRegistry.set("opencode-go", {});
 		mockProviderRegistry.set("openrouter", {});
 
@@ -464,7 +464,7 @@ describe("built-in provider toggles", () => {
 		setupBuiltInProviderToggles(mockPi);
 
 		const notify = vi.fn();
-		await commands["toggle-opencode"](
+		await commands["toggle-opencode-free"](
 			{},
 			{
 				ui: { notify },
@@ -473,7 +473,7 @@ describe("built-in provider toggles", () => {
 		);
 
 		expect(notify).toHaveBeenCalledWith(
-			"opencode: models not loaded yet. Start a session first, then try again.",
+			"opencode-free: models not loaded yet. Start a session first, then try again.",
 			"warning",
 		);
 	});
@@ -520,17 +520,17 @@ describe("built-in provider toggles", () => {
 		await settleDetachedCapture();
 
 		const notify = vi.fn();
-		await commands["toggle-opencode"]({}, { ui: { notify } });
+		await commands["toggle-opencode-free"]({}, { ui: { notify } });
 
-		expect(mockSaveConfig).toHaveBeenCalledWith({ opencode_show_paid: false });
+		expect(mockSaveConfig).toHaveBeenCalledWith({ "opencode-free_show_paid": false });
 		expect(mockRegisterProvider).toHaveBeenLastCalledWith(
-			"opencode",
+			"opencode-free",
 			expect.objectContaining({
 				models: [expect.objectContaining({ id: "free-model" })],
 			}),
 		);
 		expect(notify).toHaveBeenCalledWith(
-			"opencode: showing 1 free models",
+			"opencode-free: showing 1 free models",
 			"info",
 		);
 	});

@@ -30,6 +30,7 @@ import {
 import { createToggleState } from "./toggle-state.ts";
 import {
 	OPENCODE_DYNAMIC_API,
+	createOpenCodeHeaders,
 	createOpenCodeSessionTracker,
 	createOpenCodeStreamSimple,
 	getOpenCodeModelBaseUrl,
@@ -55,6 +56,13 @@ function getOpenCodeSession() {
 
 interface BuiltInToggleConfig {
 	id: string;
+	/**
+	 * Provider id whose stored models are captured (defaults to {@link id}).
+	 * `opencode-free` captures Pi's built-in `opencode` catalog (Pi registers
+	 * a provider with that id, which also owns the stored models) and
+	 * re-registers them under the distinct id so OUR stream wrapper is used.
+	 */
+	captureFrom?: string;
 	getShowPaid: () => boolean;
 	baseUrl: string;
 	api: Api;
@@ -62,7 +70,15 @@ interface BuiltInToggleConfig {
 
 const BUILT_IN_TOGGLE_PROVIDERS: BuiltInToggleConfig[] = [
 	{
-		id: "opencode",
+		// Named opencode-free (NOT "opencode"): pi registers a built-in
+		// "opencode" provider that stamps requests with its own attribution
+		// identity (x-opencode-client: pi + UUID session), which OpenCode's
+		// backend treats as a third-party client and rate-limits. A distinct
+		// id makes OUR provider (with the CLI-faithful header wrapper) the only
+		// one with this id, so pi dispatches through our streamSimple and the
+		// free tier gets the real opencode identity.
+		id: "opencode-free",
+		captureFrom: "opencode",
 		getShowPaid: getOpencodeShowPaid,
 		baseUrl: "https://opencode.ai/zen/v1",
 		api: OPENCODE_DYNAMIC_API,
@@ -231,7 +247,7 @@ async function tryCaptureProvider(
 	const catalog =
 		ctx.modelRegistry.getAll?.() ?? ctx.modelRegistry.getAvailable();
 	const providerModels = catalog.filter(
-		(m: Model<Api>) => m.provider === config.id,
+		(m: Model<Api>) => m.provider === (config.captureFrom ?? config.id),
 	);
 	if (providerModels.length === 0) return undefined;
 
@@ -379,6 +395,17 @@ function registerToggleCommand(
 // =============================================================================
 
 function modelToProviderConfig(m: Model<Api>): ProviderModelConfig {
+	// OpenCode's backend treats a foreign client identity (e.g. pi's own
+	// `x-opencode-client: pi` attribution stamp) as a third-party caller and
+	// drops free-tier models to the fallback rate limit. Stamp the CLI
+	// identity on the MODEL (pi-ai merges only model.headers into requests, and
+	// pi's attribution merge lets model headers override its own stamp).
+	const openCodeHeaders = isOpenCodeProvider(m.provider)
+		? (createOpenCodeHeaders(getOpenCodeSession(), m.headers) as Record<
+				string,
+				string
+			>)
+		: undefined;
 	const base: ProviderModelConfig = {
 		id: m.id,
 		name: m.name,
@@ -394,7 +421,7 @@ function modelToProviderConfig(m: Model<Api>): ProviderModelConfig {
 		cost: m.cost,
 		contextWindow: m.contextWindow,
 		maxTokens: m.maxTokens,
-		headers: m.headers,
+		headers: openCodeHeaders ?? m.headers,
 		compat: (m as any).compat,
 	};
 
@@ -408,10 +435,10 @@ async function resolveApiKey(
 	providerId: string,
 	modelRegistry: CurrentModelRegistry,
 ): Promise<string | undefined> {
-	// OpenCode and OpenCode Go use the same Zen API key, but Pi persists
-	// credentials by provider id. Reuse a stored Go key for the regular
-	// OpenCode catalog so free OpenCode models remain available after login.
-	if (providerId === "opencode") {
+	// OpenCode and OpenCode Go share the same Zen API key, but Pi persists
+	// credentials by provider id. Reuse a stored Go key for the free OpenCode
+	// catalog so free OpenCode models remain available after login.
+	if (providerId === "opencode-free" || providerId === "opencode") {
 		const sharedKey = await modelRegistry.getApiKeyForProvider?.("opencode-go");
 		if (sharedKey) return sharedKey;
 	}
@@ -425,6 +452,7 @@ function getApiKeyEnvForProvider(providerId: string): string | undefined {
 	// Pi-managed OAuth credentials from /login openrouter (and refresh support).
 	const envMap: Record<string, string> = {
 		opencode: "$OPENCODE_API_KEY",
+		"opencode-free": "$OPENCODE_API_KEY",
 		"opencode-go": "$OPENCODE_API_KEY",
 	};
 	return envMap[providerId];
