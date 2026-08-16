@@ -297,7 +297,10 @@ describe("built-in provider toggles", () => {
 		// user's toggle to all — no extra racy capture in between.
 		expect(mockRegisterWithGlobalToggle).toHaveBeenCalledTimes(1);
 		expect(mockRegisterProvider).toHaveBeenCalledTimes(2);
-		expect(notify).toHaveBeenCalledWith("opencode-free: showing all 2 models", "info");
+		expect(notify).toHaveBeenCalledWith(
+			"opencode-free: showing all 2 models",
+			"info",
+		);
 		expect(mockRegisterProvider).toHaveBeenLastCalledWith(
 			"opencode-free",
 			expect.objectContaining({ models: expect.any(Array) }),
@@ -522,7 +525,9 @@ describe("built-in provider toggles", () => {
 		const notify = vi.fn();
 		await commands["toggle-opencode-free"]({}, { ui: { notify } });
 
-		expect(mockSaveConfig).toHaveBeenCalledWith({ "opencode-free_show_paid": false });
+		expect(mockSaveConfig).toHaveBeenCalledWith({
+			"opencode-free_show_paid": false,
+		});
 		expect(mockRegisterProvider).toHaveBeenLastCalledWith(
 			"opencode-free",
 			expect.objectContaining({

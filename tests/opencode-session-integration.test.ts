@@ -77,6 +77,30 @@ describe("opencode-session fallback resolution", () => {
 		expect(second["x-opencode-request"]).not.toBe(first["x-opencode-request"]);
 	});
 
+	it("encodes ses descending and prt ascending with the same ms base", () => {
+		// The CLI's identifier.ts encodes `~timestamp<<12|counter` (descending)
+		// and `timestamp<<12|counter` (ascending). Two ids created in the same
+		// millisecond must share the same timestamp base, with the per-call
+		// counter advancing in the low 12 bits — ses first (counter=1), then
+		// prt (counter=2). A bug that swapped the directions (or dropped the
+		// complement) would fail here even though the shape assertions pass.
+		const tracker = createOpenCodeSessionTracker();
+		const session = tracker.getSessionId().slice(4); // strip ses_
+		const request = tracker.nextRequestId().slice(4); // strip prt_
+
+		const sesComplement = ~BigInt(`0x${session.slice(0, 12)}`) & 0xffffffffffffn;
+		const prtTime = BigInt(`0x${request.slice(0, 12)}`);
+
+		// Same timestamp base (high 36 bits = milliseconds).
+		expect(prtTime >> 12n).toBe(sesComplement >> 12n);
+		// Counter advanced monotonically within the same ms (ses=1, prt=2).
+		expect(prtTime & 0xfffn).toBe((sesComplement & 0xfffn) + 1n);
+
+		// Random suffixes are full-length (14 base62 chars) on both.
+		expect(session.slice(12)).toHaveLength(14);
+		expect(request.slice(12)).toHaveLength(14);
+	});
+
 	it("resolves pi-ai subpaths when loaded from an isolated directory", () => {
 		const requireBase = findValidRequireBase();
 		if (!requireBase) {
@@ -214,12 +238,7 @@ ${testScript}
 
 	it("falls back to pi-ai root exports when subpath imports are unavailable", () => {
 		const tempDir = mkdtempSync(join(tmpdir(), "pi-free-test-"));
-		const packageDir = join(
-			tempDir,
-			"node_modules",
-			"@earendil-works",
-			"pi-ai",
-		);
+		const packageDir = join(tempDir, "node_modules", "@earendil-works", "pi-ai");
 		mkdirSync(packageDir, { recursive: true });
 		writeFileSync(
 			join(packageDir, "package.json"),
