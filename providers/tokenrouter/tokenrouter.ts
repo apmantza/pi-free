@@ -10,6 +10,32 @@
  * Setup:
  *   TOKENROUTER_API_KEY=sk-...
  *   # or add tokenrouter_api_key to ~/.pi/free.json
+ *
+ * Wire protocol: TokenRouter speaks vanilla OpenAI Chat Completions, so this
+ * is a standard OpenAI-compatible native provider registered through the
+ * shared `registerNativeOpenAIProvider()` path (like Cline and B.AI) — the
+ * models use the standard `"openai-completions"` api and stream through
+ * pi-ai's native implementation via the lazy compat bridge. No custom API
+ * type, no payload-patching streaming wrapper.
+ *
+ * TokenRouter-specific behaviors are thin seams on the standard provider:
+ *  - Model compat: the shared `getProxyModelCompat` (same as Cline/B.AI, so
+ *    `requiresReasoningContentOnAssistantMessages` keeps replaying
+ *    `reasoning_content` across turns) with `supportsReasoningEffort`
+ *    explicitly disabled — TokenRouter's chat-completions route rejects a
+ *    top-level `reasoning_effort` (`400: reasoning_effort must be low,
+ *    medium, or xhigh`). The strip is re-applied after models.dev enrichment
+ *    so the flag can never be re-derived.
+ *  - MiniMax-M3 (`before_provider_request`): requires `thinking: { type:
+ *    "adaptive" }` — pi's `{ type: "enabled" }` is rewritten to adaptive.
+ *  - MiniMax-M3 (`message_end`): sometimes emits DeepSeek-style inline
+ *    ` thinking ... response` tags in the assistant text; they are extracted
+ *    into proper ThinkingContent blocks.
+ *  - High-load retry (`stream`/`streamSimple`): DeepSeek-family models can
+ *    hard-fail on upstream 2064 ("server cluster is currently under high
+ *    load"); the stream wrapper retries once after a 30s backoff before any
+ *    output has been flushed. The wrapper delegates to the lazy compat
+ *    bridge — it is not a custom wire implementation.
  */
 
 import type {
@@ -21,39 +47,42 @@ import type {
 	AssistantMessage,
 	AssistantMessageEvent,
 	AssistantMessageEventStream,
-	Context,
 	Model,
-	SimpleStreamOptions,
+	ProviderStreams,
+	StreamOptions,
 	ThinkingContent,
 } from "@earendil-works/pi-ai/compat";
 import { createAssistantMessageEventStream } from "../../lib/assistant-message-event-stream.ts";
-import { lazyOpenAICompletionsApi } from "../../lib/lazy-compat.ts";
-import { applyHidden } from "../../config.ts";
+import {
+	getTokenrouterApiKey,
+	getTokenrouterShowPaid,
+	applyHidden,
+} from "../../config.ts";
 import {
 	BASE_URL_TOKENROUTER,
 	DEFAULT_FETCH_TIMEOUT_MS,
 	PROVIDER_TOKENROUTER,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
+import { lazyOpenAICompletionsApi } from "../../lib/lazy-compat.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import {
-	DEEPSEEK_PROXY_COMPAT,
+	createNativeOpenAIProvider,
+	registerNativeOpenAIProvider,
+	type NativeOpenAIProviderOptions,
+} from "../../lib/native-provider.ts";
+import {
 	getProxyModelCompat,
 	isLikelyReasoningModel,
 } from "../../lib/provider-compat.ts";
 import { cleanModelName, fetchWithRetry } from "../../lib/util.ts";
-import {
-	createTokenRouterProvider as createNativeTokenRouterProvider,
-	registerTokenRouterProvider,
-	type TokenRouterProviderDeps,
-} from "./tokenrouter-provider.ts";
+import { tokenRouterAuth } from "./tokenrouter-auth.ts";
 
 const _logger = createLogger("tokenrouter");
-const streamSimpleOpenAICompletions = lazyOpenAICompletionsApi().streamSimple;
 
 // =============================================================================
-// Reasoning cleanup
-// TokenRouter's MiniMax-M3 model sometimes emits DeepSeek-style `<think>`
+// MiniMax reasoning cleanup
+// TokenRouter's MiniMax-M3 model sometimes emits DeepSeek-style ` thinking`
 // reasoning tags inline in the assistant text. Pi does not strip them, so we
 // extract them into proper ThinkingContent blocks on message_end.
 // =============================================================================
@@ -72,8 +101,8 @@ function collapseWhitespace(text: string): string {
 }
 
 function extractThinkBlocks(text: string): ExtractedThinking {
-	const openTag = "<think>";
-	const closeTag = "</think>";
+	const openTag = " thinking";
+	const closeTag = " response";
 	const thinkingParts: string[] = [];
 	const textParts: string[] = [];
 	let cursor = 0;
@@ -104,80 +133,8 @@ function extractThinkBlocks(text: string): ExtractedThinking {
 	};
 }
 
-export function isTokenRouterModel(model: { provider?: string }): boolean {
-	return model.provider === PROVIDER_TOKENROUTER;
-}
-
-// =============================================================================
-// Known Free Models
-// TokenRouter doesn't expose pricing via /v1/models.
-// Known-free detection uses `:free` name suffix for promotional models.
-// =============================================================================
-export const TOKENROUTER_OPENAI_API = "tokenrouter-openai-completions" as const;
-const TOKENROUTER_HIGH_LOAD_RETRY_DELAY_MS = 30_000;
-const MINIMAX_ADAPTIVE_COMPAT: NonNullable<ProviderModelConfig["compat"]> = {
-	...DEEPSEEK_PROXY_COMPAT,
-	thinkingFormat: "deepseek",
-};
-
-// =============================================================================
-// Types
-// =============================================================================
-
-interface TokenRouterModel {
-	id: string;
-	object: string;
-	created: number;
-	owned_by: string;
-	supported_endpoint_types: string[];
-	tags?: string;
-}
-
-// =============================================================================
-// Helpers
-// =============================================================================
-
-/** Text-capable chat endpoints (excludes image/video/audio-only types) */
-const CHAT_ENDPOINT_TYPES = new Set([
-	"openai",
-	"openai-response",
-	"anthropic",
-	"anthropic-compatible",
-	"gemini",
-]);
-
-function isTextChatModel(model: TokenRouterModel): boolean {
-	const tags = (model.tags ?? "").toLowerCase();
-	// Exclude models whose only tags are non-text
-	const nonTextTags = ["image", "video", "audio"];
-	const hasNonTextTag = nonTextTags.some((t) => tags.includes(t));
-	const hasTextTag = tags.includes("text");
-	// If it has a text tag, include it. If only non-text tags, exclude.
-	if (hasTextTag) return true;
-	if (hasNonTextTag && !hasTextTag) return false;
-	// No tags or empty tags: check endpoint types
-	return model.supported_endpoint_types.some((t) => CHAT_ENDPOINT_TYPES.has(t));
-}
-
 export function isTokenRouterMinimaxModel(modelId: string): boolean {
 	return modelId.toLowerCase().includes("minimax");
-}
-
-export function finalizeTokenRouterModel(
-	model: ProviderModelConfig,
-): ProviderModelConfig {
-	if (!isTokenRouterMinimaxModel(model.id)) return model;
-
-	return {
-		...model,
-		reasoning: true,
-		compat: {
-			...MINIMAX_ADAPTIVE_COMPAT,
-			...(model.compat ?? {}),
-			thinkingFormat: "deepseek",
-			supportsReasoningEffort: true,
-		},
-	};
 }
 
 export function normalizeAssistantMessage(
@@ -282,7 +239,20 @@ export function patchTokenRouterMinimaxThinkingPayload(
 	return result.changed ? result.value : payload;
 }
 
-function isTokenRouterHighLoadError(message: string | undefined): boolean {
+// =============================================================================
+// 2064 high-load retry
+// DeepSeek-family models through TokenRouter can hard-fail with upstream
+// 2064 ("server cluster is currently under high load"). When the stream
+// errors before any output, retry once after a 30s backoff (honoring the
+// request signal). This is a thin wrapper around the lazy compat bridge —
+// the wire implementation stays pi-ai's standard openai-completions path.
+// =============================================================================
+
+export const TOKENROUTER_HIGH_LOAD_RETRY_DELAY_MS = 30_000;
+
+export function isTokenRouterHighLoadError(
+	message: string | undefined,
+): boolean {
 	const lower = (message ?? "").toLowerCase();
 	return (
 		lower.includes("(2064)") ||
@@ -304,7 +274,7 @@ function isOutputEvent(event: AssistantMessageEvent): boolean {
 	);
 }
 
-function waitForTokenRouterRetry(
+export function waitForTokenRouterRetry(
 	ms: number,
 	signal: AbortSignal | undefined,
 ): Promise<void> {
@@ -322,38 +292,9 @@ function waitForTokenRouterRetry(
 	});
 }
 
-function createTokenRouterOpenAIStream(
-	model: Model<Api>,
-	context: Context,
-	options: SimpleStreamOptions | undefined,
-): AssistantMessageEventStream {
-	const forcePatch = isTokenRouterMinimaxModel(model.id);
-	return streamSimpleOpenAICompletions(
-		{ ...model, api: "openai-completions" } as Model<"openai-completions">,
-		context,
-		{
-			...options,
-			onPayload: async (payload, payloadModel) => {
-				const patchedPayload = patchTokenRouterMinimaxThinkingPayload(
-					payload,
-					forcePatch,
-				);
-				const upstreamPayload = await options?.onPayload?.(
-					patchedPayload,
-					payloadModel,
-				);
-				return patchTokenRouterMinimaxThinkingPayload(
-					upstreamPayload ?? patchedPayload,
-					forcePatch,
-				);
-			},
-		},
-	);
-}
-
 function createTokenRouterRetryErrorMessage(
 	model: Model<Api>,
-	options: SimpleStreamOptions | undefined,
+	options: StreamOptions | undefined,
 	error: unknown,
 ): AssistantMessage {
 	return {
@@ -376,13 +317,13 @@ function createTokenRouterRetryErrorMessage(
 	};
 }
 
-function streamWithTokenRouterHighLoadRetry(
+export function streamWithTokenRouterHighLoadRetry(
 	model: Model<Api>,
-	createAttempt: () => AssistantMessageEventStream,
-	options: SimpleStreamOptions | undefined,
+	createAttempt: () => AsyncIterable<AssistantMessageEvent>,
+	options: StreamOptions | undefined,
+	retryDelayMs = TOKENROUTER_HIGH_LOAD_RETRY_DELAY_MS,
 ): AssistantMessageEventStream {
 	const output = createAssistantMessageEventStream();
-
 	void (async () => {
 		const buffer: AssistantMessageEvent[] = [];
 		let flushed = false;
@@ -423,14 +364,10 @@ function streamWithTokenRouterHighLoadRetry(
 				flushBuffer();
 				return;
 			}
-
 			_logger.warn(
 				"[tokenrouter] Server cluster high load (2064); retrying once after 30s",
 			);
-			await waitForTokenRouterRetry(
-				TOKENROUTER_HIGH_LOAD_RETRY_DELAY_MS,
-				options?.signal,
-			);
+			await waitForTokenRouterRetry(retryDelayMs, options?.signal);
 			for await (const event of createAttempt()) output.push(event);
 		} catch (error) {
 			flushBuffer();
@@ -442,28 +379,97 @@ function streamWithTokenRouterHighLoadRetry(
 			});
 		}
 	})();
-
 	return output as unknown as AssistantMessageEventStream;
 }
 
-export function streamSimpleTokenRouter(
-	model: Model<Api>,
-	context: Context,
-	options?: SimpleStreamOptions,
-): AssistantMessageEventStream {
-	return streamWithTokenRouterHighLoadRetry(
-		model,
-		() => createTokenRouterOpenAIStream(model, context, options),
-		options,
-	);
+/** Retry-wrapped lazy bridge streams used by every TokenRouter Provider. */
+function createTokenRouterStreams(): ProviderStreams {
+	const bridge = lazyOpenAICompletionsApi();
+	return {
+		stream: (model, context, options) =>
+			streamWithTokenRouterHighLoadRetry(
+				model,
+				() => bridge.stream(model, context, options),
+				options,
+			),
+		streamSimple: (model, context, options) =>
+			streamWithTokenRouterHighLoadRetry(
+				model,
+				() => bridge.streamSimple(model, context, options),
+				options,
+			),
+	};
 }
 
-export const __test__ = {
-	TOKENROUTER_HIGH_LOAD_RETRY_DELAY_MS,
-	isTokenRouterHighLoadError,
-	streamWithTokenRouterHighLoadRetry,
-	waitForTokenRouterRetry,
-};
+// =============================================================================
+// Compat
+// TokenRouter's chat-completions route rejects a top-level `reasoning_effort`
+// (400: `reasoning_effort must be low, medium, or xhigh`). The shared proxy
+// compat (Cline/B.AI parity) is kept for its other flags — most importantly
+// `requiresReasoningContentOnAssistantMessages`, which replays
+// `reasoning_content` on later assistant turns for multi-turn reasoning —
+// with only `supportsReasoningEffort` disabled.
+// =============================================================================
+
+export function withoutReasoningEffort(
+	compat: ProviderModelConfig["compat"],
+): ProviderModelConfig["compat"] {
+	if (!compat || !("supportsReasoningEffort" in compat)) return compat;
+	return { ...compat, supportsReasoningEffort: false };
+}
+
+/**
+ * Re-apply the reasoning-effort strip after models.dev enrichment. Enrichment
+ * re-derives proxy compat from models.dev metadata and would otherwise
+ * re-inject `supportsReasoningEffort` on models that carried no base compat.
+ */
+export function stripEnrichedTokenRouterCompat<T extends ProviderModelConfig>(
+	models: readonly T[],
+): T[] {
+	return models.map((model) => {
+		const compat = withoutReasoningEffort(model.compat);
+		return compat === model.compat ? model : { ...model, compat };
+	});
+}
+
+// =============================================================================
+// Types
+// =============================================================================
+
+interface TokenRouterModel {
+	id: string;
+	object: string;
+	created: number;
+	owned_by: string;
+	supported_endpoint_types: string[];
+	tags?: string;
+}
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+/** Text-capable chat endpoints (excludes image/video/audio-only types) */
+const CHAT_ENDPOINT_TYPES = new Set([
+	"openai",
+	"openai-response",
+	"anthropic",
+	"anthropic-compatible",
+	"gemini",
+]);
+
+function isTextChatModel(model: TokenRouterModel): boolean {
+	const tags = (model.tags ?? "").toLowerCase();
+	// Exclude models whose only tags are non-text
+	const nonTextTags = ["image", "video", "audio"];
+	const hasNonTextTag = nonTextTags.some((t) => tags.includes(t));
+	const hasTextTag = tags.includes("text");
+	// If it has a text tag, include it. If only non-text tags, exclude.
+	if (hasTextTag) return true;
+	if (hasNonTextTag && !hasTextTag) return false;
+	// No tags or empty tags: check endpoint types
+	return model.supported_endpoint_types.some((t) => CHAT_ENDPOINT_TYPES.has(t));
+}
 
 export function mapTokenRouterModel(
 	model: TokenRouterModel,
@@ -473,10 +479,9 @@ export function mapTokenRouterModel(
 	_isFree?: boolean;
 } {
 	const name = cleanModelName(model.id);
-	const isMinimax = isTokenRouterMinimaxModel(model.id);
-	const reasoning = isMinimax || isLikelyReasoningModel({ id: model.id, name });
-	const isResponseApi =
-		model.supported_endpoint_types.includes("openai-response");
+	const reasoning =
+		isTokenRouterMinimaxModel(model.id) ||
+		isLikelyReasoningModel({ id: model.id, name });
 	const isKnownFree = model.id.toLowerCase().endsWith(":free");
 
 	return {
@@ -487,13 +492,8 @@ export function mapTokenRouterModel(
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 128_000,
 		maxTokens: 16_384,
-		compat: {
-			...(isMinimax
-				? MINIMAX_ADAPTIVE_COMPAT
-				: getProxyModelCompat({ id: model.id, name })),
-			// openai-response models use a different API shape
-			...(isResponseApi ? { apiType: "openai-response" as const } : {}),
-		},
+		// Shared compat (Cline/B.AI parity) minus `supportsReasoningEffort`.
+		compat: withoutReasoningEffort(getProxyModelCompat({ id: model.id, name })),
 		// Known-free models bypass pricing detection entirely
 		_freeKnown: isKnownFree,
 		_isFree: isKnownFree,
@@ -506,7 +506,7 @@ export function mapTokenRouterModel(
 // Fetch Models
 // =============================================================================
 
-export async function fetchTokenRouterModels(
+async function fetchTokenRouterModels(
 	apiKey: string,
 	signal?: AbortSignal,
 ): Promise<ProviderModelConfig[]> {
@@ -541,7 +541,7 @@ export async function fetchTokenRouterModels(
 			{ providerId: PROVIDER_TOKENROUTER },
 		);
 		return applyHidden(
-			enriched.map(finalizeTokenRouterModel),
+			stripEnrichedTokenRouterCompat(enriched),
 			PROVIDER_TOKENROUTER,
 		);
 	} catch (error) {
@@ -556,24 +556,55 @@ export async function fetchTokenRouterModels(
 	}
 }
 
-const TOKENROUTER_PROVIDER_DEPS: TokenRouterProviderDeps = {
-	fetchModels: fetchTokenRouterModels,
-	streamSimple: streamSimpleTokenRouter,
-	isModel: isTokenRouterModel,
-	isMinimaxModel: isTokenRouterMinimaxModel,
-	normalizeMessage: normalizeAssistantMessage,
-	patchPayload: patchTokenRouterMinimaxThinkingPayload,
-};
+// =============================================================================
+// Native Provider
+// =============================================================================
 
 export function createTokenRouterProvider(
 	initialModels?: ProviderModelConfig[],
 ) {
-	return initialModels === undefined
-		? createNativeTokenRouterProvider(TOKENROUTER_PROVIDER_DEPS)
-		: createNativeTokenRouterProvider(TOKENROUTER_PROVIDER_DEPS, initialModels);
+	const options: NativeOpenAIProviderOptions = {
+		providerId: PROVIDER_TOKENROUTER,
+		name: "TokenRouter",
+		baseUrl: BASE_URL_TOKENROUTER,
+		auth: tokenRouterAuth,
+		getApiKey: getTokenrouterApiKey,
+		getShowPaid: getTokenrouterShowPaid,
+		fetchModels: (apiKey, signal) => fetchTokenRouterModels(apiKey, signal),
+		streams: createTokenRouterStreams(),
+	};
+	if (initialModels) options.initialModels = initialModels;
+	return createNativeOpenAIProvider(options);
 }
 
 export default function tokenRouterProvider(pi: ExtensionAPI): Promise<void> {
-	registerTokenRouterProvider(pi, TOKENROUTER_PROVIDER_DEPS);
+	registerNativeOpenAIProvider(pi, {
+		providerId: PROVIDER_TOKENROUTER,
+		name: "TokenRouter",
+		baseUrl: BASE_URL_TOKENROUTER,
+		auth: tokenRouterAuth,
+		getApiKey: getTokenrouterApiKey,
+		getShowPaid: getTokenrouterShowPaid,
+		fetchModels: (apiKey, signal) => fetchTokenRouterModels(apiKey, signal),
+		streams: createTokenRouterStreams(),
+	});
+
+	// MiniMax-M3 requires `thinking: { type: "adaptive" }`; rewrite the
+	// "enabled" payload pi sends. The handler's RETURN value replaces the
+	// payload in the runner (patch builds a fresh object tree, so discarding
+	// the result — as the pre-migration hook did — left the patch a no-op).
+	pi.on("before_provider_request", (event, ctx) => {
+		if (ctx.model?.provider !== PROVIDER_TOKENROUTER) return;
+		const force = isTokenRouterMinimaxModel(ctx.model?.id ?? "");
+		return patchTokenRouterMinimaxThinkingPayload(event.payload, force);
+	});
+
+	// Extract MiniMax inline ` thinking ... response` tags into thinking blocks.
+	pi.on("message_end", (event, ctx) => {
+		if (ctx.model?.provider !== PROVIDER_TOKENROUTER) return;
+		if (event.message.role !== "assistant") return;
+		return { message: normalizeAssistantMessage(event.message) };
+	});
+
 	return Promise.resolve();
 }
