@@ -9,6 +9,7 @@ import type {
 	Model,
 	Provider,
 	ProviderAuth,
+	ProviderStreams,
 	RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
 import type {
@@ -120,6 +121,13 @@ export interface NativeOpenAIProviderOptions {
 	allowUnauthenticated?: boolean;
 	tosUrl?: string;
 	suppressTosWhenKey?: boolean;
+	/**
+	 * Optional stream override. Defaults to the shared lazy pi-ai bridge;
+	 * providers with scoped streaming needs (e.g. a retry wrapper) pass their
+	 * own thin wrapper built on that bridge. The compat entry point is still
+	 * only ever loaded lazily through `lib/lazy-compat.ts`.
+	 */
+	streams?: ProviderStreams;
 }
 
 export interface NativeOpenAIProviderHandle {
@@ -179,7 +187,7 @@ export function filterNativeModels<T extends Model<Api>>(
 export function createNativeOpenAIProvider(
 	options: NativeOpenAIProviderOptions,
 ): NativeOpenAIProviderHandle {
-	const streams = lazyOpenAICompletionsApi();
+	const streams = options.streams ?? lazyOpenAICompletionsApi();
 	const stored: StoredModels = { free: [], all: [] };
 	let showPaidOverride = options.initialShowPaid;
 
