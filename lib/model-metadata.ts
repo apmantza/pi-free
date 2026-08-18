@@ -1,6 +1,7 @@
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_FETCH_TIMEOUT_MS, URL_MODELS_DEV } from "../constants.ts";
 import { createLogger } from "./logger.ts";
+import { loadPiAiEntry } from "./pi-ai-loader.ts";
 import { getProxyModelCompat } from "./provider-compat.ts";
 import type {
 	CostConfig,
@@ -428,8 +429,8 @@ let builtinModelsModulePromise: Promise<PiAiProvidersAll> | undefined;
  */
 function loadBuiltinModelsModule(): Promise<PiAiProvidersAll> {
 	if (!builtinModelsModulePromise) {
-		builtinModelsModulePromise = import(
-			"@earendil-works/pi-ai/providers/all"
+		builtinModelsModulePromise = loadPiAiEntry<PiAiProvidersAll>(
+			"providers/all",
 		).catch((error) => {
 			// Do not cache failures: a transient load error must not break
 			// every later fallback lookup.
