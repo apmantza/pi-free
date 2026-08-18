@@ -118,16 +118,30 @@ interface BuiltInProviderState {
 
 const providerStates = new Map<string, BuiltInProviderState>();
 
+/**
+ * Session pieces needed to re-select the session's saved model once the
+ * captured catalog is registered. See maybeRestoreSavedModel().
+ */
+interface SavedModelSnapshot {
+	modelRegistry: CurrentModelRegistry;
+	sessionManager?: {
+		buildSessionContext?: () => {
+			model: { provider: string; modelId: string } | null;
+		};
+	};
+	model?: { provider: string; id: string };
+}
+
 interface PendingCapture {
 	/** The detached capture task. */
 	task: Promise<void>;
 	/**
-	 * Latest session registry seen by ANY session_start event for this
+	 * Latest session snapshot seen by ANY session_start event for this
 	 * provider. Duplicate events update this cell so the in-flight capture
 	 * registers into the CURRENT session's registry, not the one that
 	 * happened to start the capture.
 	 */
-	registry: CurrentModelRegistry;
+	snapshot: SavedModelSnapshot;
 }
 
 /**
@@ -183,6 +197,7 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 					// the selected view to the new session's provider catalog.
 					existing.setModelRegistry(ctx.modelRegistry);
 					existing.toggleState.applyCurrent(existing.reRegister);
+					await maybeRestoreSavedModel(pi, config, snapshotFromCtx(ctx));
 					continue;
 				}
 
@@ -194,14 +209,14 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 				// in-flight task instead of racing a second capture.
 				const pending = pendingCaptures.get(config.id);
 				if (pending) {
-					// Hand the fresh session registry to the in-flight capture so it
+					// Hand the fresh session snapshot to the in-flight capture so it
 					// registers into the CURRENT session, not the one that started it.
-					pending.registry = ctx.modelRegistry;
+					pending.snapshot = snapshotFromCtx(ctx);
 					continue;
 				}
 				const entry: PendingCapture = {
 					task: Promise.resolve(),
-					registry: ctx.modelRegistry,
+					snapshot: snapshotFromCtx(ctx),
 				};
 				entry.task = (async () => {
 					try {
@@ -210,11 +225,12 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 
 						// Register into the latest registry seen by any session_start
 						// event while this capture was in flight.
-						state.setModelRegistry(entry.registry);
+						state.setModelRegistry(entry.snapshot.modelRegistry);
 						const applied = state.toggleState.applyCurrent(state.reRegister);
 						_logger.info(
 							`[built-in-toggle] ${config.id}: applied ${applied.mode} mode with ${applied.models.length} models`,
 						);
+						await maybeRestoreSavedModel(pi, config, entry.snapshot);
 					} finally {
 						pendingCaptures.delete(config.id);
 					}
@@ -235,6 +251,68 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 // =============================================================================
 // Model capture (called on session start or by toggle when state is missing)
 // =============================================================================
+
+function snapshotFromCtx(ctx: {
+	modelRegistry: CurrentModelRegistry;
+	sessionManager?: unknown;
+	model?: SavedModelSnapshot["model"];
+}): SavedModelSnapshot {
+	return {
+		modelRegistry: ctx.modelRegistry,
+		sessionManager: ctx.sessionManager as SavedModelSnapshot["sessionManager"],
+		model: ctx.model,
+	};
+}
+
+/**
+ * Deferred saved-model restore. Pi resolves a resumed session's model BEFORE
+ * extension provider registrations take effect (createAgentSession restores
+ * from the session file; queued registerProvider calls only flush when the
+ * runner binds afterwards), so a session saved with a built-in-toggle provider
+ * (e.g. opencode-free/…) always falls back with a "Could not restore model"
+ * warning even though the capture registers that exact model moments later.
+ * Once the catalog view is applied, switch back to the saved model — but only
+ * while it is still the session's persisted choice: setModel appends a
+ * model_change entry, so a fresh buildSessionContext() read also tells us if
+ * the user deliberately picked another model in the meantime.
+ */
+async function maybeRestoreSavedModel(
+	pi: ExtensionAPI,
+	config: BuiltInToggleConfig,
+	snapshot: SavedModelSnapshot,
+): Promise<void> {
+	try {
+		const saved = snapshot.sessionManager?.buildSessionContext?.().model;
+		if (!saved || saved.provider !== config.id) return;
+		if (
+			snapshot.model?.provider === saved.provider &&
+			snapshot.model.id === saved.modelId
+		) {
+			return;
+		}
+		const catalog =
+			snapshot.modelRegistry.getAll?.() ??
+			snapshot.modelRegistry.getAvailable();
+		const model = catalog.find(
+			(m: Model<Api>) => m.provider === config.id && m.id === saved.modelId,
+		);
+		if (!model) return;
+		const restored = await pi.setModel(model);
+		if (restored) {
+			_logger.info(
+				`[built-in-toggle] ${config.id}: restored saved model ${saved.modelId} after late registration`,
+			);
+		} else {
+			_logger.warn(
+				`[built-in-toggle] ${config.id}: saved model ${saved.modelId} registered but setModel was rejected (auth?)`,
+			);
+		}
+	} catch (error) {
+		_logger.warn(
+			`[built-in-toggle] ${config.id}: saved-model restore failed: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
+}
 
 async function tryCaptureProvider(
 	pi: ExtensionAPI,

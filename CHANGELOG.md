@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Resumed sessions get their saved built-in-toggle model back** — Pi resolves a resumed session's model *before* extension provider registrations take effect (`createAgentSession` restores from the session file; `pi.registerProvider` calls made during extension load are queued and only flush when the runner binds afterwards), so a session saved with a built-in-toggle provider (e.g. `opencode-free/deepseek-v4-flash-free`) always fell back to another model with a "Could not restore model" warning — even though the detached capture re-registered that exact model seconds later, and the fallback then stuck for the whole session. After the capture applies the catalog view, pi-free now re-reads the session's persisted model (`buildSessionContext().model`, so a deliberate mid-startup model switch is never clobbered) and re-selects it via `pi.setModel` when it is present in the registered view. The warning line itself is printed by Pi core before any extension code can run and still appears; what changes is that the correct model is restored automatically instead of the fallback sticking.
+
 ## [2.5.1] - 2026-08-16
 
 ### Fixed
