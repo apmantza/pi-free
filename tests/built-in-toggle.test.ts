@@ -80,6 +80,7 @@ describe("built-in provider toggles", () => {
 				commands[name] = config.handler;
 			}),
 			registerProvider: mockRegisterProvider,
+			setModel: vi.fn(async () => true),
 			on: vi.fn((event: string, handler: Function) => {
 				handlers[event] = handler;
 			}),
@@ -538,5 +539,114 @@ describe("built-in provider toggles", () => {
 			"opencode-free: showing 1 free models",
 			"info",
 		);
+	});
+
+	it("restores the session's saved model once the late capture registers it", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		const capturedModel = {
+			provider: "opencode",
+			id: "free-model",
+			name: "Free Model",
+			api: "openai-completions",
+			reasoning: false,
+			input: ["text"],
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			contextWindow: 128000,
+			maxTokens: 4096,
+			baseUrl: "https://example.com",
+		};
+		// Post-registration the registry also serves the re-registered
+		// opencode-free view; getAll reflects that.
+		const restoredModel = { ...capturedModel, provider: "opencode-free" };
+
+		await handlers.session_start(
+			{},
+			{
+				modelRegistry: {
+					getAll: () => [capturedModel, restoredModel],
+					getAvailable: () => [capturedModel],
+				},
+				sessionManager: {
+					buildSessionContext: () => ({
+						model: { provider: "opencode-free", modelId: "free-model" },
+					}),
+				},
+				// Pi fell back to another model because opencode-free was not
+				// registered yet when the session was restored.
+				model: { provider: "kilo", id: "fallback-model" },
+			},
+		);
+		await settleDetachedCapture();
+
+		expect(mockPi.setModel).toHaveBeenCalledWith(
+			expect.objectContaining({ provider: "opencode-free", id: "free-model" }),
+		);
+	});
+
+	it("does not restore when the saved model belongs to another provider", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		const capturedModel = {
+			provider: "opencode",
+			id: "free-model",
+			name: "Free Model",
+			api: "openai-completions",
+			reasoning: false,
+			input: ["text"],
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			contextWindow: 128000,
+			maxTokens: 4096,
+			baseUrl: "https://example.com",
+		};
+
+		await handlers.session_start(
+			{},
+			{
+				modelRegistry: { getAvailable: () => [capturedModel] },
+				sessionManager: {
+					buildSessionContext: () => ({
+						model: { provider: "kilo", modelId: "other-model" },
+					}),
+				},
+				model: { provider: "kilo", id: "other-model" },
+			},
+		);
+		await settleDetachedCapture();
+
+		expect(mockPi.setModel).not.toHaveBeenCalled();
+	});
+
+	it("does not restore when the saved model is already active", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		const capturedModel = {
+			provider: "opencode",
+			id: "free-model",
+			name: "Free Model",
+			api: "openai-completions",
+			reasoning: false,
+			input: ["text"],
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			contextWindow: 128000,
+			maxTokens: 4096,
+			baseUrl: "https://example.com",
+		};
+
+		await handlers.session_start(
+			{},
+			{
+				modelRegistry: { getAvailable: () => [capturedModel] },
+				sessionManager: {
+					buildSessionContext: () => ({
+						model: { provider: "opencode-free", modelId: "free-model" },
+					}),
+				},
+				model: { provider: "opencode-free", id: "free-model" },
+			},
+		);
+		await settleDetachedCapture();
+
+		expect(mockPi.setModel).not.toHaveBeenCalled();
 	});
 });
