@@ -20,17 +20,19 @@
  * healthy install) and falls back to locating pi-ai's package root on disk via
  * the locations Pi itself installs pi-ai:
  *
- *   1. As a dependency of pi-coding-agent, found through a node_modules
- *      walk-up from this package (covers npm layouts that nest pi-ai).
- *   2. The agent npm dir under the user's home (~/.pi/agent/npm/node_modules).
- *   3. The global npm root on Windows (%APPDATA%\npm\node_modules).
- *   4. Relative to the Node executable (covers custom installs on other drives).
+ *   1. Hoisted in the node_modules walk-up from this package.
+ *   2. As a dependency of pi-coding-agent, found through the same walk-up
+ *      (covers npm layouts that nest pi-ai under the agent's node_modules).
+ *   3. The agent npm dir under the user's home (~/.pi/agent/npm/node_modules).
+ *   4. The global npm root on Windows (%APPDATA%\npm\node_modules).
+ *   5. Relative to the Node executable (covers custom installs on other
+ *      drives and version-manager layouts like nvm).
  *
  * The fallback imports the resolved entry by absolute file path, so pi-ai's
  * own relative imports keep resolving against pi-ai's real location.
  */
 
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -102,48 +104,6 @@ function probePiAiInRoot(root: string): string | undefined {
 }
 
 /**
- * Recursively searches for `<relativePkgPath>` inside any `node_modules`
- * directory reachable below `startDir`, up to `maxDepth` directory levels. This
- * catches layouts where pi-ai is nested several packages deep (e.g. Windows
- * installs that place pi-ai under pi-coding-agent's own node_modules, which a
- * plain walk-up can never reach).
- */
-function findPackageNested(
-	startDir: string,
-	relativePkgPath: string[],
-	maxDepth = 6,
-): string | undefined {
-	const stack: { dir: string; depth: number }[] = [
-		{ dir: startDir, depth: 0 },
-	];
-	while (stack.length) {
-		const { dir, depth } = stack.pop()!;
-		const candidate = join(dir, "node_modules", ...relativePkgPath);
-		if (existsSync(join(candidate, "package.json"))) return candidate;
-		if (depth >= maxDepth) continue;
-		// Descend into sibling packages' node_modules to keep searching.
-		const nmDir = join(dir, "node_modules");
-		if (!existsSync(nmDir)) continue;
-		let entries: string[] = [];
-		try {
-			entries = readdirSync(nmDir);
-		} catch {
-			continue;
-		}
-		for (const entry of entries) {
-			const child = join(nmDir, entry);
-			try {
-				if (statSync(child).isDirectory())
-					stack.push({ dir: child, depth: depth + 1 });
-			} catch {
-				/* ignore unreadable entries */
-			}
-		}
-	}
-	return undefined;
-}
-
-/**
  * Locates the pi-ai package root when it is not reachable through this
  * package's own node_modules chain (the native fallback). `startDir` defaults
  * to this file's directory and is overridable for tests.
@@ -169,18 +129,13 @@ export function resolvePiAiPackageRoot(
 		if (nested) return nested;
 	}
 
-	// 3) Bounded recursive descent — catches any deeper nesting regardless of
-	//    which package pi-ai ends up under.
-	const nestedDeep = findPackageNested(startDir, PI_AI);
-	if (nestedDeep) return nestedDeep;
-
-	// 4) The agent npm dir under the user's home.
+	// 3) The agent npm dir under the user's home.
 	const homeRoot = probePiAiInRoot(
 		join(homedir(), ".pi", "agent", "npm", "node_modules"),
 	);
 	if (homeRoot) return homeRoot;
 
-	// 5) Global npm root on Windows (pi installed via `npm i -g`).
+	// 4) Global npm root on Windows (pi installed via `npm i -g`).
 	if (process.platform === "win32" && process.env.APPDATA) {
 		const globalRoot = probePiAiInRoot(
 			join(process.env.APPDATA, "npm", "node_modules"),
@@ -188,10 +143,14 @@ export function resolvePiAiPackageRoot(
 		if (globalRoot) return globalRoot;
 	}
 
-	// 6) Relative to the Node executable — covers global installs where npm
-	//    root differs from %APPDATA%\npm (e.g. custom Node installs on a
-	//    different drive, or nvm-managed versions).
-	const execRoot = probePiAiInRoot(join(dirname(process.execPath), "node_modules"));
+	// 5) Relative to the Node executable — covers global installs where the
+	//    npm root differs from the default (custom Node installs on another
+	//    drive, or version managers). Windows keeps node_modules next to the
+	//    executable; POSIX prefixes keep it under <prefix>/lib/node_modules.
+	const execDir = dirname(process.execPath);
+	const execRoot =
+		probePiAiInRoot(join(execDir, "node_modules")) ??
+		probePiAiInRoot(join(execDir, "..", "lib", "node_modules"));
 	if (execRoot) return execRoot;
 
 	return undefined;
@@ -217,8 +176,30 @@ function unwrapExportTarget(
 }
 
 /**
+ * Substitutes a wildcard match into every string of an exports target. Targets
+ * are commonly conditions objects (`{ types, import }`) whose values still
+ * contain the `*`, e.g. pi-ai's `"./providers/*": { import: "./dist/providers/*.js" }`.
+ */
+function substituteStar(
+	target: unknown,
+	star: string,
+): string | Record<string, unknown> | undefined {
+	if (typeof target === "string") return target.replaceAll("*", star);
+	if (target && typeof target === "object" && !Array.isArray(target)) {
+		const result: Record<string, unknown> = {};
+		for (const [key, value] of Object.entries(target)) {
+			result[key] = substituteStar(value, star);
+		}
+		return result;
+	}
+	return undefined;
+}
+
+/**
  * Resolves an allow-listed entry to the file path inside a pi-ai package root,
- * honoring pi-ai's `exports` map (including wildcard subpaths).
+ * honoring pi-ai's `exports` map (including wildcard subpaths). Returns
+ * undefined when no candidate file exists on disk, so callers can surface the
+ * original resolution error instead of a confusing file-path import failure.
  */
 export function resolvePiAiEntryFile(
 	root: string,
@@ -235,7 +216,10 @@ export function resolvePiAiEntryFile(
 			!Array.isArray(exportsField)
 		) {
 			const map = exportsField as Record<string, unknown>;
-			let target = map[subpath];
+			let target = map[subpath] as
+				| string
+				| Record<string, unknown>
+				| undefined;
 			if (target === undefined) {
 				// wildcard patterns, e.g. "./providers/*"
 				for (const [key, value] of Object.entries(map)) {
@@ -252,26 +236,44 @@ export function resolvePiAiEntryFile(
 						prefix.length,
 						subpath.length - suffix.length,
 					);
-					target =
-						typeof value === "string"
-							? value.replace("*", star)
-							: value;
+					target = substituteStar(value, star);
 					break;
 				}
 			}
-			const file = unwrapExportTarget(
-				target as string | Record<string, unknown> | undefined,
-			);
-			if (file) return join(root, file);
+			const file = unwrapExportTarget(target);
+			if (file) {
+				const resolved = join(root, file);
+				if (existsSync(resolved)) return resolved;
+			}
 		}
 	} catch {
 		// fall through to the known dist layout
 	}
-	return PI_AI_ENTRY_FILES[entry](root);
+	const fallback = PI_AI_ENTRY_FILES[entry](root);
+	return existsSync(fallback) ? fallback : undefined;
 }
 
 let resolvedPiAiRoot: string | undefined;
 let resolvedPiAiRootAttempted = false;
+
+/**
+ * True only when the fast-path import failed because pi-ai itself is missing.
+ * A failure inside pi-ai (a missing transitive dep, a corrupt file) must NOT
+ * trigger the disk fallback — it would mask the real error and could load a
+ * second, possibly stale pi-ai copy into the process.
+ */
+export function isPiAiNotFoundError(error: unknown): boolean {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		(error as NodeJS.ErrnoException).code === "ERR_MODULE_NOT_FOUND" &&
+		// Match the quoted specifier, not the "imported from" path — a missing
+		// transitive dep names its own package but carries pi-ai in the path.
+		/Cannot find (?:package|module) '@earendil-works\/pi-ai(?:\/[^']*)?'/.test(
+			String((error as Error).message),
+		)
+	);
+}
 
 /**
  * Loads an allow-listed pi-ai entry point, caching the resolved package root
@@ -283,6 +285,7 @@ export async function loadPiAiEntry<T = unknown>(entry: PiAiEntry): Promise<T> {
 	try {
 		return (await import(FAST_PATH_SPECIFIERS[entry])) as T;
 	} catch (error) {
+		if (!isPiAiNotFoundError(error)) throw error;
 		// Cold path: locate pi-ai on disk and import the entry file by path.
 		if (!resolvedPiAiRootAttempted) {
 			resolvedPiAiRoot = resolvePiAiPackageRoot();
