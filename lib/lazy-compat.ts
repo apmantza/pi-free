@@ -26,6 +26,7 @@ import type {
 	StreamOptions,
 } from "@earendil-works/pi-ai/compat";
 import { createAssistantMessageEventStream } from "./assistant-message-event-stream.ts";
+import { loadPiAiEntry } from "./pi-ai-loader.ts";
 
 /** The only compat exports the bridge consumes; keeps the test seam narrow. */
 type PiAiCompat = Pick<
@@ -35,7 +36,7 @@ type PiAiCompat = Pick<
 
 let compatPromise: Promise<PiAiCompat> | undefined;
 let compatLoader: () => Promise<PiAiCompat> = () =>
-	import("@earendil-works/pi-ai/compat");
+	loadPiAiEntry<PiAiCompat>("compat");
 
 /**
  * Test seam only: swap the compat loader (e.g. for failure injection) and
@@ -46,7 +47,7 @@ export function __setCompatLoaderForTests(
 	loader: (() => Promise<PiAiCompat>) | undefined,
 ): void {
 	compatPromise = undefined;
-	compatLoader = loader ?? (() => import("@earendil-works/pi-ai/compat"));
+	compatLoader = loader ?? (() => loadPiAiEntry<PiAiCompat>("compat"));
 }
 
 /** Single-flight cached dynamic import of the heavy compat entry point. */
