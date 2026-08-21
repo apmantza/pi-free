@@ -779,6 +779,93 @@ describe("built-in provider toggles", () => {
 		);
 	});
 
+	it("restores the saved model even when Pi's fallback poisoned the context model", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		const capturedModel = {
+			provider: "opencode",
+			id: "free-model",
+			name: "Free Model",
+			api: "openai-completions",
+			reasoning: false,
+			input: ["text"],
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			contextWindow: 128000,
+			maxTokens: 4096,
+			baseUrl: "https://example.com",
+		};
+		// Post-registration the registry also serves the re-registered
+		// opencode-free view; getAll reflects that.
+		const restoredModel = { ...capturedModel, provider: "opencode-free" };
+		// Pi appended a model_change for its fallback during THIS resume, so
+		// buildSessionContext().model no longer reports the persisted choice.
+		const now = new Date().toISOString();
+
+		await handlers.session_start(
+			{},
+			{
+				modelRegistry: {
+					getAll: () => [capturedModel, restoredModel],
+					getAvailable: () => [capturedModel],
+				},
+				sessionManager: {
+					buildSessionContext: () => ({
+						model: { provider: "openai-codex", modelId: "gpt-5.5" },
+					}),
+					getEntries: () => [
+						{ type: "model_change", provider: "opencode-free", modelId: "free-model", timestamp: "2026-01-01T00:00:00.000Z" },
+						{ type: "model_change", provider: "openai-codex", modelId: "gpt-5.5", timestamp: now },
+					],
+				},
+				model: { provider: "openai-codex", id: "gpt-5.5" },
+			},
+		);
+		await settleDetachedCapture();
+
+		expect(mockPi.setModel).toHaveBeenCalledWith(
+			expect.objectContaining({ provider: "opencode-free", id: "free-model" }),
+		);
+	});
+
+	it("does not restore when the trailing switch predates this run (deliberate)", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		const capturedModel = {
+			provider: "opencode",
+			id: "free-model",
+			name: "Free Model",
+			api: "openai-completions",
+			reasoning: false,
+			input: ["text"],
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			contextWindow: 128000,
+			maxTokens: 4096,
+			baseUrl: "https://example.com",
+		};
+		// Both changes are from a PREVIOUS run: the user deliberately moved to
+		// another provider and saved that way. No restore.
+
+		await handlers.session_start(
+			{},
+			{
+				modelRegistry: { getAll: () => [capturedModel], getAvailable: () => [] },
+				sessionManager: {
+					buildSessionContext: () => ({
+						model: { provider: "kilo", modelId: "other-model" },
+					}),
+					getEntries: () => [
+						{ type: "model_change", provider: "opencode-free", modelId: "free-model", timestamp: "2026-01-01T00:00:00.000Z" },
+						{ type: "model_change", provider: "kilo", modelId: "other-model", timestamp: "2026-01-01T00:05:00.000Z" },
+					],
+				},
+				model: { provider: "kilo", id: "other-model" },
+			},
+		);
+		await settleDetachedCapture();
+
+		expect(mockPi.setModel).not.toHaveBeenCalled();
+	});
+
 	it("does not restore when the saved model belongs to another provider", async () => {
 		setupBuiltInProviderToggles(mockPi);
 
