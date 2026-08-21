@@ -7,6 +7,7 @@ import {
 	PROVIDER_ZENMUX,
 } from "../../constants.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
+import { withGatewayCompat } from "../../lib/native-provider.ts";
 import { getProxyModelCompat } from "../../lib/provider-compat.ts";
 import { isFreeModel } from "../../lib/registry.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
@@ -122,12 +123,12 @@ export async function fetchZenmuxCatalog(options: {
 export function toZenmuxModel(
 	model: ProviderModelConfig,
 ): Model<"openai-completions"> {
-	return {
+	return withGatewayCompat({
 		...model,
 		api: "openai-completions",
 		provider: PROVIDER_ZENMUX,
 		baseUrl: model.baseUrl ?? BASE_URL_ZENMUX,
-	} as Model<"openai-completions">;
+	} as Model<"openai-completions">);
 }
 
 export function toZenmuxModels(

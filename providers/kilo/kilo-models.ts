@@ -7,6 +7,7 @@ import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { applyHidden } from "../../config.ts";
 import { PROVIDER_KILO } from "../../constants.ts";
 import { isFreeModel } from "../../lib/registry.ts";
+import { withGatewayCompat } from "../../lib/native-provider.ts";
 import { fetchOpenRouterCompatibleModels } from "../model-fetcher.ts";
 
 const KILO_API_BASE = process.env.KILO_API_URL || "https://api.kilo.ai";
@@ -117,13 +118,13 @@ export async function fetchKiloCatalog(options?: {
 export function toKiloModel(
 	m: ProviderModelConfig,
 ): Model<"openai-completions"> {
-	return {
+	return withGatewayCompat({
 		...m,
 		api: "openai-completions",
 		provider: PROVIDER_KILO,
 		baseUrl: m.baseUrl ?? KILO_GATEWAY_BASE,
 		headers: KILO_IDENTITY_HEADERS,
-	} as Model<"openai-completions">;
+	} as Model<"openai-completions">);
 }
 
 /**
