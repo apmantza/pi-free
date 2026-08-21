@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Resumed sessions get their saved built-in-toggle model back** — Pi resolves a resumed session's model *before* extension provider registrations take effect (`createAgentSession` restores from the session file; `pi.registerProvider` calls made during extension load are queued and only flush when the runner binds afterwards), so a session saved with a built-in-toggle provider (e.g. `opencode-free/deepseek-v4-flash-free`) always fell back to another model with a "Could not restore model" warning — even though the detached capture re-registered that exact model seconds later, and the fallback then stuck for the whole session. After the capture applies the catalog view, pi-free now re-reads the session's persisted model (`buildSessionContext().model`, so a deliberate mid-startup model switch is never clobbered) and re-selects it via `pi.setModel` when it is present in the registered view. The warning line itself is printed by Pi core before any extension code can run and still appears; what changes is that the correct model is restored automatically instead of the fallback sticking.
 
+## [Unreleased]
+
+### Fixed
+
+- **pi-ai compat now loads under Node-build pi installs where the extension tree and the host share nothing** ([#448](https://github.com/apmantza/pi-free/issues/448)) — on e.g. a pnpm global pi install with pi-free in `~/.pi/agent/npm`, every disk fallback of `lib/pi-ai-loader.ts` missed: no walk-up from pi-free reaches the host tree, the Node executable is a plain `node`, and the `%APPDATA%` probe is Windows-only, so the first model stream failed with `Cannot find package '@earendil-works/pi-ai'`. The loader now additionally resolves pi-ai relative to the running pi host's entry script (`process.argv[1]`, realpath-resolved so symlinked bin shims land in the real package tree — which also covers pnpm's virtual-store layout, where pi-ai sits as a sibling of the real agent package).
+
 ## [2.5.1] - 2026-08-16
 
 ### Fixed

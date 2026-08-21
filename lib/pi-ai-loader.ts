@@ -23,16 +23,23 @@
  *   1. Hoisted in the node_modules walk-up from this package.
  *   2. As a dependency of pi-coding-agent, found through the same walk-up
  *      (covers npm layouts that nest pi-ai under the agent's node_modules).
- *   3. The agent npm dir under the user's home (~/.pi/agent/npm/node_modules).
- *   4. The global npm root on Windows (%APPDATA%\npm\node_modules).
- *   5. Relative to the Node executable (covers custom installs on other
+ *   3. Relative to the running pi host entry script (process.argv[1]). This
+ *      covers hosted runs where pi-free's extension tree shares nothing with
+ *      the host install — e.g. pi-free in ~/.pi/agent/npm while pi is a pnpm
+ *      global install. The entry path is resolved through realpath first, so
+ *      symlinked `bin` shims land in the real package tree; walking up from a
+ *      symlink-resolved pi-coding-agent root also covers pnpm's virtual-store
+ *      layout, where pi-ai sits as a sibling dependency.
+ *   4. The agent npm dir under the user's home (~/.pi/agent/npm/node_modules).
+ *   5. The global npm root on Windows (%APPDATA%\npm\node_modules).
+ *   6. Relative to the Node executable (covers custom installs on other
  *      drives and version-manager layouts like nvm).
  *
  * The fallback imports the resolved entry by absolute file path, so pi-ai's
  * own relative imports keep resolving against pi-ai's real location.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -79,6 +86,56 @@ export function findPackageInNodeModules(
 	}
 }
 
+/**
+ * Optional overrides for {@link resolvePiAiPackageRoot}, used by tests to
+ * simulate hosted layouts without touching real process state.
+ */
+interface ResolvePiAiRootOptions {
+	/** Entry script of the running process. Defaults to `process.argv[1]`; pass `null` to simulate a hosted run with no usable entry path. */
+	argv1?: string | null;
+	/** Overrides `homedir()` for the `~/.pi/agent/npm` probe (tests). */
+	homeDir?: string;
+	/** Overrides `%APPDATA%` for the Windows global-root probe; `null` skips it (tests). */
+	appData?: string | null;
+	/** Overrides `process.execPath` for the executable-relative probe (tests). */
+	execPath?: string;
+}
+
+const PI_AI_SEGMENTS = ["@earendil-works", "pi-ai"];
+const AGENT_SEGMENTS = ["@earendil-works", "pi-coding-agent"];
+
+/** realpath that degrades to the input path when the link cannot be resolved. */
+function safeRealpath(path: string): string {
+	try {
+		return realpathSync(path);
+	} catch {
+		return path;
+	}
+}
+
+/**
+ * Locates pi-ai relative to the running pi host's entry script. Handles the
+ * hosted-layout failure mode where pi-free's extension tree shares no
+ * node_modules with the host install: the entry path is realpath-resolved
+ * (bin shims are usually symlinks), then both pi-ai directly and pi-ai as the
+ * agent's own dependency are searched above it. Resolving the found agent
+ * root through realpath additionally covers pnpm's virtual store, where the
+ * top-level agent entry is a symlink and pi-ai lives only next to the real
+ * package directory.
+ */
+function findViaHostEntry(argvPath: string | undefined): string | undefined {
+	if (!argvPath) return undefined;
+	const entryDir = dirname(safeRealpath(argvPath));
+	const direct = findPackageInNodeModules(entryDir, PI_AI_SEGMENTS);
+	if (direct) return direct;
+	const agentRoot = findPackageInNodeModules(entryDir, AGENT_SEGMENTS);
+	if (!agentRoot) return undefined;
+	return findPackageInNodeModules(
+		dirname(safeRealpath(agentRoot)),
+		PI_AI_SEGMENTS,
+	);
+}
+
 function probePackageRoot(candidate: string): string | undefined {
 	return existsSync(join(candidate, "package.json")) ? candidate : undefined;
 }
@@ -110,44 +167,50 @@ function probePiAiInRoot(root: string): string | undefined {
  */
 export function resolvePiAiPackageRoot(
 	startDir: string = THIS_FILE_DIR,
+	options: ResolvePiAiRootOptions = {},
 ): string | undefined {
-	const PI_AI = ["@earendil-works", "pi-ai"];
-	const AGENT = ["@earendil-works", "pi-coding-agent"];
-
 	// 1) pi-ai reachable through the standard walk-up (hoisted at or above
 	//    the pi-free install, which is what native resolution would see).
-	const direct = findPackageInNodeModules(startDir, PI_AI);
+	const direct = findPackageInNodeModules(startDir, PI_AI_SEGMENTS);
 	if (direct) return direct;
 
 	// 2) pi-ai as pi-coding-agent's own dependency. Finding the agent through
 	//    the same walk-up, then searching upward from it, covers both the
 	//    nested layout (agent/node_modules/pi-ai) and a hoisted-above-agent one
 	//    in a single call.
-	const agentRoot = findPackageInNodeModules(startDir, AGENT);
+	const agentRoot = findPackageInNodeModules(startDir, AGENT_SEGMENTS);
 	if (agentRoot) {
-		const nested = findPackageInNodeModules(agentRoot, PI_AI);
+		const nested = findPackageInNodeModules(agentRoot, PI_AI_SEGMENTS);
 		if (nested) return nested;
 	}
 
-	// 3) The agent npm dir under the user's home.
+	// 3) Relative to the running pi host's entry script — the hosted-run
+	//    fallback for installs where the extension tree and the host share
+	//    nothing (see findViaHostEntry).
+	const viaHost = findViaHostEntry(
+		options.argv1 === undefined ? process.argv[1] : (options.argv1 ?? undefined),
+	);
+	if (viaHost) return viaHost;
+
+	// 4) The agent npm dir under the user's home.
 	const homeRoot = probePiAiInRoot(
-		join(homedir(), ".pi", "agent", "npm", "node_modules"),
+		join(options.homeDir ?? homedir(), ".pi", "agent", "npm", "node_modules"),
 	);
 	if (homeRoot) return homeRoot;
 
-	// 4) Global npm root on Windows (pi installed via `npm i -g`).
-	if (process.platform === "win32" && process.env.APPDATA) {
-		const globalRoot = probePiAiInRoot(
-			join(process.env.APPDATA, "npm", "node_modules"),
-		);
+	// 5) Global npm root on Windows (pi installed via `npm i -g`).
+	const appData =
+		options.appData === undefined ? process.env.APPDATA : options.appData;
+	if (process.platform === "win32" && appData) {
+		const globalRoot = probePiAiInRoot(join(appData, "npm", "node_modules"));
 		if (globalRoot) return globalRoot;
 	}
 
-	// 5) Relative to the Node executable — covers global installs where the
+	// 6) Relative to the Node executable — covers global installs where the
 	//    npm root differs from the default (custom Node installs on another
 	//    drive, or version managers). Windows keeps node_modules next to the
 	//    executable; POSIX prefixes keep it under <prefix>/lib/node_modules.
-	const execDir = dirname(process.execPath);
+	const execDir = dirname(options.execPath ?? process.execPath);
 	const execRoot =
 		probePiAiInRoot(join(execDir, "node_modules")) ??
 		probePiAiInRoot(join(execDir, "..", "lib", "node_modules"));

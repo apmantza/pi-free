@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
 	findPackageInNodeModules,
 	isPiAiNotFoundError,
@@ -51,6 +51,104 @@ describe("findPackageInNodeModules", () => {
 });
 
 describe("resolvePiAiPackageRoot", () => {
+	it("finds pi-ai relative to the running pi host entry script", () => {
+		// Hosted layout where pi-free's extension tree shares nothing with the
+		// host install (issue #448): pi-free in one tree, pi + pi-ai in another.
+		const base = mkdtempSync(join(tmpdir(), "pi-free-loader-"));
+		const extensionTree = join(base, "agent-npm", "node_modules", "pi-free");
+		makePackage(join(extensionTree));
+		const hostPiAi = join(
+			base,
+			"pnpm-global",
+			"node_modules",
+			"@earendil-works",
+			"pi-ai",
+		);
+		makePackage(hostPiAi, PI_AI_EXPORTS);
+		const cli = join(base, "pnpm-global", "node_modules", "pi", "dist", "cli.js");
+		mkdirSync(dirname(cli), { recursive: true });
+
+		expect(resolvePiAiPackageRoot(extensionTree, { argv1: cli })).toBe(hostPiAi);
+	});
+
+	it("finds pi-ai through a pnpm virtual-store layout via the host entry", () => {
+		// pnpm layout: pi-ai is not in any top-level node_modules; it lives as a
+		// sibling of the real (symlink-target) agent package inside .pnpm.
+		const base = mkdtempSync(join(tmpdir(), "pi-free-loader-"));
+		const extensionTree = join(base, "agent-npm", "node_modules", "pi-free");
+		makePackage(extensionTree);
+		const virtualAgent = join(
+			base,
+			"pnpm-global",
+			"node_modules",
+			".pnpm",
+			"@earendil-works+pi-coding-agent@0.84.2",
+			"node_modules",
+			"@earendil-works",
+			"pi-coding-agent",
+		);
+		makePackage(virtualAgent);
+	const virtualPiAi = join(
+		dirname(dirname(virtualAgent)),
+		"@earendil-works",
+		"pi-ai",
+	);
+		makePackage(virtualPiAi, PI_AI_EXPORTS);
+		// Entry script inside the real agent package (what a resolved bin shim
+		// points at).
+		const cli = join(virtualAgent, "dist", "cli.js");
+		mkdirSync(dirname(cli), { recursive: true });
+
+		expect(resolvePiAiPackageRoot(extensionTree, { argv1: cli })).toBe(virtualPiAi);
+	});
+
+	it("finds pi-ai above a symlinked bin shim via realpath", () => {
+		const base = mkdtempSync(join(tmpdir(), "pi-free-loader-"));
+		const extensionTree = join(base, "agent-npm", "node_modules", "pi-free");
+		makePackage(extensionTree);
+		const hostPiAi = join(
+			base,
+			"global",
+			"node_modules",
+			"@earendil-works",
+			"pi-ai",
+		);
+		makePackage(hostPiAi, PI_AI_EXPORTS);
+		const cli = join(base, "global", "node_modules", "pi", "dist", "cli.js");
+		mkdirSync(dirname(cli), { recursive: true });
+		writeFileSync(cli, "#!/usr/bin/env node\n");
+		const shim = join(base, "bin-dir", "pi");
+		try {
+			mkdirSync(dirname(shim), { recursive: true });
+			symlinkSync(cli, shim, "file");
+		} catch {
+			// Symlinks may be unavailable (Windows without privileges) — the
+			// realpath behavior is still covered indirectly by the other tests.
+			return;
+		}
+
+		expect(resolvePiAiPackageRoot(extensionTree, { argv1: shim })).toBe(hostPiAi);
+	});
+
+	it("ignores a missing or unusable argv1 and keeps searching other roots", () => {
+		const base = mkdtempSync(join(tmpdir(), "pi-free-loader-"));
+		// Pin every environment probe to empty fixture locations so the result
+		// does not depend on what is installed on the test machine.
+		const isolated = {
+			argv1: null,
+			homeDir: base,
+			appData: join(base, "no-appdata"),
+			execPath: join(base, "bin", "node.exe"),
+		} as const;
+		expect(resolvePiAiPackageRoot(base, isolated)).toBeUndefined();
+		expect(
+			resolvePiAiPackageRoot(base, {
+				...isolated,
+				argv1: join(base, "does-not-exist"),
+			}),
+		).toBeUndefined();
+	});
+
 	it("finds pi-ai nested under pi-coding-agent's own node_modules", () => {
 		const base = mkdtempSync(join(tmpdir(), "pi-free-loader-"));
 		const nested = join(
