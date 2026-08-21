@@ -423,7 +423,18 @@ async function maybeRestoreSavedModel(
 			snapshot.sessionManager,
 			contextModel,
 		);
-		if (!saved || saved.provider !== config.id) return;
+		if (!saved || saved.provider !== config.id) {
+			// Debug, not warn: a fresh session (or a deliberate previous-run
+			// switch) lands here on every resume.
+			_logger.debug(
+				`[built-in-toggle] ${config.id}: no saved model to restore`,
+				{
+					contextProvider: contextModel?.provider,
+					contextModelId: contextModel?.modelId,
+				},
+			);
+			return;
+		}
 		if (
 			snapshot.model?.provider === saved.provider &&
 			snapshot.model.id === saved.modelId
@@ -435,7 +446,16 @@ async function maybeRestoreSavedModel(
 		const model = catalog.find(
 			(m: Model<Api>) => m.provider === config.id && m.id === saved.modelId,
 		);
-		if (!model) return;
+		if (!model) {
+			// Warn: the persisted choice exists in the session but the captured
+			// catalog no longer contains it (upstream rotation, capture failure,
+			// or a filtered-out view). This explains a lingering "Could not
+			// restore model" warning that the deferred restore could not fix.
+			_logger.warn(
+				`[built-in-toggle] ${config.id}: saved model ${saved.modelId} not in the registered catalog; keeping Pi's fallback`,
+			);
+			return;
+		}
 		const restored = await pi.setModel(model);
 		if (restored) {
 			_logger.info(
