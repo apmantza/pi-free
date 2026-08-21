@@ -39,7 +39,7 @@ Run `/toggle-{provider}` to switch between a provider's free/basic view and its 
 | `/toggle-openmodel` | OpenModel | Native |
 | `/toggle-qoder` | Qoder | Legacy |
 | `/toggle-openrouter` | OpenRouter | Pi built-in |
-| `/toggle-opencode` | OpenCode | Pi built-in |
+| `/toggle-opencode-free` | OpenCode Zen free wrapper | Pi built-in catalog + detached Zen refresh |
 | `/toggle-opencode-go` | OpenCode Go | Pi built-in |
 | `/toggle-fastrouter` | FastRouter | Native |
 
@@ -60,7 +60,7 @@ Qoder PAT authentication can also use `QODER_PERSONAL_ACCESS_TOKEN` or its `QODE
 ## Ollama Cloud Refresh
 
 | Command | Description |
-|---|---|
+| --- | --- |
 | `/ollama-cloud-refresh` | Re-fetch Ollama Cloud's catalog and update the provider live. Requires `OLLAMA_API_KEY`. |
 
 Ollama Cloud is a native provider, but this compatibility command and `/api/show` capability reuse continue to use `~/.pi/provider-cache.json`.

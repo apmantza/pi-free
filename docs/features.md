@@ -22,7 +22,7 @@ Most pi-free providers now use Pi's native `registerProvider(provider)` surface.
 - retain the previous catalog after an empty or failed refresh; and
 - keep their complete catalog in memory while Pi applies the current free/all filter.
 
-FastRouter and Qoder now use the native provider lifecycle alongside the other migrated providers. Pi owns the OpenCode, OpenCode Go, and OpenRouter built-in catalogs. See [configuration](configuration.md#model-stores-and-caches) for cache locations, including Ollama Cloud's intentional compatibility-cache exception.
+FastRouter and Qoder now use the native provider lifecycle alongside the other migrated providers. Pi owns the OpenCode, OpenCode Go, and OpenRouter built-in catalogs. The `opencode-free` wrapper captures Pi's built-in metadata, then performs one detached `GET /zen/v1/models` refresh after session start so new or retired Zen models are reflected without delaying Pi startup. See [configuration](configuration.md#model-stores-and-caches) for cache locations, including Ollama Cloud's intentional compatibility-cache exception.
 
 ## Coding Index (CI) scores
 

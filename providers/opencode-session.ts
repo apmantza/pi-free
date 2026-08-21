@@ -17,6 +17,7 @@ import type {
 	ProviderConfig,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
+import { DEFAULT_FETCH_TIMEOUT_MS } from "../constants.ts";
 
 export const OPENCODE_DYNAMIC_API = "opencode-dynamic" as const;
 
@@ -24,6 +25,59 @@ export const OPENCODE_STATIC_HEADERS = {
 	"User-Agent": "opencode/1.18.18",
 	"x-opencode-client": "cli",
 } as const;
+
+/**
+ * Fetch the public OpenCode Zen catalog. The endpoint intentionally returns
+ * only model ids, so callers merge those ids with Pi's richer built-in model
+ * metadata. Keep this as a small, one-shot request: it runs after session
+ * start and must never become part of extension initialization.
+ */
+export async function fetchOpenCodeModelIds(
+	baseUrl: string,
+	signal?: AbortSignal,
+): Promise<string[]> {
+	const timeoutSignal = AbortSignal.timeout(DEFAULT_FETCH_TIMEOUT_MS);
+	const requestSignal = signal
+		? AbortSignal.any([signal, timeoutSignal])
+		: timeoutSignal;
+	const response = await fetch(`${baseUrl.replace(/\/+$/u, "")}/models`, {
+		headers: {
+			...OPENCODE_STATIC_HEADERS,
+			Accept: "application/json",
+		},
+		signal: requestSignal,
+	});
+	if (!response.ok) {
+		throw new Error(`OpenCode model catalog returned HTTP ${response.status}`);
+	}
+
+	const payload: unknown = await response.json();
+	if (!payload || typeof payload !== "object") {
+		throw new Error("OpenCode model catalog returned an invalid response");
+	}
+	const data = (payload as { data?: unknown }).data;
+	if (!Array.isArray(data)) {
+		throw new Error("OpenCode model catalog returned no model list");
+	}
+
+	const ids = [
+		...new Set(
+			data
+				.filter(
+					(item): item is { id: string } =>
+						!!item &&
+						typeof item === "object" &&
+						typeof (item as { id?: unknown }).id === "string" &&
+						(item as { id: string }).id.length > 0,
+				)
+				.map((item) => item.id),
+		),
+	];
+	if (ids.length === 0) {
+		throw new Error("OpenCode model catalog returned an empty model list");
+	}
+	return ids;
+}
 
 /**
  * OpenCode-native identifier generation.
@@ -596,6 +650,8 @@ export function createOpenCodeStreamSimple(
 			}
 		})();
 
+		// SAFETY: the deferred wrapper implements the async-iterable and result()
+		// surface expected by Pi's AssistantMessageEventStream.
 		return stream as unknown as AssistantMessageEventStream;
 	};
 }

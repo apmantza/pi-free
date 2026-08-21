@@ -11,7 +11,11 @@
  * Usage: /toggle-opencode
  */
 
-import type { Api, Model } from "@earendil-works/pi-ai/compat";
+import type {
+	Api,
+	Model,
+	RefreshModelsContext,
+} from "@earendil-works/pi-ai/compat";
 import type {
 	ExtensionAPI,
 	ProviderModelConfig,
@@ -30,12 +34,15 @@ import {
 import { createToggleState } from "./toggle-state.ts";
 import {
 	OPENCODE_DYNAMIC_API,
+	applyOpenCodeProtocolDefaults,
 	createOpenCodeHeaders,
 	createOpenCodeSessionTracker,
 	createOpenCodeStreamSimple,
+	fetchOpenCodeModelIds,
 	getOpenCodeModelBaseUrl,
 	ensureOpenCodeApiProviderRegistered,
 	isOpenCodeProvider,
+	resolveOpenCodeModelApi,
 } from "../providers/opencode-session.ts";
 
 const _logger = createLogger("built-in-toggle");
@@ -66,6 +73,8 @@ interface BuiltInToggleConfig {
 	getShowPaid: () => boolean;
 	baseUrl: string;
 	api: Api;
+	/** Fetch the public catalog after the initial built-in capture. */
+	refreshEndpoint?: boolean;
 }
 
 const BUILT_IN_TOGGLE_PROVIDERS: BuiltInToggleConfig[] = [
@@ -82,6 +91,7 @@ const BUILT_IN_TOGGLE_PROVIDERS: BuiltInToggleConfig[] = [
 		getShowPaid: getOpencodeShowPaid,
 		baseUrl: "https://opencode.ai/zen/v1",
 		api: OPENCODE_DYNAMIC_API,
+		refreshEndpoint: true,
 	},
 	{
 		id: "opencode-go",
@@ -113,6 +123,7 @@ interface BuiltInProviderState {
 	stored: { free: ProviderModelConfig[]; all: ProviderModelConfig[] };
 	reRegister: (models: ProviderModelConfig[]) => void;
 	setModelRegistry: (registry: CurrentModelRegistry) => void;
+	updateModels: (allModels: ProviderModelConfig[]) => void;
 	toggleState: ReturnType<typeof createToggleState<ProviderModelConfig>>;
 }
 
@@ -150,6 +161,8 @@ interface PendingCapture {
  * race two captures (and two re-registrations) for the same provider.
  */
 const pendingCaptures = new Map<string, PendingCapture>();
+/** One detached endpoint refresh per provider; duplicate session events reuse it. */
+const pendingEndpointRefreshes = new Map<string, Promise<void>>();
 let commandsRegisteredFor: ExtensionAPI | undefined;
 let sessionStartRegisteredFor: ExtensionAPI | undefined;
 
@@ -198,6 +211,7 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 					existing.setModelRegistry(ctx.modelRegistry);
 					existing.toggleState.applyCurrent(existing.reRegister);
 					await maybeRestoreSavedModel(pi, config, snapshotFromCtx(ctx));
+					scheduleEndpointRefresh(config, existing);
 					continue;
 				}
 
@@ -231,6 +245,7 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 							`[built-in-toggle] ${config.id}: applied ${applied.mode} mode with ${applied.models.length} models`,
 						);
 						await maybeRestoreSavedModel(pi, config, entry.snapshot);
+						scheduleEndpointRefresh(config, state);
 					} finally {
 						pendingCaptures.delete(config.id);
 					}
@@ -291,8 +306,7 @@ async function maybeRestoreSavedModel(
 			return;
 		}
 		const catalog =
-			snapshot.modelRegistry.getAll?.() ??
-			snapshot.modelRegistry.getAvailable();
+			snapshot.modelRegistry.getAll?.() ?? snapshot.modelRegistry.getAvailable();
 		const model = catalog.find(
 			(m: Model<Api>) => m.provider === config.id && m.id === saved.modelId,
 		);
@@ -357,9 +371,28 @@ function createProviderState(
 ): BuiltInProviderState {
 	const { allModels, baseUrl, api, apiKey, source } = options;
 	let currentModelRegistry = options.modelRegistry;
+	let stateForRefresh: BuiltInProviderState | undefined;
 	const freeModels = allModels.filter((m: ProviderModelConfig) =>
 		isFreeModel({ ...m, provider: config.id }, allModels),
 	);
+
+	const refreshModels = config.refreshEndpoint
+		? async (context: RefreshModelsContext): Promise<ProviderModelConfig[]> => {
+				if (!context.allowNetwork) {
+					return stateForRefresh?.toggleState.getCurrentModels() ?? allModels;
+				}
+				const refreshed = await fetchRefreshedOpenCodeModels(
+					config,
+					stateForRefresh?.stored.all ?? allModels,
+					context.signal,
+				);
+				if (context.signal.aborted || !stateForRefresh) {
+					return stateForRefresh?.toggleState.getCurrentModels() ?? refreshed;
+				}
+				stateForRefresh.updateModels(refreshed);
+				return stateForRefresh.toggleState.getCurrentModels();
+			}
+		: undefined;
 
 	const reRegister = (models: ProviderModelConfig[]) => {
 		// Ensure the opencode-dynamic API is registered in compat's global
@@ -376,6 +409,9 @@ function createProviderState(
 				: {}),
 			models,
 		};
+		if (refreshModels) {
+			Object.assign(providerConfig, { refreshModels });
+		}
 
 		// Event/command contexts expose the current session registry. Using it
 		// avoids calling the stale ExtensionAPI captured before a session switch.
@@ -399,15 +435,32 @@ function createProviderState(
 		initialModels: stored,
 	});
 
+	const updateModels = (nextAllModels: ProviderModelConfig[]): void => {
+		const nextStored = {
+			free: nextAllModels.filter((m: ProviderModelConfig) =>
+				isFreeModel({ ...m, provider: config.id }, nextAllModels),
+			),
+			all: nextAllModels,
+		};
+		toggleState.setModels(nextStored);
+		// Keep the object handed to registerWithGlobalToggle stable. The global
+		// filter retains that reference for the lifetime of the runner.
+		const current = toggleState.getStored();
+		stored.free = current.free;
+		stored.all = current.all;
+	};
+
 	const state: BuiltInProviderState = {
 		stored,
 		reRegister,
 		setModelRegistry: (registry) => {
 			currentModelRegistry = registry;
 		},
+		updateModels,
 		toggleState,
 	};
 	providerStates.set(config.id, state);
+	stateForRefresh = state;
 
 	registerWithGlobalToggle(config.id, stored, reRegister, true);
 
@@ -416,6 +469,95 @@ function createProviderState(
 	);
 
 	return state;
+}
+
+function createDiscoveredOpenCodeModel(
+	id: string,
+	config: BuiltInToggleConfig,
+): ProviderModelConfig {
+	const api = resolveOpenCodeModelApi(id, config.id);
+	const free = id.toLowerCase().includes("free");
+	return {
+		id,
+		name: id,
+		api,
+		baseUrl: getOpenCodeModelBaseUrl(api, config.baseUrl),
+		reasoning: true,
+		input: ["text"],
+		cost: {
+			input: free ? 0 : 1,
+			output: free ? 0 : 1,
+			cacheRead: 0,
+			cacheWrite: 0,
+		},
+		contextWindow: 200_000,
+		maxTokens: 32_000,
+		headers: createOpenCodeHeaders(getOpenCodeSession()) as Record<
+			string,
+			string
+		>,
+	};
+}
+
+async function fetchRefreshedOpenCodeModels(
+	config: BuiltInToggleConfig,
+	fallbackModels: ProviderModelConfig[],
+	signal?: AbortSignal,
+): Promise<ProviderModelConfig[]> {
+	const ids = await fetchOpenCodeModelIds(config.baseUrl, signal);
+	const knownById = new Map(fallbackModels.map((model) => [model.id, model]));
+	return applyOpenCodeProtocolDefaults(
+		ids.map(
+			(id) => knownById.get(id) ?? createDiscoveredOpenCodeModel(id, config),
+		),
+		config.id,
+		config.baseUrl,
+	);
+}
+
+/**
+ * Refresh only after the initial capture has registered. Pi's built-in
+ * OpenCode provider is a static catalog, so ModelRegistry.refresh() cannot
+ * discover the public Zen endpoint for our renamed `opencode-free` provider.
+ * Keeping this request detached preserves the fast session_start path.
+ */
+function scheduleEndpointRefresh(
+	config: BuiltInToggleConfig,
+	state: BuiltInProviderState,
+): void {
+	if (!config.refreshEndpoint || pendingEndpointRefreshes.has(config.id)) return;
+
+	let task: Promise<void> | undefined;
+	task = (async () => {
+		try {
+			const refreshed = await fetchRefreshedOpenCodeModels(
+				config,
+				state.stored.all,
+			);
+			state.updateModels(refreshed);
+			const applied = state.toggleState.applyCurrent(state.reRegister);
+			_logger.info(
+				`[built-in-toggle] ${config.id}: endpoint refresh ${applied.models.length}/${refreshed.length} ${applied.mode} models`,
+			);
+		} catch (error) {
+			_logger.warn(`[built-in-toggle] ${config.id}: endpoint refresh failed`, {
+				error: error instanceof Error ? error.message : String(error),
+			});
+			throw error;
+		} finally {
+			if (pendingEndpointRefreshes.get(config.id) === task) {
+				pendingEndpointRefreshes.delete(config.id);
+			}
+		}
+	})();
+
+	pendingEndpointRefreshes.set(config.id, task);
+	trackDetachedSessionStart(
+		`built-in-toggle-refresh-${config.id}`,
+		task,
+		// The task already logs a credential-free, status-only failure.
+		() => {},
+	);
 }
 
 // =============================================================================
