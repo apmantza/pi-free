@@ -280,8 +280,11 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 						_logger.info(
 							`[built-in-toggle] ${config.id}: applied ${applied.mode} mode with ${applied.models.length} models`,
 						);
-						await maybeRestoreSavedModel(pi, config, entry.snapshot);
+						// Schedule the endpoint refresh BEFORE the restore: the initial
+						// captured catalog can be a partial upstream list, and the
+						// restore's not-found retry waits for this refresh to land.
 						scheduleEndpointRefresh(config, state);
+						await maybeRestoreSavedModel(pi, config, entry.snapshot);
 					} finally {
 						pendingCaptures.delete(config.id);
 					}
@@ -353,9 +356,7 @@ function readModelChanges(
 				provider: candidate.provider,
 				modelId: candidate.modelId,
 				timestamp:
-					typeof candidate.timestamp === "string"
-						? candidate.timestamp
-						: undefined,
+					typeof candidate.timestamp === "string" ? candidate.timestamp : undefined,
 			});
 		}
 	}
@@ -426,13 +427,10 @@ async function maybeRestoreSavedModel(
 		if (!saved || saved.provider !== config.id) {
 			// Debug, not warn: a fresh session (or a deliberate previous-run
 			// switch) lands here on every resume.
-			_logger.debug(
-				`[built-in-toggle] ${config.id}: no saved model to restore`,
-				{
-					contextProvider: contextModel?.provider,
-					contextModelId: contextModel?.modelId,
-				},
-			);
+			_logger.debug(`[built-in-toggle] ${config.id}: no saved model to restore`, {
+				contextProvider: contextModel?.provider,
+				contextModelId: contextModel?.modelId,
+			});
 			return;
 		}
 		if (
@@ -443,9 +441,31 @@ async function maybeRestoreSavedModel(
 		}
 		const catalog =
 			snapshot.modelRegistry.getAll?.() ?? snapshot.modelRegistry.getAvailable();
-		const model = catalog.find(
+		let model = catalog.find(
 			(m: Model<Api>) => m.provider === config.id && m.id === saved.modelId,
 		);
+		if (!model) {
+			// The initial capture can serve a partial upstream list while the
+			// detached endpoint refresh is still fetching the complete one
+			// (observed: saved model absent from a 61-model capture, present in
+			// the 64-model refresh two seconds later). Wait for that refresh
+			// once and retry the lookup before giving up.
+			const refresh = pendingEndpointRefreshes.get(config.id);
+			if (refresh) {
+				try {
+					await refresh;
+				} catch {
+					// Refresh failures are logged by the refresh task itself.
+				}
+				const refreshedCatalog =
+					snapshot.modelRegistry.getAll?.() ??
+					snapshot.modelRegistry.getAvailable();
+				model = refreshedCatalog.find(
+					(m: Model<Api>) =>
+						m.provider === config.id && m.id === saved.modelId,
+				);
+			}
+		}
 		if (!model) {
 			// Warn: the persisted choice exists in the session but the captured
 			// catalog no longer contains it (upstream rotation, capture failure,
