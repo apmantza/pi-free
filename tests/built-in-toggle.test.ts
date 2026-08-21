@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetGlobalFreeOnly = vi.fn();
 const mockGetOpencodeShowPaid = vi.fn();
+const mockGetOpencodeFreeShowPaid = vi.fn();
+const mockGetOpencodeGoShowPaid = vi.fn();
 const mockGetOpenrouterShowPaid = vi.fn();
 const mockGetOpenrouterApiKey = vi.fn();
 const mockSaveConfig = vi.fn();
@@ -21,6 +23,8 @@ async function settleDetachedCapture(): Promise<void> {
 
 vi.mock("../config.ts", () => ({
 	getOpencodeShowPaid: () => mockGetOpencodeShowPaid(),
+	getOpencodeFreeShowPaid: () => mockGetOpencodeFreeShowPaid(),
+	getOpencodeGoShowPaid: () => mockGetOpencodeGoShowPaid(),
 	getOpenrouterApiKey: () => mockGetOpenrouterApiKey(),
 	getOpenrouterShowPaid: () => mockGetOpenrouterShowPaid(),
 	saveConfig: (...args: unknown[]) => mockSaveConfig(...args),
@@ -88,6 +92,8 @@ describe("built-in provider toggles", () => {
 		mockProviderRegistry.clear();
 		mockGetGlobalFreeOnly.mockReturnValue(true);
 		mockGetOpencodeShowPaid.mockReturnValue(false);
+		mockGetOpencodeFreeShowPaid.mockReturnValue(false);
+		mockGetOpencodeGoShowPaid.mockReturnValue(false);
 		mockGetOpenrouterShowPaid.mockReturnValue(false);
 		mockGetOpenrouterApiKey.mockReturnValue(undefined);
 
@@ -106,7 +112,7 @@ describe("built-in provider toggles", () => {
 	});
 
 	it("applies saved show-paid mode after capturing built-in models", async () => {
-		mockGetOpencodeShowPaid.mockReturnValue(true);
+		mockGetOpencodeFreeShowPaid.mockReturnValue(true);
 		setupBuiltInProviderToggles(mockPi);
 
 		const allModels = [
@@ -634,7 +640,7 @@ describe("built-in provider toggles", () => {
 	});
 
 	it("toggles from the actual current mode instead of an assumed boolean", async () => {
-		mockGetOpencodeShowPaid.mockReturnValue(true);
+		mockGetOpencodeFreeShowPaid.mockReturnValue(true);
 		setupBuiltInProviderToggles(mockPi);
 
 		const allModels = [
@@ -678,7 +684,7 @@ describe("built-in provider toggles", () => {
 		await commands["toggle-opencode-free"]({}, { ui: { notify } });
 
 		expect(mockSaveConfig).toHaveBeenCalledWith({
-			"opencode-free_show_paid": false,
+			opencode_free_show_paid: false,
 		});
 		expect(mockRegisterProvider).toHaveBeenLastCalledWith(
 			"opencode-free",
@@ -688,6 +694,44 @@ describe("built-in provider toggles", () => {
 		);
 		expect(notify).toHaveBeenCalledWith(
 			"opencode-free: showing 1 free models",
+			"info",
+		);
+	});
+
+	it("persists the opencode-go toggle under its own snake_case key", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		const allModels = [
+			{
+				provider: "opencode-go",
+				id: "go-model",
+				name: "Go Model",
+				api: "openai-completions",
+				reasoning: false,
+				input: ["text"],
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 128000,
+				maxTokens: 4096,
+				baseUrl: "https://example.com",
+			},
+		];
+
+		await handlers.session_start(
+			{},
+			{ modelRegistry: { getAvailable: () => allModels } },
+		);
+		await settleDetachedCapture();
+
+		const notify = vi.fn();
+		await commands["toggle-opencode-go"]({}, { ui: { notify } });
+
+		// Pre-fix this wrote the dead dashed key `opencode-go_show_paid`,
+		// which no getter ever read, so the toggle was lost on restart.
+		expect(mockSaveConfig).toHaveBeenCalledWith({
+			opencode_go_show_paid: true,
+		});
+		expect(notify).toHaveBeenCalledWith(
+			"opencode-go: showing all 1 models",
 			"info",
 		);
 	});

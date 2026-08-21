@@ -217,6 +217,32 @@ describe("show-paid getters", () => {
 		expect(getOpenrouterShowPaid()).toBe(false);
 	});
 
+	it("getOpencodeFreeShowPaid reads its own key, not the shared opencode key", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(
+			configPath(),
+			JSON.stringify({ opencode_show_paid: true, opencode_free_show_paid: false }),
+		);
+
+		const { getOpencodeFreeShowPaid } = await import("../config.ts");
+		expect(getOpencodeFreeShowPaid()).toBe(false);
+	});
+
+	it("getOpencodeGoShowPaid reads its own key, not the shared opencode key", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(
+			configPath(),
+			JSON.stringify({ opencode_show_paid: false, opencode_go_show_paid: true }),
+		);
+
+		const { getOpencodeGoShowPaid } = await import("../config.ts");
+		expect(getOpencodeGoShowPaid()).toBe(true);
+	});
+
 	it("getProviderShowPaid maps provider ids to persisted flags", async () => {
 		vi.stubEnv("HOME", "/tmp");
 		const fs = await import("node:fs");
@@ -463,6 +489,8 @@ describe("config re-exports", () => {
 			"getOllamaShowPaid",
 			"getOpenrouterShowPaid",
 			"getOpencodeShowPaid",
+			"getOpencodeFreeShowPaid",
+			"getOpencodeGoShowPaid",
 			"getProviderShowPaid",
 			"getZenmuxApiKey",
 			"getCrofaiApiKey",

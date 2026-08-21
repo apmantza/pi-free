@@ -200,6 +200,50 @@ describe("createNativeOpenAIProvider", () => {
 		).toEqual(["free"]);
 	});
 
+	it("honors the persisted config getter on startup and lets toggling override in-session", async () => {
+		// The config getter stands in for ~/.pi/free.json: it is authoritative
+		// when the provider first boots, so a persisted free/all choice is not
+		// clobbered (DeepInfra regression: the old initialShowPaid override
+		// forced `showPaid=true` on every boot, so a persisted free toggle was
+		// lost on restart).
+		//
+		// Global free-only stays ON (beforeEach) so the free/paid view is
+		// driven purely by the showPaid getter: paid view shows all, free view
+		// filters to free models.
+		const persistedShowPaid = vi.fn(() => true);
+		const handle = createNativeOpenAIProvider({
+			...options,
+			getShowPaid: persistedShowPaid,
+		});
+
+		// Boot state follows the config getter (paid view shown → all models).
+		expect(handle.getShowPaid()).toBe(true);
+		expect(
+			handle.provider.filterModels!(handle.provider.getModels(), undefined).map(
+				(item) => item.id,
+			),
+		).toEqual(["free", "paid"]);
+
+		// Toggling to free updates the in-session override.
+		handle.setShowPaid(false);
+		expect(handle.getShowPaid()).toBe(false);
+
+		// A fresh provider (simulating a restart) obeys the persisted getter
+		// again; the in-session override does not leak across instances.
+		persistedShowPaid.mockReturnValue(false);
+		const restarted = createNativeOpenAIProvider({
+			...options,
+			getShowPaid: persistedShowPaid,
+		});
+		expect(restarted.getShowPaid()).toBe(false);
+		expect(
+			restarted.provider.filterModels!(
+				restarted.provider.getModels(),
+				undefined,
+			).map((item) => item.id),
+		).toEqual(["free"]);
+	});
+
 	it("supports Pi 0.84 stored/publish model lifecycle", async () => {
 		const controller = new AbortController();
 		const publish = vi.fn(

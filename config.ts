@@ -27,6 +27,8 @@ import {
 	PROVIDER_KILO,
 	PROVIDER_OLLAMA,
 	PROVIDER_OPENCODE,
+	PROVIDER_OPENCODE_FREE,
+	PROVIDER_OPENCODE_GO,
 	PROVIDER_OPENMODEL,
 	PROVIDER_OPENROUTER,
 	PROVIDER_QODER,
@@ -58,8 +60,24 @@ import { ensureDir, PI_DATA_DIR } from "./lib/paths.ts";
 
 /**
  * JSON.parse reviver that strips prototype-pollution payloads.
+ *
+ * The return type is the JSON value union extended with `undefined`, which
+ * JSON.parse uses to delete a key from the parsed object — it is what lets the
+ * reviver actually strip `__proto__` / `constructor` keys.
  */
-function safeJsonReviver(_key: string, value: unknown): unknown {
+type JsonReviverValue =
+	| string
+	| number
+	| boolean
+	| null
+	| { [key: string]: unknown }
+	| unknown[]
+	| undefined;
+
+function safeJsonReviver(
+	_key: string,
+	value: JsonReviverValue,
+): JsonReviverValue {
 	if (_key === "__proto__" || _key === "constructor") {
 		return undefined;
 	}
@@ -109,6 +127,8 @@ interface PiFreeConfig {
 	openmodel_show_paid?: boolean;
 	openrouter_show_paid?: boolean;
 	opencode_show_paid?: boolean;
+	opencode_free_show_paid?: boolean;
+	opencode_go_show_paid?: boolean;
 	qoder_show_paid?: boolean;
 }
 
@@ -141,7 +161,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	zenmux_show_paid: false,
 	crofai_show_paid: false,
 	llm7_show_paid: false,
-	deepinfra_show_paid: false,
+	deepinfra_show_paid: true,
 	sambanova_show_paid: false,
 	novita_show_paid: false,
 	routeway_show_paid: false,
@@ -154,6 +174,8 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	openmodel_show_paid: false,
 	openrouter_show_paid: false,
 	opencode_show_paid: false,
+	opencode_free_show_paid: false,
+	opencode_go_show_paid: false,
 	qoder_show_paid: false,
 };
 
@@ -176,7 +198,7 @@ function ensureConfigFile(): void {
 				existing = JSON.parse(
 					readFileSync(CONFIG_PATH, "utf8"),
 				) as PiFreeConfig;
-			} catch (_parseErr) {
+			} catch {
 				// File exists but is corrupt — back it up and write a fresh
 				// template so the extension can start. The original bytes are
 				// preserved in the timestamped backup for recovery.
@@ -422,6 +444,16 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 		prefix: "OPENCODE",
 		showPaidKey: "opencode_show_paid",
 	},
+	{
+		id: PROVIDER_OPENCODE_FREE,
+		prefix: "OPENCODE_FREE",
+		showPaidKey: "opencode_free_show_paid",
+	},
+	{
+		id: PROVIDER_OPENCODE_GO,
+		prefix: "OPENCODE_GO",
+		showPaidKey: "opencode_go_show_paid",
+	},
 	{ id: PROVIDER_QODER, prefix: "QODER", showPaidKey: "qoder_show_paid" },
 ];
 
@@ -467,9 +499,12 @@ export function getLlm7ShowPaid(): boolean {
 }
 
 export function getDeepinfraShowPaid(): boolean {
+	// Default to showing all models (paid view) when unconfigured, matching
+	// the provider's trial-credit posture. `?? true` makes the persisted
+	// free toggle (deepinfra_show_paid: false) still win on restart.
 	return resolveBool(
 		"DEEPINFRA_SHOW_PAID",
-		loadConfigFile().deepinfra_show_paid,
+		loadConfigFile().deepinfra_show_paid ?? true,
 	);
 }
 
@@ -544,6 +579,20 @@ export function getOpenrouterShowPaid(): boolean {
 
 export function getOpencodeShowPaid(): boolean {
 	return resolveBool("OPENCODE_SHOW_PAID", loadConfigFile().opencode_show_paid);
+}
+
+export function getOpencodeFreeShowPaid(): boolean {
+	return resolveBool(
+		"OPENCODE_FREE_SHOW_PAID",
+		loadConfigFile().opencode_free_show_paid,
+	);
+}
+
+export function getOpencodeGoShowPaid(): boolean {
+	return resolveBool(
+		"OPENCODE_GO_SHOW_PAID",
+		loadConfigFile().opencode_go_show_paid,
+	);
 }
 
 export function getProviderShowPaid(providerId: string): boolean {
