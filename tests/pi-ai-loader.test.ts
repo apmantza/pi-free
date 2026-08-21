@@ -17,6 +17,7 @@ function makePackage(root: string, packageJson: object = { name: "pkg" }) {
 /** Mirrors the real pi-ai exports shape (wildcard target as conditions object). */
 const PI_AI_EXPORTS = {
 	name: "@earendil-works/pi-ai",
+	version: "0.84.2",
 	exports: {
 		".": { types: "./dist/index.d.ts", import: "./dist/index.js" },
 		"./compat": {
@@ -88,18 +89,20 @@ describe("resolvePiAiPackageRoot", () => {
 			"pi-coding-agent",
 		);
 		makePackage(virtualAgent);
-	const virtualPiAi = join(
-		dirname(dirname(virtualAgent)),
-		"@earendil-works",
-		"pi-ai",
-	);
+		const virtualPiAi = join(
+			dirname(dirname(virtualAgent)),
+			"@earendil-works",
+			"pi-ai",
+		);
 		makePackage(virtualPiAi, PI_AI_EXPORTS);
 		// Entry script inside the real agent package (what a resolved bin shim
 		// points at).
 		const cli = join(virtualAgent, "dist", "cli.js");
 		mkdirSync(dirname(cli), { recursive: true });
 
-		expect(resolvePiAiPackageRoot(extensionTree, { argv1: cli })).toBe(virtualPiAi);
+		expect(resolvePiAiPackageRoot(extensionTree, { argv1: cli })).toBe(
+			virtualPiAi,
+		);
 	});
 
 	it("finds pi-ai above a symlinked bin shim via realpath", () => {
@@ -128,6 +131,72 @@ describe("resolvePiAiPackageRoot", () => {
 		}
 
 		expect(resolvePiAiPackageRoot(extensionTree, { argv1: shim })).toBe(hostPiAi);
+	});
+
+	it("rejects a relative argv1 even when the CWD tree contains pi-ai", () => {
+		// Compiled-binary hosts can expose the first USER argument as argv[1].
+		// Walking up from a CWD-relative path must never let an unrelated
+		// project's node_modules satisfy the lookup.
+		const proj = mkdtempSync(join(tmpdir(), "pi-free-loader-"));
+		makePackage(join(proj, "node_modules", "@earendil-works", "pi-ai"), {
+			...PI_AI_EXPORTS,
+			version: "0.1.0",
+		});
+		// The extension tree lives OUTSIDE the project, like ~/.pi/agent/npm.
+		const extensionTree = mkdtempSync(join(tmpdir(), "pi-free-loader-ext-"));
+		const cwd = join(proj, "src");
+		mkdirSync(cwd, { recursive: true });
+		// A separate empty system tree so the executable-relative probe cannot
+		// walk into either tree.
+		const sysTree = mkdtempSync(join(tmpdir(), "pi-free-loader-sys-"));
+		const originalCwd = process.cwd();
+		process.chdir(cwd);
+		try {
+			expect(
+				resolvePiAiPackageRoot(extensionTree, {
+					argv1: "foo.ts",
+					homeDir: proj,
+					appData: join(proj, "no-appdata"),
+					execPath: join(sysTree, "bin", "node.exe"),
+				}),
+			).toBeUndefined();
+		} finally {
+			process.chdir(originalCwd);
+		}
+	});
+
+	it("rejects host-entry hits whose package is not a usable pi-ai", () => {
+		const base = mkdtempSync(join(tmpdir(), "pi-free-loader-"));
+		const extensionTree = join(base, "agent-npm", "node_modules", "pi-free");
+		makePackage(extensionTree);
+		const cli = join(base, "host", "dist", "cli.js");
+		mkdirSync(dirname(cli), { recursive: true });
+		// Pin every environment probe so only the host-entry strategy can find
+		// anything, regardless of what is installed on this machine.
+		const isolated = {
+			homeDir: base,
+			appData: join(base, "no-appdata"),
+			execPath: join(base, "sys", "bin", "node.exe"),
+		} as const;
+
+		// Wrong package name in a correctly-named directory.
+		const wrongName = join(base, "host", "node_modules", "@earendil-works", "pi-ai");
+		makePackage(wrongName, { ...PI_AI_EXPORTS, name: "some-other-package" });
+		expect(
+			resolvePiAiPackageRoot(extensionTree, { argv1: cli, ...isolated }),
+		).toBeUndefined();
+
+		// Version below the peer-dependency minimum.
+		makePackage(wrongName, { ...PI_AI_EXPORTS, version: "0.80.9" });
+		expect(
+			resolvePiAiPackageRoot(extensionTree, { argv1: cli, ...isolated }),
+		).toBeUndefined();
+
+		// A usable version passes.
+		makePackage(wrongName, { ...PI_AI_EXPORTS, version: "0.81.0" });
+		expect(
+			resolvePiAiPackageRoot(extensionTree, { argv1: cli, ...isolated }),
+		).toBe(wrongName);
 	});
 
 	it("ignores a missing or unusable argv1 and keeps searching other roots", () => {
@@ -160,20 +229,34 @@ describe("resolvePiAiPackageRoot", () => {
 			"@earendil-works",
 			"pi-ai",
 		);
-		makePackage(nested);
+		makePackage(nested, PI_AI_EXPORTS);
 		makePackage(join(base, "node_modules", "@earendil-works", "pi-coding-agent"));
 		const start = join(base, "node_modules", "pi-free", "lib");
 		mkdirSync(start, { recursive: true });
-		expect(resolvePiAiPackageRoot(start)).toBe(nested);
+		expect(
+			resolvePiAiPackageRoot(start, {
+				argv1: null,
+				homeDir: base,
+				appData: join(base, "no-appdata"),
+				execPath: join(base, "bin", "node.exe"),
+			}),
+		).toBe(nested);
 	});
 
 	it("prefers a hoisted pi-ai over a nested one", () => {
 		const base = mkdtempSync(join(tmpdir(), "pi-free-loader-"));
 		const hoisted = join(base, "node_modules", "@earendil-works", "pi-ai");
-		makePackage(hoisted);
+		makePackage(hoisted, PI_AI_EXPORTS);
 		const start = join(base, "node_modules", "pi-free", "lib");
 		mkdirSync(start, { recursive: true });
-		expect(resolvePiAiPackageRoot(start)).toBe(hoisted);
+		expect(
+			resolvePiAiPackageRoot(start, {
+				argv1: null,
+				homeDir: base,
+				appData: join(base, "no-appdata"),
+				execPath: join(base, "bin", "node.exe"),
+			}),
+		).toBe(hoisted);
 	});
 });
 
