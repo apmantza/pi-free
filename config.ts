@@ -166,7 +166,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	zenmux_show_paid: false,
 	crofai_show_paid: false,
 	llm7_show_paid: false,
-	deepinfra_show_paid: true,
+	deepinfra_show_paid: false,
 	sambanova_show_paid: false,
 	novita_show_paid: false,
 	routeway_show_paid: false,
@@ -510,12 +510,11 @@ export function getLlm7ShowPaid(): boolean {
 }
 
 export function getDeepinfraShowPaid(): boolean {
-	// Default to showing all models (paid view) when unconfigured, matching
-	// the provider's trial-credit posture. `?? true` makes the persisted
-	// free toggle (deepinfra_show_paid: false) still win on restart.
+	// Default to the free-only view like every other public-catalog freemium
+	// provider (Novita has the same trial-credit posture and defaults free).
 	return resolveBool(
 		"DEEPINFRA_SHOW_PAID",
-		loadConfigFile().deepinfra_show_paid ?? true,
+		loadConfigFile().deepinfra_show_paid,
 	);
 }
 
