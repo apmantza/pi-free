@@ -167,6 +167,7 @@ interface SavedModelSnapshot {
 		buildSessionContext?: () => {
 			model: { provider: string; modelId: string } | null;
 		};
+		getEntries?: () => unknown[];
 	};
 	model?: { provider: string; id: string };
 }
@@ -315,6 +316,89 @@ function snapshotFromCtx(ctx: {
 }
 
 /**
+ * Wall-clock ms at module load. Session entries stamped at or after this
+ * moment were written during the current run — the marker that separates
+ * Pi's startup restore-fallback from a deliberate model switch made in a
+ * previous run.
+ */
+const RUN_STARTED_AT = Date.now();
+/** Clock-skew allowance for timestamp comparisons against RUN_STARTED_AT. */
+const CLOCK_SKEW_MS = 5_000;
+
+interface ModelChangeEntry {
+	provider: string;
+	modelId: string;
+	timestamp?: string;
+}
+
+function readModelChanges(
+	session: SavedModelSnapshot["sessionManager"],
+): ModelChangeEntry[] | undefined {
+	const entries = session?.getEntries?.();
+	if (!Array.isArray(entries)) return undefined;
+	const changes: ModelChangeEntry[] = [];
+	for (const entry of entries) {
+		const candidate = entry as {
+			type?: unknown;
+			provider?: unknown;
+			modelId?: unknown;
+			timestamp?: unknown;
+		};
+		if (
+			candidate?.type === "model_change" &&
+			typeof candidate.provider === "string" &&
+			typeof candidate.modelId === "string"
+		) {
+			changes.push({
+				provider: candidate.provider,
+				modelId: candidate.modelId,
+				timestamp:
+					typeof candidate.timestamp === "string"
+						? candidate.timestamp
+						: undefined,
+			});
+		}
+	}
+	return changes;
+}
+
+/**
+ * Resolve the model choice to restore for a built-in-toggle provider.
+ *
+ * Pi's startup fallback ("Could not restore model … Using …") APPENDS a
+ * `model_change` entry for the fallback model, so by the time the captured
+ * catalog registers, `buildSessionContext().model` reports the fallback —
+ * not the session's persisted choice — and a naive read would silently skip
+ * the restore. The raw entry trail disambiguates: a trailing model_change
+ * naming ANOTHER provider only counts as the user's deliberate choice if it
+ * predates this run. A trailing change stamped during this run can only be
+ * Pi's own fallback (the TUI is not interactive yet), so the last pre-run
+ * change for this provider is the choice to restore.
+ */
+function resolveSavedModelChoice(
+	providerId: string,
+	session: SavedModelSnapshot["sessionManager"],
+	contextModel: { provider: string; modelId: string } | null | undefined,
+): { provider: string; modelId: string } | undefined {
+	if (contextModel?.provider === providerId) return contextModel;
+	const changes = readModelChanges(session);
+	if (!changes || changes.length === 0) return undefined;
+	const last = changes.at(-1);
+	if (!last) return undefined;
+	if (last.provider === providerId) return last;
+	// Trailing change names another provider. If it was not written during
+	// this run, it is a deliberate choice from a previous run — honor it.
+	const lastAt = last.timestamp ? Date.parse(last.timestamp) : Number.NaN;
+	if (Number.isNaN(lastAt) || lastAt < RUN_STARTED_AT - CLOCK_SKEW_MS) {
+		return undefined;
+	}
+	for (let i = changes.length - 2; i >= 0; i--) {
+		if (changes[i].provider === providerId) return changes[i];
+	}
+	return undefined;
+}
+
+/**
  * Deferred saved-model restore. Pi resolves a resumed session's model BEFORE
  * extension provider registrations take effect (createAgentSession restores
  * from the session file; queued registerProvider calls only flush when the
@@ -332,7 +416,13 @@ async function maybeRestoreSavedModel(
 	snapshot: SavedModelSnapshot,
 ): Promise<void> {
 	try {
-		const saved = snapshot.sessionManager?.buildSessionContext?.().model;
+		const contextModel =
+			snapshot.sessionManager?.buildSessionContext?.().model ?? null;
+		const saved = resolveSavedModelChoice(
+			config.id,
+			snapshot.sessionManager,
+			contextModel,
+		);
 		if (!saved || saved.provider !== config.id) return;
 		if (
 			snapshot.model?.provider === saved.provider &&
