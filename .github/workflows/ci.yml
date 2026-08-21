@@ -83,7 +83,10 @@ jobs:
       # standalone test fixture standing in for the host, so this step keeps
       # verifying the real loader instead of depending on incidental vendoring.
       - name: Install pi-coding-agent fixture for the loader smoke test
-        run: npm install --no-save @earendil-works/pi-coding-agent@0.84.2 --no-audit --no-fund
+        # --ignore-scripts: this fixture only needs the package's files on
+        # disk for import.meta.resolve; it never runs pi-coding-agent's own
+        # lifecycle scripts, so skip them (SonarCloud S6505).
+        run: npm install --no-save --ignore-scripts @earendil-works/pi-coding-agent@0.84.2 --no-audit --no-fund
 
       - name: Smoke-load compiled entry through Pi's real loader
         run: node scripts/smoke-pi-loader.mjs ./dist/index.js
