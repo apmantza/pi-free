@@ -17,6 +17,7 @@ import {
 	registerNativeProvider,
 	registerNativeProviderRefresh,
 	registerNativeProviderToggle,
+	withGatewayCompat,
 } from "../../lib/native-provider.ts";
 import { areAllModelsFresh } from "../../lib/probe-cache.ts";
 import {
@@ -65,12 +66,12 @@ function credentialToken(credential?: Credential): string | undefined {
 }
 
 function toOllamaModel(model: ProviderModelConfig): OllamaModel {
-	return {
+	return withGatewayCompat({
 		...model,
 		api: "openai-completions",
 		provider: PROVIDER_OLLAMA,
 		baseUrl: BASE_URL_OLLAMA,
-	} as OllamaModel;
+	} as OllamaModel);
 }
 
 function toOllamaModels(models: ProviderModelConfig[]): OllamaModel[] {

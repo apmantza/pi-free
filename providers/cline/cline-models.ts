@@ -18,6 +18,7 @@ import {
 	VS_CODE_VERSION,
 } from "../../constants.ts";
 import { isFreeModel } from "../../lib/registry.ts";
+import { withGatewayCompat } from "../../lib/native-provider.ts";
 import { createLogger } from "../../lib/logger.ts";
 import type { ProviderModelConfig } from "../../lib/types.ts";
 import { getClineProviderHeaders } from "./cline-headers.ts";
@@ -318,7 +319,7 @@ export async function fetchClineCatalog(options?: {
 export function toClineModel(
 	m: ProviderModelConfig,
 ): Model<"openai-completions"> {
-	return {
+	return withGatewayCompat({
 		...m,
 		api: "openai-completions",
 		provider: PROVIDER_CLINE,
@@ -329,7 +330,7 @@ export function toClineModel(
 		// provider.headers) — stamp the shared Cline identity record so the
 		// gateway sees a genuine Cline client (see cline-headers.ts).
 		headers: getClineProviderHeaders(),
-	} as Model<"openai-completions">;
+	} as Model<"openai-completions">);
 }
 
 /** Convert a batch of model configs to native Model objects. */

@@ -144,17 +144,38 @@ function nativeCredentialToken(
 	return getApiKey();
 }
 
+/**
+ * Stamp gateway-safe compat on a native model.
+ *
+ * pi-ai defaults unknown providers to OpenAI's `developer` system-role
+ * convention for reasoning models, but the aggregating gateways pi-free
+ * registers forward it verbatim to upstreams that reject it — TokenRouter
+ * answers with a wrapped `422 openai_error / bad_response_status_code` and
+ * ZenMux with `400: developer is not one of ['system'...]` (both reproduced
+ * live against Qwen-family models). `system` is universally accepted, so
+ * every OpenAI-compatible model pi-free publishes opts out of the developer
+ * role. Existing compat overrides are preserved.
+ */
+export function withGatewayCompat<
+	T extends { compat?: ProviderModelConfig["compat"] },
+>(model: T): T {
+	return {
+		...model,
+		compat: { ...model.compat, supportsDeveloperRole: false },
+	};
+}
+
 function toNativeOpenAIModel(
 	model: ProviderModelConfig,
 	providerId: string,
 	baseUrl: string,
 ): Model<"openai-completions"> {
-	return {
+	return withGatewayCompat({
 		...model,
 		api: "openai-completions",
 		provider: providerId,
 		baseUrl,
-	} as Model<"openai-completions">;
+	} as Model<"openai-completions">);
 }
 
 /** Apply the shared global/provider free-model policy to a complete native catalog. */
@@ -546,9 +567,13 @@ export async function restoreNativeProviderModels<T extends Model<Api>>(
 		const entry = usesNativePublication(context)
 			? nativeContext.stored
 			: await nativeContext.store?.read();
-		const models = (entry?.models ?? []).filter(
+		const restored = (entry?.models ?? []).filter(
 			(model) => model.provider === providerId,
-		) as T[];
+		);
+		// Restored entries may predate the gateway-compat stamp (written by an
+		// older build); re-stamp so the offline window before the next refresh
+		// still sends `system` instead of `developer`.
+		const models = restored.map((model) => withGatewayCompat(model)) as T[];
 		if (entry) {
 			// M1: a store restore happened (even with 0 models — that is how
 			// "refresh ok with 0 models" is later distinguished from "never ran").

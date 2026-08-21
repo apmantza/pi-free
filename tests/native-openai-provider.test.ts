@@ -114,6 +114,51 @@ beforeEach(() => {
 	mockGetGlobalFreeOnlyForced.mockReturnValue(false);
 });
 
+describe("gateway compat (developer role)", () => {
+	const compatOf = (m: { compat?: unknown }) =>
+		m.compat as { supportsStore?: boolean; supportsDeveloperRole?: boolean };
+
+	it("stamps supportsDeveloperRole:false on ingested models", () => {
+		const handle = createNativeOpenAIProvider(options);
+		handle.ingest([model("m1", "M1")], [model("m1", "M1")]);
+
+		expect(compatOf(handle.stored.all[0]).supportsDeveloperRole).toBe(false);
+	});
+
+	it("preserves existing compat while forcing the role flag off", () => {
+		const handle = createNativeOpenAIProvider(options);
+		const withCompat = {
+			...model("m1", "M1"),
+			compat: { supportsStore: false, supportsDeveloperRole: true },
+		} as ProviderModelConfig;
+		handle.ingest([withCompat], [withCompat]);
+
+		expect(compatOf(handle.stored.all[0]).supportsStore).toBe(false);
+		expect(compatOf(handle.stored.all[0]).supportsDeveloperRole).toBe(false);
+	});
+
+	it("re-stamps models restored from a pre-fix store entry", async () => {
+		const { store } = makeStore({
+			models: [
+				{
+					...model("legacy", "Legacy"),
+					provider: "test-native",
+					api: "openai-completions",
+					baseUrl: "https://example.test/v1",
+				},
+			],
+			checkedAt: Date.now(),
+		} as unknown as ModelsStoreEntry);
+		const handle = createNativeOpenAIProvider(options);
+
+		await handle.provider.refreshModels?.(context(store));
+
+		expect(compatOf(handle.provider.getModels()[0]).supportsDeveloperRole).toBe(
+			false,
+		);
+	});
+});
+
 describe("createNativeApiKeyAuth", () => {
 	it("prefers stored keys and supports native login", async () => {
 		const prompt = vi.fn(async () => "prompted-key");
