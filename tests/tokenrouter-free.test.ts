@@ -225,6 +225,28 @@ describe("TokenRouter MiniMax handling", () => {
 		});
 	});
 
+	it("rewrites developer-role messages to system (Qwen upstreams 422 on developer)", () => {
+		const result = normalizeTokenRouterRequestPayload({
+			model: "qwen/qwen3.8-max-free",
+			messages: [
+				{ role: "developer", content: "You are a coding agent." },
+				{ role: "user", content: "say ok" },
+			],
+		}) as { messages: Array<{ role: string }> };
+
+		expect(result.messages[0].role).toBe("system");
+		expect(result.messages[1].role).toBe("user");
+	});
+
+	it("leaves messages untouched when no developer role is present", () => {
+		const payload = {
+			model: "gpt-5",
+			messages: [{ role: "system", content: "x" }],
+			reasoning_split: true,
+		};
+		expect(normalizeTokenRouterRequestPayload(payload)).toBe(payload);
+	});
+
 	it("adds reasoning_split without touching non-MiniMax thinking", () => {
 		const other = {
 			model: "deepseek-r1",

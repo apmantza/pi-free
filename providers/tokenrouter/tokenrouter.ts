@@ -208,6 +208,11 @@ function containsTokenRouterMinimaxModel(value: unknown): boolean {
 	return false;
 }
 
+/** OpenAI-role system prompt that some upstreams reject (see normalizer). */
+function isDeveloperMessage(message: unknown): boolean {
+	return isRecord(message) && message.role === "developer";
+}
+
 /** reasoning_effort values the TokenRouter chat-completions route accepts. */
 const VALID_REASONING_EFFORTS = new Set(["low", "medium", "xhigh"]);
 
@@ -242,7 +247,7 @@ function sanitizeReasoningEffort(
  * Chat-completions request payload at the TokenRouter wire boundary: raw JSON
  * text or an already-structured JSON value.
  */
-export type TokenRouterRequestPayload =
+type TokenRouterRequestPayload =
 	| string
 	| number
 	| boolean
@@ -271,6 +276,22 @@ export function normalizeTokenRouterRequestPayload(
 	// Always request split reasoning for clean thinking display.
 	if (next.reasoning_split !== true) {
 		next = { ...next, reasoning_split: true };
+		changed = true;
+	}
+
+	// Rewrite OpenAI "developer" role messages to "system": pi-ai defaults
+	// unknown providers to the developer role, but TokenRouter forwards it to
+	// upstreams (e.g. Qwen) that reject it with
+	// `422 openai_error / bad_response_status_code`.
+	if (Array.isArray(next.messages) && next.messages.some(isDeveloperMessage)) {
+		next = {
+			...next,
+			messages: (next.messages as unknown[]).map((message) =>
+				isRecord(message) && message.role === "developer"
+					? { ...message, role: "system" }
+					: message,
+			),
+		};
 		changed = true;
 	}
 
