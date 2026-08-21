@@ -67,7 +67,6 @@ For reproducible import-inclusive measurements, run `npx tsx scripts/bench-start
 
 Most providers use OpenAI-compatible APIs. Notable custom integrations are:
 
-- **OpenModel** — native Anthropic Messages API provider.
 - **Qoder** — native provider with Qoder authentication, COSY request signing, static catalog persistence, and custom streaming compatibility.
 
 See [Provider catalog & auth](providers.md) for setup details.

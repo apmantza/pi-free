@@ -17,7 +17,6 @@ vi.mock("../config.ts", () => ({
 	getNovitaApiKey: () => undefined,
 	getRoutewayApiKey: () => undefined,
 	getSambanovaApiKey: () => undefined,
-	getOpenmodelApiKey: () => undefined,
 	getStepfunApiKey: () => undefined,
 	getAnyapiApiKey: () => undefined,
 	getBaiApiKey: () => undefined,
@@ -34,7 +33,6 @@ import { deepinfraAuth } from "../providers/deepinfra/deepinfra-auth.ts";
 import { novitaAuth } from "../providers/novita/novita-auth.ts";
 import { routewayAuth } from "../providers/routeway/routeway-auth.ts";
 import { sambanovaAuth } from "../providers/sambanova/sambanova-auth.ts";
-import { openmodelAuth } from "../providers/openmodel/openmodel-auth.ts";
 import { stepfunAuth } from "../providers/stepfun/stepfun-auth.ts";
 import { anyapiAuth } from "../providers/anyapi/anyapi-auth.ts";
 import { baiAuth } from "../providers/bai/bai-auth.ts";
@@ -58,7 +56,6 @@ describe("shared-factory providers with public catalogs", () => {
 		["novita", novitaAuth],
 		["routeway", routewayAuth],
 		["sambanova", sambanovaAuth],
-		["openmodel", openmodelAuth],
 	])("%s resolves keyless auth so the public catalog can refresh", async (_name, auth) => {
 		const result = await auth.apiKey?.resolve(resolveInput());
 		expect(result).toEqual(anonymous);

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **OpenModel provider** — live verification showed the gateway's entire zero-cost catalog (qwen3.5-plus, qwen3.6-flash/plus/max-preview, qwen3-max) rejects chat with `402 insufficient balance` even for accounts in good standing, so no usable free models exist. Config keys (`openmodel_api_key`, `OPENMODEL_API_KEY`) and `/toggle-openmodel` are gone; existing `openmodel` entries in `~/.pi/free.json` are ignored harmlessly.
+
 ### Changed
 
 - **DeepInfra now defaults to the free-only model view** — it was the only public-catalog freemium provider seeded with `deepinfra_show_paid: true` (a leftover of its original trial-credit posture), so fresh installs saw the full paid catalog while Novita, SambaNova, and every other public-catalog provider defaulted to free models. The template default and the config getter's fallback are now `false`, matching the consistent free-by-default principle; an explicit `/toggle-deepinfra` choice still persists and wins.

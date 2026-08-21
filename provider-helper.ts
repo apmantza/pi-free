@@ -74,7 +74,7 @@ export interface OpenAICompatibleConfig {
 	 * Wire API to use. Defaults to `"openai-completions"` for backward
 	 * compatibility with the 17 existing providers that pass through
 	 * this helper without setting it. Set to `"anthropic-messages"`
-	 * for Anthropic-protocol gateways (e.g. OpenModel). The pi-ai
+	 * for Anthropic-protocol gateways. The pi-ai
 	 * runtime dispatches to the right client based on this value.
 	 */
 	api?: "openai-completions" | "anthropic-messages";

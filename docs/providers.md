@@ -89,16 +89,6 @@ export TOKENROUTER_API_KEY="..."
 
 Or set `tokenrouter_api_key`. Toggle with `/toggle-tokenrouter`.
 
-### OpenModel
-
-OpenModel is an Anthropic Messages-compatible gateway. Free availability depends on the provider's current catalog and offers:
-
-```bash
-export OPENMODEL_API_KEY="..."
-```
-
-Or set `openmodel_api_key`. Toggle with `/toggle-openmodel`.
-
 ### StepFun
 
 StepFun Step Plan is a native, paid OpenAI-compatible provider. Pi uses the Chat Completions endpoint at `https://api.stepfun.ai/step_plan/v1/chat/completions`; the same base also exposes an Anthropic-compatible Messages endpoint at `/messages` for clients such as Claude Code. Set `STEPFUN_API_KEY` or `stepfun_api_key` and toggle with `/toggle-stepfun`. StepFun shows its paid catalog by default because its catalog has no free models; set `stepfun_show_paid` or `STEPFUN_SHOW_PAID=false` to hide it.

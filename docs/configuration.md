@@ -26,7 +26,6 @@ These are the pi-free config keys and their environment variables:
 | `anyapi_api_key` | `ANYAPI_API_KEY` |
 | `bai_api_key` | `BAI_API_KEY` |
 | `stepfun_api_key` | `STEPFUN_API_KEY` |
-| `openmodel_api_key` | `OPENMODEL_API_KEY` |
 
 ```bash
 export FASTROUTER_API_KEY="..."
@@ -41,8 +40,7 @@ Example file:
   "cline_api_key": "...",
   "ollama_api_key": "...",
   "anyapi_api_key": "...",
-  "stepfun_api_key": "...",
-  "openmodel_api_key": "..."
+  "stepfun_api_key": "..."
 }
 ```
 

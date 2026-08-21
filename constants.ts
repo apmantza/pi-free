@@ -21,7 +21,6 @@ export const PROVIDER_OPENGATEWAY = "opengateway";
 export const PROVIDER_TOKENROUTER = "tokenrouter";
 export const PROVIDER_ANYAPI = "anyapi";
 export const PROVIDER_BAI = "bai";
-export const PROVIDER_OPENMODEL = "openmodel";
 export const PROVIDER_QODER = "qoder";
 export const PROVIDER_FASTROUTER = "fastrouter";
 export const PROVIDER_REQUESTY = "requesty";
@@ -67,12 +66,6 @@ export const BASE_URL_FASTROUTER = "https://api.fastrouter.ai/api/v1";
 export const BASE_URL_REQUESTY = "https://router.requesty.ai/v1";
 /** StepFun Step Plan OpenAI-compatible Chat Completions API base URL. */
 export const BASE_URL_STEPFUN = "https://api.stepfun.ai/step_plan/v1";
-/**
- * OpenModel is registered with `api: "anthropic-messages"`. The pi-ai
- * Anthropic SDK appends `/v1/messages` to `baseURL`, so the base must
- * NOT include `/v1`. See {@link PROVIDER_OPENMODEL}.
- */
-export const BASE_URL_OPENMODEL = "https://api.openmodel.ai";
 export const BASE_URL_QODER = "https://api2-v2.qoder.sh";
 
 /** Cline fetches free models from OpenRouter */
