@@ -75,7 +75,7 @@ function parseArgs(argv: string[]): Record<string, string | boolean> {
 		const arg = argv[i];
 		if (!arg.startsWith("--")) continue;
 		const key = arg.slice(2);
-		if (key === "list" || key === "simple") {
+		if (key === "list" || key === "simple" || key === "anonymous") {
 			args[key] = true;
 			continue;
 		}
@@ -172,11 +172,13 @@ async function main(): Promise<number> {
 		return 1;
 	}
 
+	const anonymous = args.anonymous === true;
 	const apiKey = resolveApiKey(providerId);
-	if (!apiKey) {
+	if (!apiKey && !anonymous) {
 		console.error(
 			`No credential for '${providerId}' (auth.json or ${providerId.replaceAll("-", "_").toUpperCase()}_API_KEY).`,
 		);
+		console.error("Keyless providers can be driven with --anonymous.");
 		return 1;
 	}
 
