@@ -230,8 +230,13 @@ async function main(): Promise<number> {
 				],
 			};
 
-	const { lazyOpenAICompletionsApi } = await import("../lib/lazy-compat.ts");
-	const api = lazyOpenAICompletionsApi();
+	const { lazyOpenAICompletionsApi, lazyAnthropicMessagesApi } = await import("../lib/lazy-compat.ts");
+	// Dispatch by the model's wire api — openai-completions for most gateways,
+	// anthropic-messages for Anthropic-compatible ones (e.g. OpenModel).
+	const api =
+		model.api === "anthropic-messages"
+			? lazyAnthropicMessagesApi()
+			: lazyOpenAICompletionsApi();
 
 	const maxEvents = Number(args["max-events"] ?? 4_000) || 4_000;
 	let text = "";
