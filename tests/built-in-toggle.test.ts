@@ -827,6 +827,62 @@ describe("built-in provider toggles", () => {
 		);
 	});
 
+	it("retries the restore once the endpoint refresh lands the missing model", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		const capturedModel = {
+			provider: "opencode",
+			id: "other-free",
+			name: "Other Free",
+			api: "openai-completions",
+			reasoning: false,
+			input: ["text"],
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			contextWindow: 128000,
+			maxTokens: 4096,
+			baseUrl: "https://example.com",
+		};
+		// The saved model is absent from the initial capture (partial upstream
+		// list) and only appears when the endpoint refresh lands.
+		const refreshedModel = {
+			...capturedModel,
+			provider: "opencode-free",
+			id: "free-model",
+		};
+		const registryModels = [capturedModel];
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => {
+				registryModels.push(refreshedModel);
+				return {
+					ok: true,
+					json: async () => ({ data: [{ id: "free-model" }] }),
+				};
+			}),
+		);
+
+		await handlers.session_start(
+			{},
+			{
+				modelRegistry: {
+					getAll: () => registryModels,
+					getAvailable: () => [capturedModel],
+				},
+				sessionManager: {
+					buildSessionContext: () => ({
+						model: { provider: "opencode-free", modelId: "free-model" },
+					}),
+				},
+				model: { provider: "kilo", id: "fallback-model" },
+			},
+		);
+		await settleDetachedCapture();
+
+		expect(mockPi.setModel).toHaveBeenCalledWith(
+			expect.objectContaining({ provider: "opencode-free", id: "free-model" }),
+		);
+	});
+
 	it("does not restore when the trailing switch predates this run (deliberate)", async () => {
 		setupBuiltInProviderToggles(mockPi);
 
