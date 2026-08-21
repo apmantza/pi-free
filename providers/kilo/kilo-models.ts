@@ -12,6 +12,19 @@ import { fetchOpenRouterCompatibleModels } from "../model-fetcher.ts";
 const KILO_API_BASE = process.env.KILO_API_URL || "https://api.kilo.ai";
 export const KILO_GATEWAY_BASE = `${KILO_API_BASE}/api/gateway`;
 
+/**
+ * Honest pi-free identity headers, stamped on every Kilo model. pi-ai merges
+ * only the MODEL's headers into requests (not provider.headers), so the
+ * provider-level block was inert; see toKiloModel(). The genuine Kilo client
+ * sends "Kilo CLI" / "opencode-kilo-provider" — adopting that identity is
+ * tracked in the repo issue tracker; the gateway treats these as attribution
+ * metadata and accepts requests without them.
+ */
+export const KILO_IDENTITY_HEADERS: Record<string, string> = Object.freeze({
+	"X-KILOCODE-EDITORNAME": "Pi",
+	"User-Agent": "pi-free-providers",
+});
+
 // =============================================================================
 // Compat shaping
 // =============================================================================
@@ -109,7 +122,20 @@ export function toKiloModel(
 		api: "openai-completions",
 		provider: PROVIDER_KILO,
 		baseUrl: m.baseUrl ?? KILO_GATEWAY_BASE,
+		headers: KILO_IDENTITY_HEADERS,
 	} as Model<"openai-completions">;
+}
+
+/**
+ * Re-stamp identity headers on models restored from Pi's models store — a
+ * store snapshot written before the headers existed (or by another client)
+ * would otherwise reach the wire headerless (same pattern as Cline's
+ * normalizeStoredClineModels).
+ */
+export function normalizeStoredKiloModels(
+	models: Model<"openai-completions">[],
+): Model<"openai-completions">[] {
+	return models.map((m) => ({ ...m, headers: KILO_IDENTITY_HEADERS }));
 }
 
 /** Convert a batch of model configs to native Model objects. */

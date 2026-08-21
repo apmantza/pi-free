@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **OpenRouter's built-in catalog now refreshes from the live endpoint** — Pi ships a static OpenRouter catalog that only updates with a Pi release, so models added upstream stayed invisible until then. After session start, pi-free now performs one detached fetch of OpenRouter's public `GET /api/v1/models` endpoint and re-registers the captured catalog in place: known model IDs keep Pi's curated metadata, while newer models are synthesized from the endpoint's pricing, context-window, modality, and reasoning data. The refresh is deduplicated per process and never blocks startup; `/toggle-openrouter` free/paid filtering keeps working on the refreshed view.
+
+### Fixed
+
+- **Kilo requests now carry honest client identity headers** — catalog requests stamped VS Code-spoofing headers (`X-VSCode-...`, a fake `User-Agent`) inherited from an early port. They are replaced with truthful `X-KILOCODE-EDITORNAME: Pi` / `User-Agent: pi-free-providers` headers on both live fetches and models restored from Pi's store. Genuine Kilo CLI identity remains tracked in [#449](https://github.com/apmantza/pi-free/issues/449).
+- **Ollama Cloud free-model classification survives store restore** — models restored from Pi's models store were classified by name alone instead of the adaptive pricing-aware detection, so paid models could leak into the free view after a restart. Restore and fetch callbacks now reclassify through the shared `isFreeModel`. A degenerate empty fetch also no longer overwrites the cached catalog (cache-poisoning guard).
+- **Silent catch blocks in Cline catalog fetches and Ollama probe refreshes now log warnings** to `~/.pi/free.log` instead of swallowing errors.
+
+### Changed
+
+- **Shared native-refresh skeleton** — the duplicated restore → gate → fetch → persist control flow in six provider modules (kilo, cline, llm7, zenmux, openmodel, qoder) is consolidated into one `refreshNativeProviderModels()` helper in `lib/native-provider.ts`; providers now supply only their fetch callback and free-split hook.
+- **Removed dead legacy registration helpers** — `registerOpenAICompatible`, `createReRegister`, `setupProvider`, and related types were removed from `provider-helper.ts` along with their obsolete test; all providers use the native lifecycle.
+- **Extension reload guard keyed on runner identity** — `index.ts` guards its global handlers against double-registration using the runner instance instead of a boolean, matching the pattern used elsewhere, so extension reloads rebind correctly.
+- **Saved-model restore for already-captured built-in providers runs detached** — when a session-start event finds a provider already captured, the saved-model restore no longer blocks the handler.
+
 ### Fixed
 
 - **Resumed sessions get their saved built-in-toggle model back** — Pi resolves a resumed session's model *before* extension provider registrations take effect (`createAgentSession` restores from the session file; `pi.registerProvider` calls made during extension load are queued and only flush when the runner binds afterwards), so a session saved with a built-in-toggle provider (e.g. `opencode-free/deepseek-v4-flash-free`) always fell back to another model with a "Could not restore model" warning — even though the detached capture re-registered that exact model seconds later, and the fallback then stuck for the whole session. After the capture applies the catalog view, pi-free now re-reads the session's persisted model (`buildSessionContext().model`, so a deliberate mid-startup model switch is never clobbered) and re-selects it via `pi.setModel` when it is present in the registered view. The warning line itself is printed by Pi core before any extension code can run and still appears; what changes is that the correct model is restored automatically instead of the fallback sticking.

@@ -204,7 +204,7 @@ OpenRouter is Pi's built-in provider. Configure it using Pi's auth flow or:
 export OPENROUTER_API_KEY="sk-or-v1-..."
 ```
 
-pi-free adds the `/toggle-openrouter` filter but does not own OpenRouter's catalog or credentials.
+pi-free adds the `/toggle-openrouter` filter but does not own OpenRouter's credentials. After session start it performs one detached refresh of the catalog view against OpenRouter's public `GET /api/v1/models` endpoint: model IDs already present in Pi's built-in catalog keep Pi's curated metadata, while newer models are synthesized from the endpoint's pricing, context-window, modality, and reasoning data. The refresh never blocks startup and is deduplicated per process.
 
 ### OpenCode and OpenCode Go
 

@@ -18,11 +18,14 @@ import {
 	VS_CODE_VERSION,
 } from "../../constants.ts";
 import { isFreeModel } from "../../lib/registry.ts";
+import { createLogger } from "../../lib/logger.ts";
 import type { ProviderModelConfig } from "../../lib/types.ts";
 import { getClineProviderHeaders } from "./cline-headers.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import { getProxyModelCompat } from "../../lib/provider-compat.ts";
 import { cleanModelName, fetchWithRetry } from "../../lib/util.ts";
+
+const _logger = createLogger("cline-models");
 
 interface ClineRaw {
 	id: string;
@@ -286,7 +289,12 @@ export async function fetchClineCatalog(options?: {
 	let all: ProviderModelConfig[];
 	try {
 		all = await fetchClineModels(false);
-	} catch {
+	} catch (error) {
+		// Genuine fetch failures must stay diagnosable (abort is handled below
+		// without logging, per convention #15) — log and retain via empty arrays.
+		_logger.warn("Cline catalog fetch failed; retaining previous list", {
+			error: error instanceof Error ? error.message : String(error),
+		});
 		all = [];
 	}
 

@@ -53,17 +53,11 @@ import { isLikelyReasoningModel } from "../../lib/provider-compat.ts";
 import { isFreeModel, registerWithGlobalToggle } from "../../lib/registry.ts";
 import {
 	filterNativeModels,
-	persistNativeProviderModels,
-	restoreNativeProviderModels,
+	refreshNativeProviderModels,
 	registerNativeProvider,
 	registerNativeProviderRefresh,
 	registerNativeProviderToggle,
 } from "../../lib/native-provider.ts";
-import {
-	recordNativeAbort,
-	recordNativeEmptyRetain,
-	recordNativeRefreshOk,
-} from "../../lib/startup-timing.ts";
 import { lazyAnthropicMessagesApi } from "../../lib/lazy-compat.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
@@ -563,7 +557,12 @@ export default function openmodelProvider(pi: ExtensionAPI): Promise<void> {
 				freeModels: stored.free,
 			}),
 		refreshModels: async (context: RefreshModelsContext) => {
-			await restoreNativeProviderModels(
+			// Free split of the most recent fetch, kept beside the flat list the
+			// shared helper passes through (see the fetch callback below).
+			let fetchedFree: OpenModelNative[] = [];
+			// Shared skeleton: restore → allowNetwork gate → abort checks → fetch →
+			// empty-retain → persist, with the M1 counters recorded centrally.
+			await refreshNativeProviderModels(
 				PROVIDER_OPENMODEL,
 				context,
 				(storedModels: OpenModelNative[]) => {
@@ -572,43 +571,23 @@ export default function openmodelProvider(pi: ExtensionAPI): Promise<void> {
 						isFreeModel({ ...model, provider: PROVIDER_OPENMODEL }, storedModels),
 					);
 				},
-			);
-			if (!context.allowNetwork) return;
-			if (context.signal?.aborted) {
-				recordNativeAbort(PROVIDER_OPENMODEL);
-				return;
-			}
-
-			// The public web catalog needs no credential; a configured key still
-			// unlocks the authenticated /v1/models protocol list inside the fetch.
-			const token = openModelCredentialToken(context.credential) ?? "";
-			const models = await fetchOpenModelModels(token, context.signal);
-			if (context.signal?.aborted) {
-				recordNativeAbort(PROVIDER_OPENMODEL);
-				return;
-			}
-			if (models.length === 0) {
-				recordNativeEmptyRetain(PROVIDER_OPENMODEL);
-				return;
-			}
-			const free = models.filter((model) =>
-				isFreeModel({ ...model, provider: PROVIDER_OPENMODEL }, models),
-			);
-			const next = prepare(models, free);
-					// Only count as ok when persistence actually published (a superseded
-		// generation or store write failure must not inflate the counter).
-			if (await persistNativeProviderModels(
-				PROVIDER_OPENMODEL,
-				context,
-				next.all as unknown as readonly Model<Api>[],
-				() => {
-					stored.all = next.all;
-					stored.free = next.free;
+				async () => {
+					// The public web catalog needs no credential; a configured key still
+					// unlocks the authenticated /v1/models protocol list inside the fetch.
+					const token = openModelCredentialToken(context.credential) ?? "";
+					const models = await fetchOpenModelModels(token, context.signal);
+					const free = models.filter((model) =>
+						isFreeModel({ ...model, provider: PROVIDER_OPENMODEL }, models),
+					);
+					const next = prepare(models, free);
+					fetchedFree = next.free;
+					return next.all;
 				},
-			)) {
-				recordNativeRefreshOk(PROVIDER_OPENMODEL, next.all.length);
-			}
-
+				(next) => {
+					stored.all = next;
+					stored.free = fetchedFree;
+				},
+			);
 		},
 		stream: (model, context, options) => streams.stream(model, context, options),
 		streamSimple: (model, context, options) =>

@@ -320,8 +320,7 @@ function assembleModels(
 
 export async function fetchAllModels(
 	apiKey: string,
-	cachedModels: ProviderModelConfig[] = loadProviderCache(PROVIDER_OLLAMA) ??
-		[],
+	cachedModels: ProviderModelConfig[] = loadProviderCache(PROVIDER_OLLAMA) ?? [],
 	signal?: AbortSignal,
 ): Promise<ProviderModelConfig[]> {
 	// Step 1: Get model IDs
@@ -468,8 +467,12 @@ export async function runOllamaProbe(
 		);
 		await saveProviderCache(PROVIDER_OLLAMA, fresh);
 		applyModels(fresh);
-	} catch {
-		// If refresh fails, keep current models. The next refresh/probe will retry.
+	} catch (error) {
+		// If refresh fails, keep current models. The next refresh/probe will
+		// retry — but stay diagnosable instead of failing silently.
+		_logger.warn("Ollama post-probe refresh failed; keeping current models", {
+			error: error instanceof Error ? error.message : String(error),
+		});
 	}
 
 	_logger.info(

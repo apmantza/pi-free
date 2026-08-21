@@ -36,7 +36,7 @@ index.ts                          ← Extension entry point (piFreeEntry)
   │
   ├─ config.ts                    ← ~/.pi/free.json + env var resolution (ALL config lives here)
   ├─ constants.ts                 ← Provider IDs, base URLs, timeouts, thresholds
-  ├─ provider-helper.ts           ← registerOpenAICompatible, createReRegister, enhanceWithCI, setupProvider
+  ├─ provider-helper.ts           ← enhanceWithCI, StoredModels, legacy cache-first fetcher
   │
   ├─ provider-failover/           ← Benchmark lookup (Coding Index scores)
   │   ├─ benchmark-lookup.ts      ← Multi-strategy benchmark matching + debug logging

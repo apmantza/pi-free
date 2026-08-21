@@ -58,14 +58,8 @@ import { createLogger } from "../../lib/logger.ts";
 import { isFreeModel } from "../../lib/registry.ts";
 import {
 	filterNativeModels,
-	persistNativeProviderModels,
-	restoreNativeProviderModels,
+	refreshNativeProviderModels,
 } from "../../lib/native-provider.ts";
-import {
-	recordNativeAbort,
-	recordNativeEmptyRetain,
-	recordNativeRefreshOk,
-} from "../../lib/startup-timing.ts";
 import { lazyOpenAICompletionsApi } from "../../lib/lazy-compat.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { clineAuth } from "./cline-auth.ts";
@@ -120,6 +114,9 @@ export function normalizeStoredClineModels<T extends Model<Api>>(
 ): ClineModel[] {
 	return models.map((model) => {
 		const api = (model as { api?: string }).api;
+		// SAFETY: the store widens full Model objects to ProviderModelConfig;
+		// every other field passes through untouched, so restoring the native
+		// Model shape is lossless apart from the two fields rewritten below.
 		return {
 			...model,
 			api: api === LEGACY_CLINE_API ? "openai-completions" : api,
@@ -164,7 +161,12 @@ export function createClineProvider(): ClineNativeProvider {
 	}
 
 	async function refreshModels(context: RefreshModelsContext): Promise<void> {
-		await restoreNativeProviderModels(
+		// Free split of the most recent fetch, kept beside the flat list the
+		// shared helper passes through (see the fetch callback below).
+		let fetchedFree: ClineModel[] = [];
+		// Shared skeleton: restore → allowNetwork gate → abort checks → fetch →
+		// empty-retain → persist, with the M1 counters recorded centrally.
+		await refreshNativeProviderModels(
 			PROVIDER_CLINE,
 			context,
 			// Covers BOTH the Pi 0.84+ `context.stored` snapshot and the legacy
@@ -193,44 +195,20 @@ export function createClineProvider(): ClineNativeProvider {
 					isFreeModel({ ...model, provider: PROVIDER_CLINE }, normalized),
 				);
 			},
+			async () => {
+				// Online: fetch the public catalog (no credential required).
+				const { all, free } = await fetchClineCatalog({
+					signal: context.signal,
+				});
+				const next = prepare(all, free);
+				fetchedFree = next.free;
+				return next.all;
+			},
+			(next) => {
+				stored.all = next;
+				stored.free = fetchedFree;
+			},
 		);
-
-		// Offline init stops here: serve the store only.
-		if (!context.allowNetwork) return;
-		if (context.signal?.aborted) {
-			recordNativeAbort(PROVIDER_CLINE);
-			return;
-		}
-
-		// Online: fetch the public catalog (no credential required).
-		const { all, free } = await fetchClineCatalog({ signal: context.signal });
-		if (context.signal?.aborted) {
-			recordNativeAbort(PROVIDER_CLINE);
-			return;
-		}
-
-		// Retain the previous list on a degenerate/failed fetch (poisoning guard).
-		if (all.length === 0) {
-			recordNativeEmptyRetain(PROVIDER_CLINE);
-			return;
-		}
-
-		const next = prepare(all, free);
-		if (
-			await persistNativeProviderModels(
-				PROVIDER_CLINE,
-				context,
-				// next.all holds full Model objects at runtime (toClineModels output);
-				// the StoredModels type widens them to ProviderModelConfig for the toggle.
-				next.all as unknown as readonly Model<Api>[],
-				() => {
-					stored.all = next.all;
-					stored.free = next.free;
-				},
-			)
-		) {
-			recordNativeRefreshOk(PROVIDER_CLINE, next.all.length);
-		}
 	}
 
 	const provider: Provider<"openai-completions"> = {

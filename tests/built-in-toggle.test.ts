@@ -56,6 +56,12 @@ vi.mock("../lib/registry.ts", () => ({
 		mockRegisterWithGlobalToggle(...args),
 }));
 
+// Identity enrichment: the real models.dev fetch retries 3×250ms on failure,
+// which would push the detached endpoint refresh past the settle window.
+vi.mock("../lib/model-metadata.ts", () => ({
+	safeEnrichModelsWithModelsDev: async (models: unknown[]) => models,
+}));
+
 describe("built-in provider toggles", () => {
 	let mockPi: ExtensionAPI;
 	let handlers: Record<string, Function>;
@@ -260,6 +266,84 @@ describe("built-in provider toggles", () => {
 			"free-model",
 			"new-free-model",
 		]);
+	});
+
+	it("refreshes the built-in openrouter catalog from the public endpoint", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+
+		const models = [
+			{
+				provider: "openrouter",
+				id: "known/model",
+				name: "Known Model",
+				api: "openai-completions",
+				reasoning: false,
+				input: ["text"],
+				cost: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 128000,
+				maxTokens: 4096,
+				baseUrl: "https://openrouter.ai/api/v1",
+			},
+		];
+
+		fetchMock.mockImplementation((url: string) => {
+			if (url === "https://openrouter.ai/api/v1/models") {
+				return Promise.resolve(
+					new Response(
+						JSON.stringify({
+							data: [
+								// Known ID — must keep Pi's curated built-in metadata.
+								{ id: "known/model", name: "Known Model (live)" },
+								// New ID — synthesized from live endpoint metadata.
+								{
+									id: "vendor/new-model",
+									name: "Vendor New Model",
+									context_length: 200000,
+									max_completion_tokens: 8192,
+									pricing: { prompt: "0.000002", completion: "0.00001" },
+									architecture: { input_modalities: ["text", "image"] },
+									supported_parameters: ["reasoning"],
+								},
+							],
+						}),
+						{ status: 200, headers: { "content-type": "application/json" } },
+					),
+				);
+			}
+			return Promise.reject(new Error(`unexpected fetch: ${url}`));
+		});
+
+		await handlers.session_start(
+			{},
+			{ modelRegistry: { getAvailable: () => models } },
+		);
+		await settleDetachedCapture();
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://openrouter.ai/api/v1/models",
+			expect.objectContaining({ signal: expect.any(AbortSignal) }),
+		);
+
+		const lastModels = mockRegisterProvider.mock.calls.at(-1)?.[1]
+			.models as Array<{
+			id: string;
+			name: string;
+			cost?: { input: number };
+			contextWindow?: number;
+		}>;
+		expect(lastModels.map((model) => model.id)).toEqual([
+			"known/model",
+			"vendor/new-model",
+		]);
+		// Known ID keeps Pi's curated metadata (name + cost untouched).
+		expect(lastModels[0].name).toBe("Known Model");
+		expect(lastModels[0].cost?.input).toBe(3);
+		// New ID is synthesized from live endpoint data.
+		expect(lastModels[1].name).toBe("Vendor New Model");
+		expect(lastModels[1].contextWindow).toBe(200000);
 	});
 
 	it("registers into the latest registry when session_start fires again mid-capture", async () => {

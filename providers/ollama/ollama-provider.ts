@@ -27,7 +27,7 @@ import {
 	trackDetachedSessionStart,
 	wrapSessionStartHandler,
 } from "../../lib/session-start-metrics.ts";
-import { registerWithGlobalToggle } from "../../lib/registry.ts";
+import { registerWithGlobalToggle, isFreeModel } from "../../lib/registry.ts";
 import { lazyOpenAICompletionsApi } from "../../lib/lazy-compat.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { ollamaAuth } from "./ollama-auth.ts";
@@ -96,7 +96,12 @@ export function createOllamaProvider(
 
 	function restoreStoredModels(storedModels: OllamaModel[]): void {
 		stored.all = storedModels;
-		stored.free = storedModels;
+		// Reclassify free/paid like every other custom native provider — a blind
+		// `stored.free = storedModels` made the free-only view show paid models
+		// after a store restore.
+		stored.free = storedModels.filter((model) =>
+			isFreeModel({ ...model, provider: PROVIDER_OLLAMA }, storedModels),
+		);
 	}
 
 	async function refreshOllamaModels(
@@ -114,12 +119,18 @@ export function createOllamaProvider(
 					loadProviderCache(PROVIDER_OLLAMA),
 					context.signal,
 				);
+				// A degenerate/empty fetch must not overwrite the capability cache —
+				// return before saving so refreshNativeProviderModels' empty-retain
+				// path keeps both the previous catalog AND the previous cache.
+				if (fresh.length === 0) return [];
 				await saveProviderCache(PROVIDER_OLLAMA, fresh);
 				return toOllamaModels(enhanceWithCI(fresh, PROVIDER_OLLAMA));
 			},
 			(models) => {
 				stored.all = models;
-				stored.free = models;
+				stored.free = models.filter((model) =>
+					isFreeModel({ ...model, provider: PROVIDER_OLLAMA }, models),
+				);
 			},
 		);
 	}
