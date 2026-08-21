@@ -29,6 +29,10 @@ export const PROVIDER_STEPFUN = "stepfun";
 // Built-in pi providers that pi-free wraps with toggles
 export const PROVIDER_OPENROUTER = "openrouter";
 export const PROVIDER_OPENCODE = "opencode";
+// Distinct registration ids for the OpenCode Zen tiers (pi's built-in
+// provider is registered as "opencode"; see lib/built-in-toggle.ts).
+export const PROVIDER_OPENCODE_FREE = "opencode-free";
+export const PROVIDER_OPENCODE_GO = "opencode-go";
 
 // =============================================================================
 // Provider base URLs

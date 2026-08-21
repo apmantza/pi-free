@@ -188,6 +188,10 @@ export function registerOllamaProvider(
 		stored,
 		getShowPaid: getOllamaShowPaid,
 		reRegister,
+		// PROVIDER_OLLAMA is "ollama-cloud", but getOllamaShowPaid reads
+		// `ollama_show_paid`. Persist under that key so /toggle-ollama-cloud
+		// survives a restart.
+		configKey: "ollama_show_paid",
 	});
 
 	pi.registerCommand("ollama-cloud-refresh", {

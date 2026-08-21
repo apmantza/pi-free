@@ -15,13 +15,14 @@ const mockFetchWithTimeout = vi.hoisted(() => vi.fn());
 const mockSaveProviderCache = vi.hoisted(() =>
 	vi.fn(async (..._args: unknown[]) => undefined),
 );
+const mockSaveConfig = vi.hoisted(() => vi.fn(async () => undefined));
 
 vi.mock("../config.ts", () => ({
 	getOllamaApiKey: () => mockGetOllamaApiKey(),
 	getOllamaShowPaid: () => mockGetOllamaShowPaid(),
 	applyHidden: (models: unknown[]) => models,
 	updateConfig: vi.fn(),
-	saveConfig: vi.fn(),
+	saveConfig: mockSaveConfig,
 }));
 
 vi.mock("../lib/registry.ts", () => ({
@@ -240,5 +241,34 @@ describe("Ollama native factory", () => {
 			expect.any(Object),
 		);
 		expect(mockFetchWithRetry).not.toHaveBeenCalled();
+	});
+
+	it("persists the toggle under ollama_show_paid so it survives a restart", async () => {
+		const registerProvider = vi.fn();
+		const registerCommand = vi.fn();
+		const on = vi.fn();
+		const pi = {
+			registerProvider,
+			registerCommand,
+			on,
+		} as unknown as ExtensionAPI;
+
+		await ollamaEntry(pi);
+
+		const toggleCommand = registerCommand.mock.calls.find(
+			(call) => call[0] === "toggle-ollama-cloud",
+		)?.[1] as { handler: (args: string, ctx: unknown) => Promise<void> };
+		expect(toggleCommand).toBeDefined();
+
+		mockGetOllamaShowPaid.mockReturnValue(false);
+		const notify = vi.fn();
+		await toggleCommand.handler("", { ui: { notify } } as never);
+
+		// providerId is "ollama-cloud", but the config getter reads
+		// `ollama_show_paid` — the persisted key must match or the toggle is
+		// lost on restart.
+		expect(mockSaveConfig).toHaveBeenCalledWith({
+			ollama_show_paid: true,
+		});
 	});
 });

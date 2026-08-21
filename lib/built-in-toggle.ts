@@ -20,7 +20,11 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import { getOpencodeShowPaid, getOpenrouterShowPaid } from "../config.ts";
+import {
+	getOpencodeFreeShowPaid,
+	getOpencodeGoShowPaid,
+	getOpenrouterShowPaid,
+} from "../config.ts";
 import { createLogger } from "./logger.ts";
 import {
 	getProviderRegistry,
@@ -72,6 +76,12 @@ interface BuiltInToggleConfig {
 	 */
 	captureFrom?: string;
 	getShowPaid: () => boolean;
+	/**
+	 * Config key the toggle persists under; defaults to `{id}_show_paid`.
+	 * The OpenCode tiers register under dashed ids (`opencode-free`) but
+	 * persist under snake_case keys, so they must pass this explicitly.
+	 */
+	showPaidConfigKey?: string;
 	baseUrl: string;
 	api: Api;
 	/** Fetch the public catalog after the initial built-in capture. */
@@ -99,14 +109,16 @@ const BUILT_IN_TOGGLE_PROVIDERS: BuiltInToggleConfig[] = [
 		// free tier gets the real opencode identity.
 		id: "opencode-free",
 		captureFrom: "opencode",
-		getShowPaid: getOpencodeShowPaid,
+		getShowPaid: getOpencodeFreeShowPaid,
+		showPaidConfigKey: "opencode_free_show_paid",
 		baseUrl: "https://opencode.ai/zen/v1",
 		api: OPENCODE_DYNAMIC_API,
 		refreshEndpoint: true,
 	},
 	{
 		id: "opencode-go",
-		getShowPaid: getOpencodeShowPaid,
+		getShowPaid: getOpencodeGoShowPaid,
+		showPaidConfigKey: "opencode_go_show_paid",
 		baseUrl: "https://opencode.ai/zen/go/v1",
 		api: OPENCODE_DYNAMIC_API,
 	},
@@ -456,6 +468,8 @@ function createProviderState(
 	const toggleState = createToggleState<ProviderModelConfig>({
 		providerId: config.id,
 		initialShowPaid: config.getShowPaid(),
+		// undefined falls through to the `{id}_show_paid` default (openrouter).
+		configKey: config.showPaidConfigKey,
 		initialModels: stored,
 	});
 

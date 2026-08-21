@@ -10,6 +10,13 @@ export interface ToggleModelStore<T> {
 interface CreateToggleStateOptions<T> {
 	providerId: string;
 	initialShowPaid: boolean;
+	/**
+	 * Config key to persist under; defaults to `{providerId}_show_paid`.
+	 * Providers whose config key diverges from their registration id (e.g.
+	 * `opencode-free` → `opencode_free_show_paid`) must pass it so the
+	 * toggle survives a restart.
+	 */
+	configKey?: string;
 	save?: typeof saveConfig;
 	initialModels?: ToggleModelStore<T>;
 }
@@ -22,6 +29,7 @@ interface ToggleResult<T> {
 export function createToggleState<T>({
 	providerId,
 	initialShowPaid,
+	configKey = `${providerId}_show_paid`,
 	save = saveConfig,
 	initialModels,
 }: CreateToggleStateOptions<T>) {
@@ -43,7 +51,7 @@ export function createToggleState<T>({
 	}
 
 	function persist(mode: ToggleMode): void {
-		save({ [`${providerId}_show_paid`]: mode === "all" });
+		save({ [configKey]: mode === "all" });
 	}
 
 	function applyMode(

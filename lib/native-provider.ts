@@ -110,8 +110,6 @@ export interface NativeOpenAIProviderOptions {
 	auth: ProviderAuth;
 	getApiKey: () => string | undefined;
 	getShowPaid: () => boolean;
-	/** Override the persisted mode for providers whose legacy default is paid. */
-	initialShowPaid?: boolean;
 	initialModels?: ProviderModelConfig[];
 	fetchModels: (
 		apiKey: string,
@@ -177,6 +175,10 @@ export function filterNativeModels<T extends Model<Api>>(
 	const visible = freeOnly
 		? models.filter((model) => freeIds.has(model.id))
 		: models;
+	// SAFETY: T extends Model<Api> (declared on the function), and every Model
+	// carries the same fields as ProviderModelConfig plus provider/api/baseUrl.
+	// applyHidden is a plain passthrough filter on shared fields, so the cast
+	// is read-only and cannot widen/corrupt the object shape.
 	return applyHidden(
 		visible as unknown as ProviderModelConfig[],
 		providerId,
@@ -189,7 +191,11 @@ export function createNativeOpenAIProvider(
 ): NativeOpenAIProviderHandle {
 	const streams = options.streams ?? lazyOpenAICompletionsApi();
 	const stored: StoredModels = { free: [], all: [] };
-	let showPaidOverride = options.initialShowPaid;
+	// In-session override only; starts undefined so the persisted config
+	// getter (options.getShowPaid) is authoritative on startup. `setShowPaid`
+	// records the live value while the toggle is running, but it must never
+	// seed the boot state or a persisted toggle would be lost on restart.
+	let showPaidOverride: boolean | undefined;
 
 	function classifyFree(
 		models: Model<"openai-completions">[],
@@ -204,7 +210,7 @@ export function createNativeOpenAIProvider(
 	}
 
 	function setShowPaid(next: boolean): void {
-		if (options.initialShowPaid !== undefined) showPaidOverride = next;
+		showPaidOverride = next;
 	}
 
 	function ingest(
@@ -370,6 +376,10 @@ export function registerNativeProvider(
 	pi: ExtensionAPI,
 	provider: Provider,
 ): void {
+	// SAFETY: this bridge exists only because the declared peer minimum
+	// registerProvider(provider) single-arg signature is not satisfiable with
+	// the pinned dev snapshot's ExtensionAPI. Provider is the exact runtime
+	// value pi-ai expects; the cast changes no data, only the nominal type.
 	(pi as unknown as NativeRegistrar).registerProvider(provider);
 }
 
@@ -382,6 +392,13 @@ interface NativeToggleOptions {
 	getShowPaid: () => boolean;
 	setShowPaid?: (showPaid: boolean) => void;
 	reRegister: () => void;
+	/**
+	 * Config key to persist the toggle under. Defaults to
+	 * `{providerId}_show_paid`; providers whose config key diverges from their
+	 * provider id (e.g. Ollama registers as `ollama-cloud` but reads
+	 * `ollama_show_paid`) must pass it so the toggle survives a restart.
+	 */
+	configKey?: string;
 }
 
 /** Register the standard free/all toggle used by native providers. */
@@ -389,13 +406,19 @@ export function registerNativeProviderToggle(
 	pi: ExtensionAPI,
 	options: NativeToggleOptions,
 ): void {
-	const { providerId, stored, getShowPaid, reRegister } = options;
+	const {
+		providerId,
+		stored,
+		getShowPaid,
+		reRegister,
+		configKey = `${providerId}_show_paid`,
+	} = options;
 
 	pi.registerCommand(`toggle-${providerId}`, {
 		description: `Toggle between free and all ${providerId} models`,
 		handler: async (_args, ctx) => {
 			const showPaid = !getShowPaid();
-			await saveConfig({ [`${providerId}_show_paid`]: showPaid });
+			await saveConfig({ [configKey]: showPaid });
 			options.setShowPaid?.(showPaid);
 
 			reRegister();
@@ -500,6 +523,9 @@ type NativeRefreshContext = {
 function getNativeRefreshContext(
 	context: RefreshModelsContext,
 ): NativeRefreshContext {
+	// SAFETY: NativeRefreshContext is a superset of RefreshModelsContext (the
+	// published/stored fields are optional on both), so the cast only lets
+	// callers read the extra optional fields; it never fabricates data.
 	return context as unknown as NativeRefreshContext;
 }
 
