@@ -232,7 +232,7 @@ async function main(): Promise<number> {
 
 	const { lazyOpenAICompletionsApi, lazyAnthropicMessagesApi } = await import("../lib/lazy-compat.ts");
 	// Dispatch by the model's wire api — openai-completions for most gateways,
-	// anthropic-messages for Anthropic-compatible ones (e.g. OpenModel).
+	// anthropic-messages for Anthropic-compatible gateways.
 	const api =
 		model.api === "anthropic-messages"
 			? lazyAnthropicMessagesApi()

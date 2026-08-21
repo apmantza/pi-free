@@ -14,7 +14,7 @@ Free and paid AI model providers for [Pi](https://pi.dev). Access models from mu
 
 When you install pi-free, it:
 
-1. Registers native providers such as Kilo, Cline, LLM7, FastRouter, Ollama Cloud, OpenModel, StepFun, and more.
+1. Registers native providers such as Kilo, Cline, LLM7, FastRouter, Ollama Cloud, StepFun, and more.
 2. Registers Qoder through Pi's native provider surface and supports Pi's built-in OpenCode, OpenCode Go, and OpenRouter integrations.
 3. Uses Pi's native model and auth stores for all extension providers; Ollama Cloud and Qoder retain documented compatibility caches only for auxiliary behavior.
 4. Applies the global free-only filter by default, while preserving provider-specific paid/trial behavior.
@@ -69,8 +69,7 @@ First run creates `~/.pi/free.json`. Add extension-provider keys there or use th
 ```json
 {
   "ollama_api_key": "...",
-  "anyapi_api_key": "...",
-  "openmodel_api_key": "..."
+  "anyapi_api_key": "..."
 }
 ```
 
@@ -78,10 +77,10 @@ First run creates `~/.pi/free.json`. Add extension-provider keys there or use th
 
 | Category | Providers |
 | --- | --- |
-| Free/free-tier | Kilo, Cline, LLM7, OpenModel, TokenRouter, Qoder basic tier, and eligible models from other catalogs |
+| Free/free-tier | Kilo, Cline, LLM7, TokenRouter, Qoder basic tier, and eligible models from other catalogs |
 | Freemium | AnyAPI, Ollama Cloud, SambaNova |
 | Paid/trial | ZenMux, CrofAI, DeepInfra trial, Novita, Routeway, OpenGateway, B.AI, StepFun, and paid catalog entries from other providers |
-| Native lifecycle | Kilo, Cline, LLM7, Ollama Cloud, AnyAPI, SambaNova, TokenRouter, OpenModel, ZenMux, CrofAI, DeepInfra, Novita, Routeway, OpenGateway, B.AI, FastRouter, StepFun |
+| Native lifecycle | Kilo, Cline, LLM7, Ollama Cloud, AnyAPI, SambaNova, TokenRouter, ZenMux, CrofAI, DeepInfra, Novita, Routeway, OpenGateway, B.AI, FastRouter, StepFun |
 | Built-in | OpenCode, OpenCode Go, OpenRouter — captured from Pi and refreshed in place after session start (OpenCode Zen catalog + public OpenRouter endpoint), so new models appear without waiting for a Pi release |
 
 Provider availability, authentication, and exact API-key names are maintained in [docs/providers.md](docs/providers.md). pi-free does not publish model counts because provider catalogs change.

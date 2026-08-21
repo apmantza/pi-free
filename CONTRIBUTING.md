@@ -43,7 +43,7 @@ For an OpenAI-compatible native provider, use `registerNativeOpenAIProvider` wit
 - an appropriate initial paid/trial policy; and
 - any provider-specific terms or probe support.
 
-For a custom wire protocol, implement both native stream entry points when the public `Provider` contract requires them. Cline is the native custom-API example. OpenModel is the native Anthropic Messages example.
+For a custom wire protocol, implement both native stream entry points when the public `Provider` contract requires them. Cline is the native custom-API example.
 
 ### 4. Register it
 
@@ -66,7 +66,6 @@ Update [`README.md`](README.md), [`docs/providers.md`](docs/providers.md), and [
 
 Most providers use OpenAI-compatible APIs. For custom protocols:
 
-- **OpenModel** uses the native Anthropic Messages API.
 - **Qoder** is the intentionally legacy reference for proprietary authentication and custom streaming; do not migrate it as part of an unrelated provider change.
 
 ## Shared helpers

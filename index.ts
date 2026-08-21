@@ -64,7 +64,6 @@ import ollama from "./providers/ollama/ollama.ts";
 import zenmux from "./providers/zenmux/zenmux.ts";
 import bai from "./providers/bai/bai.ts";
 import anyapi from "./providers/anyapi/anyapi.ts";
-import openmodel from "./providers/openmodel/openmodel.ts";
 import qoder from "./providers/qoder/qoder.ts";
 
 /**
@@ -93,7 +92,6 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 	tokenRouter,
 	anyapi,
 	bai,
-	openmodel,
 	qoder,
 ];
 

@@ -36,7 +36,6 @@ Run `/toggle-{provider}` to switch between a provider's free/basic view and its 
 | `/toggle-anyapi` | AnyAPI | Native |
 | `/toggle-bai` | B.AI | Native |
 | `/toggle-stepfun` | StepFun | Native |
-| `/toggle-openmodel` | OpenModel | Native |
 | `/toggle-qoder` | Qoder | Legacy |
 | `/toggle-openrouter` | OpenRouter | Pi built-in |
 | `/toggle-opencode-free` | OpenCode Zen free wrapper | Pi built-in catalog + detached Zen refresh |

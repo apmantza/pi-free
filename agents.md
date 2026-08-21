@@ -65,7 +65,6 @@ index.ts                          ← Extension entry point (piFreeEntry)
       ├─ anyapi/anyapi.ts         ← AnyAPI gateway (free plan + free models)
       ├─ model-fetcher.ts         ← Shared OpenRouter-compatible model fetching
       ├─ opencode-session.ts      ← OpenCode session handling
-      ├─ openmodel/openmodel.ts   ← OpenModel Anthropic-compatible gateway
       ├─ qoder/                   ← Qoder/Cosy OAuth and streaming provider
       ├─ bai/bai.ts               ← BAI gateway provider
       ├─ fastrouter/              ← FastRouter native provider (public catalog + API-key chat)
@@ -98,13 +97,13 @@ Provider setup has two lifecycle patterns:
 - **Native providers** register a Pi `Provider` object (usually through `lib/native-provider.ts`). They expose the complete catalog from `getModels()`, apply free/paid and hidden-model policy in `filterModels`, and implement `refreshModels(context)` so Pi owns the models store, credentials, refresh timing, abort signal, and offline initialization.
 - **All pi-free providers** register through Pi's native lifecycle. Built-in catalogs are owned by Pi; Qoder retains only its custom auth/stream implementation and optional metadata cache.
 
-For a new OpenAI-compatible native provider, use `registerNativeOpenAIProvider()` with a `ProviderAuth`, a catalog fetcher, and `getShowPaid`. For a custom wire protocol, assemble the public `Provider` interface directly, following OpenModel. Do not add a second freshness policy or copy native catalogs into `provider-cache.json`.
+For a new OpenAI-compatible native provider, use `registerNativeOpenAIProvider()` with a `ProviderAuth`, a catalog fetcher, and `getShowPaid`. For a custom wire protocol, assemble the public `Provider` interface directly. Do not add a second freshness policy or copy native catalogs into `provider-cache.json`.
 
 **Native loading.** All pi-free provider catalogs use Pi's models store (`~/.pi/agent/models-store.json`) via `refreshModels`. Qoder retains `~/.pi/agent/qoder-models-cache.json` only for optional stream metadata. Built-in OpenCode, OpenCode Go, and OpenRouter catalogs are owned by Pi; Ollama Cloud additionally retains `~/.pi/provider-cache.json` only for `/api/show` capability reuse and its manual refresh compatibility path.
 
 ### Native `Provider` providers
 
-Kilo, Cline, LLM7, ZenMux, TokenRouter, Ollama Cloud, B.AI, AnyAPI, CrofAI, SambaNova, Novita, DeepInfra, Routeway, OpenGateway, OpenModel, FastRouter, StepFun, and Qoder use Pi's modern provider API (Pi `>=0.81.0`). Instead of the legacy `registerProvider(id, { baseUrl, apiKey, models, oauth })` form, each builds a native pi-ai `Provider` object and registers it via the single-argument `registerProvider(provider)`. Pi then owns credential refresh, background model refresh (4h throttle, abortable), and offline initialization — so these extension factories perform no catalog network I/O on startup.
+Kilo, Cline, LLM7, ZenMux, TokenRouter, Ollama Cloud, B.AI, AnyAPI, CrofAI, SambaNova, Novita, DeepInfra, Routeway, OpenGateway, FastRouter, StepFun, and Qoder use Pi's modern provider API (Pi `>=0.81.0`). Instead of the legacy `registerProvider(id, { baseUrl, apiKey, models, oauth })` form, each builds a native pi-ai `Provider` object and registers it via the single-argument `registerProvider(provider)`. Pi then owns credential refresh, background model refresh (4h throttle, abortable), and offline initialization — so these extension factories perform no catalog network I/O on startup.
 
 ```
 providers/kilo/kilo-provider.ts   ← createKiloProvider(): assembles the Provider
@@ -182,10 +181,10 @@ Debug logging writes to `~/.pi/free.log` under the `benchmark-lookup` namespace:
 
 | Category | Providers | Auth | Notes |
 | ----------- | -------------------------------------------------- | ----------------- | -------------------------------- |
-| ✅ Free / free-tier | kilo, cline, llm7, openmodel, tokenrouter, qoder basic | OAuth, API key, or none | Free models or tier; toggles can expose paid models |
+| ✅ Free / free-tier | kilo, cline, llm7, tokenrouter, qoder basic | OAuth, API key, or none | Free models or tier; toggles can expose paid models |
 | 🔄 Freemium | anyapi, ollama-cloud, sambanova, requesty | API key | Free allowance with limits |
 | 💳 Paid / trial | zenmux, crofai, deepinfra, novita, routeway, opengateway, bai, stepfun, qoder premium | API key, OAuth, or credits | Paid access, trial credit, or premium tier |
-| 🔧 Native | Kilo, Cline, LLM7, Ollama Cloud, AnyAPI, SambaNova, TokenRouter, OpenModel, ZenMux, CrofAI, DeepInfra, Novita, Routeway, OpenGateway, B.AI, FastRouter, Requesty, StepFun, Qoder | API key, OAuth, or none | Pi owns catalog refresh and native stores |
+| 🔧 Native | Kilo, Cline, LLM7, Ollama Cloud, AnyAPI, SambaNova, TokenRouter, ZenMux, CrofAI, DeepInfra, Novita, Routeway, OpenGateway, B.AI, FastRouter, Requesty, StepFun, Qoder | API key, OAuth, or none | Pi owns catalog refresh and native stores |
 | 🔧 Built-in | opencode-free, opencode-go, openrouter | Built-in Pi auth | Built-in toggles; Pi owns catalogs |
 
 ---
@@ -248,7 +247,7 @@ Debug logging writes to `~/.pi/free.log` under the `benchmark-lookup` namespace:
 
 **Authentication notes:**
 
-- **Anonymous public catalogs** — Kilo, ZenMux, CrofAI, DeepInfra, Novita, Routeway, SambaNova, OpenModel, FastRouter, and Cline resolve a truthy keyless auth (`public catalog (no account)`) when no credential is configured, so Pi's model refresh populates their public catalogs with zero setup; chat still requires a real key or OAuth login. StepFun, TokenRouter, AnyAPI, B.AI, and OpenGateway have auth-required catalogs and keep resolving `undefined` without a key ([#421](https://github.com/apmantza/pi-free/issues/421)).
+- **Anonymous public catalogs** — Kilo, ZenMux, CrofAI, DeepInfra, Novita, Routeway, SambaNova, FastRouter, and Cline resolve a truthy keyless auth (`public catalog (no account)`) when no credential is configured, so Pi's model refresh populates their public catalogs with zero setup; chat still requires a real key or OAuth login. StepFun, TokenRouter, AnyAPI, B.AI, and OpenGateway have auth-required catalogs and keep resolving `undefined` without a key ([#421](https://github.com/apmantza/pi-free/issues/421)).
 - **Kilo** and **Cline** support both OAuth (`/login`) and direct API keys. Set `KILO_API_KEY` / `CLINE_API_KEY` (or `kilo_api_key` / `cline_api_key` in `~/.pi/free.json`) to authenticate directly. Both are native providers: their native auth carries both methods, and Pi's resolution order applies — a stored credential (from `/login`) wins, then the ambient API key. Cline's catalog is public and can refresh without a credential.
 - **Qoder** is a native provider with OAuth/PAT authentication, Pi-owned credential/model stores, COSY signing, and its custom stream. Use `/login qoder`, or set `QODER_PERSONAL_ACCESS_TOKEN` / `QODER_PAT` for headless PAT authentication.
 - **OpenCode and OpenCode Go** remain Pi-built-in providers. pi-free only captures Pi's available catalogs for filtering after session start; it performs no startup or on-demand catalog discovery.

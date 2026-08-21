@@ -30,7 +30,6 @@ import {
 	PROVIDER_OPENCODE,
 	PROVIDER_OPENCODE_FREE,
 	PROVIDER_OPENCODE_GO,
-	PROVIDER_OPENMODEL,
 	PROVIDER_OPENROUTER,
 	PROVIDER_QODER,
 	PROVIDER_ROUTEWAY,
@@ -105,7 +104,6 @@ interface PiFreeConfig {
 	tokenrouter_api_key?: string;
 	anyapi_api_key?: string;
 	bai_api_key?: string;
-	openmodel_api_key?: string;
 	kilo_api_key?: string;
 	cline_api_key?: string;
 	kilo_free_only?: boolean;
@@ -128,7 +126,6 @@ interface PiFreeConfig {
 	tokenrouter_show_paid?: boolean;
 	anyapi_show_paid?: boolean;
 	bai_show_paid?: boolean;
-	openmodel_show_paid?: boolean;
 	openrouter_show_paid?: boolean;
 	opencode_show_paid?: boolean;
 	opencode_free_show_paid?: boolean;
@@ -153,7 +150,6 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	tokenrouter_api_key: "",
 	anyapi_api_key: "",
 	bai_api_key: "",
-	openmodel_api_key: "",
 	kilo_api_key: "",
 	cline_api_key: "",
 
@@ -177,7 +173,6 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	tokenrouter_show_paid: false,
 	anyapi_show_paid: false,
 	bai_show_paid: false,
-	openmodel_show_paid: false,
 	openrouter_show_paid: false,
 	opencode_show_paid: false,
 	opencode_free_show_paid: false,
@@ -425,11 +420,6 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 	{ id: PROVIDER_ANYAPI, prefix: "ANYAPI", showPaidKey: "anyapi_show_paid" },
 	{ id: PROVIDER_BAI, prefix: "BAI", showPaidKey: "bai_show_paid" },
 	{
-		id: PROVIDER_OPENMODEL,
-		prefix: "OPENMODEL",
-		showPaidKey: "openmodel_show_paid",
-	},
-	{
 		id: PROVIDER_FASTROUTER,
 		prefix: "FASTROUTER",
 		showPaidKey: "fastrouter_show_paid",
@@ -553,13 +543,6 @@ export function getAnyapiShowPaid(): boolean {
 
 export function getBaiShowPaid(): boolean {
 	return resolveBool("BAI_SHOW_PAID", loadConfigFile().bai_show_paid);
-}
-
-export function getOpenmodelShowPaid(): boolean {
-	return resolveBool(
-		"OPENMODEL_SHOW_PAID",
-		loadConfigFile().openmodel_show_paid,
-	);
 }
 
 export function getFastrouterShowPaid(): boolean {
@@ -690,10 +673,6 @@ export function getAnyapiApiKey(): string | undefined {
 
 export function getBaiApiKey(): string | undefined {
 	return resolve("BAI_API_KEY", loadConfigFile().bai_api_key);
-}
-
-export function getOpenmodelApiKey(): string | undefined {
-	return resolve("OPENMODEL_API_KEY", loadConfigFile().openmodel_api_key);
 }
 
 export function getKiloApiKey(): string | undefined {
