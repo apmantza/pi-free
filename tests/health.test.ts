@@ -114,4 +114,37 @@ describe("health report", () => {
 		expect(report).toContain("down-prov: 1 server-error (5xx)");
 		expect(report).toContain("drift-prov: 1 quota-header-drift");
 	});
+
+	// Issue #456: a write the log stream lost to teardown (rotation end,
+	// shutdown destroy) must be readable from this surface, not just printed
+	// once to stderr. logger.test.ts covers how the counter gets incremented;
+	// this covers that health.ts actually reads and reports it.
+	//
+	// MUTATION: dropping the `logWriteFailures > 0 ? 1 : 0` term from
+	// problemCount, or the `if (logWriteFailures > 0)` block that renders the
+	// line, reds this test — the counter would be tracked but invisible here.
+	it("surfaces log write failures and flips status to WARN (#456)", async () => {
+		vi.resetModules();
+		vi.doMock("../lib/logger.ts", async (importOriginal) => {
+			const actual =
+				await importOriginal<typeof import("../lib/logger.ts")>();
+			return {
+				...actual,
+				getLogWriteFailures: () => 2,
+				getLastLogWriteError: () => "ENOSPC: no space left on device",
+			};
+		});
+
+		const { formatHealthReport } = await import("../lib/health.ts");
+		const report = formatHealthReport();
+
+		expect(report).toContain("Pi-Free health: WARN");
+		expect(report).toContain(
+			"Log write failures: 2 (sink:",
+		);
+		expect(report).toContain("last: ENOSPC: no space left on device");
+
+		vi.doUnmock("../lib/logger.ts");
+		vi.resetModules();
+	});
 });

@@ -4,7 +4,12 @@ import {
 	getStartupSummary,
 	nativeRefreshFlags,
 } from "./startup-timing.ts";
-import { getLogPath, isFileLoggingEnabled } from "./logger.ts";
+import {
+	getLastLogWriteError,
+	getLogPath,
+	getLogWriteFailures,
+	isFileLoggingEnabled,
+} from "./logger.ts";
 import { getAllResponseCounters } from "./quota-monitor.ts";
 
 /**
@@ -25,12 +30,14 @@ export function formatHealthReport(): string {
 	const outcomeFlags = nativeRefreshFlags(startup);
 	const emptyCatalogs = emptyCatalogFlags();
 	const responseIssues = responseOutcomeLines();
+	const logWriteFailures = getLogWriteFailures();
 	const problemCount =
 		failures.length +
 		networkFailures.length +
 		outcomeFlags.length +
 		emptyCatalogs.length +
-		responseIssues.length;
+		responseIssues.length +
+		(logWriteFailures > 0 ? 1 : 0);
 	const status = registry.size === 0 || problemCount > 0 ? "WARN" : "OK";
 	const logSuffix = isFileLoggingEnabled() ? "" : " (file logging disabled)";
 	const lines = [
@@ -53,6 +60,14 @@ export function formatHealthReport(): string {
 	}
 	if (failures.length > 0) {
 		lines.push(`Recorded failures: ${failures.join(", ")}`);
+	}
+	if (logWriteFailures > 0) {
+		const lastError = getLastLogWriteError();
+		lines.push(
+			`Log write failures: ${logWriteFailures} (sink: ${getLogPath()}${
+				lastError ? `; last: ${lastError}` : ""
+			})`,
+		);
 	}
 	if (registry.size === 0) {
 		lines.push("No providers are registered; check the log for setup errors.");
