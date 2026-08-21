@@ -15,8 +15,23 @@ const _logger = createLogger("json-persistence");
  * Filters out `__proto__` and `constructor` keys at every level of the
  * parsed object, preventing attackers from polluting Object.prototype
  * through crafted config/cache files.
+ *
+ * The value type mirrors config.ts: a real JSON shape, not a bare unknown
+ * alias — the reviver contract only ever passes JSON-representable values.
  */
-function safeJsonReviver(_key: string, value: unknown): unknown {
+type JsonReviverValue =
+	| string
+	| number
+	| boolean
+	| null
+	| { [key: string]: unknown }
+	| unknown[]
+	| undefined;
+
+function safeJsonReviver(
+	_key: string,
+	value: JsonReviverValue,
+): JsonReviverValue {
 	if (_key === "__proto__" || _key === "constructor") {
 		return undefined;
 	}

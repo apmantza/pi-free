@@ -133,6 +133,10 @@ let fetchCalls = 0;
 const fetchUrls: string[] = [];
 
 function mockResponse(url: string): Response {
+	// SAFETY: bench-harness mock installed before extension import; the
+	// startup fetch paths under test only read ok/status/statusText/url/
+	// json()/text()/headers and must see an empty successful catalog, so
+	// omitting the full Response surface is safe here.
 	return {
 		ok: true,
 		status: 200,

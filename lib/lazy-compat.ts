@@ -123,6 +123,12 @@ function lazyCompatStream(
 		}
 	})();
 
+	// SAFETY: outer is the compat-free local shell from
+	// createAssistantMessageEventStream(); it forwards every inner event and
+	// always settles with done/error, matching the AssistantMessageEventStream
+	// protocol the Provider.stream contract iterates. The cast only relabels
+	// structurally-equivalent stream declarations until the real compat
+	// implementation takes over.
 	return outer as unknown as AssistantMessageEventStream;
 }
 

@@ -5,7 +5,7 @@ import {
 	isTokenRouterMinimaxModel,
 	mapTokenRouterModel,
 	normalizeAssistantMessage,
-	patchTokenRouterMinimaxThinkingPayload,
+	normalizeTokenRouterRequestPayload,
 	stripEnrichedTokenRouterCompat,
 	withoutReasoningEffort,
 } from "../providers/tokenrouter/tokenrouter.ts";
@@ -214,30 +214,76 @@ describe("TokenRouter MiniMax handling", () => {
 
 	it("patches MiniMax-M3 thinking payloads from enabled to adaptive", () => {
 		expect(
-			patchTokenRouterMinimaxThinkingPayload({
+			normalizeTokenRouterRequestPayload({
 				model: "MiniMax-M3",
 				thinking: { type: "enabled" },
 			}),
 		).toEqual({
 			model: "MiniMax-M3",
 			thinking: { type: "adaptive" },
+			reasoning_split: true,
 		});
 	});
 
-	it("leaves non-MiniMax payloads unchanged", () => {
+	it("adds reasoning_split without touching non-MiniMax thinking", () => {
 		const other = {
 			model: "deepseek-r1",
 			thinking: { type: "enabled" },
 		};
-		expect(patchTokenRouterMinimaxThinkingPayload(other)).toBe(other);
+		const result = normalizeTokenRouterRequestPayload(other);
+		expect(result).not.toBe(other);
+		expect(result).toEqual({
+			model: "deepseek-r1",
+			thinking: { type: "enabled" },
+			reasoning_split: true,
+		});
 	});
 
 	it("force-patches even when the payload has no model field", () => {
 		expect(
-			patchTokenRouterMinimaxThinkingPayload(
+			normalizeTokenRouterRequestPayload(
 				{ thinking: { type: "enabled" } },
 				true,
 			),
-		).toEqual({ thinking: { type: "adaptive" } });
+		).toEqual({ thinking: { type: "adaptive" }, reasoning_split: true });
+	});
+
+	it("leaves an already-normalized payload untouched", () => {
+		const payload = {
+			model: "gpt-5",
+			reasoning_effort: "xhigh",
+			reasoning_split: true,
+		};
+		expect(normalizeTokenRouterRequestPayload(payload)).toBe(payload);
+	});
+
+	describe("reasoning_effort clamping", () => {
+		it("keeps values the gateway accepts", () => {
+			for (const effort of ["low", "medium", "xhigh"]) {
+				expect(
+					normalizeTokenRouterRequestPayload({ reasoning_effort: effort }),
+				).toEqual({ reasoning_effort: effort, reasoning_split: true });
+			}
+		});
+
+		it("maps near-misses onto the accepted set", () => {
+			expect(
+				normalizeTokenRouterRequestPayload({ reasoning_effort: "minimal" }),
+			).toEqual({ reasoning_effort: "low", reasoning_split: true });
+			expect(
+				normalizeTokenRouterRequestPayload({ reasoning_effort: "high" }),
+			).toEqual({ reasoning_effort: "xhigh", reasoning_split: true });
+		});
+
+		it("drops values the gateway rejects with a 400", () => {
+			// pi-ai derives "none" from models.dev thinkingLevelMaps; sending it
+			// hard-fails the request.
+			expect(normalizeTokenRouterRequestPayload({ reasoning_effort: "none" })).toEqual({
+				reasoning_split: true,
+			});
+			expect(
+				normalizeTokenRouterRequestPayload({ reasoning_effort: null }),
+			).toEqual({ reasoning_split: true });
+		});
 	});
 });
