@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetGlobalFreeOnly = vi.fn();
 const mockGetOpencodeShowPaid = vi.fn();
@@ -63,9 +63,19 @@ describe("built-in provider toggles", () => {
 	let mockRegisterProvider: ReturnType<typeof vi.fn>;
 	let setupBuiltInProviderToggles: typeof import("../lib/built-in-toggle.ts")["setupBuiltInProviderToggles"];
 
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
 	beforeEach(async () => {
 		vi.clearAllMocks();
 		vi.resetModules();
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => {
+				throw new Error("network disabled in built-in-toggle tests");
+			}),
+		);
 		handlers = {};
 		commands = {};
 		mockRegisterProvider = vi.fn();
@@ -136,6 +146,7 @@ describe("built-in provider toggles", () => {
 				api: "opencode-dynamic",
 				apiKey: "$OPENCODE_API_KEY",
 				streamSimple: expect.any(Function),
+				refreshModels: expect.any(Function),
 				models: expect.arrayContaining([
 					expect.objectContaining({
 						id: "free-model",
@@ -193,6 +204,62 @@ describe("built-in provider toggles", () => {
 			"opencode-free",
 			expect.objectContaining({ api: "opencode-dynamic" }),
 		);
+	});
+
+	it("refreshes opencode-free from Zen after session_start without blocking it", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		let resolveFetch: ((response: Response) => void) | undefined;
+		const fetchGate = new Promise<Response>((resolve) => {
+			resolveFetch = resolve;
+		});
+		const fetchMock = vi.fn(() => fetchGate);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const models = [
+			{
+				provider: "opencode",
+				id: "free-model",
+				name: "Free Model",
+				api: "openai-completions",
+				reasoning: false,
+				input: ["text"],
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 128000,
+				maxTokens: 4096,
+				baseUrl: "https://example.com",
+			},
+		];
+
+		await handlers.session_start(
+			{},
+			{ modelRegistry: { getAvailable: () => models } },
+		);
+		// The endpoint is deliberately unresolved, but session_start has already
+		// returned and the initial capture can still register its baseline.
+		await settleDetachedCapture();
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://opencode.ai/zen/v1/models",
+			expect.objectContaining({ signal: expect.any(AbortSignal) }),
+		);
+		expect(mockRegisterProvider).toHaveBeenCalledTimes(1);
+
+		resolveFetch?.(
+			new Response(
+				JSON.stringify({
+					data: [{ id: "free-model" }, { id: "new-free-model" }],
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			),
+		);
+		await settleDetachedCapture();
+
+		const lastModels = mockRegisterProvider.mock.calls.at(-1)?.[1]
+			.models as Array<{ id: string }>;
+		expect(lastModels.map((model) => model.id)).toEqual([
+			"free-model",
+			"new-free-model",
+		]);
 	});
 
 	it("registers into the latest registry when session_start fires again mid-capture", async () => {
