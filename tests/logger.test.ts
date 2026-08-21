@@ -5,6 +5,98 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const MAX_BYTES = 512;
 
+// ── Fakes for the stream-teardown-loses-writes tests (issue #456) ──────────
+//
+// A real fs.WriteStream can't be forced to error a specific in-flight write
+// deterministically without racing the OS, so these tests replace
+// node:fs's createWriteStream with a controllable fake for one call. Every
+// other node:fs export (including appendFileSync, used by the recovery path
+// under test) stays real, so the recovery write actually lands on disk.
+
+interface FakeWriteStream {
+	on(event: string, handler: (err: Error) => void): FakeWriteStream;
+	write(chunk: string, callback: (err?: Error | null) => void): boolean;
+	end(callback?: () => void): void;
+	destroy(): void;
+}
+
+/**
+ * A write stream whose write() calls stay pending (callback withheld) until
+ * destroy() fires them all with ERR_STREAM_DESTROYED — mirroring the real
+ * Writable behavior when rotation's oldStream.end() or shutdown's
+ * stream.destroy() tears down a stream with writes still in flight.
+ */
+function createFakeDestroyableStream(): FakeWriteStream {
+	const errorHandlers: ((err: Error) => void)[] = [];
+	const pendingCallbacks: ((err?: Error | null) => void)[] = [];
+	let destroyed = false;
+	const stream: FakeWriteStream = {
+		on(event, handler) {
+			if (event === "error") errorHandlers.push(handler);
+			return stream;
+		},
+		write(_chunk, callback) {
+			if (destroyed) {
+				queueMicrotask(() =>
+					callback(
+						new Error(
+							"ERR_STREAM_DESTROYED: Cannot call write after a stream was destroyed",
+						),
+					),
+				);
+				return false;
+			}
+			pendingCallbacks.push(callback);
+			return true;
+		},
+		end(callback) {
+			destroyed = true;
+			if (callback) queueMicrotask(callback);
+		},
+		destroy() {
+			if (destroyed) return;
+			destroyed = true;
+			const err = new Error(
+				"ERR_STREAM_DESTROYED: Cannot call write after a stream was destroyed",
+			);
+			for (const callback of pendingCallbacks.splice(0)) callback(err);
+			for (const handler of errorHandlers) handler(err);
+		},
+	};
+	return stream;
+}
+
+let nextFakeStream: (() => FakeWriteStream) | null = null;
+let failNextRecoveryAppend = false;
+
+vi.mock("node:fs", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("node:fs")>();
+	return {
+		...actual,
+		createWriteStream: (
+			...args: Parameters<typeof actual.createWriteStream>
+		) => {
+			if (nextFakeStream) {
+				const factory = nextFakeStream;
+				nextFakeStream = null;
+				return factory() as unknown as ReturnType<
+					typeof actual.createWriteStream
+				>;
+			}
+			return actual.createWriteStream(...args);
+		},
+		appendFileSync: (
+			...args: Parameters<typeof actual.appendFileSync>
+		) => {
+			if (failNextRecoveryAppend) {
+				failNextRecoveryAppend = false;
+				throw new Error("ENOSPC: no space left on device, write");
+			}
+			return actual.appendFileSync(...args);
+		},
+	};
+});
+
 async function waitForLogFlush(): Promise<void> {
 	await new Promise((resolve) => setTimeout(resolve, 250));
 }
@@ -123,6 +215,79 @@ describe("flushLogsSync", () => {
 			// Subsequent logging uses the synchronous path and still lands.
 			logger.info("sync-flush-after");
 			expect(await readFile(getLogPath(), "utf8")).toContain("sync-flush-after");
+		} finally {
+			await removeHomeRetry(home);
+		}
+	});
+});
+
+describe("log writer recovers writes lost to stream teardown (#456)", () => {
+	it("recovers a write whose stream is destroyed while the write is in flight", async () => {
+		const home = await mkdtemp(join(tmpdir(), "pi-free-logger-destroy-test-"));
+		try {
+			vi.stubEnv("HOME", home);
+			vi.stubEnv("USERPROFILE", home);
+			vi.stubEnv("PI_FREE_LOG_PATH", "destroy.log");
+			vi.stubEnv("PI_FREE_LOG_LEVEL", "debug");
+			vi.stubEnv("PI_FREE_FILE_LOG", "true");
+			vi.resetModules();
+
+			const fakeStream = createFakeDestroyableStream();
+			nextFakeStream = () => fakeStream;
+
+			const { createLogger, getLogPath, getLogWriteFailures, getLastLogWriteError } =
+				await import("../lib/logger.ts");
+			const logger = createLogger("destroy-test");
+			logger.info("in-flight-marker");
+
+			// Let the async open-stream chain run so the write actually reaches
+			// the fake stream; its callback is withheld (not yet "destroyed").
+			await new Promise((resolve) => setTimeout(resolve, 100));
+
+			// Tear the stream down with that write still in flight — exactly
+			// what rotation's oldStream.end() and shutdown's stream.destroy()
+			// do to the real stream in production.
+			fakeStream.destroy();
+			await new Promise((resolve) => setTimeout(resolve, 100));
+
+			const content = await readFile(getLogPath(), "utf8").catch(() => "");
+			expect(content).toContain("in-flight-marker");
+			expect(getLogWriteFailures()).toBe(0);
+			expect(getLastLogWriteError()).toBeNull();
+		} finally {
+			await removeHomeRetry(home);
+		}
+	});
+
+	it("counts a write that is lost even after the recovery retry", async () => {
+		const home = await mkdtemp(join(tmpdir(), "pi-free-logger-loss-test-"));
+		try {
+			vi.stubEnv("HOME", home);
+			vi.stubEnv("USERPROFILE", home);
+			vi.stubEnv("PI_FREE_LOG_PATH", "loss.log");
+			vi.stubEnv("PI_FREE_LOG_LEVEL", "debug");
+			vi.stubEnv("PI_FREE_FILE_LOG", "true");
+			vi.resetModules();
+
+			const fakeStream = createFakeDestroyableStream();
+			nextFakeStream = () => fakeStream;
+
+			const { createLogger, getLogWriteFailures, getLastLogWriteError } = await import(
+				"../lib/logger.ts"
+			);
+			const logger = createLogger("loss-test");
+			logger.info("unrecoverable-marker");
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+
+			// The recovery retry itself fails this time (e.g. disk full) — the
+			// line is a genuine, bounded, counted loss, not a silent one.
+			failNextRecoveryAppend = true;
+			fakeStream.destroy();
+			await new Promise((resolve) => setTimeout(resolve, 100));
+
+			expect(getLogWriteFailures()).toBe(1);
+			expect(getLastLogWriteError()).toMatch(/ENOSPC/);
 		} finally {
 			await removeHomeRetry(home);
 		}

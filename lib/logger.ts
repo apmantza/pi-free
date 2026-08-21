@@ -116,11 +116,66 @@ const queuedLines: string[] = [];
 // a synchronous append. Callbacks fire in write order, so FIFO shift is exact.
 const pendingStreamLines: string[] = [];
 
+// Writes the stream accepted but never confirmed, because it was torn down
+// (rotation end, shutdown destroy, or an external close) before the write's
+// own callback fired. Bounded counter plus a truncated last-error message —
+// no unbounded line buffer — readable at runtime via getLogWriteFailures()
+// and surfaced through /pi-free-health.
+let logWriteFailures = 0;
+let lastLogWriteError: string | null = null;
+
+function recordLogWriteFailure(err: unknown): void {
+	logWriteFailures += 1;
+	lastLogWriteError = String(
+		err instanceof Error ? err.message : err,
+	).slice(0, 200);
+}
+
+/**
+ * Recover a single line the stream accepted but lost (its write callback
+ * fired with an error). Retries once through the synchronous append path —
+ * the same fallback flushQueuedFallback() already uses — before counting an
+ * unrecovered loss. Best-effort: never throws.
+ */
+function recoverLostStreamWrite(line: string, err: unknown): void {
+	try {
+		ensureLogDirOnce();
+		appendFileSync(LOG_PATH, line, "utf8");
+	} catch (retryErr) {
+		// MUTATION: removing this catch (letting the retry's own failure go
+		// unrecorded) silently loses the line a second time instead of
+		// counting it.
+		recordLogWriteFailure(retryErr ?? err);
+	}
+}
+
 function trackStreamWrite(stream: WriteStream, line: string): void {
 	pendingStreamLines.push(line);
-	stream.write(line, () => {
-		pendingStreamLines.shift();
+	stream.write(line, (err) => {
+		// FIFO: Node's Writable invokes buffered write callbacks in issue
+		// order, including the error callbacks fired when destroy() aborts
+		// them. flushLogsSync() may already have spliced this line out (and
+		// flushed it) before its callback runs; shift() then yields undefined
+		// and there is nothing left to recover.
+		const pending = pendingStreamLines.shift();
+		if (err && pending !== undefined) {
+			// MUTATION: deleting this branch (letting the error callback fall
+			// through to the no-op it used to be) reproduces the bug this test
+			// guards — a write the stream lost after rotation/shutdown teardown
+			// vanishes with no recovery and no record (issue #456).
+			recoverLostStreamWrite(pending, err);
+		}
 	});
+}
+
+/** Writes lost to stream teardown even after the one-shot recovery retry. */
+export function getLogWriteFailures(): number {
+	return logWriteFailures;
+}
+
+/** Bounded (200-char) message from the most recent unrecovered write failure. */
+export function getLastLogWriteError(): string | null {
+	return lastLogWriteError;
 }
 
 function ensureLogDirOnce(): void {
