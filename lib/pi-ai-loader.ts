@@ -41,7 +41,7 @@
 
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 /** The pi-ai entry points pi-free is allowed to load at runtime. */
@@ -114,6 +114,44 @@ function safeRealpath(path: string): string {
 }
 
 /**
+ * Lowest pi-ai version pi-free's peer dependency range starts at. Keep in
+ * sync with the "@earendil-works/pi-ai" peerDependencies floor in
+ * package.json.
+ */
+const MIN_PI_AI_VERSION = [0, 81, 0] as const;
+/**
+ * Guards every host-entry hit against loading an unrelated or ancient pi-ai
+ * copy: the directory must contain a package.json naming @earendil-works/pi-ai
+ * at or above the peer-dependency minimum. Loading a wrong-version pi-ai
+ * would trade a clear ERR_MODULE_NOT_FOUND for subtle runtime breakage.
+ */
+function isUsablePiAiRoot(root: string): boolean {
+	try {
+		const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
+			name?: unknown;
+			version?: unknown;
+		};
+		if (pkg.name !== "@earendil-works/pi-ai") return false;
+		const version = typeof pkg.version === "string" ? pkg.version : "";
+		const match = /^(\d+)\.(\d+)\.(\d+)/.exec(version);
+		if (!match) return false;
+		const candidate = [
+			Number(match[1]),
+			Number(match[2]),
+			Number(match[3]),
+		];
+		for (let i = 0; i < MIN_PI_AI_VERSION.length; i++) {
+			if (candidate[i] !== MIN_PI_AI_VERSION[i]) {
+				return candidate[i] > MIN_PI_AI_VERSION[i];
+			}
+		}
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/**
  * Locates pi-ai relative to the running pi host's entry script. Handles the
  * hosted-layout failure mode where pi-free's extension tree shares no
  * node_modules with the host install: the entry path is realpath-resolved
@@ -124,16 +162,25 @@ function safeRealpath(path: string): string {
  * package directory.
  */
 function findViaHostEntry(argvPath: string | undefined): string | undefined {
-	if (!argvPath) return undefined;
+	// Relative entry paths are rejected outright: a compiled-binary host (or
+	// any launcher) can expose the first USER argument as argv[1], and walking
+	// up from a CWD-relative path would let an unrelated project's node_modules
+	// satisfy the lookup with an arbitrary pi-ai version. Real host entry
+	// scripts are always absolute. Residual risk: a frozen/embedded host that
+	// reports an absolute argv[1] in an unrelated tree still walks up from
+	// there — the name+version guard bounds the damage to a
+	// minimum-version-compatible foreign copy.
+	if (!argvPath || !isAbsolute(argvPath)) return undefined;
 	const entryDir = dirname(safeRealpath(argvPath));
 	const direct = findPackageInNodeModules(entryDir, PI_AI_SEGMENTS);
-	if (direct) return direct;
+	if (direct && isUsablePiAiRoot(direct)) return direct;
 	const agentRoot = findPackageInNodeModules(entryDir, AGENT_SEGMENTS);
 	if (!agentRoot) return undefined;
-	return findPackageInNodeModules(
+	const nested = findPackageInNodeModules(
 		dirname(safeRealpath(agentRoot)),
 		PI_AI_SEGMENTS,
 	);
+	return nested && isUsablePiAiRoot(nested) ? nested : undefined;
 }
 
 function probePackageRoot(candidate: string): string | undefined {
@@ -144,20 +191,27 @@ function probePackageRoot(candidate: string): string | undefined {
  * Checks both pi-ai layouts inside a given node_modules root: hoisted at the
  * top level, or nested under pi-coding-agent (npm's Windows default).
  */
+/**
+ * Checks both pi-ai layouts inside a given node_modules root: hoisted at the
+ * top level, or nested under pi-coding-agent (npm's Windows default). Every
+ * hit is validated through {@link isUsablePiAiRoot} — these probes run last,
+ * when nothing better was found, so a stale or foreign look-alike directory
+ * must not be imported wholesale.
+ */
 function probePiAiInRoot(root: string): string | undefined {
-	return (
-		probePackageRoot(join(root, "@earendil-works", "pi-ai")) ??
-		probePackageRoot(
-			join(
-				root,
-				"@earendil-works",
-				"pi-coding-agent",
-				"node_modules",
-				"@earendil-works",
-				"pi-ai",
-			),
-		)
+	const direct = probePackageRoot(join(root, "@earendil-works", "pi-ai"));
+	if (direct && isUsablePiAiRoot(direct)) return direct;
+	const nested = probePackageRoot(
+		join(
+			root,
+			"@earendil-works",
+			"pi-coding-agent",
+			"node_modules",
+			"@earendil-works",
+			"pi-ai",
+		),
 	);
+	return nested && isUsablePiAiRoot(nested) ? nested : undefined;
 }
 
 /**
@@ -172,7 +226,7 @@ export function resolvePiAiPackageRoot(
 	// 1) pi-ai reachable through the standard walk-up (hoisted at or above
 	//    the pi-free install, which is what native resolution would see).
 	const direct = findPackageInNodeModules(startDir, PI_AI_SEGMENTS);
-	if (direct) return direct;
+	if (direct && isUsablePiAiRoot(direct)) return direct;
 
 	// 2) pi-ai as pi-coding-agent's own dependency. Finding the agent through
 	//    the same walk-up, then searching upward from it, covers both the
@@ -181,7 +235,7 @@ export function resolvePiAiPackageRoot(
 	const agentRoot = findPackageInNodeModules(startDir, AGENT_SEGMENTS);
 	if (agentRoot) {
 		const nested = findPackageInNodeModules(agentRoot, PI_AI_SEGMENTS);
-		if (nested) return nested;
+		if (nested && isUsablePiAiRoot(nested)) return nested;
 	}
 
 	// 3) Relative to the running pi host's entry script — the hosted-run
@@ -279,10 +333,7 @@ export function resolvePiAiEntryFile(
 			!Array.isArray(exportsField)
 		) {
 			const map = exportsField as Record<string, unknown>;
-			let target = map[subpath] as
-				| string
-				| Record<string, unknown>
-				| undefined;
+			let target = map[subpath] as string | Record<string, unknown> | undefined;
 			if (target === undefined) {
 				// wildcard patterns, e.g. "./providers/*"
 				for (const [key, value] of Object.entries(map)) {
@@ -290,15 +341,8 @@ export function resolvePiAiEntryFile(
 					if (starIndex === -1) continue;
 					const prefix = key.slice(0, starIndex);
 					const suffix = key.slice(starIndex + 1);
-					if (
-						!subpath.startsWith(prefix) ||
-						!subpath.endsWith(suffix)
-					)
-						continue;
-					const star = subpath.slice(
-						prefix.length,
-						subpath.length - suffix.length,
-					);
+					if (!subpath.startsWith(prefix) || !subpath.endsWith(suffix)) continue;
+					const star = subpath.slice(prefix.length, subpath.length - suffix.length);
 					target = substituteStar(value, star);
 					break;
 				}
@@ -350,9 +394,12 @@ export async function loadPiAiEntry<T = unknown>(entry: PiAiEntry): Promise<T> {
 	} catch (error) {
 		if (!isPiAiNotFoundError(error)) throw error;
 		// Cold path: locate pi-ai on disk and import the entry file by path.
+		// A failed resolution is NOT cached: matching lazy-compat's policy that
+		// a transient load error must not break every later stream, the next
+		// call re-probes instead of rethrowing a stale miss forever.
 		if (!resolvedPiAiRootAttempted) {
 			resolvedPiAiRoot = resolvePiAiPackageRoot();
-			resolvedPiAiRootAttempted = true;
+			resolvedPiAiRootAttempted = resolvedPiAiRoot !== undefined;
 		}
 		const root = resolvedPiAiRoot;
 		if (!root) throw error; // keep the original "Cannot find package ..." error
