@@ -247,9 +247,7 @@ async function buildDeviceFlowCredentials(
 ): Promise<QoderCredentials> {
 	const expireMs = parseExpiresAt(tokenData.expires_at, tokenData.expires_in);
 
-	(callbacks as unknown as { onProgress?: (msg: string) => void }).onProgress?.(
-		"Fetching user profile...",
-	);
+	callbacks.onProgress?.("Fetching user profile...");
 	let email = "";
 	let name = "";
 	try {
@@ -274,9 +272,7 @@ async function buildDeviceFlowCredentials(
 		// Best-effort
 	}
 
-	(callbacks as unknown as { onProgress?: (msg: string) => void }).onProgress?.(
-		"Login successful!",
-	);
+	callbacks.onProgress?.("Login successful!");
 
 	return {
 		refresh: `${tokenData.refresh_token}|${tokenData.user_id}|${machineID}`,
@@ -305,15 +301,9 @@ async function runDeviceFlow(
 	const verificationURI = `https://qoder.com/device/selectAccounts?challenge=${codeChallenge}&challenge_method=S256&machine_id=${machineID}&nonce=${nonce}`;
 
 	// Notify user
-	(callbacks as unknown as { onProgress?: (msg: string) => void }).onProgress?.(
-		"Please complete login in your browser...",
-	);
+	callbacks.onProgress?.("Please complete login in your browser...");
 
-	(
-		callbacks as unknown as {
-			onAuth?: (info: { url: string; instructions: string }) => void;
-		}
-	).onAuth?.({
+	callbacks.onAuth({
 		url: verificationURI,
 		instructions: "Click to sign in with your Qoder account in the browser.",
 	});
@@ -323,8 +313,7 @@ async function runDeviceFlow(
 	const maxAttempts = 90; // 3 minutes
 
 	// Helper to read signal
-	const getSignal = (): AbortSignal | undefined =>
-		(callbacks as unknown as { signal?: AbortSignal }).signal;
+	const getSignal = (): AbortSignal | undefined => callbacks.signal;
 
 	for (let attempt = 0; attempt < maxAttempts; attempt++) {
 		if (getSignal()?.aborted) throw new Error("Login cancelled");
@@ -398,24 +387,14 @@ export async function loginQoder(
 			const creds = await credentialsFromPat(pat);
 			return creds as OAuthCredentials;
 		} catch {
-			(
-				callbacks as unknown as { onProgress?: (msg: string) => void }
-			).onProgress?.(
+			callbacks.onProgress?.(
 				"Environment PAT invalid, falling back to interactive login...",
 			);
 		}
 	}
 
 	// 2. Prompt for PAT or browser login
-	const prompt = (
-		callbacks as unknown as {
-			onPrompt: (p: {
-				message: string;
-				placeholder?: string;
-				allowEmpty?: boolean;
-			}) => Promise<string>;
-		}
-	).onPrompt;
+	const prompt = callbacks.onPrompt;
 
 	if (!prompt) {
 		throw new Error("Login cancelled: no prompt handler available");
@@ -428,7 +407,7 @@ export async function loginQoder(
 		allowEmpty: true,
 	});
 
-	if ((callbacks as unknown as { signal?: AbortSignal }).signal?.aborted) {
+	if (callbacks.signal?.aborted) {
 		throw new Error("Login cancelled");
 	}
 
@@ -554,7 +533,20 @@ export async function loginQoderNative(
 				placeholder: prompt.placeholder,
 			}),
 		signal: interaction.signal,
-	} as unknown as OAuthLoginCallbacks);
+		// The device/PAT flow exercised by this adapter only invokes
+		// onAuth/onProgress/onPrompt/signal. The interface's remaining required
+		// hooks are implemented explicitly (not cast away) so the object is a
+		// genuine OAuthLoginCallbacks: onDeviceCode surfaces the verification
+		// info through Pi's normalized event, and onSelect has no Qoder
+		// equivalent — it can only be reached by future flow changes.
+		onDeviceCode: (info) =>
+			interaction.notify({
+				type: "device_code",
+				userCode: info.userCode,
+				verificationUri: info.verificationUri,
+			}),
+		onSelect: () => Promise.resolve(undefined),
+	});
 	return { ...credentials, type: "oauth" };
 }
 

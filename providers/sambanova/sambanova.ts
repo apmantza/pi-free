@@ -57,7 +57,12 @@ export default function sambanovaProvider(pi: ExtensionAPI): Promise<void> {
 				signal,
 			);
 			for (const model of models) {
-				(model as unknown as { _pricingKnown?: boolean })._pricingKnown = true;
+				// SAFETY: SambaNova's catalog exposes real pricing, so stamp the
+				// undocumented _pricingKnown marker consumed by isFreeModel to
+				// mark cost-based (Route A) detection authoritative for these
+				// models; the field is metadata only and never read by pi-ai.
+				(model as unknown as { _pricingKnown?: boolean })._pricingKnown =
+					true;
 			}
 			return models;
 		},

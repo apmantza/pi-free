@@ -479,6 +479,11 @@ export function streamQoder(
 	// Run async — AssistantMessageEventStream is a push-based pull stream
 	runStream(output, stream, model, context, options);
 
+	// SAFETY: stream is the local push-based shell (compat's
+	// AssistantMessageEventStream); runStream drives it through the same
+	// start/text/thinking/toolcall/done/error event protocol that pi-ai's
+	// Provider.stream contract iterates, so the cast only relabels the local
+	// declaration to the interface Pi's runtime consumes.
 	return stream as unknown as PiAssistantMessageEventStream;
 }
 

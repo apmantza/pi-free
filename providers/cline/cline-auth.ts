@@ -220,11 +220,20 @@ font-family:system-ui,sans-serif;background:#fff;color:#333}
 // Auth URL fetching
 // =============================================================================
 
+const ALLOWED_CLINE_AUTH_HOSTS = new Set(["api.cline.bot"]);
+
 async function fetchAuthorizeUrl(
 	callbackUrl: string,
 	signal?: AbortSignal,
 ): Promise<string> {
 	const authUrl = new NodeURL("auth/authorize", `${BASE_URL_CLINE}/`);
+	// Allowlist the outbound host: the authorize request must only ever target
+	// the pinned Cline API host, never a caller-influenced URL.
+	if (!ALLOWED_CLINE_AUTH_HOSTS.has(authUrl.hostname)) {
+		throw new Error(
+		`Cline auth URL host ${authUrl.hostname} is not on the allowlist`,
+		);
+	}
 	authUrl.searchParams.set("client_type", "extension");
 	authUrl.searchParams.set("callback_url", callbackUrl);
 	authUrl.searchParams.set("redirect_uri", callbackUrl);
@@ -233,6 +242,10 @@ async function fetchAuthorizeUrl(
 	const timeout = setTimeout(() => controller.abort(), 8000);
 
 	try {
+		// pi-lens-ignore: ts-ssrf — false positive: authUrl is built solely from
+		// the compile-time BASE_URL_CLINE constant and its hostname is verified
+		// against ALLOWED_CLINE_AUTH_HOSTS immediately above; callbackUrl only
+		// feeds query parameters, never the request target.
 		const res = await fetch(authUrl.toString(), {
 			method: "GET",
 			redirect: "manual",

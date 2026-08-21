@@ -66,8 +66,7 @@ import { __setCompatLoaderForTests } from "../lib/lazy-compat.ts";
 import { tokenRouterAuth } from "../providers/tokenrouter/tokenrouter-auth.ts";
 import tokenRouterEntry, {
 	createTokenRouterProvider,
-	isTokenRouterHighLoadError,
-	streamWithTokenRouterHighLoadRetry,
+	normalizeTokenRouterRequestPayload,
 } from "../providers/tokenrouter/tokenrouter.ts";
 
 function makeStore(seed?: ModelsStoreEntry): {
@@ -305,6 +304,7 @@ describe("TokenRouter native factory", () => {
 		expect(patched).toEqual({
 			model: "MiniMax-M3",
 			thinking: { type: "adaptive" },
+			reasoning_split: true,
 		});
 
 		const untouched = await handler(
@@ -315,121 +315,20 @@ describe("TokenRouter native factory", () => {
 	});
 });
 
-describe("TokenRouter high-load retry and streaming", () => {
-	it("detects upstream 2064 high-load errors", () => {
-		expect(isTokenRouterHighLoadError("Error: (2064) upstream error")).toBe(true);
+describe("TokenRouter request normalization and streaming", () => {
+	it("normalizes payloads through the exported seam", () => {
+		// Wire quirks are encoded in one boundary function: reasoning_split is
+		// always requested, MiniMax thinking is adaptive, invalid efforts drop.
 		expect(
-			isTokenRouterHighLoadError("Server cluster is currently under high load"),
-		).toBe(true);
-		expect(isTokenRouterHighLoadError("401 unauthorized")).toBe(false);
-		expect(isTokenRouterHighLoadError(undefined)).toBe(false);
-	});
+			normalizeTokenRouterRequestPayload({
+				model: "deepseek-r1",
+				reasoning_effort: "none",
+			}),
+		).toEqual({ model: "deepseek-r1", reasoning_split: true });
 
-	it("retries once after a pre-output 2064 error", async () => {
-		let attempts = 0;
-		const createAttempt = () => {
-			attempts += 1;
-			const inner = createAssistantMessageEventStream();
-			if (attempts === 1) {
-				queueMicrotask(() => {
-					inner.push({
-						type: "error",
-						reason: "error",
-						error: {
-							errorMessage: "Server cluster is currently under high load (2064)",
-						},
-					} as never);
-				});
-			} else {
-				queueMicrotask(() => {
-					inner.push({ type: "text_start", text: "ok" } as never);
-					inner.push({ type: "done", message: {} as never } as never);
-				});
-			}
-			return inner;
-		};
-
-		const out = streamWithTokenRouterHighLoadRetry(
-			{
-				id: "deepseek-r1",
-				api: "openai-completions",
-				provider: "tokenrouter",
-			} as never,
-			createAttempt,
-			undefined,
-			1, // test-only retry delay
-		);
-		const events: Array<{ type?: string }> = [];
-		for await (const event of out) events.push(event as { type?: string });
-
-		expect(attempts).toBe(2);
-		expect(events.filter((event) => event.type === "error")).toHaveLength(0);
-		expect(events.some((event) => event.type === "text_start")).toBe(true);
-	});
-
-	it("does not retry on ordinary errors", async () => {
-		let attempts = 0;
-		const createAttempt = () => {
-			attempts += 1;
-			const inner = createAssistantMessageEventStream();
-			queueMicrotask(() => {
-				inner.push({
-					type: "error",
-					reason: "error",
-					error: { errorMessage: "401 unauthorized" },
-				} as never);
-			});
-			return inner;
-		};
-
-		const out = streamWithTokenRouterHighLoadRetry(
-			{
-				id: "deepseek-r1",
-				api: "openai-completions",
-				provider: "tokenrouter",
-			} as never,
-			createAttempt,
-			undefined,
-			1,
-		);
-		const events: Array<{ type?: string }> = [];
-		for await (const event of out) events.push(event as { type?: string });
-
-		expect(attempts).toBe(1);
-		expect(events.filter((event) => event.type === "error")).toHaveLength(1);
-	});
-
-	it("does not retry once output has started", async () => {
-		let attempts = 0;
-		const createAttempt = () => {
-			attempts += 1;
-			const inner = createAssistantMessageEventStream();
-			queueMicrotask(() => {
-				inner.push({ type: "text_start", text: "partial" } as never);
-				inner.push({
-					type: "error",
-					reason: "error",
-					error: { errorMessage: "(2064) high load" },
-				} as never);
-			});
-			return inner;
-		};
-
-		const out = streamWithTokenRouterHighLoadRetry(
-			{
-				id: "deepseek-r1",
-				api: "openai-completions",
-				provider: "tokenrouter",
-			} as never,
-			createAttempt,
-			undefined,
-			1,
-		);
-		const events: Array<{ type?: string }> = [];
-		for await (const event of out) events.push(event as { type?: string });
-
-		expect(attempts).toBe(1);
-		expect(events.some((event) => event.type === "text_start")).toBe(true);
+		// String payloads round-trip only when something changed.
+		const raw = JSON.stringify({ model: "gpt-5", reasoning_split: true });
+		expect(normalizeTokenRouterRequestPayload(raw)).toBe(raw);
 	});
 
 	it("streams through the standard lazy OpenAI-completions bridge", async () => {
