@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.6.0] - 2026-08-21
 
 ### Removed
 
@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Requesty provider** — new native OpenAI-compatible gateway (router.requesty.ai/v1) with a public ~670-model catalog fetched without a credential. Requesty exposes per-model pricing inline in `/models`, so the standard cost-based free detection applies: 11 free models (NVIDIA Nemotron 3 family, Poolside Laguna, Gemma 4, Leanstral, Ling) are shown by default and `/toggle-requesty` reveals the paid catalog. Capability flags (`supports_reasoning`, `supports_vision`, `context_window`, `max_output_tokens`) map straight onto model metadata; non-chat endpoints and NVIDIA content-safety classifiers are filtered out. Chat requires `REQUESTY_API_KEY` (or `requesty_api_key` in `~/.pi/free.json`).
 - **OpenRouter's built-in catalog now refreshes from the live endpoint** — Pi ships a static OpenRouter catalog that only updates with a Pi release, so models added upstream stayed invisible until then. After session start, pi-free now performs one detached fetch of OpenRouter's public `GET /api/v1/models` endpoint and re-registers the captured catalog in place: known model IDs keep Pi's curated metadata, while newer models are synthesized from the endpoint's pricing, context-window, modality, and reasoning data. The refresh is deduplicated per process and never blocks startup; `/toggle-openrouter` free/paid filtering keeps working on the refreshed view.
+- **pi-ai drive harness** — `npm run drive -- --provider <id> [--model <substr|exact>] [--effort <level>] [--simple] [--prompt "..."] [--anonymous] | --list` runs a realistic coding-agent turn (system prompt, thinking+toolCall history replay, tool result) through pi-ai's `streamSimple` against a model from Pi's native models store — the same code path Pi uses at runtime, so provider wire behavior can be verified without a live session. Credential resolution mirrors Pi (stored `~/.pi/agent/auth.json` credential first, then `<PROVIDER>_API_KEY`; `--anonymous` drives keyless-by-design providers); exact model ids win over substring matches; exits non-zero on error events so it doubles as an automated smoke check. Dispatches by the model's `api` (`openai-completions` vs `anthropic-messages`) and re-stamps gateway compat on restored store entries.
 
 ### Fixed
 
