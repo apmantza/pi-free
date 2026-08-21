@@ -69,6 +69,7 @@ index.ts                          ← Extension entry point (piFreeEntry)
       ├─ qoder/                   ← Qoder/Cosy OAuth and streaming provider
       ├─ bai/bai.ts               ← BAI gateway provider
       ├─ fastrouter/              ← FastRouter native provider (public catalog + API-key chat)
+      ├─ requesty/requesty.ts     ← Requesty native provider (public catalog + inline pricing)
       └─ stepfun/                 ← StepFun Step Plan native provider (OpenAI-compatible chat)
 
 tests/                            ← Vitest test suite
@@ -182,9 +183,9 @@ Debug logging writes to `~/.pi/free.log` under the `benchmark-lookup` namespace:
 | Category | Providers | Auth | Notes |
 | ----------- | -------------------------------------------------- | ----------------- | -------------------------------- |
 | ✅ Free / free-tier | kilo, cline, llm7, openmodel, tokenrouter, qoder basic | OAuth, API key, or none | Free models or tier; toggles can expose paid models |
-| 🔄 Freemium | anyapi, ollama-cloud, sambanova | API key | Free allowance with limits |
+| 🔄 Freemium | anyapi, ollama-cloud, sambanova, requesty | API key | Free allowance with limits |
 | 💳 Paid / trial | zenmux, crofai, deepinfra, novita, routeway, opengateway, bai, stepfun, qoder premium | API key, OAuth, or credits | Paid access, trial credit, or premium tier |
-| 🔧 Native | Kilo, Cline, LLM7, Ollama Cloud, AnyAPI, SambaNova, TokenRouter, OpenModel, ZenMux, CrofAI, DeepInfra, Novita, Routeway, OpenGateway, B.AI, FastRouter, StepFun, Qoder | API key, OAuth, or none | Pi owns catalog refresh and native stores |
+| 🔧 Native | Kilo, Cline, LLM7, Ollama Cloud, AnyAPI, SambaNova, TokenRouter, OpenModel, ZenMux, CrofAI, DeepInfra, Novita, Routeway, OpenGateway, B.AI, FastRouter, Requesty, StepFun, Qoder | API key, OAuth, or none | Pi owns catalog refresh and native stores |
 | 🔧 Built-in | opencode-free, opencode-go, openrouter | Built-in Pi auth | Built-in toggles; Pi owns catalogs |
 
 ---

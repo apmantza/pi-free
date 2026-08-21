@@ -23,6 +23,7 @@ import {
 	PROVIDER_BAI,
 	PROVIDER_CLINE,
 	PROVIDER_FASTROUTER,
+	PROVIDER_REQUESTY,
 	PROVIDER_STEPFUN,
 	PROVIDER_KILO,
 	PROVIDER_OLLAMA,
@@ -47,6 +48,7 @@ export {
 	PROVIDER_BAI,
 	PROVIDER_CLINE,
 	PROVIDER_FASTROUTER,
+	PROVIDER_REQUESTY,
 	PROVIDER_STEPFUN,
 	PROVIDER_KILO,
 	PROVIDER_OPENCODE,
@@ -98,6 +100,7 @@ interface PiFreeConfig {
 	routeway_api_key?: string;
 	opengateway_api_key?: string;
 	fastrouter_api_key?: string;
+	requesty_api_key?: string;
 	stepfun_api_key?: string;
 	tokenrouter_api_key?: string;
 	anyapi_api_key?: string;
@@ -120,6 +123,7 @@ interface PiFreeConfig {
 	routeway_show_paid?: boolean;
 	opengateway_show_paid?: boolean;
 	fastrouter_show_paid?: boolean;
+	requesty_show_paid?: boolean;
 	stepfun_show_paid?: boolean;
 	tokenrouter_show_paid?: boolean;
 	anyapi_show_paid?: boolean;
@@ -144,6 +148,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	routeway_api_key: "",
 	opengateway_api_key: "",
 	fastrouter_api_key: "",
+	requesty_api_key: "",
 	stepfun_api_key: "",
 	tokenrouter_api_key: "",
 	anyapi_api_key: "",
@@ -167,6 +172,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	routeway_show_paid: false,
 	opengateway_show_paid: false,
 	fastrouter_show_paid: false,
+	requesty_show_paid: false,
 	stepfun_show_paid: true,
 	tokenrouter_show_paid: false,
 	anyapi_show_paid: false,
@@ -429,6 +435,11 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 		showPaidKey: "fastrouter_show_paid",
 	},
 	{
+		id: PROVIDER_REQUESTY,
+		prefix: "REQUESTY",
+		showPaidKey: "requesty_show_paid",
+	},
+	{
 		id: PROVIDER_STEPFUN,
 		prefix: "STEPFUN",
 		showPaidKey: "stepfun_show_paid",
@@ -559,6 +570,13 @@ export function getFastrouterShowPaid(): boolean {
 	);
 }
 
+export function getRequestyShowPaid(): boolean {
+	return resolveBool(
+		"REQUESTY_SHOW_PAID",
+		loadConfigFile().requesty_show_paid,
+	);
+}
+
 export function getStepfunShowPaid(): boolean {
 	return resolveBool(
 		"STEPFUN_SHOW_PAID",
@@ -653,6 +671,10 @@ export function getOpengatewayApiKey(): string | undefined {
 
 export function getFastrouterApiKey(): string | undefined {
 	return resolve("FASTROUTER_API_KEY", loadConfigFile().fastrouter_api_key);
+}
+
+export function getRequestyApiKey(): string | undefined {
+	return resolve("REQUESTY_API_KEY", loadConfigFile().requesty_api_key);
 }
 
 export function getStepfunApiKey(): string | undefined {
