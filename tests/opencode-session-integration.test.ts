@@ -98,8 +98,7 @@ describe("opencode-session fallback resolution", () => {
 			const session = tracker.getSessionId().slice(4); // strip ses_
 			const request = tracker.nextRequestId().slice(4); // strip prt_
 
-			const sesComplement = ~BigInt(`0x${session.slice(0, 12)}`) &
-				0xffffffffffffn;
+			const sesComplement = ~BigInt(`0x${session.slice(0, 12)}`) & 0xffffffffffffn;
 			const prtTime = BigInt(`0x${request.slice(0, 12)}`);
 
 			// Same timestamp base (high 36 bits = milliseconds).

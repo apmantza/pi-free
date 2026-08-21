@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **OpenRouter's built-in catalog now refreshes from the live endpoint** — Pi ships a static OpenRouter catalog that only updates with a Pi release, so models added upstream stayed invisible until then. After session start, pi-free now performs one detached fetch of OpenRouter's public `GET /api/v1/models` endpoint and re-registers the captured catalog in place: known model IDs keep Pi's curated metadata, while newer models are synthesized from the endpoint's pricing, context-window, modality, and reasoning data. The refresh is deduplicated per process and never blocks startup; `/toggle-openrouter` free/paid filtering keeps working on the refreshed view.
+
+### Fixed
+
+- **Kilo requests now carry honest client identity headers** — catalog requests stamped VS Code-spoofing headers (`X-VSCode-...`, a fake `User-Agent`) inherited from an early port. They are replaced with truthful `X-KILOCODE-EDITORNAME: Pi` / `User-Agent: pi-free-providers` headers on both live fetches and models restored from Pi's store. Genuine Kilo CLI identity remains tracked in [#449](https://github.com/apmantza/pi-free/issues/449).
+- **Ollama Cloud free-model classification survives store restore** — models restored from Pi's models store were classified by name alone instead of the adaptive pricing-aware detection, so paid models could leak into the free view after a restart. Restore and fetch callbacks now reclassify through the shared `isFreeModel`. A degenerate empty fetch also no longer overwrites the cached catalog (cache-poisoning guard).
+- **Silent catch blocks in Cline catalog fetches and Ollama probe refreshes now log warnings** to `~/.pi/free.log` instead of swallowing errors.
+
+### Changed
+
+- **Shared native-refresh skeleton** — the duplicated restore → gate → fetch → persist control flow in six provider modules (kilo, cline, llm7, zenmux, openmodel, qoder) is consolidated into one `refreshNativeProviderModels()` helper in `lib/native-provider.ts`; providers now supply only their fetch callback and free-split hook.
+- **Removed dead legacy registration helpers** — `registerOpenAICompatible`, `createReRegister`, `setupProvider`, and related types were removed from `provider-helper.ts` along with their obsolete test; all providers use the native lifecycle.
+- **Extension reload guard keyed on runner identity** — `index.ts` guards its global handlers against double-registration using the runner instance instead of a boolean, matching the pattern used elsewhere, so extension reloads rebind correctly.
+- **Saved-model restore for already-captured built-in providers runs detached** — when a session-start event finds a provider already captured, the saved-model restore no longer blocks the handler.
+
 ### Fixed
 
 - **Git installs no longer vendor two unused host-provided packages** — `@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui` were declared as required peer dependencies, so `npm install --omit=dev` (the `pi install git:...` path) auto-installed both plus their own dependency trees — about 140 extra packages (`@aws-sdk/client-bedrock-runtime`, `@google/genai`, `openai`, `chalk`, `diff`, `glob`, and more) that the compiled extension never imports: pi-coding-agent is `import type`-only everywhere in pi-free's source, and pi-tui is not referenced at all. Both are now optional peers (`peerDependenciesMeta.optional`), cutting a clean git install from 233 to 90 packages and roughly halving install time (28s → 12s measured locally). `@earendil-works/pi-ai` stays a required peer — it's a real, static value import in ~30 provider files — so its own dependency `typebox` still installs; removing that would need those imports migrated to the disk-fallback resolver `lib/pi-ai-loader.ts` already uses for `lib/lazy-compat.ts`, tracked separately in [#447](https://github.com/apmantza/pi-free/issues/447).

@@ -10,14 +10,8 @@ import { getZenmuxApiKey, getZenmuxShowPaid } from "../../config.ts";
 import { BASE_URL_ZENMUX, PROVIDER_ZENMUX } from "../../constants.ts";
 import {
 	filterNativeModels,
-	persistNativeProviderModels,
-	restoreNativeProviderModels,
+	refreshNativeProviderModels,
 } from "../../lib/native-provider.ts";
-import {
-	recordNativeAbort,
-	recordNativeEmptyRetain,
-	recordNativeRefreshOk,
-} from "../../lib/startup-timing.ts";
 import { lazyOpenAICompletionsApi } from "../../lib/lazy-compat.ts";
 import { isFreeModel } from "../../lib/registry.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
@@ -64,7 +58,12 @@ export function createZenmuxProvider(): ZenmuxNativeProvider {
 	}
 
 	async function refreshModels(context: RefreshModelsContext): Promise<void> {
-		await restoreNativeProviderModels(
+		// Free split of the most recent fetch, kept beside the flat list the
+		// shared helper passes through (see the fetch callback below).
+		let fetchedFree: ZenmuxModel[] = [];
+		// Shared skeleton: restore → allowNetwork gate → abort checks → fetch →
+		// empty-retain → persist, with the M1 counters recorded centrally.
+		await refreshNativeProviderModels(
 			PROVIDER_ZENMUX,
 			context,
 			(storedModels: ZenmuxModel[]) => {
@@ -73,42 +72,20 @@ export function createZenmuxProvider(): ZenmuxNativeProvider {
 					isFreeModel({ ...model, provider: PROVIDER_ZENMUX }, storedModels),
 				);
 			},
-		);
-
-		if (!context.allowNetwork) return;
-		if (context.signal?.aborted) {
-			recordNativeAbort(PROVIDER_ZENMUX);
-			return;
-		}
-
-		const { all, free } = await fetchZenmuxCatalog({
-			token: credentialToken(context.credential),
-			signal: context.signal,
-		});
-		if (context.signal?.aborted) {
-			recordNativeAbort(PROVIDER_ZENMUX);
-			return;
-		}
-		if (all.length === 0) {
-			recordNativeEmptyRetain(PROVIDER_ZENMUX);
-			return;
-		}
-
-		const next = prepare(all, free);
-				// Only count as ok when persistence actually published (a superseded
-		// generation or store write failure must not inflate the counter).
-		if (await persistNativeProviderModels(
-			PROVIDER_ZENMUX,
-			context,
-			next.all as unknown as readonly Model<Api>[],
-			() => {
-				stored.all = next.all;
-				stored.free = next.free;
+			async () => {
+				const { all, free } = await fetchZenmuxCatalog({
+					token: credentialToken(context.credential),
+					signal: context.signal,
+				});
+				const next = prepare(all, free);
+				fetchedFree = next.free;
+				return next.all;
 			},
-		)) {
-			recordNativeRefreshOk(PROVIDER_ZENMUX, next.all.length);
-		}
-
+			(next) => {
+				stored.all = next;
+				stored.free = fetchedFree;
+			},
+		);
 	}
 
 	const provider: Provider<"openai-completions"> = {

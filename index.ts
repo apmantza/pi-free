@@ -102,16 +102,17 @@ const _logger = createLogger("pi-free");
 // =============================================================================
 
 /**
- * Module-level flag that prevents global event handlers from being registered
- * more than once. When the extension host reloads an extension it calls the
- * default export again in the same module scope, which would otherwise cause
- * handlers registered by setupQuotaMonitoring() and setupTelemetry() to
- * accumulate and fire multiple times per event.
+ * ExtensionAPI identity that global event handlers were last registered for.
  *
- * pi.on() returns void (no unsubscribe function), so the only safe guard is
- * skipping re-registration on the second and subsequent calls.
+ * A reload creates a NEW runner (fresh ExtensionAPI) while this module's state
+ * can survive — the same host behavior lib/built-in-toggle.ts and
+ * lib/native-provider.ts key their guards on. The new runner must receive the
+ * handlers again or it would run with no /toggle-free, /free-providers, quota
+ * monitoring, or telemetry at all. Guarding on identity keeps same-runner
+ * re-entry (which would otherwise accumulate duplicate pi.on() handlers —
+ * pi.on() is additive with no unsubscribe API) from double-registering.
  */
-let _handlersRegistered = false;
+let handlersRegisteredFor: ExtensionAPI | undefined;
 
 // =============================================================================
 // Global Commands
@@ -452,20 +453,20 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 	const globalFreeOnly = getGlobalFreeOnly();
 	_logger.info(`[pi-free] Initializing (global free-only: ${globalFreeOnly})`);
 
-	// Guard: only register global event handlers once per module lifetime.
-	// On extension reload the module scope is preserved but this function is
-	// called again, which would accumulate duplicate handlers for quota
-	// monitoring and telemetry. Commands and provider registrations are
-	// idempotent (the runtime replaces them), but pi.on() is additive with
-	// no unsubscribe API, so we skip the registration block entirely on
-	// subsequent calls.
+	// Guard: register global event handlers once per runner (ExtensionAPI).
+	// On extension reload the module scope is preserved but a new runner calls
+	// this function, so it must receive fresh registrations; same-runner
+	// re-entry would accumulate duplicate handlers for quota monitoring and
+	// telemetry. Commands and provider registrations are idempotent (the
+	// runtime replaces them), but pi.on() is additive with no unsubscribe API,
+	// so we skip the registration block when this runner already has them.
 	startPhase("global-handlers");
-	if (_handlersRegistered) {
+	if (handlersRegisteredFor === pi) {
 		_logger.info(
-			"[pi-free] Skipping global handler registration (already registered)",
+			"[pi-free] Skipping global handler registration (already registered for this runner)",
 		);
 	} else {
-		_handlersRegistered = true;
+		handlersRegisteredFor = pi;
 
 		// Start a fresh observability window before any provider session_start
 		// handlers run. The handler is synchronous and never blocks Pi.

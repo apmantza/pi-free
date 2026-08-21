@@ -19,14 +19,8 @@ import { getProviderShowPaid } from "../../config.ts";
 import { BASE_URL_QODER, PROVIDER_QODER } from "../../constants.ts";
 import {
 	filterNativeModels,
-	persistNativeProviderModels,
-	restoreNativeProviderModels,
+	refreshNativeProviderModels,
 } from "../../lib/native-provider.ts";
-import {
-	recordNativeAbort,
-	recordNativeEmptyRetain,
-	recordNativeRefreshOk,
-} from "../../lib/startup-timing.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { qoderAuth } from "./auth.ts";
 import { isBasicModel, staticModels } from "./models.ts";
@@ -73,46 +67,26 @@ export function createQoderProvider(): QoderNativeProvider {
 	stored.free = initial.free;
 
 	async function refreshModels(context: RefreshModelsContext): Promise<void> {
-		await restoreNativeProviderModels(
+		// Shared skeleton: restore → allowNetwork gate → abort checks → fetch →
+		// empty-retain → persist, with the M1 counters recorded centrally.
+		await refreshNativeProviderModels(
 			PROVIDER_QODER,
 			context,
 			(storedModels: QoderModel[]) => {
 				stored.all = storedModels;
 				stored.free = storedModels.filter(isBasicModel);
 			},
-		);
-
-		if (!context.allowNetwork) return;
-		if (context.signal?.aborted) {
-			recordNativeAbort(PROVIDER_QODER);
-			return;
-		}
-
-		// Qoder has no supported catalog endpoint. Re-publish the curated catalog
-		// through Pi's store instead of maintaining a second cache/freshness policy.
-		const catalog = staticCatalog();
-		if (context.signal?.aborted) {
-			recordNativeAbort(PROVIDER_QODER);
-			return;
-		}
-		if (catalog.all.length === 0) {
-			recordNativeEmptyRetain(PROVIDER_QODER);
-			return;
-		}
-				// Only count as ok when persistence actually published (a superseded
-		// generation or store write failure must not inflate the counter).
-		if (await persistNativeProviderModels(
-			PROVIDER_QODER,
-			context,
-			catalog.all as unknown as readonly Model<Api>[],
-			() => {
-				stored.all = catalog.all;
-				stored.free = catalog.free;
+			async () => {
+				// Qoder has no supported catalog endpoint. Re-publish the curated
+				// catalog through Pi's store instead of maintaining a second
+				// cache/freshness policy.
+				return staticCatalog().all;
 			},
-		)) {
-			recordNativeRefreshOk(PROVIDER_QODER, catalog.all.length);
-		}
-
+			(catalog) => {
+				stored.all = catalog;
+				stored.free = catalog.filter(isBasicModel);
+			},
+		);
 	}
 
 	const provider: Provider<"qoder-api"> = {

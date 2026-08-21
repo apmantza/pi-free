@@ -8,6 +8,25 @@ const mocks = vi.hoisted(() => ({
 	registerNativeProviderToggle: vi.fn(),
 	registerWithGlobalToggle: vi.fn(),
 	restoreNativeProviderModels: vi.fn(async (..._args: unknown[]) => undefined),
+	// Mirrors the real shared skeleton (restore → allowNetwork gate → fetch →
+	// empty-retain → persist) on top of the spied restore/persist fns.
+	refreshNativeProviderModels: vi.fn(
+		async (
+			providerId: string,
+			context: { allowNetwork?: boolean },
+			onRestore: (m: unknown[]) => void,
+			fetchModels: () => Promise<unknown[]>,
+			onFetched: (m: unknown[]) => void,
+		) => {
+			await mocks.restoreNativeProviderModels(providerId, context, onRestore);
+			if (!context.allowNetwork) return;
+			const models = await fetchModels();
+			if (models.length === 0) return;
+			await mocks.persistNativeProviderModels(providerId, context, models, () =>
+				onFetched(models),
+			);
+		},
+	),
 	persistNativeProviderModels: vi.fn(async (..._args: unknown[]) => undefined),
 	filterNativeModels: vi.fn(
 		(...args: unknown[]) => (args[1] as readonly unknown[]) ?? [],
@@ -43,6 +62,9 @@ vi.mock("../lib/native-provider.ts", () => ({
 		mocks.registerNativeProviderToggle(...args),
 	restoreNativeProviderModels: (...args: unknown[]) =>
 		mocks.restoreNativeProviderModels(...args),
+	refreshNativeProviderModels: (
+		...args: Parameters<typeof mocks.refreshNativeProviderModels>
+	) => mocks.refreshNativeProviderModels(...args),
 }));
 
 vi.mock("../provider-helper.ts", () => ({
@@ -105,10 +127,7 @@ describe("Qoder native provider", () => {
 		expect(provider.auth).toBe(mocks.qoderAuth);
 		expect(provider.stream).toEqual(expect.any(Function));
 		expect(provider.streamSimple).toEqual(expect.any(Function));
-		expect(mocks.registerNativeProviderRefresh).toHaveBeenCalledWith(
-			pi,
-			"qoder",
-		);
+		expect(mocks.registerNativeProviderRefresh).toHaveBeenCalledWith(pi, "qoder");
 	});
 
 	it("keeps the basic catalog in the global toggle state", async () => {

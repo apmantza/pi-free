@@ -1,17 +1,10 @@
 /**
- * Shared provider setup helpers for pi-free-providers.
- * Extracts the common boilerplate pattern repeated across providers:
- *   - toggle-{provider} command to switch between free/paid models
- *   - model_select handler (clear status for other providers)
- *   - turn_end handler (provider-specific error hook)
- *   - before_agent_start handler (one-time ToS notice)
+ * Shared provider helpers for pi-free.
+ * Native providers use lib/native-provider.ts; this module keeps the shared
+ * model-store types, CI name enhancement, and the legacy cache-first fetcher.
  */
 
-import type {
-	ExtensionAPI,
-	ProviderModelConfig,
-} from "@earendil-works/pi-coding-agent";
-import { saveConfig } from "./config.ts";
+import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { STARTUP_FETCH_DEADLINE_MS } from "./constants.ts";
 import {
 	DEFAULT_PROVIDER_CACHE_TTL_MS,
@@ -61,31 +54,6 @@ export function isOAuthCredential(
 // Types
 // =============================================================================
 
-export interface ProviderSetupConfig {
-	/** Provider identifier (e.g., "kilo", "openrouter"). */
-	providerId: string;
-	/** Terms of service URL. If set, shows a one-time notice on first free use. */
-	tosUrl?: string;
-	/** When true, suppresses the "free models / set API key" ToS notice. */
-	hasKey?: boolean;
-	/** Initial mode - auto-detected from config at startup. */
-	initialShowPaid?: boolean;
-	/**
-	 * Called by toggle-{provider} command to re-register
-	 * the provider with the given model set.
-	 */
-	reRegister: (models: ProviderModelConfig[], stored: StoredModels) => void;
-	/** Optional custom error handler. Return true if handled. */
-	onError?: (
-		error: unknown,
-		ctx: {
-			ui: { notify: (m: string, t: "info" | "warning" | "error") => void };
-		},
-	) => Promise<boolean>;
-	/** When true, skips creating the toggle-{provider} command. Useful for providers with only one model. */
-	skipToggle?: boolean;
-}
-
 export interface StoredModels {
 	free: ProviderModelConfig[];
 	all: ProviderModelConfig[];
@@ -131,12 +99,7 @@ export function enhanceWithCI(
 ): ProviderModelConfig[] {
 	return models.map((m) => ({
 		...m,
-		name: enhanceModelNameWithCodingIndex(
-			m.name,
-			m.id,
-			providerId,
-			m.modelsDev,
-		),
+		name: enhanceModelNameWithCodingIndex(m.name, m.id, providerId, m.modelsDev),
 	}));
 }
 
@@ -212,10 +175,7 @@ export async function loadCachedOrFetchModels(
 						logData,
 					);
 				} else {
-					_logger.warn(
-						`[${providerId}] failed to persist provider cache`,
-						logData,
-					);
+					_logger.warn(`[${providerId}] failed to persist provider cache`, logData);
 				}
 			});
 	} else if (cached && cached.length > 0) {
@@ -224,184 +184,4 @@ export async function loadCachedOrFetchModels(
 	}
 
 	return fetched;
-}
-
-/**
- * Register an OpenAI-compatible provider with standard headers.
- * Reduces boilerplate across providers that use the OpenAI API format.
- */
-export function registerOpenAICompatible(
-	pi: ExtensionAPI,
-	config: OpenAICompatibleConfig,
-	models: ProviderModelConfig[],
-): void {
-	const {
-		providerId,
-		baseUrl,
-		apiKey,
-		api = "openai-completions",
-		headers,
-		oauth,
-	} = config;
-
-	pi.registerProvider(providerId, {
-		baseUrl,
-		apiKey,
-		api,
-		headers: {
-			"User-Agent": "pi-free-providers",
-			...headers,
-		},
-		models: enhanceWithCI(models, providerId),
-		...(oauth && { oauth: oauth as any }),
-	});
-}
-
-/**
- * Create a reRegister function for use with setupProvider.
- * Returns a function that re-registers the provider with new models.
- */
-export function createReRegister(
-	pi: ExtensionAPI,
-	config: OpenAICompatibleConfig,
-): (models: ProviderModelConfig[]) => void {
-	return (models: ProviderModelConfig[]) => {
-		registerOpenAICompatible(pi, config, models);
-	};
-}
-
-/**
- * Create a reRegister function that uses ctx.modelRegistry.registerProvider.
- * Used by providers that need to register with runtime context (session_start handlers).
- */
-export function createCtxReRegister(
-	ctx: {
-		modelRegistry: { registerProvider: (id: string, config: unknown) => void };
-	},
-	config: OpenAICompatibleConfig,
-): (models: ProviderModelConfig[]) => void {
-	const {
-		providerId,
-		baseUrl,
-		apiKey,
-		api = "openai-completions",
-		headers,
-		oauth,
-	} = config;
-
-	return (models: ProviderModelConfig[]) => {
-		ctx.modelRegistry.registerProvider(providerId, {
-			baseUrl,
-			apiKey,
-			api,
-			headers: {
-				"User-Agent": "pi-free-providers",
-				...headers,
-			},
-			models: enhanceWithCI(models, providerId),
-			...(oauth && { oauth: oauth as any }),
-		});
-	};
-}
-
-/**
- * Get the config key name for a provider's show_paid setting.
- */
-function getShowPaidConfigKey(providerId: string): string {
-	return `${providerId}_show_paid`;
-}
-
-export function setupProvider(
-	pi: ExtensionAPI,
-	config: ProviderSetupConfig,
-	stored: StoredModels,
-): void {
-	const { providerId, tosUrl, initialShowPaid = false } = config;
-
-	// Track current mode (synced with config)
-	let currentShowPaid = initialShowPaid;
-
-	// Wrap reRegister to automatically add CI scores to all models
-	const reRegister = (models: ProviderModelConfig[], _s: StoredModels) => {
-		const enhanced = enhanceWithCI(models, providerId);
-		config.reRegister(enhanced, _s);
-	};
-
-	// ── Single toggle command (skip if requested) ──────────────────────
-
-	if (!config.skipToggle) {
-		pi.registerCommand(`toggle-${providerId}`, {
-			description: `Toggle between free and all ${providerId} models`,
-			handler: async (_args, ctx) => {
-				// Toggle the mode
-				currentShowPaid = !currentShowPaid;
-
-				// Persist to config file
-				const configKey = getShowPaidConfigKey(providerId);
-				await saveConfig({ [configKey]: currentShowPaid });
-
-				// Re-register with appropriate model set
-				if (currentShowPaid) {
-					if (stored.all.length === 0) {
-						ctx.ui.notify("No models available", "warning");
-						return;
-					}
-					reRegister(stored.all, stored);
-					ctx.ui.notify(
-						`${providerId}: showing all ${stored.all.length} models (including paid)`,
-						"info",
-					);
-				} else {
-					if (stored.free.length === 0) {
-						ctx.ui.notify("No free models loaded", "warning");
-						return;
-					}
-					reRegister(stored.free, stored);
-					ctx.ui.notify(
-						`${providerId}: showing ${stored.free.length} free models`,
-						"info",
-					);
-				}
-			},
-		});
-	}
-
-	// ── Model count status bar removed (keeps footer clean) ───────
-
-	// ── Error handling / usage tracking are temporarily deprecated ─────────
-
-	pi.on("turn_end", async (event, ctx) => {
-		if (ctx.model?.provider !== providerId) return;
-
-		const msg = (
-			event as { message?: { role?: string; errorMessage?: string } }
-		).message;
-
-		if (msg?.role === "assistant" && msg.errorMessage) {
-			_logger.info("Provider error (auto model hopping disabled)", {
-				provider: providerId,
-				error: msg.errorMessage.slice(0, 100),
-			});
-
-			// Keep custom handlers working for provider-specific logic.
-			if (config.onError) {
-				await config.onError(msg.errorMessage, ctx);
-			}
-		}
-	});
-
-	// ── ToS notice on first use ────────────────────────────────
-	if (tosUrl) {
-		let tosShown = false;
-		pi.on("model_select", async (_event, ctx) => {
-			if (tosShown || ctx.model?.provider !== providerId) return;
-			tosShown = true;
-			if (config.hasKey) return;
-			if (isCurrentModelOAuth(ctx)) return;
-			_logger.debug("Free-model terms notice", {
-				provider: providerId,
-				termsUrl: tosUrl,
-			});
-		});
-	}
 }

@@ -28,6 +28,9 @@ vi.mock("../lib/registry.ts", () => ({
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
 	getGlobalFreeOnlyForced: () => false,
 	registerWithGlobalToggle: vi.fn(),
+	// Free=all matches what these tests were written against; the provider
+	// now reclassifies via this fn on restore/fetch instead of trusting it.
+	isFreeModel: () => true,
 }));
 
 vi.mock("../lib/provider-cache.ts", () => ({
@@ -198,9 +201,7 @@ describe("createOllamaProvider", () => {
 		);
 		expect(mockSaveProviderCache).toHaveBeenCalled();
 		expect(written).toHaveLength(1);
-		expect(provider.getModels().map((item) => item.id)).toEqual([
-			"cloud-model",
-		]);
+		expect(provider.getModels().map((item) => item.id)).toEqual(["cloud-model"]);
 	});
 
 	it("honors an already-aborted refresh signal", async () => {

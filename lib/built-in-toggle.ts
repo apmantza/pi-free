@@ -44,6 +44,7 @@ import {
 	isOpenCodeProvider,
 	resolveOpenCodeModelApi,
 } from "../providers/opencode-session.ts";
+import { fetchOpenRouterCompatibleModels } from "../providers/model-fetcher.ts";
 
 const _logger = createLogger("built-in-toggle");
 
@@ -75,6 +76,16 @@ interface BuiltInToggleConfig {
 	api: Api;
 	/** Fetch the public catalog after the initial built-in capture. */
 	refreshEndpoint?: boolean;
+	/**
+	 * Live-catalog fetch strategy for {@link refreshEndpoint}. Receives the
+	 * captured built-in models and returns the refreshed catalog merged with
+	 * that metadata. Defaults to the OpenCode Zen refresh (IDs-only endpoint).
+	 */
+	fetchRefreshedModels?: (
+		config: BuiltInToggleConfig,
+		fallbackModels: ProviderModelConfig[],
+		signal?: AbortSignal,
+	) => Promise<ProviderModelConfig[]>;
 }
 
 const BUILT_IN_TOGGLE_PROVIDERS: BuiltInToggleConfig[] = [
@@ -104,6 +115,11 @@ const BUILT_IN_TOGGLE_PROVIDERS: BuiltInToggleConfig[] = [
 		getShowPaid: getOpenrouterShowPaid,
 		baseUrl: "https://openrouter.ai/api/v1",
 		api: "openai-completions",
+		// Pi's built-in openrouter provider is also a static generated catalog
+		// (no fetchModels → refreshModels undefined → ModelRegistry.refresh()
+		// skips it entirely), so refresh it from the public keyless endpoint.
+		refreshEndpoint: true,
+		fetchRefreshedModels: fetchRefreshedOpenRouterModels,
 	},
 ];
 
@@ -210,7 +226,14 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 					// the selected view to the new session's provider catalog.
 					existing.setModelRegistry(ctx.modelRegistry);
 					existing.toggleState.applyCurrent(existing.reRegister);
-					await maybeRestoreSavedModel(pi, config, snapshotFromCtx(ctx));
+					// Detach the restore like the first capture below: setModel appends
+					// a model_change entry and must not delay the session_start tick.
+					// maybeRestoreSavedModel contains its own errors; tracking keeps
+					// the restore visible to /free-startup.
+					trackDetachedSessionStart(
+						`built-in-toggle-restore-${config.id}`,
+						maybeRestoreSavedModel(pi, config, snapshotFromCtx(ctx)),
+					);
 					scheduleEndpointRefresh(config, existing);
 					continue;
 				}
@@ -381,7 +404,8 @@ function createProviderState(
 				if (!context.allowNetwork) {
 					return stateForRefresh?.toggleState.getCurrentModels() ?? allModels;
 				}
-				const refreshed = await fetchRefreshedOpenCodeModels(
+				const fetcher = config.fetchRefreshedModels ?? fetchRefreshedOpenCodeModels;
+				const refreshed = await fetcher(
 					config,
 					stateForRefresh?.stored.all ?? allModels,
 					context.signal,
@@ -516,6 +540,37 @@ async function fetchRefreshedOpenCodeModels(
 }
 
 /**
+ * Refresh the built-in openrouter catalog from the public keyless
+ * /api/v1/models endpoint, which — unlike the Zen endpoint — returns full
+ * metadata (pricing, context window, modalities). Known IDs keep Pi's curated
+ * built-in metadata; models new to the built-in snapshot are synthesized from
+ * the live response with OpenRouter wire defaults matching the generated JSON.
+ */
+async function fetchRefreshedOpenRouterModels(
+	config: BuiltInToggleConfig,
+	fallbackModels: ProviderModelConfig[],
+	signal?: AbortSignal,
+): Promise<ProviderModelConfig[]> {
+	const fetched = await fetchOpenRouterCompatibleModels({
+		providerId: config.id,
+		baseUrl: config.baseUrl,
+		signal,
+	});
+	const knownById = new Map(fallbackModels.map((model) => [model.id, model]));
+	return fetched.map((model) => {
+		const known = knownById.get(model.id);
+		if (known) return known;
+		return {
+			...model,
+			api: config.api,
+			baseUrl: config.baseUrl,
+			// Match the compat shape pi-ai's generated openrouter catalog uses.
+			compat: { supportsDeveloperRole: false, thinkingFormat: "openrouter" },
+		};
+	});
+}
+
+/**
  * Refresh only after the initial capture has registered. Pi's built-in
  * OpenCode provider is a static catalog, so ModelRegistry.refresh() cannot
  * discover the public Zen endpoint for our renamed `opencode-free` provider.
@@ -530,10 +585,8 @@ function scheduleEndpointRefresh(
 	let task: Promise<void> | undefined;
 	task = (async () => {
 		try {
-			const refreshed = await fetchRefreshedOpenCodeModels(
-				config,
-				state.stored.all,
-			);
+			const fetcher = config.fetchRefreshedModels ?? fetchRefreshedOpenCodeModels;
+			const refreshed = await fetcher(config, state.stored.all);
 			state.updateModels(refreshed);
 			const applied = state.toggleState.applyCurrent(state.reRegister);
 			_logger.info(
