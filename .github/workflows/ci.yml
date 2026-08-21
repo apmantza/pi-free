@@ -64,12 +64,32 @@ jobs:
         # Required here: prepare is the behavior under test. # NOSONAR
         run: npm ci --omit=dev --no-audit --no-fund # NOSONAR
 
+      # #447: @earendil-works/pi-coding-agent and @earendil-works/pi-tui are
+      # optional peers now, so this install must NOT have vendored them (while
+      # @earendil-works/pi-ai, a real value import, must still be present).
+      - name: Verify no optional host-provided peer was vendored (#447)
+        run: node scripts/check-prod-install-shape.mjs
+
       - name: Verify production source build
         run: |
           test -f dist/index.js
           node scripts/check-runtime-imports.mjs
           node scripts/smoke-compiled.mjs ./dist/index.js
-          node scripts/smoke-pi-loader.mjs ./dist/index.js
+
+      # smoke-pi-loader.mjs simulates loading dist/index.js through Pi's real
+      # extension loader, which lives inside @earendil-works/pi-coding-agent.
+      # #447 makes that package an optional peer, so this production install no
+      # longer vendors it (that is the fix) — install it here explicitly, as a
+      # standalone test fixture standing in for the host, so this step keeps
+      # verifying the real loader instead of depending on incidental vendoring.
+      - name: Install pi-coding-agent fixture for the loader smoke test
+        # --ignore-scripts: this fixture only needs the package's files on
+        # disk for import.meta.resolve; it never runs pi-coding-agent's own
+        # lifecycle scripts, so skip them (SonarCloud S6505).
+        run: npm install --no-save --ignore-scripts @earendil-works/pi-coding-agent@0.84.2 --no-audit --no-fund
+
+      - name: Smoke-load compiled entry through Pi's real loader
+        run: node scripts/smoke-pi-loader.mjs ./dist/index.js
 
   test:
     name: Unit tests

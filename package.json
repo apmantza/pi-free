@@ -48,6 +48,7 @@
 		"check:lockfile": "node scripts/check-lockfile-sync.mjs",
 		"check:runtime-imports": "node scripts/check-runtime-imports.mjs",
 		"check:tarball": "node scripts/check-tarball.mjs",
+		"check:prod-install-shape": "node scripts/check-prod-install-shape.mjs",
 		"lint": "tsc --noEmit",
 		"prepare": "npm run build",
 		"test": "vitest",
@@ -74,7 +75,16 @@
 		"@earendil-works/pi-coding-agent": ">=0.81.0",
 		"@earendil-works/pi-tui": ">=0.81.0"
 	},
+	"peerDependenciesMeta": {
+		"@earendil-works/pi-coding-agent": {
+			"optional": true
+		},
+		"@earendil-works/pi-tui": {
+			"optional": true
+		}
+	},
 	"devDependencies": {
+		"@earendil-works/pi-coding-agent": "^0.84.2",
 		"@vitest/coverage-v8": "^4.1.10",
 		"@vitest/ui": "^4.1.10",
 		"tsx": "^4.23.12",
