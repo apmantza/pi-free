@@ -99,7 +99,7 @@ GMI Cloud is a native, paid OpenAI-compatible provider. Pi uses the Inference AP
 
 ### Agnes AI
 
-Agnes AI is a native, free OpenAI-compatible provider. Pi uses the gateway at `https://apihub.agnes-ai.com/v1/chat/completions` (an omni-modal API covering text, image, and video models under one `sk-` key); the same base also exposes `GET /v1/models`. Agnes is an entirely-free gateway, so every published chat model is stamped authoritatively free and the catalog defaults to the free-only view; image/video generation models are filtered out so only text chat models are published. Set `AGNES_API_KEY` or `agnes_api_key` and toggle with `/toggle-agnes`.
+Agnes AI is a native OpenAI-compatible provider mixing free and paid chat models. Pi uses the gateway at `https://apihub.agnes-ai.com/v1/chat/completions` (an omni-modal API covering text, image, and video models under one `sk-` key); the same base also exposes `GET /v1/models`. Per the Agnes pricing docs, the flash-class models (`agnes-2.0-flash`, `agnes-2.5-flash`) are free while the pro models (`agnes-2.5-pro`, `agnes-2.5-pro-alpha`) are billed at list price. The `/v1/models` endpoint exposes no pricing, so the free flash models are stamped authoritatively free and the paid pro models are left to the default paid classification; image/video generation models are filtered out so only text chat models are published. Set `AGNES_API_KEY` or `agnes_api_key` and toggle with `/toggle-agnes`. The catalog defaults to the free-only view (the two free flash models); `/toggle-agnes` reveals the paid pro models.
 
 ### FastRouter
 
