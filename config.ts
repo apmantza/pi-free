@@ -25,6 +25,8 @@ import {
 	PROVIDER_FASTROUTER,
 	PROVIDER_REQUESTY,
 	PROVIDER_STEPFUN,
+	PROVIDER_GMI,
+	PROVIDER_AGNES,
 	PROVIDER_KILO,
 	PROVIDER_OLLAMA,
 	PROVIDER_OPENCODE,
@@ -49,6 +51,7 @@ export {
 	PROVIDER_FASTROUTER,
 	PROVIDER_REQUESTY,
 	PROVIDER_STEPFUN,
+	PROVIDER_GMI,
 	PROVIDER_KILO,
 	PROVIDER_OPENCODE,
 	PROVIDER_OPENROUTER,
@@ -101,6 +104,8 @@ interface PiFreeConfig {
 	fastrouter_api_key?: string;
 	requesty_api_key?: string;
 	stepfun_api_key?: string;
+	gmi_api_key?: string;
+	agnes_api_key?: string;
 	tokenrouter_api_key?: string;
 	anyapi_api_key?: string;
 	bai_api_key?: string;
@@ -123,6 +128,8 @@ interface PiFreeConfig {
 	fastrouter_show_paid?: boolean;
 	requesty_show_paid?: boolean;
 	stepfun_show_paid?: boolean;
+	gmi_show_paid?: boolean;
+	agnes_show_paid?: boolean;
 	tokenrouter_show_paid?: boolean;
 	anyapi_show_paid?: boolean;
 	bai_show_paid?: boolean;
@@ -147,6 +154,8 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	fastrouter_api_key: "",
 	requesty_api_key: "",
 	stepfun_api_key: "",
+	gmi_api_key: "",
+	agnes_api_key: "",
 	tokenrouter_api_key: "",
 	anyapi_api_key: "",
 	bai_api_key: "",
@@ -170,6 +179,8 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	fastrouter_show_paid: false,
 	requesty_show_paid: false,
 	stepfun_show_paid: true,
+	gmi_show_paid: true,
+	agnes_show_paid: false,
 	tokenrouter_show_paid: false,
 	anyapi_show_paid: false,
 	bai_show_paid: false,
@@ -196,9 +207,7 @@ function ensureConfigFile(): void {
 		if (existsSync(CONFIG_PATH)) {
 			let existing: PiFreeConfig;
 			try {
-				existing = JSON.parse(
-					readFileSync(CONFIG_PATH, "utf8"),
-				) as PiFreeConfig;
+				existing = JSON.parse(readFileSync(CONFIG_PATH, "utf8")) as PiFreeConfig;
 			} catch {
 				// File exists but is corrupt — back it up and write a fresh
 				// template so the extension can start. The original bytes are
@@ -222,11 +231,7 @@ function ensureConfigFile(): void {
 			// Merge with template to add any missing keys, preserving existing values
 			const merged = { ...CONFIG_TEMPLATE, ...existing };
 			if (JSON.stringify(merged) !== JSON.stringify(existing)) {
-				writeFileSync(
-					CONFIG_PATH,
-					`${JSON.stringify(merged, null, 2)}\n`,
-					"utf8",
-				);
+				writeFileSync(CONFIG_PATH, `${JSON.stringify(merged, null, 2)}\n`, "utf8");
 				restrictConfigFilePermissions();
 			}
 		} else {
@@ -434,6 +439,16 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 		prefix: "STEPFUN",
 		showPaidKey: "stepfun_show_paid",
 	},
+	{
+		id: PROVIDER_GMI,
+		prefix: "GMI",
+		showPaidKey: "gmi_show_paid",
+	},
+	{
+		id: PROVIDER_AGNES,
+		prefix: "AGNES",
+		showPaidKey: "agnes_show_paid",
+	},
 	{ id: PROVIDER_OLLAMA, prefix: "OLLAMA", showPaidKey: "ollama_show_paid" },
 	{
 		id: PROVIDER_OPENROUTER,
@@ -469,10 +484,7 @@ function resolveShowPaidForProvider(providerId: string): boolean {
 	if (!meta) return false;
 	const cfg = loadConfigFile();
 	const fileVal = cfg[meta.showPaidKey];
-	return resolveBool(
-		`${meta.prefix}_SHOW_PAID`,
-		fileVal as boolean | undefined,
-	);
+	return resolveBool(`${meta.prefix}_SHOW_PAID`, fileVal as boolean | undefined);
 }
 
 // =============================================================================
@@ -553,10 +565,7 @@ export function getFastrouterShowPaid(): boolean {
 }
 
 export function getRequestyShowPaid(): boolean {
-	return resolveBool(
-		"REQUESTY_SHOW_PAID",
-		loadConfigFile().requesty_show_paid,
-	);
+	return resolveBool("REQUESTY_SHOW_PAID", loadConfigFile().requesty_show_paid);
 }
 
 export function getStepfunShowPaid(): boolean {
@@ -564,6 +573,14 @@ export function getStepfunShowPaid(): boolean {
 		"STEPFUN_SHOW_PAID",
 		loadConfigFile().stepfun_show_paid ?? true,
 	);
+}
+
+export function getGmiShowPaid(): boolean {
+	return resolveBool("GMI_SHOW_PAID", loadConfigFile().gmi_show_paid ?? true);
+}
+
+export function getAgnesShowPaid(): boolean {
+	return resolveBool("AGNES_SHOW_PAID", loadConfigFile().agnes_show_paid);
 }
 
 export function getOllamaShowPaid(): boolean {
@@ -661,6 +678,14 @@ export function getRequestyApiKey(): string | undefined {
 
 export function getStepfunApiKey(): string | undefined {
 	return resolve("STEPFUN_API_KEY", loadConfigFile().stepfun_api_key);
+}
+
+export function getGmiApiKey(): string | undefined {
+	return resolve("GMI_API_KEY", loadConfigFile().gmi_api_key);
+}
+
+export function getAgnesApiKey(): string | undefined {
+	return resolve("AGNES_API_KEY", loadConfigFile().agnes_api_key);
 }
 
 export function getTokenrouterApiKey(): string | undefined {
@@ -781,11 +806,7 @@ export async function saveConfig(
 		if (raw === undefined) {
 			// File doesn't exist or can't be read — start from template
 			const merged = { ...CONFIG_TEMPLATE, ...updates };
-			writeFileSync(
-				CONFIG_PATH,
-				`${JSON.stringify(merged, null, 2)}\n`,
-				"utf8",
-			);
+			writeFileSync(CONFIG_PATH, `${JSON.stringify(merged, null, 2)}\n`, "utf8");
 			restrictConfigFilePermissions();
 			_logger.info("Config saved (new file)", {
 				path: CONFIG_PATH,
@@ -806,8 +827,7 @@ export async function saveConfig(
 				"Config file was corrupt; a backup was created and the next save will overwrite it",
 				{
 					path: CONFIG_PATH,
-					error:
-						parseErr instanceof Error ? parseErr.message : String(parseErr),
+					error: parseErr instanceof Error ? parseErr.message : String(parseErr),
 				},
 			);
 		}
@@ -870,11 +890,7 @@ export async function updateConfig(
 			// File doesn't exist — start from template, apply updater once
 			const updated = updater({ ...CONFIG_TEMPLATE });
 			const merged = { ...CONFIG_TEMPLATE, ...updated };
-			writeFileSync(
-				CONFIG_PATH,
-				`${JSON.stringify(merged, null, 2)}\n`,
-				"utf8",
-			);
+			writeFileSync(CONFIG_PATH, `${JSON.stringify(merged, null, 2)}\n`, "utf8");
 			restrictConfigFilePermissions();
 			_logger.info("Config updated (new file)", {
 				path: CONFIG_PATH,
@@ -895,8 +911,7 @@ export async function updateConfig(
 				"Config file was corrupt; a backup was created and the update will overwrite it",
 				{
 					path: CONFIG_PATH,
-					error:
-						parseErr instanceof Error ? parseErr.message : String(parseErr),
+					error: parseErr instanceof Error ? parseErr.message : String(parseErr),
 				},
 			);
 		}

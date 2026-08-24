@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Agnes AI provider** — registered `agnes` as a native OpenAI-compatible provider against the Agnes AI free gateway (`https://apihub.agnes-ai.com/v1`). Pi owns authentication, model-store persistence, refresh scheduling, and request streaming through the native provider lifecycle. The text chat catalog is fetched from `GET /v1/models`; image/video generation models are filtered out so only chat models are published. Agnes is an entirely-free gateway, but its model ids contain no "free" token and the API exposes no pricing, so each published model is stamped with the authoritative free flag (`_freeKnown`/`_isFree`, the same escape hatch used by the anyapi and bai gateways) — the free-only view and `/free-providers` counts are correct without depending on the adaptive Route A/B detector. Set `AGNES_API_KEY` or `agnes_api_key`; toggle with `/toggle-agnes`. The catalog defaults to the free-only view (`agnes_show_paid` defaults to `false`) because every published model is free.
+
+- **GMI Cloud provider** — registered `gmi` as a native OpenAI-compatible provider against the GMI Cloud Inference API (`https://api.gmi-serving.com/v1`). Pi owns authentication, model-store persistence, refresh scheduling, and request streaming through the native provider lifecycle. Chat, vision, tools, and reasoning are served from one OpenAI-compatible Chat Completions endpoint across 200+ open and frontier models; the catalog is fetched from `GET /v1/models`. Set `GMI_API_KEY` or `gmi_api_key`; toggle with `/toggle-gmi`. GMI Cloud is a paid provider with per-token pricing, so its full catalog is shown by default (`gmi_show_paid` defaults to `true`).
+
 ## [2.6.0] - 2026-08-21
 
 ### Removed
