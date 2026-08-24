@@ -95,7 +95,7 @@ StepFun Step Plan is a native, paid OpenAI-compatible provider. Pi uses the Chat
 
 ### GMI Cloud
 
-GMI Cloud is a native, paid OpenAI-compatible provider. Pi uses the Inference API at `https://api.gmi-serving.com/v1/chat/completions` (one OpenAI-compatible endpoint for chat, vision, tools, and reasoning across 200+ open and frontier models); the same base also exposes `GET /v1/models`. Set `GMI_API_KEY` or `gmi_api_key` and toggle with `/toggle-gmi`. GMI Cloud shows its full paid catalog by default because the gateway lists no free models; set `gmi_show_paid=false` or `GMI_SHOW_PAID=false` to restrict the view.
+GMI Cloud is a native, paid OpenAI-compatible provider. Pi uses the Inference API at `https://api.gmi-serving.com/v1/chat/completions` (one OpenAI-compatible endpoint for chat, vision, tools, and reasoning across 200+ open and frontier models); the same base also exposes `GET /v1/models`. Set `GMI_API_KEY` or `gmi_api_key` and toggle with `/toggle-gmi`. GMI Cloud shows its full paid catalog by default because the gateway lists no free models; set `gmi_show_paid=false` or `GMI_SHOW_PAID=false` to restrict the view. GMI runs time-limited "free week" promotions where specific models are free at the billing layer despite nonzero list prices — during the active window those models are stamped authoritatively free so they appear in the free-only view and `/free-providers` counts, and the stamp auto-expires when the promotion ends. The current promotion is **MiniMax Week (2026-08-24 → 2026-09-06)**: `MiniMaxAI/MiniMax-M3` and `MiniMaxAI/MiniMax-M2.7` are free.
 
 ### Agnes AI
 
