@@ -55,6 +55,8 @@ import deepinfra from "./providers/deepinfra/deepinfra.ts";
 import fastrouter from "./providers/fastrouter/fastrouter.ts";
 import requesty from "./providers/requesty/requesty.ts";
 import stepfun from "./providers/stepfun/stepfun.ts";
+import gmi from "./providers/gmi/gmi.ts";
+import agnes from "./providers/agnes/agnes.ts";
 import sambanova from "./providers/sambanova/sambanova.ts";
 import novita from "./providers/novita/novita.ts";
 import routeway from "./providers/routeway/routeway.ts";
@@ -87,6 +89,8 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 	fastrouter,
 	requesty,
 	stepfun,
+	gmi,
+	agnes,
 	routeway,
 	opengateway,
 	tokenRouter,

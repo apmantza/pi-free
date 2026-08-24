@@ -93,6 +93,14 @@ Or set `tokenrouter_api_key`. Toggle with `/toggle-tokenrouter`.
 
 StepFun Step Plan is a native, paid OpenAI-compatible provider. Pi uses the Chat Completions endpoint at `https://api.stepfun.ai/step_plan/v1/chat/completions`; the same base also exposes an Anthropic-compatible Messages endpoint at `/messages` for clients such as Claude Code. Set `STEPFUN_API_KEY` or `stepfun_api_key` and toggle with `/toggle-stepfun`. StepFun shows its paid catalog by default because its catalog has no free models; set `stepfun_show_paid` or `STEPFUN_SHOW_PAID=false` to hide it.
 
+### GMI Cloud
+
+GMI Cloud is a native, paid OpenAI-compatible provider. Pi uses the Inference API at `https://api.gmi-serving.com/v1/chat/completions` (one OpenAI-compatible endpoint for chat, vision, tools, and reasoning across 200+ open and frontier models); the same base also exposes `GET /v1/models`. Set `GMI_API_KEY` or `gmi_api_key` and toggle with `/toggle-gmi`. GMI Cloud shows its full paid catalog by default because the gateway lists no free models; set `gmi_show_paid=false` or `GMI_SHOW_PAID=false` to restrict the view.
+
+### Agnes AI
+
+Agnes AI is a native, free OpenAI-compatible provider. Pi uses the gateway at `https://apihub.agnes-ai.com/v1/chat/completions` (an omni-modal API covering text, image, and video models under one `sk-` key); the same base also exposes `GET /v1/models`. Agnes is an entirely-free gateway, so every published chat model is stamped authoritatively free and the catalog defaults to the free-only view; image/video generation models are filtered out so only text chat models are published. Set `AGNES_API_KEY` or `agnes_api_key` and toggle with `/toggle-agnes`.
+
 ### FastRouter
 
 FastRouter is a native OpenAI-compatible provider with a public catalog. Pi restores its model store first and refreshes the catalog asynchronously; a key is required for chat requests but not model listing. Set `FASTROUTER_API_KEY` or `fastrouter_api_key`, then use `/toggle-fastrouter`.

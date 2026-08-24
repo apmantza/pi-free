@@ -25,6 +25,8 @@ export const PROVIDER_QODER = "qoder";
 export const PROVIDER_FASTROUTER = "fastrouter";
 export const PROVIDER_REQUESTY = "requesty";
 export const PROVIDER_STEPFUN = "stepfun";
+export const PROVIDER_GMI = "gmi";
+export const PROVIDER_AGNES = "agnes";
 
 // Built-in pi providers that pi-free wraps with toggles
 export const PROVIDER_OPENROUTER = "openrouter";
@@ -66,6 +68,10 @@ export const BASE_URL_FASTROUTER = "https://api.fastrouter.ai/api/v1";
 export const BASE_URL_REQUESTY = "https://router.requesty.ai/v1";
 /** StepFun Step Plan OpenAI-compatible Chat Completions API base URL. */
 export const BASE_URL_STEPFUN = "https://api.stepfun.ai/step_plan/v1";
+/** GMI Cloud OpenAI-compatible Inference API base URL. */
+export const BASE_URL_GMI = "https://api.gmi-serving.com/v1";
+/** Agnes AI OpenAI-compatible free gateway base URL. */
+export const BASE_URL_AGNES = "https://apihub.agnes-ai.com/v1";
 export const BASE_URL_QODER = "https://api2-v2.qoder.sh";
 
 /** Cline fetches free models from OpenRouter */

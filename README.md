@@ -77,10 +77,10 @@ First run creates `~/.pi/free.json`. Add extension-provider keys there or use th
 
 | Category | Providers |
 | --- | --- |
-| Free/free-tier | Kilo, Cline, LLM7, TokenRouter, Qoder basic tier, and eligible models from other catalogs |
+| Free/free-tier | Kilo, Cline, LLM7, TokenRouter, Agnes AI, Qoder basic tier, and eligible models from other catalogs |
 | Freemium | AnyAPI, Ollama Cloud, SambaNova |
-| Paid/trial | ZenMux, CrofAI, DeepInfra trial, Novita, Routeway, OpenGateway, B.AI, StepFun, and paid catalog entries from other providers |
-| Native lifecycle | Kilo, Cline, LLM7, Ollama Cloud, AnyAPI, SambaNova, TokenRouter, ZenMux, CrofAI, DeepInfra, Novita, Routeway, OpenGateway, B.AI, FastRouter, StepFun |
+| Paid/trial | ZenMux, CrofAI, DeepInfra trial, Novita, Routeway, OpenGateway, B.AI, StepFun, GMI Cloud, and paid catalog entries from other providers |
+| Native lifecycle | Kilo, Cline, LLM7, Ollama Cloud, AnyAPI, SambaNova, TokenRouter, ZenMux, CrofAI, DeepInfra, Novita, Routeway, OpenGateway, B.AI, FastRouter, StepFun, GMI Cloud, Agnes AI |
 | Built-in | OpenCode, OpenCode Go, OpenRouter — captured from Pi and refreshed in place after session start (OpenCode Zen catalog + public OpenRouter endpoint), so new models appear without waiting for a Pi release |
 
 Provider availability, authentication, and exact API-key names are maintained in [docs/providers.md](docs/providers.md). pi-free does not publish model counts because provider catalogs change.
