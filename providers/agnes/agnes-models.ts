@@ -2,17 +2,27 @@
  * Agnes AI's OpenAI-compatible model catalog.
  *
  * Agnes AI exposes a plain OpenAI `/v1/models` list (id, object, created,
- * owned_by, supported_endpoint_types) with no pricing or architecture fields.
+ * owned_by, supported_endpoint_types) with NO pricing or architecture fields.
  * The catalog mixes text chat models with image/video generation models;
  * pi-free feeds a coding agent that speaks Chat Completions, so only text
  * chat models are published and the rest are filtered out.
  *
- * Agnes is an entirely-free gateway, but none of its model ids contain
- * "free" and the API exposes no pricing — so the adaptive Route A/B free-model
- * detector in lib/registry.ts cannot identify them as free on its own. Each
- * published model is therefore stamped with the authoritative free flag
- * (`_freeKnown`/`_isFree`, the same escape hatch used by the anyapi and bai
- * gateways) so the free-only view and `/free-providers` counts are correct.
+ * Free vs. paid: the `/v1/models` endpoint does not expose pricing, so the
+ * adaptive Route A/B detector in lib/registry.ts cannot tell them apart
+ * (Route B falls back to name-based "free" detection, and no Agnes model id
+ * contains "free"). Per the Agnes pricing docs
+ * (https://wiki.agnes-ai.com/en/docs/pricing), only the flash-class chat
+ * models are free; the pro models are billed at list price:
+ *   - agnes-2.0-flash     — free
+ *   - agnes-2.5-flash     — free
+ *   - agnes-2.5-pro       — paid
+ *   - agnes-2.5-pro-alpha — paid
+ *
+ * The free flash models are therefore stamped with the authoritative free
+ * flag (`_freeKnown`/`_isFree`, the same escape hatch used by the anyapi, bai,
+ * and gmi gateways) so the free-only view and `/free-providers` counts are
+ * correct. The pro models are left unstamped; with no pricing exposed and no
+ * "free" token in their ids, Route B classifies them as paid (correct).
  */
 
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
@@ -38,8 +48,21 @@ function isChatModel(id: string): boolean {
 }
 
 /**
+ * Agnes chat models that are free to use (per the Agnes pricing docs). Kept as
+ * an explicit set rather than a name pattern because Agnes publishes both free
+ * (flash) and paid (pro) chat models under the same gateway, and only the
+ * flash class is free — "flash" alone is not a reliable free signal
+ * (`agnes-image-2.1-flash` is a paid generation model), so match on the full
+ * text-chat model ids only. Update this set if Agnes changes its free tier.
+ */
+const FREE_CHAT_MODEL_IDS: ReadonlySet<string> = new Set([
+	"agnes-2.0-flash",
+	"agnes-2.5-flash",
+]);
+
+/**
  * Fetch Agnes AI's authenticated `/v1/models` catalog, keep only the text
- * chat models, and stamp them as authoritatively free.
+ * chat models, and stamp the free flash models as authoritatively free.
  */
 export async function fetchAgnesModels(
 	apiKey: string,
@@ -59,14 +82,14 @@ export async function fetchAgnesModels(
 
 	const chatModels = models.filter((model) => isChatModel(model.id));
 
-	// Agnes is an entirely-free gateway; mark every published chat model as
-	// authoritatively free so the global free-only filter and `/free-providers`
-	// counts treat them correctly (no "free" in the name, no pricing exposed).
-	const stamped: AgnesProviderModel[] = chatModels.map((model) => ({
-		...model,
-		_freeKnown: true,
-		_isFree: true,
-	}));
+	const stamped: AgnesProviderModel[] = chatModels.map((model) => {
+		if (!FREE_CHAT_MODEL_IDS.has(model.id)) return model;
+		return {
+			...model,
+			_freeKnown: true,
+			_isFree: true,
+		};
+	});
 
 	return applyHidden(stamped, PROVIDER_AGNES);
 }
