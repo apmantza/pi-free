@@ -14,9 +14,10 @@
  * Balance gate: Venice requires a POSITIVE account balance for ALL inference,
  * including zero-priced models — a $0/$0 catalog entry still answers HTTP 402
  * "Insufficient USD or Diem balance" for an unfunded key (verified live).
- * Zero cost therefore does NOT mean usable-for-free, so every Venice model is
- * stamped `_freeKnown: true, _isFree: false` (the same authoritative override
- * OpenRouter uses) to keep unfunded models out of the free-only view.
+ * Classification intentionally follows the published pricing data anyway
+ * (Route A): a $0-listed model is classified free and surfaces in the
+ * free-only view; the balance requirement surfaces as a request-time error,
+ * consistent with how every other keyed gateway behaves.
  */
 
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
@@ -116,18 +117,10 @@ export function mapVeniceModel(
 		// SAFETY: Venice's catalog exposes real pricing for every model, so
 		// stamp the undocumented _pricingKnown marker consumed by isFreeModel
 		// to mark cost-based (Route A) detection authoritative for these models;
-		// the field is metadata only and never read by pi-ai.
+		// the field is metadata only and never read by pi-ai. Free/paid follows
+		// the published pricing — no free/paid override is applied here.
 		_pricingKnown: true,
-		// Balance gate (see file header): even $0-priced models require a
-		// positive account balance, so no Venice model is free in the
-		// "usable without paying" sense pi-free's free view promises.
-		_freeKnown: true,
-		_isFree: false,
-	} as ProviderModelConfig & {
-		_pricingKnown?: boolean;
-		_freeKnown?: boolean;
-		_isFree?: boolean;
-	};
+	} as ProviderModelConfig & { _pricingKnown?: boolean };
 }
 
 /**

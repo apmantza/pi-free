@@ -12,9 +12,9 @@ import { createNativeApiKeyAuth } from "../../lib/native-provider.ts";
 
 /** Venice AI API-key authentication for both catalog refresh and chat requests. */
 export const veniceAuth = createNativeApiKeyAuth({
-	name: "Venice API key",
-	prompt: "Venice API key",
-	source: "VENICE_API_KEY",
-	getApiKey: getVeniceApiKey,
-	anonymousCatalog: true,
+ name: "Venice API key",
+ prompt: "Venice API key",
+ source: "VENICE_API_KEY",
+ getApiKey: getVeniceApiKey,
+ anonymousCatalog: true,
 });

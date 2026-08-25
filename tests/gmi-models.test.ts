@@ -10,7 +10,10 @@ import { describe, expect, it } from "vitest";
 
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 
-import { dedupeGmiModelsById, activePromotionalFreeIds } from "../providers/gmi/gmi-models.ts";
+import {
+	dedupeGmiModelsById,
+	activePromotionalFreeIds,
+} from "../providers/gmi/gmi-models.ts";
 
 function model(
 	id: string,

@@ -103,7 +103,7 @@ Agnes AI is a native OpenAI-compatible provider mixing free and paid chat models
 
 ### Venice AI
 
-Venice AI is a native, paid OpenAI-compatible provider. Pi uses the inference API at `https://api.venice.ai/api/v1/chat/completions` (100+ text models billed in USD or DIEM per million tokens); the same base also exposes `GET /models?type=text`. The model catalog is public, so models appear before login, but chat requires `VENICE_API_KEY` or `venice_api_key`; toggle with `/toggle-venice`. **Balance gate:** Venice requires a positive account balance for all inference — including `$0`-listed models, which answer HTTP 402 on unfunded keys — so the catalog publishes no usable free models and Venice contributes nothing to the free-only view until that changes.
+Venice AI is a native OpenAI-compatible provider mixing free-classified and paid chat models. Pi uses the inference API at `https://api.venice.ai/api/v1/chat/completions` (100+ text models billed in USD or DIEM per million tokens); the same base also exposes `GET /models?type=text`. The model catalog is public, so models appear before login, but chat requires `VENICE_API_KEY` or `venice_api_key`; toggle with `/toggle-venice`. Free/paid classification follows the published pricing (zero-priced models count as free). **Balance gate:** Venice requires a positive account balance for all inference — including zero-priced models, which answer HTTP 402 on unfunded keys — so a model classified as free can still fail at request time until the account is funded.
 
 ### FastRouter
 

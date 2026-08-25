@@ -8,6 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { isFreeModel } from "../lib/registry.ts";
 import { mapVeniceModel } from "../providers/venice/venice-models.ts";
 
 function catalogEntry(overrides: Record<string, unknown> = {}) {
@@ -68,11 +69,8 @@ describe("mapVeniceModel", () => {
 		);
 	});
 
-	it("marks zero-priced models NOT free — Venice gates inference behind balance", () => {
-		// Verified live: a $0/$0 model (stealth-ox-alpha) still answers HTTP 402
-		// "Insufficient USD or Diem balance" for an unfunded key, so it must
-		// never surface in the free-only view.
-		const entry = catalogEntry({
+	function zeroPricedEntry(overrides: Record<string, unknown> = {}) {
+		return catalogEntry({
 			id: "stealth-preview",
 			model_spec: {
 				...catalogEntry().model_spec,
@@ -83,16 +81,43 @@ describe("mapVeniceModel", () => {
 					cache_input: { usd: 0, diem: 0 },
 				},
 			},
+			...overrides,
 		});
-		const model = mapVeniceModel(entry) as unknown as {
+	}
+
+	it("classifies zero-priced models free per published pricing (Route A)", () => {
+		// Note: Venice gates inference behind account balance (a $0/$0 model
+		// still answers HTTP 402 for an unfunded key), but classification
+		// intentionally follows the published pricing; the balance requirement
+		// surfaces as a request-time error.
+		const model = mapVeniceModel(zeroPricedEntry()) as unknown as {
 			cost: { input: number; output: number };
 			_freeKnown?: boolean;
 			_isFree?: boolean;
 		};
 		expect(model.cost.input).toBe(0);
 		expect(model.cost.output).toBe(0);
-		expect(model._freeKnown).toBe(true);
-		expect(model._isFree).toBe(false);
+		// No authoritative override — Route A decides from the zero costs.
+		expect(model._freeKnown).toBeUndefined();
+		expect(model._isFree).toBeUndefined();
+	});
+
+	it("end-to-end: zero-priced model is free among priced siblings", () => {
+		const free = mapVeniceModel(zeroPricedEntry());
+		const paid = mapVeniceModel(catalogEntry());
+		// SAFETY: both entries come from the typed mapper above.
+		expect(
+			isFreeModel(free as Parameters<typeof isFreeModel>[0], [
+				free!,
+				paid!,
+			] as Parameters<typeof isFreeModel>[1]),
+		).toBe(true);
+		expect(
+			isFreeModel(paid as Parameters<typeof isFreeModel>[0], [
+				free!,
+				paid!,
+			] as Parameters<typeof isFreeModel>[1]),
+		).toBe(false);
 	});
 
 	it("rejects non-text endpoints (image/audio/video/embeddings)", () => {

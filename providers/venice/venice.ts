@@ -13,8 +13,10 @@
  * models appear before login; chat requests require an API key.
  *
  * Balance gate: Venice requires a positive account balance for ALL
- * inference — including $0-listed models — so the catalog publishes no
- * usable free models and defaults to a paid-only view (see venice-models.ts).
+ * inference — including $0-listed models — so an unfunded key will see
+ * request-time 402 errors even for models classified free. Classification
+ * intentionally follows the published pricing data; the catalog defaults
+ * to showing paid models via /toggle-venice.
  *
  * Setup:
  *   1. Sign up at https://venice.ai/ and create an API key
@@ -35,15 +37,15 @@ import { veniceAuth } from "./venice-auth.ts";
 import { fetchVeniceModels } from "./venice-models.ts";
 
 export default function veniceProvider(pi: ExtensionAPI): Promise<void> {
-	registerNativeOpenAIProvider(pi, {
-		providerId: PROVIDER_VENICE,
-		name: "Venice AI",
-		baseUrl: BASE_URL_VENICE,
-		auth: veniceAuth,
-		getApiKey: getVeniceApiKey,
-		getShowPaid: getVeniceShowPaid,
-		allowUnauthenticated: true,
-		fetchModels: (apiKey, signal) => fetchVeniceModels(apiKey, signal),
-	});
-	return Promise.resolve();
+ registerNativeOpenAIProvider(pi, {
+  providerId: PROVIDER_VENICE,
+  name: "Venice AI",
+  baseUrl: BASE_URL_VENICE,
+  auth: veniceAuth,
+  getApiKey: getVeniceApiKey,
+  getShowPaid: getVeniceShowPaid,
+  allowUnauthenticated: true,
+  fetchModels: (apiKey, signal) => fetchVeniceModels(apiKey, signal),
+ });
+ return Promise.resolve();
 }
