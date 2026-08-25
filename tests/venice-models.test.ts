@@ -107,16 +107,16 @@ describe("mapVeniceModel", () => {
 		const paid = mapVeniceModel(catalogEntry());
 		// SAFETY: both entries come from the typed mapper above.
 		expect(
-			isFreeModel(free as Parameters<typeof isFreeModel>[0], [
-				free!,
-				paid!,
-			] as Parameters<typeof isFreeModel>[1]),
+			isFreeModel(
+				free as Parameters<typeof isFreeModel>[0],
+				[free!, paid!] as Parameters<typeof isFreeModel>[1],
+			),
 		).toBe(true);
 		expect(
-			isFreeModel(paid as Parameters<typeof isFreeModel>[0], [
-				free!,
-				paid!,
-			] as Parameters<typeof isFreeModel>[1]),
+			isFreeModel(
+				paid as Parameters<typeof isFreeModel>[0],
+				[free!, paid!] as Parameters<typeof isFreeModel>[1],
+			),
 		).toBe(false);
 	});
 
