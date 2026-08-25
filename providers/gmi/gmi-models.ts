@@ -58,7 +58,7 @@ const PROMOTIONS: readonly Promotion[] = [
  * Model ids that are authoritatively free right now because an active GMI
  * promotion makes them free at the billing layer despite nonzero list prices.
  */
-function activePromotionalFreeIds(now: number = Date.now()): Set<string> {
+export function activePromotionalFreeIds(now: number = Date.now()): Set<string> {
 	const free = new Set<string>();
 	for (const promo of PROMOTIONS) {
 		if (now >= promo.startMs && now < promo.endMs) {

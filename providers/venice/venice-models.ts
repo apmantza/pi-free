@@ -85,8 +85,10 @@ export function mapVeniceModel(
 ): ProviderModelConfig | undefined {
 	if (typeof entry.id !== "string" || entry.id.length === 0) return undefined;
 	// The /models endpoint also serves image, audio, video, and embedding
-	// models; only chat-completions ("text") models are usable as agent models.
-	if (entry.type !== undefined && entry.type !== "text") return undefined;
+	// models; only chat-completions ("text") models are usable as agent
+	// models. Strict check: entries missing `type` are rejected rather than
+	// assumed text (matches the Agnes defensive posture).
+	if (entry.type !== "text") return undefined;
 
 	const spec = entry.model_spec ?? {};
 	const capabilities = spec.capabilities ?? {};

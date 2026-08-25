@@ -2,8 +2,8 @@
  * Venice provider tests.
  *
  * Covers the catalog mapper (nested model_spec pricing in USD per million
- * tokens, capability flags, non-text filtering) and the public-catalog fetch
- * path with an optional key.
+ * tokens, capability flags, strict non-text filtering). The network fetch
+ * path is exercised by the live drive smoke test, not here.
  */
 
 import { describe, expect, it } from "vitest";
@@ -100,6 +100,8 @@ describe("mapVeniceModel", () => {
 		expect(mapVeniceModel(catalogEntry({ type: "audio" }))).toBeUndefined();
 		expect(mapVeniceModel(catalogEntry({ type: "video" }))).toBeUndefined();
 		expect(mapVeniceModel(catalogEntry({ type: "embedding" }))).toBeUndefined();
+		// Strict posture: entries missing `type` are rejected, not assumed text.
+		expect(mapVeniceModel(catalogEntry({ type: undefined }))).toBeUndefined();
 	});
 
 	it("falls back to id when model_spec.name is missing and applies defaults", () => {
