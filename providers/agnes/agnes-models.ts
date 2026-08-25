@@ -32,8 +32,8 @@ import { fetchOpenAICompatibleModels } from "../../lib/util.ts";
 
 /** Augmented model shape carrying the authoritative free/paid flag. */
 type AgnesProviderModel = ProviderModelConfig & {
-	_freeKnown?: boolean;
-	_isFree?: boolean;
+ _freeKnown?: boolean;
+ _isFree?: boolean;
 };
 
 /**
@@ -43,8 +43,8 @@ type AgnesProviderModel = ProviderModelConfig & {
  * `agnes-video-2.5`.)
  */
 function isChatModel(id: string): boolean {
-	const lower = id.toLowerCase();
-	return !lower.includes("image") && !lower.includes("video");
+ const lower = id.toLowerCase();
+ return !lower.includes("image") && !lower.includes("video");
 }
 
 /**
@@ -56,8 +56,8 @@ function isChatModel(id: string): boolean {
  * text-chat model ids only. Update this set if Agnes changes its free tier.
  */
 const FREE_CHAT_MODEL_IDS: ReadonlySet<string> = new Set([
-	"agnes-2.0-flash",
-	"agnes-2.5-flash",
+ "agnes-2.0-flash",
+ "agnes-2.5-flash",
 ]);
 
 /**
@@ -65,31 +65,31 @@ const FREE_CHAT_MODEL_IDS: ReadonlySet<string> = new Set([
  * chat models, and stamp the free flash models as authoritatively free.
  */
 export async function fetchAgnesModels(
-	apiKey: string,
-	signal?: AbortSignal,
+ apiKey: string,
+ signal?: AbortSignal,
 ): Promise<ProviderModelConfig[]> {
-	const models = await fetchOpenAICompatibleModels(
-		PROVIDER_AGNES,
-		BASE_URL_AGNES,
-		apiKey,
-		{
-			contextWindow: 128_000,
-			maxTokens: 16_384,
-		},
-		undefined,
-		signal,
-	);
+ const models = await fetchOpenAICompatibleModels(
+  PROVIDER_AGNES,
+  BASE_URL_AGNES,
+  apiKey,
+  {
+   contextWindow: 128_000,
+   maxTokens: 16_384,
+  },
+  undefined,
+  signal,
+ );
 
-	const chatModels = models.filter((model) => isChatModel(model.id));
+ const chatModels = models.filter((model) => isChatModel(model.id));
 
-	const stamped: AgnesProviderModel[] = chatModels.map((model) => {
-		if (!FREE_CHAT_MODEL_IDS.has(model.id)) return model;
-		return {
-			...model,
-			_freeKnown: true,
-			_isFree: true,
-		};
-	});
+ const stamped: AgnesProviderModel[] = chatModels.map((model) => {
+  if (!FREE_CHAT_MODEL_IDS.has(model.id)) return model;
+  return {
+   ...model,
+   _freeKnown: true,
+   _isFree: true,
+  };
+ });
 
-	return applyHidden(stamped, PROVIDER_AGNES);
+ return applyHidden(stamped, PROVIDER_AGNES);
 }

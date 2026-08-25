@@ -7,11 +7,15 @@
  * authentication, model-store persistence, refresh scheduling, and request
  * streaming through the native provider lifecycle.
  *
- * Agnes is an entirely-free gateway: every chat model in its catalog is free
- * to use, so models are stamped explicitly free (`_freeKnown`/`_isFree`) and
- * the catalog defaults to the free-only view. Image/video generation models
- * are filtered out — only text chat models are published, since pi-free feeds
- * a coding agent that speaks Chat Completions.
+ * Agnes is a freemium gateway, not an entirely-free one: per the Agnes
+ * pricing docs only the flash-class chat models (agnes-2.0-flash,
+ * agnes-2.5-flash) are free; the pro models are billed at list price.
+ * The free flash models are stamped authoritatively free (`_freeKnown`/
+ * `_isFree`) in agnes-models.ts so the free-only view and `/free-providers`
+ * counts are correct; the paid pro models surface via `/toggle-agnes`.
+ * Image/video generation models are filtered out — only text chat models
+ * are published, since pi-free feeds a coding agent that speaks Chat
+ * Completions.
  *
  * Setup:
  *   AGNES_API_KEY=...

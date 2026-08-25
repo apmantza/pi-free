@@ -53,6 +53,7 @@ index.ts                          ← Extension entry point (piFreeEntry)
       ├─ cline/cline-auth.ts      ← native ProviderAuth (API key + OAuth callback-server flow)
       ├─ cline/cline-models.ts    ← public catalog fetch + Model conversion
       ├─ novita/novita.ts         ← Novita AI (paid credits)
+      ├─ venice/venice.ts         ← Venice AI (paid, public catalog)
       ├─ ollama/ollama.ts         ← Ollama Cloud (usage-based free tier, 403 probing)
       ├─ routeway/routeway.ts     ← RouteWay AI (paid)
       ├─ opengateway/opengateway.ts ← Gitlawb OpenGateway (paid + promotional free models)
@@ -104,7 +105,7 @@ For a new OpenAI-compatible native provider, use `registerNativeOpenAIProvider()
 
 ### Native `Provider` providers
 
-Kilo, Cline, LLM7, ZenMux, TokenRouter, Ollama Cloud, B.AI, AnyAPI, CrofAI, SambaNova, Novita, DeepInfra, Routeway, OpenGateway, FastRouter, StepFun, GMI Cloud, Agnes AI, and Qoder use Pi's modern provider API (Pi `>=0.81.0`). Instead of the legacy `registerProvider(id, { baseUrl, apiKey, models, oauth })` form, each builds a native pi-ai `Provider` object and registers it via the single-argument `registerProvider(provider)`. Pi then owns credential refresh, background model refresh (4h throttle, abortable), and offline initialization — so these extension factories perform no catalog network I/O on startup.
+Kilo, Cline, LLM7, ZenMux, TokenRouter, Ollama Cloud, B.AI, AnyAPI, CrofAI, SambaNova, Novita, DeepInfra, Routeway, OpenGateway, FastRouter, StepFun, GMI Cloud, Agnes AI, Venice AI, and Qoder use Pi's modern provider API (Pi `>=0.81.0`). Instead of the legacy `registerProvider(id, { baseUrl, apiKey, models, oauth })` form, each builds a native pi-ai `Provider` object and registers it via the single-argument `registerProvider(provider)`. Pi then owns credential refresh, background model refresh (4h throttle, abortable), and offline initialization — so these extension factories perform no catalog network I/O on startup.
 
 ```
 providers/kilo/kilo-provider.ts   ← createKiloProvider(): assembles the Provider
@@ -184,8 +185,8 @@ Debug logging writes to `~/.pi/free.log` under the `benchmark-lookup` namespace:
 | ----------- | -------------------------------------------------- | ----------------- | -------------------------------- |
 | ✅ Free / free-tier | kilo, cline, llm7, tokenrouter, agnes, qoder basic | OAuth, API key, or none | Free models or tier; toggles can expose paid models |
 | 🔄 Freemium | anyapi, ollama-cloud, sambanova, requesty | API key | Free allowance with limits |
-| 💳 Paid / trial | zenmux, crofai, deepinfra, novita, routeway, opengateway, bai, stepfun, gmi, qoder premium | API key, OAuth, or credits | Paid access, trial credit, or premium tier |
-| 🔧 Native | Kilo, Cline, LLM7, Ollama Cloud, AnyAPI, SambaNova, TokenRouter, ZenMux, CrofAI, DeepInfra, Novita, Routeway, OpenGateway, B.AI, FastRouter, Requesty, StepFun, GMI Cloud, Agnes AI, Qoder | API key, OAuth, or none | Pi owns catalog refresh and native stores |
+| 💳 Paid / trial | zenmux, crofai, deepinfra, novita, routeway, opengateway, bai, stepfun, gmi, venice, qoder premium | API key, OAuth, or credits | Paid access, trial credit, or premium tier |
+| 🔧 Native | Kilo, Cline, LLM7, Ollama Cloud, AnyAPI, SambaNova, TokenRouter, ZenMux, CrofAI, DeepInfra, Novita, Routeway, OpenGateway, B.AI, FastRouter, Requesty, StepFun, GMI Cloud, Agnes AI, Venice AI, Qoder | API key, OAuth, or none | Pi owns catalog refresh and native stores |
 | 🔧 Built-in | opencode-free, opencode-go, openrouter | Built-in Pi auth | Built-in toggles; Pi owns catalogs |
 
 ---

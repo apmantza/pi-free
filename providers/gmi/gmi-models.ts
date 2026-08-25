@@ -58,7 +58,9 @@ const PROMOTIONS: readonly Promotion[] = [
  * Model ids that are authoritatively free right now because an active GMI
  * promotion makes them free at the billing layer despite nonzero list prices.
  */
-function activePromotionalFreeIds(now: number = Date.now()): Set<string> {
+export function activePromotionalFreeIds(
+	now: number = Date.now(),
+): Set<string> {
 	const free = new Set<string>();
 	for (const promo of PROMOTIONS) {
 		if (now >= promo.startMs && now < promo.endMs) {
@@ -69,8 +71,39 @@ function activePromotionalFreeIds(now: number = Date.now()): Set<string> {
 }
 
 /**
- * Fetch GMI Cloud's authenticated `/v1/models` catalog, then stamp any model
- * that is free under an active GMI promotion as authoritatively free.
+ * Dedupe catalog entries that share a model id.
+ *
+ * GMI's live /v1/models has been observed publishing the same id twice
+ * (during MiniMax Week: one SKU carrying list pricing, one $0 SKU). Keep the
+ * PRICED entry so Route A cost-based detection sees real pricing; the
+ * promotion stamp below then overrides the winner to free while a window is
+ * active and reverts automatically when it ends. Ties keep the first seen.
+ */
+export function dedupeGmiModelsById(
+	models: readonly ProviderModelConfig[],
+): ProviderModelConfig[] {
+	const byId = new Map<string, ProviderModelConfig>();
+	for (const model of models) {
+		const existing = byId.get(model.id);
+		if (existing === undefined) {
+			byId.set(model.id, model);
+			continue;
+		}
+		const existingPriced = isPriced(existing);
+		const nextPriced = isPriced(model);
+		if (nextPriced && !existingPriced) byId.set(model.id, model);
+	}
+	return [...byId.values()];
+}
+
+function isPriced(model: ProviderModelConfig): boolean {
+	return (model.cost?.input ?? 0) > 0 || (model.cost?.output ?? 0) > 0;
+}
+
+/**
+ * Fetch GMI Cloud's authenticated `/v1/models` catalog, dedupe repeated ids,
+ * then stamp any model that is free under an active GMI promotion as
+ * authoritatively free.
  */
 export async function fetchGmiModels(
 	apiKey: string,
@@ -88,8 +121,9 @@ export async function fetchGmiModels(
 		signal,
 	);
 
+	const deduped = dedupeGmiModelsById(models);
 	const promotionalFree = activePromotionalFreeIds();
-	const stamped: GmiProviderModel[] = models.map((model) => {
+	const stamped: GmiProviderModel[] = deduped.map((model) => {
 		if (!promotionalFree.has(model.id)) return model;
 		return {
 			...model,
