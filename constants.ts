@@ -27,6 +27,7 @@ export const PROVIDER_REQUESTY = "requesty";
 export const PROVIDER_STEPFUN = "stepfun";
 export const PROVIDER_GMI = "gmi";
 export const PROVIDER_AGNES = "agnes";
+export const PROVIDER_VENICE = "venice";
 
 // Built-in pi providers that pi-free wraps with toggles
 export const PROVIDER_OPENROUTER = "openrouter";
@@ -72,6 +73,8 @@ export const BASE_URL_STEPFUN = "https://api.stepfun.ai/step_plan/v1";
 export const BASE_URL_GMI = "https://api.gmi-serving.com/v1";
 /** Agnes AI OpenAI-compatible free gateway base URL. */
 export const BASE_URL_AGNES = "https://apihub.agnes-ai.com/v1";
+/** Venice AI OpenAI-compatible inference API base URL. */
+export const BASE_URL_VENICE = "https://api.venice.ai/api/v1";
 export const BASE_URL_QODER = "https://api2-v2.qoder.sh";
 
 /** Cline fetches free models from OpenRouter */

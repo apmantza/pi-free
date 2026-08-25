@@ -43,6 +43,7 @@ import {
 	PROVIDER_DEEPINFRA,
 	PROVIDER_SAMBANOVA,
 	PROVIDER_NOVITA,
+	PROVIDER_VENICE,
 } from "./constants.ts";
 export {
 	PROVIDER_ANYAPI,
@@ -99,6 +100,7 @@ interface PiFreeConfig {
 	deepinfra_api_key?: string;
 	sambanova_api_key?: string;
 	novita_api_key?: string;
+	venice_api_key?: string;
 	routeway_api_key?: string;
 	opengateway_api_key?: string;
 	fastrouter_api_key?: string;
@@ -123,6 +125,7 @@ interface PiFreeConfig {
 	deepinfra_show_paid?: boolean;
 	sambanova_show_paid?: boolean;
 	novita_show_paid?: boolean;
+	venice_show_paid?: boolean;
 	routeway_show_paid?: boolean;
 	opengateway_show_paid?: boolean;
 	fastrouter_show_paid?: boolean;
@@ -149,6 +152,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	deepinfra_api_key: "",
 	sambanova_api_key: "",
 	novita_api_key: "",
+	venice_api_key: "",
 	routeway_api_key: "",
 	opengateway_api_key: "",
 	fastrouter_api_key: "",
@@ -174,6 +178,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	deepinfra_show_paid: false,
 	sambanova_show_paid: false,
 	novita_show_paid: false,
+	venice_show_paid: false,
 	routeway_show_paid: false,
 	opengateway_show_paid: false,
 	fastrouter_show_paid: false,
@@ -407,6 +412,7 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 		showPaidKey: "sambanova_show_paid",
 	},
 	{ id: PROVIDER_NOVITA, prefix: "NOVITA", showPaidKey: "novita_show_paid" },
+	{ id: PROVIDER_VENICE, prefix: "VENICE", showPaidKey: "venice_show_paid" },
 	{
 		id: PROVIDER_ROUTEWAY,
 		prefix: "ROUTEWAY",
@@ -529,6 +535,10 @@ export function getSambanovaShowPaid(): boolean {
 
 export function getNovitaShowPaid(): boolean {
 	return resolveBool("NOVITA_SHOW_PAID", loadConfigFile().novita_show_paid);
+}
+
+export function getVeniceShowPaid(): boolean {
+	return resolveBool("VENICE_SHOW_PAID", loadConfigFile().venice_show_paid);
 }
 
 export function getRoutewayShowPaid(): boolean {
@@ -658,6 +668,10 @@ export function getSambanovaApiKey(): string | undefined {
 
 export function getNovitaApiKey(): string | undefined {
 	return resolve("NOVITA_API_KEY", loadConfigFile().novita_api_key);
+}
+
+export function getVeniceApiKey(): string | undefined {
+	return resolve("VENICE_API_KEY", loadConfigFile().venice_api_key);
 }
 
 export function getRoutewayApiKey(): string | undefined {

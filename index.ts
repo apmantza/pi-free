@@ -59,6 +59,7 @@ import gmi from "./providers/gmi/gmi.ts";
 import agnes from "./providers/agnes/agnes.ts";
 import sambanova from "./providers/sambanova/sambanova.ts";
 import novita from "./providers/novita/novita.ts";
+import venice from "./providers/venice/venice.ts";
 import routeway from "./providers/routeway/routeway.ts";
 import opengateway from "./providers/opengateway/opengateway.ts";
 import tokenRouter from "./providers/tokenrouter/tokenrouter.ts";
@@ -86,6 +87,7 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 	deepinfra,
 	sambanova,
 	novita,
+	venice,
 	fastrouter,
 	requesty,
 	stepfun,
