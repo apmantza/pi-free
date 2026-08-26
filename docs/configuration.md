@@ -26,6 +26,13 @@ These are the pi-free config keys and their environment variables:
 | `anyapi_api_key` | `ANYAPI_API_KEY` |
 | `bai_api_key` | `BAI_API_KEY` |
 | `stepfun_api_key` | `STEPFUN_API_KEY` |
+| `requesty_api_key` | `REQUESTY_API_KEY` |
+| `gmi_api_key` | `GMI_API_KEY` |
+| `agnes_api_key` | `AGNES_API_KEY` |
+| `venice_api_key` | `VENICE_API_KEY` |
+| `infron_api_key` | `INFRON_API_KEY` |
+| `merge_api_key` | `MERGE_API_KEY` |
+| `commandcode_api_key` | `COMMAND_CODE_API_KEY` |
 
 ```bash
 export FASTROUTER_API_KEY="..."
@@ -41,6 +48,10 @@ Example file:
   "ollama_api_key": "...",
   "anyapi_api_key": "...",
   "stepfun_api_key": "..."
+  "venice_api_key": "...",
+  "infron_api_key": "...",
+  "merge_api_key": "...",
+  "commandcode_api_key": "..."
 }
 ```
 

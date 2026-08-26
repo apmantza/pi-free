@@ -41,6 +41,13 @@ Run `/toggle-{provider}` to switch between a provider's free/basic view and its 
 | `/toggle-opencode-free` | OpenCode Zen free wrapper | Pi built-in catalog + detached Zen refresh |
 | `/toggle-opencode-go` | OpenCode Go | Pi built-in |
 | `/toggle-fastrouter` | FastRouter | Native |
+| `/toggle-gmi` | GMI Cloud | Native |
+| `/toggle-agnes` | Agnes AI | Native |
+| `/toggle-requesty` | Requesty | Native |
+| `/toggle-venice` | Venice AI | Native |
+| `/toggle-infron` | Infron AI | Native |
+| `/toggle-merge` | Merge Gateway | Native |
+| `/toggle-commandcode` | CommandCode | Native |
 
 Native providers retain their complete catalog and let Pi apply the current filter. All pi-free providers now use the native provider lifecycle; Pi built-in providers retain Pi-owned catalogs.
 

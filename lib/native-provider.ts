@@ -126,6 +126,15 @@ export interface NativeOpenAIProviderOptions {
 	 * only ever loaded lazily through `lib/lazy-compat.ts`.
 	 */
 	streams?: ProviderStreams;
+	/**
+	 * Optional per-model wire-protocol override. Defaults to
+	 * "openai-completions" for every model. Gateways serving some models over
+	 * a different transport (e.g. CommandCode's claude-* models speak
+	 * Anthropic Messages) return the right Api here; pair with a `streams`
+	 * override whose implementations dispatch on `model.api` so the wire
+	 * transport matches what each model was published with.
+	 */
+	apiForModel?: (modelId: string) => Api;
 }
 
 export interface NativeOpenAIProviderHandle {
@@ -169,13 +178,24 @@ function toNativeOpenAIModel(
 	model: ProviderModelConfig,
 	providerId: string,
 	baseUrl: string,
-): Model<"openai-completions"> {
+	apiForModel?: (modelId: string) => Api,
+): Model<Api> {
+	// SAFETY: the historical Model<"openai-completions"> nominal claim widens
+	// to Model<Api>: when apiForModel overrides the transport (e.g.
+	// anthropic-messages for CommandCode's claude-* models) the runtime object
+	// carries the right Api and the provider's streams override must dispatch
+	// on model.api. Call sites filing results into openai-completions-typed
+	// stores cast deliberately - pi-ai reads the runtime api field, never the
+	// compile-time type parameter.
+	const api = apiForModel?.(model.id) ?? "openai-completions";
+	// SAFETY: widening cast — pi-ai reads the runtime api field set above,
+	// never this function's compile-time return parameter.
 	return withGatewayCompat({
 		...model,
-		api: "openai-completions",
+		api,
 		provider: providerId,
 		baseUrl,
-	} as Model<"openai-completions">);
+	} as unknown as Model<Api>);
 }
 
 /** Apply the shared global/provider free-model policy to a complete native catalog. */
@@ -239,41 +259,47 @@ export function createNativeOpenAIProvider(
 		free: ProviderModelConfig[],
 	): void {
 		stored.all = enhanceWithCI(all, options.providerId).map((model) =>
-			toNativeOpenAIModel(model, options.providerId, options.baseUrl),
+			toNativeOpenAIModel(model, options.providerId, options.baseUrl, options.apiForModel),
 		);
 		stored.free = enhanceWithCI(free, options.providerId).map((model) =>
-			toNativeOpenAIModel(model, options.providerId, options.baseUrl),
+			toNativeOpenAIModel(model, options.providerId, options.baseUrl, options.apiForModel),
 		);
 	}
 
 	const initialModels = options.initialModels ?? [];
 	if (initialModels.length > 0) {
 		const all = enhanceWithCI(initialModels, options.providerId).map((model) =>
-			toNativeOpenAIModel(model, options.providerId, options.baseUrl),
+			toNativeOpenAIModel(model, options.providerId, options.baseUrl, options.apiForModel),
 		);
 		stored.all = all;
-		stored.free = classifyFree(all);
+		// SAFETY: classification only reads id/name/cost fields; per-model
+		// transports (apiForModel) widen the nominal type parameter only.
+		stored.free = classifyFree(all as Model<"openai-completions">[]);
 	}
 
 	async function refreshModels(context: RefreshModelsContext): Promise<void> {
-		await refreshNativeProviderModels(
+		// SAFETY: per-model transports (apiForModel) widen elements to
+		// Model<Api>; stored fields are ProviderModelConfig-shaped and pi-ai
+		// dispatches on the runtime api field, so the casts below only relax a
+		// nominal type parameter that no longer fits dual-transport providers.
+		await refreshNativeProviderModels<Model<Api>>(
 			options.providerId,
 			context,
-			(storedModels: Model<"openai-completions">[]) => {
+			(storedModels) => {
 				stored.all = storedModels;
-				stored.free = classifyFree(storedModels);
+				stored.free = classifyFree(storedModels as Model<"openai-completions">[]);
 			},
 			async () => {
 				const token = nativeCredentialToken(context.credential, options.getApiKey);
 				if (!token && !options.allowUnauthenticated) return [];
 				const all = await options.fetchModels(token ?? "", context.signal);
 				return enhanceWithCI(all, options.providerId).map((model) =>
-					toNativeOpenAIModel(model, options.providerId, options.baseUrl),
+					toNativeOpenAIModel(model, options.providerId, options.baseUrl, options.apiForModel),
 				);
 			},
 			(models) => {
 				stored.all = models;
-				stored.free = classifyFree(models);
+				stored.free = classifyFree(models as Model<"openai-completions">[]);
 			},
 		);
 	}
