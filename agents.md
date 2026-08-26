@@ -105,7 +105,7 @@ For a new OpenAI-compatible native provider, use `registerNativeOpenAIProvider()
 
 ### Native `Provider` providers
 
-Kilo, Cline, LLM7, ZenMux, TokenRouter, Ollama Cloud, B.AI, AnyAPI, CrofAI, SambaNova, Novita, DeepInfra, Routeway, OpenGateway, FastRouter, StepFun, GMI Cloud, Agnes AI, Venice AI, and Qoder use Pi's modern provider API (Pi `>=0.81.0`). Instead of the legacy `registerProvider(id, { baseUrl, apiKey, models, oauth })` form, each builds a native pi-ai `Provider` object and registers it via the single-argument `registerProvider(provider)`. Pi then owns credential refresh, background model refresh (4h throttle, abortable), and offline initialization — so these extension factories perform no catalog network I/O on startup.
+Kilo, Cline, LLM7, ZenMux, TokenRouter, Ollama Cloud, B.AI, AnyAPI, CrofAI, SambaNova, Novita, DeepInfra, Routeway, OpenGateway, FastRouter, StepFun, GMI Cloud, Agnes AI, Venice AI, Infron AI, and Qoder use Pi's modern provider API (Pi `>=0.81.0`). Instead of the legacy `registerProvider(id, { baseUrl, apiKey, models, oauth })` form, each builds a native pi-ai `Provider` object and registers it via the single-argument `registerProvider(provider)`. Pi then owns credential refresh, background model refresh (4h throttle, abortable), and offline initialization — so these extension factories perform no catalog network I/O on startup.
 
 ```
 providers/kilo/kilo-provider.ts   ← createKiloProvider(): assembles the Provider
@@ -185,8 +185,8 @@ Debug logging writes to `~/.pi/free.log` under the `benchmark-lookup` namespace:
 | ----------- | -------------------------------------------------- | ----------------- | -------------------------------- |
 | ✅ Free / free-tier | kilo, cline, llm7, tokenrouter, agnes, qoder basic | OAuth, API key, or none | Free models or tier; toggles can expose paid models |
 | 🔄 Freemium | anyapi, ollama-cloud, sambanova, requesty | API key | Free allowance with limits |
-| 💳 Paid / trial | zenmux, crofai, deepinfra, novita, routeway, opengateway, bai, stepfun, gmi, venice, qoder premium | API key, OAuth, or credits | Paid access, trial credit, or premium tier |
-| 🔧 Native | Kilo, Cline, LLM7, Ollama Cloud, AnyAPI, SambaNova, TokenRouter, ZenMux, CrofAI, DeepInfra, Novita, Routeway, OpenGateway, B.AI, FastRouter, Requesty, StepFun, GMI Cloud, Agnes AI, Venice AI, Qoder | API key, OAuth, or none | Pi owns catalog refresh and native stores |
+| 💳 Paid / trial | zenmux, crofai, deepinfra, novita, routeway, opengateway, bai, stepfun, gmi, venice, infron, qoder premium | API key, OAuth, or credits | Paid access, trial credit, or premium tier |
+| 🔧 Native | Kilo, Cline, LLM7, Ollama Cloud, AnyAPI, SambaNova, TokenRouter, ZenMux, CrofAI, DeepInfra, Novita, Routeway, OpenGateway, B.AI, FastRouter, Requesty, StepFun, GMI Cloud, Agnes AI, Venice AI, Infron AI, Qoder | API key, OAuth, or none | Pi owns catalog refresh and native stores |
 | 🔧 Built-in | opencode-free, opencode-go, openrouter | Built-in Pi auth | Built-in toggles; Pi owns catalogs |
 
 ---
@@ -221,6 +221,7 @@ Debug logging writes to `~/.pi/free.log` under the `benchmark-lookup` namespace:
 15. **Abort errors are expected, not failures** — Pi 0.84+ aborts a superseded model refresh; `AbortError`/`"This operation was aborted"` is cancellation, not a provider error. Every provider fetch `catch` block must guard `if (signal?.aborted)` and **return the function's empty error-path value** *before* logging — `[]` for array fetches, `{ all: [], free: [] }` for `{all,free}` catalogs, bare `return` for `Promise<void>` — so expected aborts never surface as visible `ERROR`/`notify` to the user. Check `signal?.aborted`, not `error.name === "AbortError"` (narrowed deliberately — an unrelated AbortError must still be logged). When fixing this class of bug (or any cross-cutting convention violation), **examine the whole repo and fix every instance**, not just the reported provider — providers share a near-identical fetch/`catch` shape, so a missing guard in one is a missing guard in all.
 16. **pi-ai compat must never load at startup** — `@earendil-works/pi-ai/compat` (and `@earendil-works/pi-ai/providers/all`) cost ~1.3–1.7s of module-load time and are only allowed as *dynamic* imports in runtime code. Provider `stream`/`streamSimple` get their pi-ai implementations through the lazy bridge in `lib/lazy-compat.ts` (`lazyOpenAICompletionsApi()`/`lazyAnthropicMessagesApi()`), which returns the local compat-free shell from `lib/assistant-message-event-stream.ts` synchronously and pipes the real stream in once the single-flight compat import resolves. Runtime pi-ai imports go through `lib/pi-ai-loader.ts` (`loadPiAiEntry`), which tries the bare specifier first and only on a genuine pi-ai-not-found error falls back to locating the package on disk (walk-up from this package, nested under pi-coding-agent, the running pi host's realpath-resolved entry script — covers pnpm virtual-store layouts, #448 — plus `~/.pi/agent/npm`, `%APPDATA%\npm`, and executable-relative roots). Never add a static value-import of compat (type-only imports are fine), and keep `scripts/check-runtime-imports.mjs` green.
 17. **Wire-signature logs are header NAMES only — never values** — the `before_agent_start` wire-signature log (`lib/wire-signature.ts`, namespace `wire-signature`, debug level) records the request contract (`provider`, `model`, `api`, `baseUrl`, `headerNames`) to diagnose headers that fail to reach the wire. `headerNames` must contain only header KEYS; an Authorization/apiKey/token/cookie VALUE in this line would leak credentials into the shared plain-text `~/.pi/free.log`. The same rule applies to any new observability that touches headers, and `/pi-free-health` output stays credential-free (counts, ages, status codes — never bodies, keys, tokens, or log tails) (#437).
+18. **Live catalog audits are mandatory before each release and when adding a new provider** — fetch every registered provider's real `/models` endpoint (stored credential from `~/.pi/agent/auth.json` where available; anonymous where the catalog is public) and verify its free/paid classification against pi-free's actual detection semantics (Route A cost detection, Route B name fallback, promotional windows, authoritative `_freeKnown`/`_isFree` stamps) before writing release notes or README claims. Record the audit date next to any published counts and present them as a point-in-time snapshot, never a guarantee. Providers whose credentials are unavailable are listed as "not audited" rather than guessed. Never print or commit API keys during an audit.
 
 ---
 
@@ -286,8 +287,9 @@ Releases are automated via `.github/workflows/release.yml`.
 1. **Update version** in `package.json` (semver: patch for fixes, minor for features, major for breaking changes).
 2. **Update `CHANGELOG.md`** — move content from `[Unreleased]` to a new `## [X.Y.Z] - YYYY-MM-DD` section.
 3. **Update `agents.md`** if architecture, commands, or conventions changed.
-4. **Commit and push to `master`**.
-5. The CI workflow will:
+4. **Run the live catalog audit** (convention 18): fetch every registered provider's real endpoint, re-verify free/paid classification, and refresh the dated audit table in `README.md` before release notes claim any counts.
+5. **Commit and push to `master`**.
+6. The CI workflow will:
    - Read the version from `package.json`.
    - Verify a matching `CHANGELOG.md` entry exists.
    - Run `check:lockfile`, `audit:prod`, `lint`, `test:run`, `npm publish --dry-run`, tarball verification, and entry smoke-load.

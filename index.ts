@@ -60,6 +60,7 @@ import agnes from "./providers/agnes/agnes.ts";
 import sambanova from "./providers/sambanova/sambanova.ts";
 import novita from "./providers/novita/novita.ts";
 import venice from "./providers/venice/venice.ts";
+import infron from "./providers/infron/infron.ts";
 import routeway from "./providers/routeway/routeway.ts";
 import opengateway from "./providers/opengateway/opengateway.ts";
 import tokenRouter from "./providers/tokenrouter/tokenrouter.ts";
@@ -88,6 +89,7 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 	sambanova,
 	novita,
 	venice,
+	infron,
 	fastrouter,
 	requesty,
 	stepfun,
