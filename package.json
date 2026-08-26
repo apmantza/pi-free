@@ -85,11 +85,15 @@
 	},
 	"devDependencies": {
 		"@earendil-works/pi-coding-agent": "^0.84.2",
+		"@smithy/types": "^4.17.2",
 		"@vitest/coverage-v8": "^4.1.10",
 		"@vitest/ui": "^4.1.10",
 		"tsx": "^4.23.12",
 		"typescript": "^7.0.2",
 		"vitest": "^4.1.10"
+	},
+	"dependencies": {
+		"@smithy/core": "^3.24.5"
 	},
 	"pi": {
 		"extensions": [
