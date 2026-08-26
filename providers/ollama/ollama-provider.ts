@@ -4,7 +4,11 @@ import type {
 	Provider,
 	RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
-import type { ExtensionAPI, ExtensionCommandContext, ProviderModelConfig } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionCommandContext,
+	ProviderModelConfig,
+} from "@earendil-works/pi-coding-agent";
 import { getOllamaApiKey, getOllamaShowPaid } from "../../config.ts";
 import { BASE_URL_OLLAMA, PROVIDER_OLLAMA } from "../../constants.ts";
 import {
@@ -26,7 +30,11 @@ import {
 } from "../../lib/session-start-metrics.ts";
 import { registerWithGlobalToggle, isFreeModel } from "../../lib/registry.ts";
 import { lazyOpenAICompletionsApi } from "../../lib/lazy-compat.ts";
-import { fetchUsage, formatUsage, formatUsageStatusColored } from "./ollama-usage.ts";
+import {
+	fetchUsage,
+	formatUsage,
+	formatUsageStatusColored,
+} from "./ollama-usage.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { ollamaAuth } from "./ollama-auth.ts";
 
@@ -201,9 +209,9 @@ export function registerOllamaProvider(
 	let usageTimer: ReturnType<typeof setInterval> | null = null;
 	let lastUsageRefreshAt = 0;
 
-	async function refreshUsageStatus(
-		ctx: { ui: ExtensionCommandContext["ui"] },
-	): Promise<void> {
+	async function refreshUsageStatus(ctx: {
+		ui: ExtensionCommandContext["ui"];
+	}): Promise<void> {
 		const apiKey = getOllamaApiKey();
 		if (!apiKey) return;
 		try {
