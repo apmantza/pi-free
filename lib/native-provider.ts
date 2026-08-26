@@ -259,17 +259,32 @@ export function createNativeOpenAIProvider(
 		free: ProviderModelConfig[],
 	): void {
 		stored.all = enhanceWithCI(all, options.providerId).map((model) =>
-			toNativeOpenAIModel(model, options.providerId, options.baseUrl, options.apiForModel),
+			toNativeOpenAIModel(
+				model,
+				options.providerId,
+				options.baseUrl,
+				options.apiForModel,
+			),
 		);
 		stored.free = enhanceWithCI(free, options.providerId).map((model) =>
-			toNativeOpenAIModel(model, options.providerId, options.baseUrl, options.apiForModel),
+			toNativeOpenAIModel(
+				model,
+				options.providerId,
+				options.baseUrl,
+				options.apiForModel,
+			),
 		);
 	}
 
 	const initialModels = options.initialModels ?? [];
 	if (initialModels.length > 0) {
 		const all = enhanceWithCI(initialModels, options.providerId).map((model) =>
-			toNativeOpenAIModel(model, options.providerId, options.baseUrl, options.apiForModel),
+			toNativeOpenAIModel(
+				model,
+				options.providerId,
+				options.baseUrl,
+				options.apiForModel,
+			),
 		);
 		stored.all = all;
 		// SAFETY: classification only reads id/name/cost fields; per-model
@@ -294,7 +309,12 @@ export function createNativeOpenAIProvider(
 				if (!token && !options.allowUnauthenticated) return [];
 				const all = await options.fetchModels(token ?? "", context.signal);
 				return enhanceWithCI(all, options.providerId).map((model) =>
-					toNativeOpenAIModel(model, options.providerId, options.baseUrl, options.apiForModel),
+					toNativeOpenAIModel(
+						model,
+						options.providerId,
+						options.baseUrl,
+						options.apiForModel,
+					),
 				);
 			},
 			(models) => {

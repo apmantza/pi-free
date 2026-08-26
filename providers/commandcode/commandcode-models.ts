@@ -54,7 +54,9 @@ interface CommandCodeCatalogModel {
  * (mirrors patlux/pi-commandcode-provider's apiForModelId).
  */
 export function apiForCommandCodeModel(modelId: string): Api {
-	return modelId.startsWith("claude-") ? "anthropic-messages" : "openai-completions";
+	return modelId.startsWith("claude-")
+		? "anthropic-messages"
+		: "openai-completions";
 }
 
 function asString(value: unknown): string | undefined {

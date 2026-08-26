@@ -176,10 +176,7 @@ export const FALLBACK_MODELS: ProviderModelConfig[] = [
 		id: "kimi-k2.7-code",
 		name: "Kimi K2.7 Code",
 		reasoning: true,
-		thinkingLevelMap: resolveThinkingMap("kimi-k2.7-code", [
-			"thinking",
-			"tools",
-		]),
+		thinkingLevelMap: resolveThinkingMap("kimi-k2.7-code", ["thinking", "tools"]),
 		input: ["text"],
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 262144,

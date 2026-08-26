@@ -13,9 +13,9 @@ import { createNativeApiKeyAuth } from "../../lib/native-provider.ts";
 
 /** CommandCode API-key authentication for catalog refresh and chat requests. */
 export const commandCodeAuth = createNativeApiKeyAuth({
-	name: "CommandCode API key",
-	prompt: "CommandCode API key",
-	source: "COMMAND_CODE_API_KEY",
-	getApiKey: getCommandCodeApiKey,
-	anonymousCatalog: true,
+ name: "CommandCode API key",
+ prompt: "CommandCode API key",
+ source: "COMMAND_CODE_API_KEY",
+ getApiKey: getCommandCodeApiKey,
+ anonymousCatalog: true,
 });
