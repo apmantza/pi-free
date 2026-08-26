@@ -28,6 +28,7 @@ import {
 	PROVIDER_GMI,
 	PROVIDER_AGNES,
 	PROVIDER_KILO,
+	PROVIDER_KIRO,
 	PROVIDER_OLLAMA,
 	PROVIDER_OPENCODE,
 	PROVIDER_OPENCODE_FREE,
@@ -57,6 +58,7 @@ export {
 	PROVIDER_STEPFUN,
 	PROVIDER_GMI,
 	PROVIDER_KILO,
+	PROVIDER_KIRO,
 	PROVIDER_OPENCODE,
 	PROVIDER_OPENROUTER,
 	PROVIDER_QODER,
@@ -150,6 +152,7 @@ interface PiFreeConfig {
 	opencode_free_show_paid?: boolean;
 	opencode_go_show_paid?: boolean;
 	qoder_show_paid?: boolean;
+	kiro_show_paid?: boolean;
 }
 
 const CONFIG_TEMPLATE: PiFreeConfig = {
@@ -209,6 +212,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	opencode_free_show_paid: false,
 	opencode_go_show_paid: false,
 	qoder_show_paid: false,
+	kiro_show_paid: false,
 };
 
 const CONFIG_PATH = join(PI_DATA_DIR, "free.json");
@@ -499,6 +503,7 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 		showPaidKey: "opencode_go_show_paid",
 	},
 	{ id: PROVIDER_QODER, prefix: "QODER", showPaidKey: "qoder_show_paid" },
+	{ id: PROVIDER_KIRO, prefix: "KIRO", showPaidKey: "kiro_show_paid" },
 ];
 
 const PROVIDER_META_BY_ID = new Map(PROVIDER_META.map((m) => [m.id, m]));
@@ -657,6 +662,10 @@ export function getOpencodeGoShowPaid(): boolean {
 		"OPENCODE_GO_SHOW_PAID",
 		loadConfigFile().opencode_go_show_paid,
 	);
+}
+
+export function getKiroShowPaid(): boolean {
+	return resolveBool("KIRO_SHOW_PAID", loadConfigFile().kiro_show_paid);
 }
 
 export function getProviderShowPaid(providerId: string): boolean {
