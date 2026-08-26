@@ -2,22 +2,26 @@
  * Merge Gateway provider extension.
  *
  * Merge (merge.dev) is a multi-vendor LLM gateway exposing an
- * OpenAI-compatible inference API at `https://api-gateway.merge.dev/v1/openai`
- * (chat completions across ~264 catalog entries from OpenAI, Anthropic,
- * Google, Meta, Mistral, xAI, Qwen, DeepSeek, and more).
+ * OpenAI-compatible chat shim at `https://api-gateway.merge.dev/v1/openai`
+ * (chat completions across ~275 chat-capable catalog entries from OpenAI,
+ * Anthropic, Google, Meta, Mistral, xAI, Qwen, DeepSeek, and more).
  *
- * Endpoint:
- *   Chat:   https://api-gateway.merge.dev/v1/openai/chat/completions
- *   Models: https://api-gateway.merge.dev/v1/openai/models
+ * Endpoints:
+ *   Chat:    https://api-gateway.merge.dev/v1/openai/chat/completions
+ *   Models:  https://api-gateway.merge.dev/v1/models (NATIVE Gateway API)
  *
- * The model catalog is keyed (anonymous /models returns 401), so models only
+ * Discovery uses the NATIVE Gateway catalog (not the minimal OpenAI-shim
+ * /models) because it carries display names, per-vendor availability,
+ * context windows, output limits, capability flags, and USD-per-million
+ * pricing — see merge-models.ts.
+ *
+ * The catalog is keyed (anonymous /models returns 401), so models only
  * appear after MERGE_API_KEY is configured; chat uses the same key.
  *
- * Free models: none observed — the gateway bills every request and the
- * catalog carries no pricing fields, so free-model detection runs on Route B
- * (name-based) and currently yields an empty free set. The toggle exists so
- * users can flip between the default view and the full paid catalog once
- * `merge_show_paid` is enabled.
+ * Free models: nvidia/nemotron-3.5-lightning-30b-a3b is published at $0/$0
+ * per million via its nvidia route and classifies free via Route A pricing
+ * detection (verified live 2026-08-26). Other zero-priced entries are
+ * non-chat routes (video/TTS/image/embedding) and are filtered out.
  *
  * Setup:
  *   MERGE_API_KEY=mg_...
@@ -25,7 +29,7 @@
  *
  * Usage:
  *   pi install git:github.com/apmantza/pi-free
- *   # Models appear in /model selector as "merge/openai/gpt-4.1-nano"
+ *   # Models appear in /model selector as "merge/nvidia/nemotron-..."
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";

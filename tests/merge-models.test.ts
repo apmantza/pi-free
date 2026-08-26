@@ -7,9 +7,12 @@
  * docs.merge.dev/merge-gateway/api-overview/models/list.
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { mapMergeModel } from "../providers/merge/merge-models.ts";
+import {
+	fetchMergeModels,
+	mapMergeModel,
+} from "../providers/merge/merge-models.ts";
 
 /** One vendor route with sensible defaults matching the live schema. */
 function vendor(overrides: Record<string, unknown> = {}) {
@@ -66,9 +69,9 @@ describe("mapMergeModel", () => {
 		// $0/$0 per million -> per-token zero, stamped Route A authoritative.
 		expect(model?.cost.input).toBe(0);
 		expect(model?.cost.output).toBe(0);
-		expect(
-			(model as unknown as { _pricingKnown?: boolean })._pricingKnown,
-		).toBe(true);
+		expect((model as unknown as { _pricingKnown?: boolean })._pricingKnown).toBe(
+			true,
+		);
 		expect(model?.reasoning).toBe(true);
 		expect(model?.contextWindow).toBe(1_000_000);
 		expect(model?.maxTokens).toBe(262_144);
@@ -92,7 +95,9 @@ describe("mapMergeModel", () => {
 							cache_read_per_million: 0.3,
 						},
 					}),
-					cheap: vendor({ pricing: { input_per_million: 1, output_per_million: 4 } }),
+					cheap: vendor({
+						pricing: { input_per_million: 1, output_per_million: 4 },
+					}),
 				},
 			}),
 		);
@@ -196,5 +201,78 @@ describe("mapMergeModel", () => {
 		expect(bare?.name).toBe("vendor/model");
 		expect(bare?.contextWindow).toBe(128_000);
 		expect(bare?.maxTokens).toBe(4_096);
+	});
+
+	it("keeps an unreported context window undefined instead of the fallback", () => {
+		// Regression: the fallback must never participate as a candidate value.
+		const model = mapMergeModel(
+			catalogEntry({
+				vendors: {
+					v1: vendor({ context_window: undefined }),
+					v2: vendor({ context_window: 32_000 }),
+				},
+			}),
+		);
+		expect(model?.contextWindow).toBe(32_000);
+	});
+});
+
+describe("fetchMergeModels pagination", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it("follows next_cursor across pages until has_more is false", async () => {
+		// Two-page sequence: page 1 has_more + cursor "c2", page 2 terminal.
+		const responses = [
+			{
+				ok: true,
+				status: 200,
+				json: async () => ({
+					data: [{ model: "a/one", display_name: "A", vendors: { v: vendor() } }],
+					has_more: true,
+					next_cursor: "c2",
+				}),
+			},
+			{
+				ok: true,
+				status: 200,
+				json: async () => ({
+					data: [{ model: "b/two", display_name: "B", vendors: { v: vendor() } }],
+					has_more: false,
+					next_cursor: null,
+				}),
+			},
+		];
+		const calls: string[] = [];
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (url: string | URL) => {
+				calls.push(String(url));
+				return responses[calls.length - 1];
+			}),
+		);
+		const models = await fetchMergeModels("test-key");
+		expect(models.map((m) => m.id)).toEqual(["a/one", "b/two"]);
+		expect(calls).toHaveLength(2);
+		expect(calls[0]).toContain("limit=500");
+		expect(calls[0]).not.toContain("cursor=");
+		expect(calls[1]).toContain("cursor=c2");
+	});
+
+	it("throws on HTTP errors instead of publishing a partial catalog", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => ({ ok: false, status: 401, json: async () => ({}) })),
+		);
+		await expect(fetchMergeModels("bad-key")).rejects.toThrow(/401/);
+	});
+
+	it("short-circuits without a key", async () => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		const models = await fetchMergeModels("");
+		expect(models).toEqual([]);
+		expect(fetchMock).not.toHaveBeenCalled();
 	});
 });

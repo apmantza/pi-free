@@ -96,9 +96,9 @@ function asStringArray(value: unknown): string[] {
  * only: cheapest price, largest context/output window, OR-ed capability
  * flags, and text-chat eligibility (input text AND output text).
  */
-function summarizeVendors(vendors: Record<string, MergeVendorRoute>):
-	| VendorSummary
-	| undefined {
+function summarizeVendors(
+	vendors: Record<string, MergeVendorRoute>,
+): VendorSummary | undefined {
 	let summary: VendorSummary | undefined;
 	for (const route of Object.values(vendors)) {
 		if (!route || typeof route !== "object") continue;
@@ -125,20 +125,23 @@ function summarizeVendors(vendors: Record<string, MergeVendorRoute>):
 			summary = candidate;
 			continue;
 		}
-		summary.contextWindow =
-			Math.max(summary.contextWindow ?? -1, candidate.contextWindow ?? -1) >= 0
-				? Math.max(
-						summary.contextWindow ?? FALLBACK_CONTEXT_WINDOW,
-						candidate.contextWindow ?? 0,
-					)
-				: summary.contextWindow;
-		summary.maxTokens = Math.max(
-			summary.maxTokens ?? 0,
-			candidate.maxTokens ?? 0,
+		// Largest KNOWN window across routes; stays undefined while no route
+		// publishes one — the fallback must never participate as a candidate.
+		const maxDefined = (
+			a: number | undefined,
+			b: number | undefined,
+		): number | undefined =>
+			a === undefined ? b : b === undefined ? a : Math.max(a, b);
+		summary.contextWindow = maxDefined(
+			summary.contextWindow,
+			candidate.contextWindow,
 		);
+		summary.maxTokens = maxDefined(summary.maxTokens, candidate.maxTokens);
 		summary.reasoning = summary.reasoning || candidate.reasoning;
 		summary.imageInput = summary.imageInput || candidate.imageInput;
-		// Cheapest available route wins, per field, treating absent as worst.
+		// Cheapest available route wins per field across vendors (input price
+		// may legitimately come from a different vendor than output price),
+		// treating absent as worst.
 		for (const key of [
 			"inputPerMillion",
 			"outputPerMillion",
@@ -195,7 +198,8 @@ export function mapMergeModel(
 		cost: {
 			input: pricingKnown ? (summary.inputPerMillion ?? 0) / 1_000_000 : 0,
 			output: pricingKnown ? (summary.outputPerMillion ?? 0) / 1_000_000 : 0,
-			cacheRead: (summary.cacheReadPerMillion ?? 0) / 1_000_000,
+			// Clamp: a malformed negative cache price must not publish negative cost.
+			cacheRead: Math.max(0, summary.cacheReadPerMillion ?? 0) / 1_000_000,
 			cacheWrite: 0,
 		},
 		contextWindow: summary.contextWindow ?? FALLBACK_CONTEXT_WINDOW,
@@ -242,7 +246,7 @@ export async function fetchMergeModels(
 			(cursor ? `&cursor=${encodeURIComponent(cursor)}` : "");
 
 		const response = await fetchWithRetry(
-			url.toString(),
+			url,
 			{ headers, signal },
 			1,
 			1_000,
