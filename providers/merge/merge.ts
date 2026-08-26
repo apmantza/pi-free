@@ -36,14 +36,14 @@ import { mergeAuth } from "./merge-auth.ts";
 import { fetchMergeModels } from "./merge-models.ts";
 
 export default function mergeProvider(pi: ExtensionAPI): Promise<void> {
-	registerNativeOpenAIProvider(pi, {
-		providerId: PROVIDER_MERGE,
-		name: "Merge Gateway",
-		baseUrl: BASE_URL_MERGE,
-		auth: mergeAuth,
-		getApiKey: getMergeApiKey,
-		getShowPaid: getMergeShowPaid,
-		fetchModels: (apiKey, signal) => fetchMergeModels(apiKey, signal),
-	});
-	return Promise.resolve();
+ registerNativeOpenAIProvider(pi, {
+  providerId: PROVIDER_MERGE,
+  name: "Merge Gateway",
+  baseUrl: BASE_URL_MERGE,
+  auth: mergeAuth,
+  getApiKey: getMergeApiKey,
+  getShowPaid: getMergeShowPaid,
+  fetchModels: (apiKey, signal) => fetchMergeModels(apiKey, signal),
+ });
+ return Promise.resolve();
 }

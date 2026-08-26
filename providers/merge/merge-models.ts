@@ -1,28 +1,30 @@
 /**
- * Merge Gateway model catalog (api-gateway.merge.dev/v1/openai/models).
+ * Merge Gateway model catalog (api-gateway.merge.dev/v1/models).
  *
- * Merge (merge.dev) runs a multi-vendor LLM gateway with an OpenAI-compatible
- * surface. The /models schema is the minimal OpenAI-standard shape — flat
- * `id`, `object`, `created`, `owned_by` only (verified live, 264 entries).
- * Unlike OpenRouter-style catalogs there are NO pricing fields, NO context
- * window / max-output tokens, and NO modality or category fields, so every
- * value pi-free needs beyond the id comes from documented fallbacks or an
- * id-based heuristic. Mapped here instead of through the shared
- * OpenRouter-compatible fetcher.
+ * Merge (merge.dev) runs a multi-vendor LLM gateway with two surfaces: an
+ * OpenAI-compatible chat shim under /v1/openai/ and a richer native Gateway
+ * API under /v1/. This fetcher uses the NATIVE catalog endpoint because the
+ * OpenAI shim exposes only {id, object, created, owned_by}, while the native
+ * one carries everything pi-free needs:
+ *   - display_name, provider/model id
+ *   - per-vendor routes with availability_status, context_window,
+ *     max_output_tokens, capabilities (input/output modalities, reasoning,
+ *     streaming) and pricing in USD PER MILLION tokens
+ *     (input_per_million / output_per_million, plus optional flex/priority
+ *     tiers and cache_read_per_million)
  *
- * Pricing units: the catalog exposes no pricing at all; per-request cost is
- * only reported in chat `usage.cost` as USD per token (live-verified:
- * openai/gpt-4.1-nano returned 1.3e-06 for 9 prompt + 1 completion tokens,
- * matching $0.10/$0.40 per million list pricing). Because no catalog pricing
- * is exposed, costs map to 0/0 WITHOUT the `_pricingKnown` stamp — free-model
- * detection falls back to Route B name-based classification.
+ * Multi-vendor models route to any available vendor; pi-free publishes the
+ * CHEAPEST available route's price and the LARGEST context/output limits so
+ * no capability is understated.
  *
- * Free models: none observed. No zero-priced or `:free` ids exist in the
- * catalog (checked live); the gateway bills every request.
+ * Pricing units: pi-free Model.cost fields are USD per token (OpenRouter
+ * convention) -> divide per-million values by 1e6. Route A authority is
+ * stamped (_pricingKnown) ONLY when both standard-tier prices arrived as
+ * genuine non-negative finite numbers on at least one available vendor;
+ * otherwise costs stay 0 without the stamp and detection degrades to Route B.
  *
- * Non-chat entries: the schema has no category field, so known non-chat ids
- * (embeddings, transcription/TTS, image-generation, safety classifiers) are
- * excluded by a conservative id pattern instead of a structured filter.
+ * Free models: verified live — nvidia/nemotron-3.5-lightning-30b-a3b is
+ * $0/$0 per million via its nvidia route (2026-08-26 audit).
  */
 
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
@@ -33,104 +35,241 @@ import {
 	PROVIDER_MERGE,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
-import { isLikelyReasoningModel } from "../../lib/provider-compat.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
 
 const _logger = createLogger("merge-models");
 
-interface MergeCatalogModel {
-	id?: unknown;
-	object?: unknown;
-	owned_by?: unknown;
+/** Native Gateway root (chat shim lives under ${BASE_URL_MERGE}). */
+const GATEWAY_API_ROOT = BASE_URL_MERGE.replace(/\/openai$/, "");
+
+interface MergeVendorRoute {
+	availability_status?: unknown;
+	context_window?: unknown;
+	max_output_tokens?: unknown;
+	capabilities?: {
+		input?: unknown;
+		output?: unknown;
+		supports_reasoning?: unknown;
+	};
+	pricing?: {
+		input_per_million?: unknown;
+		output_per_million?: unknown;
+		cache_read_per_million?: unknown;
+		cache_write_per_million?: unknown;
+	};
 }
 
-/** Fallback context window: the catalog omits context data entirely. */
-const FALLBACK_CONTEXT_WINDOW = 128_000;
+interface MergeCatalogModel {
+	model?: unknown;
+	display_name?: unknown;
+	vendors?: unknown;
+}
 
-/** Fallback max output tokens: the catalog omits output limits entirely. */
+interface VendorSummary {
+	contextWindow: number | undefined;
+	maxTokens: number | undefined;
+	reasoning: boolean;
+	imageInput: boolean;
+	textChat: boolean;
+	inputPerMillion: number | undefined;
+	outputPerMillion: number | undefined;
+	cacheReadPerMillion: number | undefined;
+}
+
+const FALLBACK_CONTEXT_WINDOW = 128_000;
 const FALLBACK_MAX_TOKENS = 4_096;
 
-/**
- * Ids the gateway serves over /models but that are not usable agent chat
- * models: embeddings (`*-embedding-*`), transcription (`whisper-*`),
- * image-generation (`*-image`, `-image-*`), and safety classifiers
- * (`*safeguard*`). Conservative — anything not matching is kept.
- */
-const NON_CHAT_ID_PATTERN =
-	/(embedding|whisper|-tts|audio|moderation|safeguard|-image($|[-_.]))/i;
+function asNumber(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
 
-function asString(value: unknown): string | undefined {
-	return typeof value === "string" && value.length > 0 ? value : undefined;
+function asStringArray(value: unknown): string[] {
+	return Array.isArray(value)
+		? value
+				.filter((v): v is string => typeof v === "string")
+				.map((v) => v.toLowerCase())
+		: [];
 }
 
 /**
- * Map one catalog entry to the pi-free model config shape. Returns undefined
- * for entries without a usable id and for known non-chat ids rather than
- * guessing.
+ * Collapse a model's vendor routes into one summary over AVAILABLE vendors
+ * only: cheapest price, largest context/output window, OR-ed capability
+ * flags, and text-chat eligibility (input text AND output text).
+ */
+function summarizeVendors(vendors: Record<string, MergeVendorRoute>):
+	| VendorSummary
+	| undefined {
+	let summary: VendorSummary | undefined;
+	for (const route of Object.values(vendors)) {
+		if (!route || typeof route !== "object") continue;
+		if (route.availability_status !== "available") continue;
+
+		const caps = route.capabilities ?? {};
+		const input = asStringArray(caps.input);
+		const output = asStringArray(caps.output);
+		// Agent chat needs text in and text out (tool_use alone is not enough).
+		if (!input.includes("text") || !output.includes("text")) continue;
+
+		const pricing = route.pricing ?? {};
+		const candidate: VendorSummary = {
+			contextWindow: asNumber(route.context_window),
+			maxTokens: asNumber(route.max_output_tokens),
+			reasoning: caps.supports_reasoning === true,
+			imageInput: input.includes("image"),
+			textChat: true,
+			inputPerMillion: asNumber(pricing.input_per_million),
+			outputPerMillion: asNumber(pricing.output_per_million),
+			cacheReadPerMillion: asNumber(pricing.cache_read_per_million),
+		};
+		if (!summary) {
+			summary = candidate;
+			continue;
+		}
+		summary.contextWindow =
+			Math.max(summary.contextWindow ?? -1, candidate.contextWindow ?? -1) >= 0
+				? Math.max(
+						summary.contextWindow ?? FALLBACK_CONTEXT_WINDOW,
+						candidate.contextWindow ?? 0,
+					)
+				: summary.contextWindow;
+		summary.maxTokens = Math.max(
+			summary.maxTokens ?? 0,
+			candidate.maxTokens ?? 0,
+		);
+		summary.reasoning = summary.reasoning || candidate.reasoning;
+		summary.imageInput = summary.imageInput || candidate.imageInput;
+		// Cheapest available route wins, per field, treating absent as worst.
+		for (const key of [
+			"inputPerMillion",
+			"outputPerMillion",
+			"cacheReadPerMillion",
+		] as const) {
+			const cur = summary[key];
+			const next = candidate[key];
+			if (cur === undefined || (next !== undefined && next < cur)) {
+				summary[key] = next;
+			}
+		}
+	}
+	return summary;
+}
+
+/**
+ * Map one native-catalog entry to the pi-free model config shape. Returns
+ * undefined for entries without a usable id or with no available text-chat
+ * vendor route rather than guessing.
  */
 export function mapMergeModel(
 	entry: MergeCatalogModel,
 ): ProviderModelConfig | undefined {
-	const id = asString(entry.id);
+	const id = typeof entry.model === "string" ? entry.model : undefined;
 	if (!id) return undefined;
-	if (NON_CHAT_ID_PATTERN.test(id)) return undefined;
-	const name = id;
+	if (!entry.vendors || typeof entry.vendors !== "object") return undefined;
+
+	const summary = summarizeVendors(
+		entry.vendors as Record<string, MergeVendorRoute>,
+	);
+	if (!summary) return undefined;
+
+	const name =
+		typeof entry.display_name === "string" && entry.display_name.length > 0
+			? entry.display_name
+			: id;
+
+	// Route A authority requires BOTH standard-tier prices as genuine
+	// non-negative finite numbers on some available vendor (verified live for
+	// every chat route audited); otherwise detection falls back to Route B.
+	const pricingKnown =
+		summary.inputPerMillion !== undefined &&
+		summary.outputPerMillion !== undefined &&
+		summary.inputPerMillion >= 0 &&
+		summary.outputPerMillion >= 0;
+
 	return {
 		id,
 		name,
-		reasoning: isLikelyReasoningModel({ id, name }),
-		input: ["text"] as const,
-		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: FALLBACK_CONTEXT_WINDOW,
-		maxTokens: FALLBACK_MAX_TOKENS,
-		// SAFETY: no _pricingKnown stamp — the catalog exposes no pricing, so
-		// Route A cost detection must NOT be marked authoritative; isFreeModel
-		// classifies these via Route B (name-based) instead.
-	} as ProviderModelConfig;
+		reasoning: summary.reasoning,
+		input: summary.imageInput
+			? (["text", "image"] as const)
+			: (["text"] as const),
+		cost: {
+			input: pricingKnown ? (summary.inputPerMillion ?? 0) / 1_000_000 : 0,
+			output: pricingKnown ? (summary.outputPerMillion ?? 0) / 1_000_000 : 0,
+			cacheRead: (summary.cacheReadPerMillion ?? 0) / 1_000_000,
+			cacheWrite: 0,
+		},
+		contextWindow: summary.contextWindow ?? FALLBACK_CONTEXT_WINDOW,
+		maxTokens: summary.maxTokens || FALLBACK_MAX_TOKENS,
+		// SAFETY: the _pricingKnown marker (consumed by isFreeModel, never by
+		// pi-ai) is stamped only when real catalog pricing was parsed; see the
+		// pricingKnown guard above.
+		_pricingKnown: pricingKnown,
+	} as ProviderModelConfig & { _pricingKnown?: boolean };
+}
+
+interface MergeCatalogPage {
+	data?: unknown;
+	has_more?: unknown;
+	next_cursor?: unknown;
 }
 
 /**
- * Fetch the complete catalog. The endpoint is keyed — anonymous requests
- * return HTTP 401 (verified live) — so a real key is required even for
- * discovery.
+ * Fetch the complete native catalog, following cursor pagination. The
+ * endpoint is keyed — anonymous requests return HTTP 401 (verified live) —
+ * so a real key is required even for discovery.
  */
 export async function fetchMergeModels(
 	apiKey: string,
 	signal?: AbortSignal,
 ): Promise<ProviderModelConfig[]> {
+	if (!apiKey) {
+		_logger.warn("Merge catalog requires an API key; skipping fetch");
+		return [];
+	}
 	const headers: Record<string, string> = {
+		Authorization: `Bearer ${apiKey}`,
 		Accept: "application/json",
 	};
-	if (apiKey) {
-		headers.Authorization = `Bearer ${apiKey}`;
-	}
-	const response = await fetchWithRetry(
-		`${BASE_URL_MERGE}/models`,
-		{
-			headers,
-			signal,
-		},
-		1,
-		1_000,
-		DEFAULT_FETCH_TIMEOUT_MS,
-	);
-	if (!response.ok) {
-		throw new Error(`Merge catalog returned HTTP ${response.status}`);
-	}
-	const payload: unknown = await response.json();
-	const entries =
-		payload &&
-		typeof payload === "object" &&
-		Array.isArray((payload as { data?: unknown }).data)
-			? ((payload as { data: unknown[] }).data as MergeCatalogModel[])
-			: [];
+
 	const models: ProviderModelConfig[] = [];
-	for (const entry of entries) {
-		const mapped = mapMergeModel(entry);
-		if (mapped) models.push(mapped);
+	let cursor: string | undefined;
+	// Hard page cap: 500/page means this can only trip on a runaway gateway.
+	for (let page = 0; page < 20; page++) {
+		// String-built query (no URL constructor): GATEWAY_API_ROOT is a
+		// compile-time constant and the cursor is percent-encoded below.
+		const url =
+			`${GATEWAY_API_ROOT}/models?limit=500` +
+			(cursor ? `&cursor=${encodeURIComponent(cursor)}` : "");
+
+		const response = await fetchWithRetry(
+			url.toString(),
+			{ headers, signal },
+			1,
+			1_000,
+			DEFAULT_FETCH_TIMEOUT_MS,
+		);
+		if (!response.ok) {
+			throw new Error(`Merge catalog returned HTTP ${response.status}`);
+		}
+		const payload = (await response.json()) as MergeCatalogPage;
+		const entries = Array.isArray(payload.data)
+			? (payload.data as MergeCatalogModel[])
+			: [];
+		for (const entry of entries) {
+			const mapped = mapMergeModel(entry);
+			if (mapped) models.push(mapped);
+		}
+		if (payload.has_more === true && typeof payload.next_cursor === "string") {
+			cursor = payload.next_cursor;
+		} else {
+			break;
+		}
 	}
+
 	if (models.length === 0) {
 		_logger.warn("Merge catalog returned no usable chat models");
+	} else {
+		_logger.info(`Merge catalog mapped ${models.length} chat models`);
 	}
 	return applyHidden(models, PROVIDER_MERGE);
 }

@@ -14,8 +14,8 @@ import { createNativeApiKeyAuth } from "../../lib/native-provider.ts";
 
 /** Merge Gateway API-key authentication for both catalog refresh and chat requests. */
 export const mergeAuth = createNativeApiKeyAuth({
-	name: "Merge API key",
-	prompt: "Merge API key",
-	source: "MERGE_API_KEY",
-	getApiKey: getMergeApiKey,
+ name: "Merge API key",
+ prompt: "Merge API key",
+ source: "MERGE_API_KEY",
+ getApiKey: getMergeApiKey,
 });
