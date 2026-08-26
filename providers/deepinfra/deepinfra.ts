@@ -55,6 +55,19 @@ import { deepinfraAuth } from "./deepinfra-auth.ts";
 
 const _logger = createLogger("deepinfra");
 
+/**
+ * Media-generation capability tags from DeepInfra's structured metadata.
+ * Zero-priced image/video/audio models carry these tags, so filtering on them
+ * (instead of id substrings) reliably keeps real chat models out of the
+ * free-only view while dropping non-chat entries.
+ */
+const MEDIA_TAGS = new Set(["image-gen", "video-gen", "tts", "stt"]);
+
+function isMediaTagged(tags: string[] | undefined): boolean {
+	if (!tags) return false;
+	return tags.some((tag) => MEDIA_TAGS.has(tag));
+}
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -77,7 +90,7 @@ interface DeepInfraModel {
 // Fetch
 // =============================================================================
 
-async function fetchDeepinfraModels(
+export async function fetchDeepinfraModels(
 	apiKey: string,
 	signal?: AbortSignal,
 ): Promise<ProviderModelConfig[]> {
@@ -108,8 +121,11 @@ async function fetchDeepinfraModels(
 
 	const mapped = models
 		.filter((m) => {
+			// Prefer structured capability tags over id substrings: zero-priced
+			// media models (Seedream, Veo, Whisper, TTS, ...) are tagged.
+			if (isMediaTagged(m.metadata?.tags)) return false;
 			const id = m.id.toLowerCase();
-			// Filter out non-chat models
+			// Fallback for untagged entries
 			if (id.includes("embed")) return false;
 			if (id.includes("rerank")) return false;
 			if (id.includes("whisper")) return false;

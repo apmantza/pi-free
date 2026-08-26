@@ -18,6 +18,10 @@ export async function fetchFastrouterModels(
 		baseUrl: BASE_URL_FASTROUTER,
 		apiKey: apiKey || undefined,
 		signal,
+		// FastRouter's free view must not contain media-generation models:
+		// zero-priced image/audio hybrids (gemini-*-image, prompt-to-audio)
+		// would otherwise be classified as free chat models.
+		excludeOutputModalities: ["image", "audio", "video", "speech"],
 	});
 	return applyHidden(models, PROVIDER_FASTROUTER);
 }

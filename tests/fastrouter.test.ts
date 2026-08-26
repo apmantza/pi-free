@@ -86,4 +86,13 @@ describe("FastRouter native provider", () => {
 			}),
 		);
 	});
+
+	it("excludes media-generation output modalities from the catalog", async () => {
+		await fetchFastrouterModels("");
+		expect(mocks.fetchModels).toHaveBeenCalledWith(
+			expect.objectContaining({
+				excludeOutputModalities: ["image", "audio", "video", "speech"],
+			}),
+		);
+	});
 });

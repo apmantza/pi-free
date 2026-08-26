@@ -67,11 +67,18 @@ interface NovitaModel {
 	status?: number;
 }
 
+/**
+ * Internal Novita smoke-test models (`ai_infer_test_1..3`) are zero-priced and
+ * typed `chat`, but are not real inference endpoints. They carry no
+ * distinguishing structured metadata, so the id pattern is the only signal.
+ */
+const INTERNAL_TEST_MODEL_PATTERN = /^ai_infer_test/;
+
 // =============================================================================
 // Fetch
 // =============================================================================
 
-async function fetchNovitaModels(
+export async function fetchNovitaModels(
 	apiKey: string,
 	signal?: AbortSignal,
 ): Promise<ProviderModelConfig[]> {
@@ -97,9 +104,11 @@ async function fetchNovitaModels(
 		}
 
 		const json = (await response.json()) as { data?: NovitaModel[] };
-		const models = (json.data ?? []).filter(
-			(m) => m.status === 1 && m.model_type === "chat",
-		);
+		const models = (json.data ?? [])
+			.filter((m) => m.status === 1 && m.model_type === "chat")
+			// Novita exposes internal smoke-test entries (`ai_infer_test_1..3`)
+			// as zero-priced chat models; they are not usable endpoints.
+			.filter((m) => !INTERNAL_TEST_MODEL_PATTERN.test(m.id));
 
 		_logger.info(`[novita] Fetched ${models.length} models`);
 
