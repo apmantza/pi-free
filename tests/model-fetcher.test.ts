@@ -61,6 +61,44 @@ describe("fetchOpenRouterCompatibleModels", () => {
 		]);
 	});
 
+	it("keeps text+image hybrids unless excludeOutputModalities is set", async () => {
+		const data = [
+			{
+				id: "text-only",
+				name: "Text Only",
+				context_length: 128000,
+				architecture: { output_modalities: ["text"] },
+			},
+			{
+				id: "image-hybrid",
+				name: "Image Hybrid",
+				context_length: 128000,
+				architecture: { output_modalities: ["image", "text"] },
+			},
+			{
+				id: "audio-gen",
+				name: "Audio Gen",
+				context_length: 128000,
+				architecture: { output_modalities: ["audio"] },
+			},
+		];
+
+		// Default: hybrids stay (existing behavior for kilo/built-in openrouter).
+		stubModels(data);
+		const permissive = await fetchOpenRouterCompatibleModels({
+			baseUrl: "https://example.test/api/gateway",
+		});
+		expect(permissive.map((m) => m.id)).toEqual(["text-only", "image-hybrid"]);
+
+		// Strict: any listed output modality drops the model, even with text.
+		stubModels(data);
+		const strict = await fetchOpenRouterCompatibleModels({
+			baseUrl: "https://example.test/api/gateway",
+			excludeOutputModalities: ["image", "audio", "video", "speech"],
+		});
+		expect(strict.map((m) => m.id)).toEqual(["text-only"]);
+	});
+
 	it("omits the Authorization header for anonymous catalog fetches (#421)", async () => {
 		const fetchMock = stubModels([
 			{

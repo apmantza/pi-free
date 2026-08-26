@@ -189,6 +189,8 @@ export BAI_API_KEY="..."
 
 Or set `bai_api_key`. Toggle with `/toggle-bai`.
 
+Three models are currently documented as free on the B.AI API and are stamped free in the catalog: `deepseek-v4-flash`, `deepseek-v4-flash-vision-exp`, and `mimo-v2.5` (source: [B.AI pricing](https://docs.b.ai/llmservice/pricing-and-usage/), audited 2026-08-26). This is a time-limited promotion — revisit the pricing page before relying on it.
+
 ## Qoder (native)
 
 Qoder has a basic Community/free tier and premium models that consume plan credits. Its static curated catalog is restored and persisted through Pi's native models-store lifecycle; the legacy cache is retained only for optional stream metadata.

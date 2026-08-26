@@ -40,6 +40,13 @@ interface FetchModelsOptions {
 	apiKey?: string;
 	/** Only return free models (pricing === 0) */
 	freeOnly?: boolean;
+	/**
+	 * Drop models whose `architecture.output_modalities` include ANY of these
+	 * modalities, even when "text" is also present (e.g. image-generation
+	 * hybrids like gemini-flash-image). Unlike the default text-output check,
+	 * this never keeps such models for chat use.
+	 */
+	excludeOutputModalities?: string[];
 	/** Additional headers to include */
 	extraHeaders?: Record<string, string>;
 	/** Abort signal owned by the native provider refresh lifecycle. */
@@ -61,6 +68,7 @@ export async function fetchOpenRouterCompatibleModels(
 		baseUrl,
 		apiKey,
 		freeOnly = false,
+		excludeOutputModalities,
 		extraHeaders = {},
 		retries = 3,
 		retryDelay = 1000,
@@ -109,6 +117,14 @@ export async function fetchOpenRouterCompatibleModels(
 			// modality info to avoid over-filtering older endpoints.
 			const outputMods = m.architecture?.output_modalities ?? [];
 			if (outputMods.length > 0 && !outputMods.includes("text")) return false;
+
+			// Stricter capability exclusion for providers whose free views must
+			// not contain media-generation hybrids (image+text output etc.).
+			if (
+				excludeOutputModalities &&
+				outputMods.some((mod) => excludeOutputModalities.includes(mod))
+			)
+				return false;
 
 			// Filter by provider flag when available, otherwise pricing.
 			if (freeOnly) {
