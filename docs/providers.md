@@ -185,6 +185,10 @@ export BAI_API_KEY="..."
 
 Or set `bai_api_key`. Toggle with `/toggle-bai`.
 
+### Merge Gateway
+
+[Merge](https://merge.dev) is a multi-vendor LLM gateway with an OpenAI-compatible API at `https://api-gateway.merge.dev/v1/openai/chat/completions`. The model catalog (`/v1/openai/models`, ~264 entries from OpenAI, Anthropic, Google, Meta, Mistral, xAI, Qwen, DeepSeek, and more) is keyed — anonymous requests return HTTP 401 — so `MERGE_API_KEY` (or `merge_api_key`) is required before models appear; toggle with `/toggle-merge`. The catalog exposes only the minimal OpenAI-standard fields (`id`, `object`, `created`, `owned_by`) with no pricing, context-window, or modality data, so pi-free applies documented fallbacks (128k context / 4k output) and filters known non-chat ids (embeddings, transcription, image generation, safety classifiers). Per-request cost is USD per token in chat `usage.cost`, but since no catalog pricing is published, no `_pricingKnown` stamp is applied and free-model detection runs on Route B name-based classification — currently yielding an empty free set (no zero-priced models observed).
+
 ## Qoder (native)
 
 Qoder has a basic Community/free tier and premium models that consume plan credits. Its static curated catalog is restored and persisted through Pi's native models-store lifecycle; the legacy cache is retained only for optional stream metadata.

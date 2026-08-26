@@ -121,4 +121,29 @@ describe("mapInfronModel", () => {
 		expect(bare?.maxTokens).toBe(4_096);
 		expect(bare?.input).toEqual(["text"]);
 	});
+
+	it("refuses Route A authority when prices are not genuine numbers", () => {
+		// A string/null/absent/negative price must NOT masquerade as verified
+		// $0 — that would stamp paid models authoritatively free.
+		for (const bad of [
+			{ min_prompt_price: "0.125", min_completion_price: 0.75 },
+			{ min_prompt_price: null, min_completion_price: 0.75 },
+			{ min_prompt_price: undefined, min_completion_price: undefined },
+			{ min_prompt_price: -1, min_completion_price: 1 },
+		]) {
+			const model = mapInfronModel(
+				catalogEntry({
+					id: "vendor/paid-model",
+					display_name: "Vendor: Paid Model",
+					...bad,
+				}),
+			) as unknown as {
+				_pricingKnown?: boolean;
+				cost: { input: number; output: number };
+			};
+			expect(model._pricingKnown).toBe(false);
+			expect(model.cost.input).toBe(0);
+			expect(model.cost.output).toBe(0);
+		}
+	});
 });

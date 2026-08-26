@@ -71,7 +71,13 @@ export function mapInfronModel(
 	if (typeof entry.id !== "string" || entry.id.length === 0) return undefined;
 	// Only chat-completion LLMs are usable as agent models; the catalog also
 	// lists embeddings, rerankers, image/video generation, TTS, and search.
-	if (entry.category_type !== "LLM") return undefined;
+	// Case-insensitive: the gateway's casing is inconsistent across fields.
+	if (
+		typeof entry.category_type !== "string" ||
+		entry.category_type.toUpperCase() !== "LLM"
+	) {
+		return undefined;
+	}
 	if (entry.is_display_only === true) return undefined;
 
 	const name =
@@ -81,8 +87,16 @@ export function mapInfronModel(
 	const inputMods = asStringArray(entry.input_modalities);
 
 	// Min prices are USD per million tokens -> convert to pi-free per-token.
-	const input = (asNumber(entry.min_prompt_price) ?? 0) / 1_000_000;
-	const output = (asNumber(entry.min_completion_price) ?? 0) / 1_000_000;
+	// Route A authority requires BOTH prices to arrive as genuine non-negative
+	// finite numbers: a string/null/absent/negative price must NOT masquerade
+	// as a verified $0 (that would stamp a paid model authoritatively free).
+	const promptPrice = asNumber(entry.min_prompt_price);
+	const completionPrice = asNumber(entry.min_completion_price);
+	const pricingKnown =
+		promptPrice !== undefined &&
+		completionPrice !== undefined &&
+		promptPrice >= 0 &&
+		completionPrice >= 0;
 
 	return {
 		id: entry.id,
@@ -91,14 +105,21 @@ export function mapInfronModel(
 		input: inputMods.includes("image")
 			? (["text", "image"] as const)
 			: (["text"] as const),
-		cost: { input, output, cacheRead: 0, cacheWrite: 0 },
+		cost: {
+			input: pricingKnown ? promptPrice / 1_000_000 : 0,
+			output: pricingKnown ? completionPrice / 1_000_000 : 0,
+			cacheRead: 0,
+			cacheWrite: 0,
+		},
 		contextWindow: asNumber(entry.context_length) ?? FALLBACK_CONTEXT_WINDOW,
 		maxTokens: asNumber(entry.max_output_tokens) ?? FALLBACK_MAX_TOKENS,
-		// SAFETY: the catalog exposes min pricing for every LLM entry, so stamp
-		// the undocumented _pricingKnown marker consumed by isFreeModel to mark
-		// cost-based (Route A) detection authoritative for these models; the
-		// field is metadata only and never read by pi-ai.
-		_pricingKnown: true,
+		// SAFETY: stamp the undocumented _pricingKnown marker consumed by
+		// isFreeModel ONLY when both prices were genuine numbers (verified live
+		// at implementation time for every LLM entry); otherwise leave it false
+		// so detection degrades to Route B's name-based fallback instead of
+		// trusting fabricated $0 costs. The field is metadata only and never
+		// read by pi-ai.
+		_pricingKnown: pricingKnown,
 	} as ProviderModelConfig & { _pricingKnown?: boolean };
 }
 
