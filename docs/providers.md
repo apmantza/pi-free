@@ -105,6 +105,10 @@ Agnes AI is a native OpenAI-compatible provider mixing free and paid chat models
 
 Venice AI is a native OpenAI-compatible provider mixing free-classified and paid chat models. Pi uses the inference API at `https://api.venice.ai/api/v1/chat/completions` (100+ text models billed in USD or DIEM per million tokens); the same base also exposes `GET /models?type=text`. The model catalog is public, so models appear before login, but chat requires `VENICE_API_KEY` or `venice_api_key`; toggle with `/toggle-venice`. Free/paid classification follows the published pricing (zero-priced models count as free). **Balance gate:** Venice requires a positive account balance for all inference — including zero-priced models, which answer HTTP 402 on unfunded keys — so a model classified as free can still fail at request time until the account is funded.
 
+### Infron AI
+
+Infron AI (infron.ai) is a unified AI gateway with passthrough pricing and pooled upstream uptime; its OpenAI-compatible API runs on the OneRouter gateway at `https://llm.onerouter.pro/v1/chat/completions`. The catalog is public (anonymous `/models` returns 200), so models appear before login; chat requires `INFRON_API_KEY` or `infron_api_key`; toggle with `/toggle-infron`. The catalog mixes ~285 chat LLM entries with embeddings/image/video entries (filtered out); min prices are USD per million tokens, and the zero-priced entries (currently five, including three explicit `:free` ids) classify as free via Route A.
+
 ### FastRouter
 
 FastRouter is a native OpenAI-compatible provider with a public catalog. Pi restores its model store first and refreshes the catalog asynchronously; a key is required for chat requests but not model listing. Set `FASTROUTER_API_KEY` or `fastrouter_api_key`, then use `/toggle-fastrouter`.
