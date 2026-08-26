@@ -55,6 +55,26 @@ function isBaiKnownFree(modelId: string): boolean {
 	return modelId.toLowerCase().endsWith(":free");
 }
 
+/**
+ * Models B.AI's official pricing page documents as FREE on the API.
+ *
+ * Source: https://docs.b.ai/llmservice/pricing-and-usage/
+ * Verified live against https://api.b.ai/v1/models on 2026-08-26 — all three
+ * ids were present in the authenticated catalog.
+ *
+ * CAVEAT: the page's wording is time-limited promotion semantics —
+ *   - deepseek-v4-flash: "currently free on B.AI Chat and API"
+ *   - deepseek-v4-flash-vision-exp: "currently free for B.AI API use"
+ *   - mimo-v2.5: "API usage currently free"
+ * REVISIT: re-check the pricing page periodically (first check added
+ * 2026-08-26) and remove any id whose free window has ended.
+ */
+export const BAI_DOCUMENTED_FREE_MODEL_IDS: ReadonlySet<string> = new Set([
+	"deepseek-v4-flash",
+	"deepseek-v4-flash-vision-exp",
+	"mimo-v2.5",
+]);
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -89,14 +109,15 @@ function isTextChatModel(model: BaiModel): boolean {
 	return endpoints.some((t) => CHAT_ENDPOINT_TYPES.has(t));
 }
 
-function mapBaiModel(model: BaiModel): ProviderModelConfig & {
+export function mapBaiModel(model: BaiModel): ProviderModelConfig & {
 	_pricingKnown?: boolean;
 	_freeKnown?: boolean;
 	_isFree?: boolean;
 } {
 	const name = cleanModelName(model.id);
 	const reasoning = isLikelyReasoningModel({ id: model.id, name });
-	const isKnownFree = isBaiKnownFree(model.id);
+	const isKnownFree =
+		isBaiKnownFree(model.id) || BAI_DOCUMENTED_FREE_MODEL_IDS.has(model.id);
 
 	return {
 		id: model.id,
