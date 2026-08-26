@@ -107,7 +107,11 @@ Venice AI is a native OpenAI-compatible provider mixing free-classified and paid
 
 ### Infron AI
 
-Infron AI (infron.ai) is a unified AI gateway with passthrough pricing and pooled upstream uptime; its OpenAI-compatible API runs on the OneRouter gateway at `https://llm.onerouter.pro/v1/chat/completions`. The catalog is public (anonymous `/models` returns 200), so models appear before login; chat requires `INFRON_API_KEY` or `infron_api_key`; toggle with `/toggle-infron`. The catalog mixes ~285 chat LLM entries with embeddings/image/video entries (filtered out); min prices are USD per million tokens, and the zero-priced entries (currently five, including three explicit `:free` ids) classify as free via Route A.
+Infron AI (infron.ai) is a unified AI gateway with passthrough pricing and pooled upstream uptime; its OpenAI-compatible API runs on the OneRouter gateway at `https://llm.onerouter.pro/v1/chat/completions`. The catalog is public (anonymous `/models` returns 200), so models appear before login; chat requires `INFRON_API_KEY` or `infron_api_key`; toggle with `/toggle-infron`. The catalog mixes ~285 chat LLM entries with embeddings/image/video entries (filtered out); min prices are USD per million tokens, and the zero-priced entries (currently five, including three explicit `:free` ids) classify as free via Route A
+
+### Merge Gateway
+
+[Merge](https://merge.dev) is a multi-vendor LLM gateway with an OpenAI-compatible chat shim at `https://api-gateway.merge.dev/v1/openai/chat/completions`. Model discovery uses Merge's **native Gateway API** (`GET /v1/models`) rather than the minimal OpenAI shim catalog, because the native endpoint carries display names, per-vendor routes with availability status, context windows, max output tokens, capability flags (text/image input, reasoning, streaming), and pricing in USD per million tokens — all of which pi-free maps directly (cheapest available vendor's price, largest window, OR-ed capabilities). The catalog (~275 chat-capable entries after filtering non-text routes) is keyed — anonymous requests return HTTP 401 — so `MERGE_API_KEY` (or `merge_api_key`) is required before models appear; toggle with `/toggle-merge`. Free models: `nvidia/nemotron-3.5-lightning-30b-a3b` is published at $0/$0 per million via its nvidia route and classifies free via Route A pricing detection (verified live 2026-08-26).
 
 ### FastRouter
 

@@ -29,6 +29,7 @@ export const PROVIDER_GMI = "gmi";
 export const PROVIDER_AGNES = "agnes";
 export const PROVIDER_VENICE = "venice";
 export const PROVIDER_INFRON = "infron";
+export const PROVIDER_MERGE = "merge";
 
 // Built-in pi providers that pi-free wraps with toggles
 export const PROVIDER_OPENROUTER = "openrouter";
@@ -78,6 +79,8 @@ export const BASE_URL_AGNES = "https://apihub.agnes-ai.com/v1";
 export const BASE_URL_VENICE = "https://api.venice.ai/api/v1";
 /** Infron AI unified gateway (OneRouter) OpenAI-compatible API base URL. */
 export const BASE_URL_INFRON = "https://llm.onerouter.pro/v1";
+/** Merge Gateway OpenAI-compatible API base URL (keyed catalog). */
+export const BASE_URL_MERGE = "https://api-gateway.merge.dev/v1/openai";
 export const BASE_URL_QODER = "https://api2-v2.qoder.sh";
 
 /** Cline fetches free models from OpenRouter */
