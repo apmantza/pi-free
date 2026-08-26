@@ -62,6 +62,7 @@ import novita from "./providers/novita/novita.ts";
 import venice from "./providers/venice/venice.ts";
 import infron from "./providers/infron/infron.ts";
 import merge from "./providers/merge/merge.ts";
+import commandcode from "./providers/commandcode/commandcode.ts";
 import routeway from "./providers/routeway/routeway.ts";
 import opengateway from "./providers/opengateway/opengateway.ts";
 import tokenRouter from "./providers/tokenrouter/tokenrouter.ts";
@@ -92,6 +93,7 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 	venice,
 	infron,
 	merge,
+	commandcode,
 	fastrouter,
 	requesty,
 	stepfun,

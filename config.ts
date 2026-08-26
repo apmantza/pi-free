@@ -46,6 +46,7 @@ import {
 	PROVIDER_VENICE,
 	PROVIDER_INFRON,
 	PROVIDER_MERGE,
+	PROVIDER_COMMANDCODE,
 } from "./constants.ts";
 export {
 	PROVIDER_ANYAPI,
@@ -105,6 +106,7 @@ interface PiFreeConfig {
 	venice_api_key?: string;
 	infron_api_key?: string;
 	merge_api_key?: string;
+	commandcode_api_key?: string;
 	routeway_api_key?: string;
 	opengateway_api_key?: string;
 	fastrouter_api_key?: string;
@@ -132,6 +134,7 @@ interface PiFreeConfig {
 	venice_show_paid?: boolean;
 	infron_show_paid?: boolean;
 	merge_show_paid?: boolean;
+	commandcode_show_paid?: boolean;
 	routeway_show_paid?: boolean;
 	opengateway_show_paid?: boolean;
 	fastrouter_show_paid?: boolean;
@@ -161,6 +164,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	venice_api_key: "",
 	infron_api_key: "",
 	merge_api_key: "",
+	commandcode_api_key: "",
 	routeway_api_key: "",
 	opengateway_api_key: "",
 	fastrouter_api_key: "",
@@ -189,6 +193,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	venice_show_paid: false,
 	infron_show_paid: false,
 	merge_show_paid: false,
+	commandcode_show_paid: false,
 	routeway_show_paid: false,
 	opengateway_show_paid: false,
 	fastrouter_show_paid: false,
@@ -426,6 +431,11 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 	{ id: PROVIDER_INFRON, prefix: "INFRON", showPaidKey: "infron_show_paid" },
 	{ id: PROVIDER_MERGE, prefix: "MERGE", showPaidKey: "merge_show_paid" },
 	{
+		id: PROVIDER_COMMANDCODE,
+		prefix: "COMMANDCODE",
+		showPaidKey: "commandcode_show_paid",
+	},
+	{
 		id: PROVIDER_ROUTEWAY,
 		prefix: "ROUTEWAY",
 		showPaidKey: "routeway_show_paid",
@@ -559,6 +569,13 @@ export function getInfronShowPaid(): boolean {
 
 export function getMergeShowPaid(): boolean {
 	return resolveBool("MERGE_SHOW_PAID", loadConfigFile().merge_show_paid);
+}
+
+export function getCommandCodeShowPaid(): boolean {
+	return resolveBool(
+		"COMMANDCODE_SHOW_PAID",
+		loadConfigFile().commandcode_show_paid,
+	);
 }
 
 export function getRoutewayShowPaid(): boolean {
@@ -700,6 +717,10 @@ export function getInfronApiKey(): string | undefined {
 
 export function getMergeApiKey(): string | undefined {
 	return resolve("MERGE_API_KEY", loadConfigFile().merge_api_key);
+}
+
+export function getCommandCodeApiKey(): string | undefined {
+	return resolve("COMMAND_CODE_API_KEY", loadConfigFile().commandcode_api_key);
 }
 
 export function getRoutewayApiKey(): string | undefined {
