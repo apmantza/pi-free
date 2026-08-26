@@ -61,6 +61,7 @@ import sambanova from "./providers/sambanova/sambanova.ts";
 import novita from "./providers/novita/novita.ts";
 import venice from "./providers/venice/venice.ts";
 import infron from "./providers/infron/infron.ts";
+import merge from "./providers/merge/merge.ts";
 import routeway from "./providers/routeway/routeway.ts";
 import opengateway from "./providers/opengateway/opengateway.ts";
 import tokenRouter from "./providers/tokenrouter/tokenrouter.ts";
@@ -90,6 +91,7 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 	novita,
 	venice,
 	infron,
+	merge,
 	fastrouter,
 	requesty,
 	stepfun,

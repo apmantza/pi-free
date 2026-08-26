@@ -107,7 +107,11 @@ Venice AI is a native OpenAI-compatible provider mixing free-classified and paid
 
 ### Infron AI
 
-Infron AI (infron.ai) is a unified AI gateway with passthrough pricing and pooled upstream uptime; its OpenAI-compatible API runs on the OneRouter gateway at `https://llm.onerouter.pro/v1/chat/completions`. The catalog is public (anonymous `/models` returns 200), so models appear before login; chat requires `INFRON_API_KEY` or `infron_api_key`; toggle with `/toggle-infron`. The catalog mixes ~285 chat LLM entries with embeddings/image/video entries (filtered out); min prices are USD per million tokens, and the zero-priced entries (currently five, including three explicit `:free` ids) classify as free via Route A.
+Infron AI (infron.ai) is a unified AI gateway with passthrough pricing and pooled upstream uptime; its OpenAI-compatible API runs on the OneRouter gateway at `https://llm.onerouter.pro/v1/chat/completions`. The catalog is public (anonymous `/models` returns 200), so models appear before login; chat requires `INFRON_API_KEY` or `infron_api_key`; toggle with `/toggle-infron`. The catalog mixes ~285 chat LLM entries with embeddings/image/video entries (filtered out); min prices are USD per million tokens, and the zero-priced entries (currently five, including three explicit `:free` ids) classify as free via Route A
+
+### Merge Gateway
+
+[Merge](https://merge.dev) is a multi-vendor LLM gateway with an OpenAI-compatible API at `https://api-gateway.merge.dev/v1/openai/chat/completions`. The model catalog (`/v1/openai/models`, ~264 entries from OpenAI, Anthropic, Google, Meta, Mistral, xAI, Qwen, DeepSeek, and more) is keyed — anonymous requests return HTTP 401 — so `MERGE_API_KEY` (or `merge_api_key`) is required before models appear; toggle with `/toggle-merge`. The catalog exposes only the minimal OpenAI-standard fields (`id`, `object`, `created`, `owned_by`) with no pricing, context-window, or modality data, so pi-free applies documented fallbacks (128k context / 4k output) and filters known non-chat ids (embeddings, transcription, image generation, safety classifiers). Per-request cost is USD per token in chat `usage.cost`, but since no catalog pricing is published, no `_pricingKnown` stamp is applied and free-model detection runs on Route B name-based classification — currently yielding an empty free set (no zero-priced models observed).
 
 ### FastRouter
 
