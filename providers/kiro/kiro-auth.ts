@@ -42,7 +42,6 @@ const IDC_PROBE_REGIONS = [
 ];
 
 const PROBE_TIMEOUT_MS = 15_000;
-const POLL_INTERVAL_MS = 5_000;
 const EXPIRES_BUFFER_MS = 5 * 60 * 1000;
 
 type DeviceAuth = {
@@ -57,11 +56,15 @@ type DeviceAuth = {
 async function tryRegisterAndAuthorize(
   startUrl: string,
   region: string,
+  externalSignal?: AbortSignal,
 ): Promise<{ clientId: string; clientSecret: string; oidcEndpoint: string; devAuth: DeviceAuth } | null> {
   const oidcEndpoint = `https://oidc.${region}.amazonaws.com`;
+  const mergedSignal = externalSignal
+    ? AbortSignal.any([externalSignal, AbortSignal.timeout(PROBE_TIMEOUT_MS)])
+    : AbortSignal.timeout(PROBE_TIMEOUT_MS);
   const regResp = await fetch(`${oidcEndpoint}/client/register`, {
     method: "POST",
-    signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+    signal: mergedSignal,
     headers: { "Content-Type": "application/json", "User-Agent": "pi-cli" },
     body: JSON.stringify({
       clientName: "pi-cli",
@@ -74,7 +77,7 @@ async function tryRegisterAndAuthorize(
   const { clientId, clientSecret } = (await regResp.json()) as { clientId: string; clientSecret: string };
   const devResp = await fetch(`${oidcEndpoint}/device_authorization`, {
     method: "POST",
-    signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+    signal: mergedSignal,
     headers: { "Content-Type": "application/json", "User-Agent": "pi-cli" },
     body: JSON.stringify({ clientId, clientSecret, startUrl }),
   });
@@ -106,6 +109,9 @@ async function pollDeviceCode(
 
     const tokResp = await fetch(`${oidcEndpoint}/token`, {
       method: "POST",
+      signal: interaction.signal
+        ? AbortSignal.any([interaction.signal, AbortSignal.timeout(PROBE_TIMEOUT_MS)])
+        : AbortSignal.timeout(PROBE_TIMEOUT_MS),
       headers: { "Content-Type": "application/json", "User-Agent": "pi-cli" },
       body: JSON.stringify({
         clientId,
@@ -123,7 +129,7 @@ async function pollDeviceCode(
         if (tokData.accessToken && tokData.refreshToken) {
           return {
             type: "oauth",
-            refresh: `${tokData.refreshToken}|${clientId}|${clientSecret}|idc`,
+            refresh: tokData.refreshToken,
             access: tokData.accessToken,
             expires: Date.now() + (tokData.expiresIn || 3600) * 1000 - EXPIRES_BUFFER_MS,
             clientId,
@@ -147,7 +153,7 @@ async function runDeviceCodeFlow(interaction: AuthInteraction, startUrl: string,
   return pollDeviceCode(interaction, result.clientId, result.clientSecret, region, result.oidcEndpoint, result.devAuth);
 }
 
-async function runDeviceCodeFlowWithRegionDetection(interaction: AuthInteraction, startUrl: string): Promise<OAuthCredential> {
+async function _runDeviceCodeFlowWithRegionDetection(interaction: AuthInteraction, startUrl: string): Promise<OAuthCredential> {
   interaction.notify({ type: "progress", message: "Detecting your Identity Center region..." });
   for (const region of IDC_PROBE_REGIONS) {
     const result = await tryRegisterAndAuthorize(startUrl, region).catch(() => null);
@@ -201,8 +207,8 @@ async function refreshKiroCredential(credential: OAuthCredential, _signal?: Abor
     } as KiroCredentials;
   }
 
-  const clientId = parts[1] ?? "";
-  const clientSecret = parts[2] ?? "";
+  const clientId = (credential as KiroCredentials).clientId ?? parts[1] ?? "";
+  const clientSecret = (credential as KiroCredentials).clientSecret ?? parts[2] ?? "";
   const ssoEndpoint = `https://oidc.${region}.amazonaws.com`;
   const response = await fetch(`${ssoEndpoint}/token`, {
     method: "POST",
@@ -213,9 +219,13 @@ async function refreshKiroCredential(credential: OAuthCredential, _signal?: Abor
   const data = (await response.json()) as { accessToken: string; refreshToken: string; expiresIn: number };
   return {
     ...credential,
-    refresh: `${data.refreshToken}|${clientId}|${clientSecret}|idc`,
+    refresh: `${data.refreshToken}${clientId ? `|${clientId}` : ""}|${clientSecret}|idc`,
     access: data.accessToken,
     expires: Date.now() + data.expiresIn * 1000 - EXPIRES_BUFFER_MS,
+    clientId,
+    clientSecret,
+    region: (credential as KiroCredentials).region,
+    authMethod: (credential as KiroCredentials).authMethod,
   } as KiroCredentials;
 }
 

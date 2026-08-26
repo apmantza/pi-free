@@ -17,8 +17,8 @@ import type {
 } from "@earendil-works/pi-ai";
 import { PROVIDER_KIRO } from "../../config.ts";
 import { isFreeModel } from "../../lib/registry.ts";
+import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { refreshNativeProviderModels, filterNativeModels } from "../../lib/native-provider.ts";
-import type { StoredModels } from "../../provider-helper.ts";
 import { getKiroShowPaid } from "../../config.ts";
 import { getKiroEndpoints } from "./kiro-endpoints.js";
 import { kiroAuth } from "./kiro-auth.js";
@@ -54,7 +54,6 @@ export function createKiroProvider(): KiroNativeProvider {
   }
 
   async function refreshModels(context: RefreshModelsContext): Promise<void> {
-    let fetchedFree: KiroModelType[] = [];
     await refreshNativeProviderModels(
       PROVIDER_KIRO,
       context,
@@ -77,26 +76,24 @@ export function createKiroProvider(): KiroNativeProvider {
             await updateKiroModelsCache(token, region);
             const cached = getCachedModels(region);
             if (cached.length > 0) {
-              fetchedFree = cached;
               return cached as KiroModelType[];
             }
           } catch {
             // Fall through to bootstrap models
           }
         }
-        // Return bootstrap models as the baseline
-        fetchedFree = kiroModels as unknown as KiroModelType[];
-        const all = kiroModels as unknown as KiroModelType[];
-        // Also stamp the free list
-        const free = all.filter((model) =>
-          isFreeModel({ ...model, provider: PROVIDER_KIRO }, all),
-        );
-        fetchedFree = free;
+        // Return bootstrap models as the baseline with CI scores.
+        const all = enhanceWithCI(
+          kiroModels as unknown as Parameters<typeof enhanceWithCI>[0],
+          PROVIDER_KIRO,
+        ) as KiroModelType[];
         return all;
       },
       (next) => {
         stored.all = next;
-        stored.free = fetchedFree;
+        stored.free = next.filter((model) =>
+          isFreeModel({ ...model, provider: PROVIDER_KIRO }, next),
+        );
       },
     );
   }
