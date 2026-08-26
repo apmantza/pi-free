@@ -29,16 +29,12 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type {
-	Api,
-	Model,
-	ProviderStreams,
-} from "@earendil-works/pi-ai/compat";
+import type { Api, Model, ProviderStreams } from "@earendil-works/pi-ai/compat";
 import { getCommandCodeApiKey, getCommandCodeShowPaid } from "../../config.ts";
 import { BASE_URL_COMMANDCODE, PROVIDER_COMMANDCODE } from "../../constants.ts";
 import {
-	lazyAnthropicMessagesApi,
-	lazyOpenAICompletionsApi,
+ lazyAnthropicMessagesApi,
+ lazyOpenAICompletionsApi,
 } from "../../lib/lazy-compat.ts";
 import { registerNativeOpenAIProvider } from "../../lib/native-provider.ts";
 import { commandCodeAuth } from "./commandcode-auth.ts";
@@ -55,30 +51,30 @@ const anthropicStreams = lazyAnthropicMessagesApi();
  * each reach the gateway over the protocol it serves.
  */
 const dualTransportStreams: ProviderStreams = {
-	stream(model: Model<Api>, context, streamOptions) {
-		const streams =
-			model.api === "anthropic-messages" ? anthropicStreams : openAiStreams;
-		return streams.stream(model, context, streamOptions);
-	},
-	streamSimple(model: Model<Api>, context, streamOptions) {
-		const streams =
-			model.api === "anthropic-messages" ? anthropicStreams : openAiStreams;
-		return streams.streamSimple(model, context, streamOptions);
-	},
+ stream(model: Model<Api>, context, streamOptions) {
+  const streams =
+   model.api === "anthropic-messages" ? anthropicStreams : openAiStreams;
+  return streams.stream(model, context, streamOptions);
+ },
+ streamSimple(model: Model<Api>, context, streamOptions) {
+  const streams =
+   model.api === "anthropic-messages" ? anthropicStreams : openAiStreams;
+  return streams.streamSimple(model, context, streamOptions);
+ },
 };
 
 export default function commandCodeProvider(pi: ExtensionAPI): Promise<void> {
-	registerNativeOpenAIProvider(pi, {
-		providerId: PROVIDER_COMMANDCODE,
-		name: "CommandCode",
-		baseUrl: BASE_URL_COMMANDCODE,
-		auth: commandCodeAuth,
-		getApiKey: getCommandCodeApiKey,
-		getShowPaid: getCommandCodeShowPaid,
-		allowUnauthenticated: true,
-		fetchModels: (apiKey, signal) => fetchCommandCodeModels(apiKey, signal),
-		apiForModel,
-		streams: dualTransportStreams,
-	});
-	return Promise.resolve();
+ registerNativeOpenAIProvider(pi, {
+  providerId: PROVIDER_COMMANDCODE,
+  name: "CommandCode",
+  baseUrl: BASE_URL_COMMANDCODE,
+  auth: commandCodeAuth,
+  getApiKey: getCommandCodeApiKey,
+  getShowPaid: getCommandCodeShowPaid,
+  allowUnauthenticated: true,
+  fetchModels: (apiKey, signal) => fetchCommandCodeModels(apiKey, signal),
+  apiForModel,
+  streams: dualTransportStreams,
+ });
+ return Promise.resolve();
 }

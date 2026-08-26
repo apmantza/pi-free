@@ -9,6 +9,9 @@
  *     native AuthInteraction exactly as Pi's own adaptOAuth did
  */
 
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type {
 	AuthInteraction,
 	OAuthCredential,
@@ -37,6 +40,7 @@ import {
 	clineAuth,
 	clineOAuthAuth,
 	loginClineNative,
+	readClineCliApiKey,
 	refreshClineCredential,
 	toApiKey,
 } from "../providers/cline/cline-auth.ts";
@@ -103,6 +107,61 @@ describe("apiKey.resolve", () => {
 			auth: {},
 			source: "public catalog (no account)",
 		});
+	});
+
+	it("falls back to the Cline CLI durable key when nothing else is set", async () => {
+		mockGetClineApiKey.mockReturnValue(undefined);
+		const dir = mkdtempSync(join(tmpdir(), "cline-cli-test-"));
+		try {
+			const providersPath = join(dir, "providers.json");
+			writeFileSync(
+				providersPath,
+				JSON.stringify({
+					providers: {
+						"cline-pass": { settings: { apiKey: "sk-cli-clinepass" } },
+						cline: { settings: { apiKey: "sk-cli-cline" } },
+					},
+				}),
+				"utf8",
+			);
+			expect(readClineCliApiKey(providersPath)).toBe("sk-cli-clinepass");
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("prefers a cline entry when cline-pass is absent", () => {
+		const dir = mkdtempSync(join(tmpdir(), "cline-cli-test-"));
+		try {
+			const providersPath = join(dir, "providers.json");
+			writeFileSync(
+				providersPath,
+				JSON.stringify({
+					providers: { cline: { settings: { apiKey: "sk-cli-cline" } } },
+				}),
+				"utf8",
+			);
+			expect(readClineCliApiKey(providersPath)).toBe("sk-cli-cline");
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("returns undefined for missing or malformed CLI files", () => {
+		const missing = join(tmpdir(), `missing-providers-${Date.now()}.json`);
+		expect(readClineCliApiKey(missing)).toBeUndefined();
+
+		const dir = mkdtempSync(join(tmpdir(), "cline-cli-test-"));
+		try {
+			const providersPath = join(dir, "providers.json");
+			writeFileSync(providersPath, "{not json", "utf8");
+			expect(readClineCliApiKey(providersPath)).toBeUndefined();
+			// Empty providers map also yields nothing.
+			writeFileSync(providersPath, '{"providers":{}}', "utf8");
+			expect(readClineCliApiKey(providersPath)).toBeUndefined();
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 });
 

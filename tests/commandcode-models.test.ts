@@ -38,9 +38,9 @@ describe("mapCommandCodeModel", () => {
 		expect(model?.cost.cacheRead).toBeCloseTo(0.5e-6, 12);
 		expect(model?.cost.cacheWrite).toBeCloseTo(6.25e-6, 12);
 		expect(model?.contextWindow).toBe(1_000_000);
-		expect(
-			(model as unknown as { _pricingKnown?: boolean })._pricingKnown,
-		).toBe(true);
+		expect((model as unknown as { _pricingKnown?: boolean })._pricingKnown).toBe(
+			true,
+		);
 	});
 
 	it("maps the documented free models at zero cost with authority", () => {
@@ -48,9 +48,9 @@ describe("mapCommandCodeModel", () => {
 			const model = mapCommandCodeModel(catalogEntry({ id }));
 			expect(model?.cost.input).toBe(0);
 			expect(model?.cost.output).toBe(0);
-			expect(
-				(model as unknown as { _pricingKnown?: boolean })._pricingKnown,
-			).toBe(true);
+			expect((model as unknown as { _pricingKnown?: boolean })._pricingKnown).toBe(
+				true,
+			);
 		}
 	});
 
@@ -102,9 +102,7 @@ describe("mapCommandCodeModel", () => {
 
 describe("apiForCommandCodeModel", () => {
 	it("routes claude-* models over Anthropic Messages and rest over OpenAI", () => {
-		expect(apiForCommandCodeModel("claude-opus-5")).toBe(
-			"anthropic-messages",
-		);
+		expect(apiForCommandCodeModel("claude-opus-5")).toBe("anthropic-messages");
 		expect(apiForCommandCodeModel("gpt-5.6-sol")).toBe("openai-completions");
 		expect(apiForCommandCodeModel("moonshotai/Kimi-K3")).toBe(
 			"openai-completions",

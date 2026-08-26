@@ -10,6 +10,9 @@
  */
 
 import * as http from "node:http";
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { URL as NodeURL } from "node:url";
 import type {
 	ApiKeyAuth,
@@ -231,7 +234,7 @@ async function fetchAuthorizeUrl(
 	// the pinned Cline API host, never a caller-influenced URL.
 	if (!ALLOWED_CLINE_AUTH_HOSTS.has(authUrl.hostname)) {
 		throw new Error(
-		`Cline auth URL host ${authUrl.hostname} is not on the allowlist`,
+			`Cline auth URL host ${authUrl.hostname} is not on the allowlist`,
 		);
 	}
 	authUrl.searchParams.set("client_type", "extension");
@@ -603,18 +606,69 @@ export async function refreshClineCredential(
  * `apiKey.check`: Pi runs that check before `filterModels` and would hide this
  * intentionally public catalog when the user is logged out.
  */
+// =============================================================================
+// Cline CLI credential fallback
+// =============================================================================
+
+/** Cline CLI's provider settings store (auth.json on other platforms). */
+const CLINE_CLI_PROVIDERS_PATH = join(
+	homedir(),
+	".cline",
+	"data",
+	"settings",
+	"providers.json",
+);
+
+/**
+ * Best-effort read of the durable Cline API key from the Cline CLI's
+ * `providers.json` (structure: `providers["cline"]/["cline-pass"].settings.apiKey`).
+ * Used only as a fallback so `cline auth` users get zero-config login in
+ * pi-free without re-entering a key. Silently returns undefined on any error
+ * (missing/malformed file) — credential failures must never break auth.
+ *
+ * NOTE: the CLI also stores short-lived WorkOS `settings.auth.accessToken`s;
+ * those are deliberately NOT read here because refreshing them is owned by
+ * Pi's native OAuth lifecycle, not the apiKey.resolve path.
+ */
+export function readClineCliApiKey(
+	providersPath: string = CLINE_CLI_PROVIDERS_PATH,
+): string | undefined {
+	try {
+		if (!providersPath || !existsSync(providersPath)) return undefined;
+		const raw = JSON.parse(readFileSync(providersPath, "utf8")) as {
+			providers?: Record<string, { settings?: { apiKey?: unknown } } | undefined>;
+		};
+		for (const name of ["cline-pass", "cline"] as const) {
+			const apiKey = raw.providers?.[name]?.settings?.apiKey;
+			if (typeof apiKey === "string" && apiKey.length > 0) return apiKey;
+		}
+	} catch {
+		// Best-effort: malformed or unreadable CLI config must not fail auth.
+	}
+	return undefined;
+}
+
+/**
+ * Resolve the effective Cline API key: a natively-stored key wins, then the
+ * ambient `CLINE_API_KEY` env var / `~/.pi/free.json` value, then the Cline
+ * CLI's durable API key (`~/.cline/data/settings/providers.json`).
+ */
 async function resolveClineApiKey(input: {
 	ctx: AuthContext;
 	credential?: ApiKeyCredential;
 	signal?: AbortSignal;
 }): Promise<AuthResult | undefined> {
-	const key = input.credential?.key ?? getClineApiKey();
+	const key = input.credential?.key ?? getClineApiKey() ?? readClineCliApiKey();
 	if (!key) {
 		return { auth: {}, source: "public catalog (no account)" };
 	}
 	return {
 		auth: { apiKey: key },
-		source: input.credential?.key ? "stored API key" : "CLINE_API_KEY",
+		source: input.credential?.key
+			? "stored API key"
+			: getClineApiKey()
+				? "CLINE_API_KEY"
+				: "Cline CLI",
 	};
 }
 
