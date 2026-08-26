@@ -30,6 +30,11 @@ import {
 } from "../../lib/session-start-metrics.ts";
 import { registerWithGlobalToggle, isFreeModel } from "../../lib/registry.ts";
 import { lazyOpenAICompletionsApi } from "../../lib/lazy-compat.ts";
+import {
+	fetchUsage,
+	formatUsage,
+	formatUsageStatusColored,
+} from "./ollama-usage.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { ollamaAuth } from "./ollama-auth.ts";
 
@@ -193,6 +198,65 @@ export function registerOllamaProvider(
 		// `ollama_show_paid`. Persist under that key so /toggle-ollama-cloud
 		// survives a restart.
 		configKey: "ollama_show_paid",
+	});
+
+	// =========================================================================
+	// Usage integration (undocumented /api/usage endpoint)
+	// =========================================================================
+
+	const USAGE_STATUS_KEY = "ollama-usage";
+	const USAGE_REFRESH_MS = 5 * 60_000;
+	let usageTimer: ReturnType<typeof setInterval> | null = null;
+	let lastUsageRefreshAt = 0;
+
+	async function refreshUsageStatus(ctx: {
+		ui: ExtensionCommandContext["ui"];
+	}): Promise<void> {
+		const apiKey = getOllamaApiKey();
+		if (!apiKey) return;
+		try {
+			const data = await fetchUsage(apiKey);
+			lastUsageRefreshAt = Date.now();
+			const formatted = formatUsageStatusColored(ctx.ui.theme, data);
+			ctx.ui.setStatus(USAGE_STATUS_KEY, formatted);
+		} catch {
+			// Silent: the endpoint is undocumented and may change; failed fetches
+			// must not degrade the user experience.
+		}
+	}
+
+	pi.registerCommand("ollama-cloud-usage", {
+		description: "Show Ollama Cloud session and weekly usage limits",
+		handler: async (_args: string, ctx: ExtensionCommandContext) => {
+			const apiKey = getOllamaApiKey();
+			if (!apiKey) {
+				ctx.ui.notify("OLLAMA_API_KEY not set", "error");
+				return;
+			}
+			try {
+				const data = await fetchUsage(apiKey);
+				ctx.ui.notify(formatUsage(data), "info");
+			} catch (error) {
+				ctx.ui.notify(
+					`Usage fetch failed: ${error instanceof Error ? error.message : String(error)}`,
+					"error",
+				);
+			}
+		},
+	});
+
+	pi.on("agent_end", async (_event, ctx) => {
+		if (ctx.model?.provider !== PROVIDER_OLLAMA) return;
+		if (Date.now() - lastUsageRefreshAt < USAGE_REFRESH_MS) return;
+		await refreshUsageStatus(ctx);
+	});
+
+	pi.on("session_shutdown", async (_event, ctx) => {
+		if (usageTimer) {
+			clearInterval(usageTimer);
+			usageTimer = null;
+		}
+		ctx.ui.setStatus(USAGE_STATUS_KEY, "");
 	});
 
 	pi.registerCommand("ollama-cloud-refresh", {
