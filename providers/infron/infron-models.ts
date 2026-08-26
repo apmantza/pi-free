@@ -54,9 +54,9 @@ function asNumber(value: unknown): number | undefined {
 
 function asStringArray(value: unknown): string[] {
 	return Array.isArray(value)
-		? value.filter((v): v is string => typeof v === "string").map((v) =>
-				v.toLowerCase()
-			)
+		? value
+				.filter((v): v is string => typeof v === "string")
+				.map((v) => v.toLowerCase())
 		: [];
 }
 

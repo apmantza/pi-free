@@ -13,9 +13,9 @@ import { createNativeApiKeyAuth } from "../../lib/native-provider.ts";
 
 /** Infron AI API-key authentication for both catalog refresh and chat requests. */
 export const infronAuth = createNativeApiKeyAuth({
-	name: "Infron API key",
-	prompt: "Infron API key",
-	source: "INFRON_API_KEY",
-	getApiKey: getInfronApiKey,
-	anonymousCatalog: true,
+ name: "Infron API key",
+ prompt: "Infron API key",
+ source: "INFRON_API_KEY",
+ getApiKey: getInfronApiKey,
+ anonymousCatalog: true,
 });

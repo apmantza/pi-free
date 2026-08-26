@@ -61,9 +61,9 @@ describe("mapInfronModel", () => {
 		expect(model?.cost.output).toBeCloseTo(0.75e-6, 12);
 		expect(model?.cost.cacheRead).toBe(0);
 		expect(model?.cost.cacheWrite).toBe(0);
-		expect(
-			(model as unknown as { _pricingKnown?: boolean })._pricingKnown,
-		).toBe(true);
+		expect((model as unknown as { _pricingKnown?: boolean })._pricingKnown).toBe(
+			true,
+		);
 	});
 
 	it("flags vision models from input modalities regardless of casing", () => {

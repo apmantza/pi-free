@@ -35,15 +35,15 @@ import { infronAuth } from "./infron-auth.ts";
 import { fetchInfronModels } from "./infron-models.ts";
 
 export default function infronProvider(pi: ExtensionAPI): Promise<void> {
-	registerNativeOpenAIProvider(pi, {
-		providerId: PROVIDER_INFRON,
-		name: "Infron AI",
-		baseUrl: BASE_URL_INFRON,
-		auth: infronAuth,
-		getApiKey: getInfronApiKey,
-		getShowPaid: getInfronShowPaid,
-		allowUnauthenticated: true,
-		fetchModels: (apiKey, signal) => fetchInfronModels(apiKey, signal),
-	});
-	return Promise.resolve();
+ registerNativeOpenAIProvider(pi, {
+  providerId: PROVIDER_INFRON,
+  name: "Infron AI",
+  baseUrl: BASE_URL_INFRON,
+  auth: infronAuth,
+  getApiKey: getInfronApiKey,
+  getShowPaid: getInfronShowPaid,
+  allowUnauthenticated: true,
+  fetchModels: (apiKey, signal) => fetchInfronModels(apiKey, signal),
+ });
+ return Promise.resolve();
 }
