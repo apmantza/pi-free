@@ -44,6 +44,7 @@ import {
 	PROVIDER_SAMBANOVA,
 	PROVIDER_NOVITA,
 	PROVIDER_VENICE,
+	PROVIDER_INFRON,
 } from "./constants.ts";
 export {
 	PROVIDER_ANYAPI,
@@ -101,6 +102,7 @@ interface PiFreeConfig {
 	sambanova_api_key?: string;
 	novita_api_key?: string;
 	venice_api_key?: string;
+	infron_api_key?: string;
 	routeway_api_key?: string;
 	opengateway_api_key?: string;
 	fastrouter_api_key?: string;
@@ -126,6 +128,7 @@ interface PiFreeConfig {
 	sambanova_show_paid?: boolean;
 	novita_show_paid?: boolean;
 	venice_show_paid?: boolean;
+	infron_show_paid?: boolean;
 	routeway_show_paid?: boolean;
 	opengateway_show_paid?: boolean;
 	fastrouter_show_paid?: boolean;
@@ -153,6 +156,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	sambanova_api_key: "",
 	novita_api_key: "",
 	venice_api_key: "",
+	infron_api_key: "",
 	routeway_api_key: "",
 	opengateway_api_key: "",
 	fastrouter_api_key: "",
@@ -179,6 +183,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	sambanova_show_paid: false,
 	novita_show_paid: false,
 	venice_show_paid: false,
+	infron_show_paid: false,
 	routeway_show_paid: false,
 	opengateway_show_paid: false,
 	fastrouter_show_paid: false,
@@ -413,6 +418,7 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 	},
 	{ id: PROVIDER_NOVITA, prefix: "NOVITA", showPaidKey: "novita_show_paid" },
 	{ id: PROVIDER_VENICE, prefix: "VENICE", showPaidKey: "venice_show_paid" },
+	{ id: PROVIDER_INFRON, prefix: "INFRON", showPaidKey: "infron_show_paid" },
 	{
 		id: PROVIDER_ROUTEWAY,
 		prefix: "ROUTEWAY",
@@ -539,6 +545,10 @@ export function getNovitaShowPaid(): boolean {
 
 export function getVeniceShowPaid(): boolean {
 	return resolveBool("VENICE_SHOW_PAID", loadConfigFile().venice_show_paid);
+}
+
+export function getInfronShowPaid(): boolean {
+	return resolveBool("INFRON_SHOW_PAID", loadConfigFile().infron_show_paid);
 }
 
 export function getRoutewayShowPaid(): boolean {
@@ -672,6 +682,10 @@ export function getNovitaApiKey(): string | undefined {
 
 export function getVeniceApiKey(): string | undefined {
 	return resolve("VENICE_API_KEY", loadConfigFile().venice_api_key);
+}
+
+export function getInfronApiKey(): string | undefined {
+	return resolve("INFRON_API_KEY", loadConfigFile().infron_api_key);
 }
 
 export function getRoutewayApiKey(): string | undefined {
