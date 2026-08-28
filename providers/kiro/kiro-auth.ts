@@ -12,6 +12,7 @@ import type {
   ProviderAuth,
   ModelAuth,
 } from "@earendil-works/pi-ai";
+import type { OAuthLoginCallbacks } from "@earendil-works/pi-ai/compat";
 import { getKiroAuthMethod } from "../../config.ts";
 
 export const SSO_OIDC_ENDPOINT = "https://oidc.us-east-1.amazonaws.com";
@@ -196,15 +197,87 @@ async function runDeviceCodeFlow(
 }
 
 async function loginKiro(
-  interaction: AuthInteraction,
+  callbacks: OAuthLoginCallbacks,
 ): Promise<OAuthCredential> {
+  // Translate the legacy OAuthLoginCallbacks surface (what Pi's
+  // adaptOAuth actually passes) into the new AuthInteraction shape.
+  // This mirrors the Cline provider's pattern in cline-auth.ts: the
+  // legacy callbacks map 1:1 to interaction.notify / interaction.prompt
+  // calls, and the translation is local to this function so the
+  // downstream helpers (loginKiroDesktop, pollDeviceCode) keep
+  // working with the new shape unchanged.
+  const interaction: AuthInteraction = {
+    signal: callbacks.signal,
+    notify: (event) => {
+      switch (event.type) {
+        case "info":
+          callbacks.onProgress?.(event.message);
+          return;
+        case "auth_url":
+          callbacks.onAuth({
+            url: event.url,
+            instructions: event.instructions,
+          });
+          return;
+        case "device_code":
+          callbacks.onDeviceCode({
+            userCode: event.userCode,
+            verificationUri: event.verificationUri,
+            intervalSeconds: event.intervalSeconds,
+            expiresInSeconds: event.expiresInSeconds,
+          });
+          return;
+        case "progress":
+          callbacks.onProgress?.(event.message);
+          return;
+      }
+    },
+    prompt: async (prompt): Promise<string> => {
+      // The legacy OAuthLoginCallbacks splits text/secret/select into
+      // onPrompt vs the manual-code path lives in onManualCodeInput.
+      // The new AuthInteraction.prompt covers all of these via a
+      // discriminated union. Translate each variant to its legacy
+      // equivalent.
+      switch (prompt.type) {
+        case "text":
+        case "secret":
+          return callbacks.onPrompt({
+            message: prompt.message,
+            placeholder: prompt.placeholder,
+          });
+        case "manual_code":
+          if (!callbacks.onManualCodeInput) {
+            throw new Error(
+              "Manual code input is not supported by this provider's auth flow.",
+            );
+          }
+          return callbacks.onManualCodeInput();
+        case "select":
+          if (!callbacks.onSelect) {
+            throw new Error(
+              "Select prompt is not supported by this provider's auth flow.",
+            );
+          }
+          // onSelect returns Promise<string | undefined> per the
+          // legacy contract; coerce undefined to "" to satisfy
+          // AuthInteraction.prompt's strict string return.
+          return (
+            (await callbacks.onSelect({
+              message: prompt.message,
+              options: [...prompt.options],
+            })) ?? ""
+          );
+      }
+    },
+  };
+
   // Dispatch to the configured auth method (per docs/kiro-web-portal-auth.md):
   //   - "web-portal" (default for fresh installs): PKCE + Kiro Web Portal
   //     flow that persists profileArn automatically. The user signs in
   //     via browser and pastes the redirect URL back.
-  //   - "idc" (default when kiro_profile_arn is set): the existing
-  //     AWS SSO OIDC device-code flow. Requires the user to set
-  //     kiro_profile_arn in ~/.pi/free.json for chat to work.
+  //   - "idc": the existing AWS SSO OIDC device-code flow. Requires
+  //     the user to set kiro_profile_arn in ~/.pi/free.json for chat
+  //     to work.
   //   - "kiro-cli": Phase G fallback, not yet implemented — falls
   //     through to the idc flow for now.
   const method = getKiroAuthMethod();
@@ -325,7 +398,15 @@ async function refreshKiroCredential(
 export const kiroOAuthAuth: OAuthAuth = {
   name: "Kiro",
   loginLabel: "Sign in with Kiro",
-  login: loginKiro,
+  // SAFETY: pi-ai's `OAuthAuth.login` is typed as taking the new
+  // `ProviderAuthInteraction` shape, but Pi's `adaptOAuth` (in
+  // provider-composer.js) actually passes the legacy
+  // `OAuthLoginCallbacks` shape. Our `loginKiro` matches the
+  // legacy shape (and translates to the new shape internally) so
+  // it's correct at runtime; the cast here just bridges the type
+  // mismatch so the assignment type-checks. This is the same
+  // adapter pattern Cline uses in `clineOAuthAuth.login`.
+  login: loginKiro as unknown as OAuthAuth["login"],
   refresh: refreshKiroCredential,
   async toAuth(credential: OAuthCredential): Promise<ModelAuth> {
     return { apiKey: credential.access };
