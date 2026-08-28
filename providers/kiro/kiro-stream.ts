@@ -20,13 +20,50 @@ import type {
 import * as PiAi from "@earendil-works/pi-ai";
 import { UniversalEventStreamMarshaller } from "@smithy/core/event-streams";
 import type { Message } from "@smithy/types";
-import { getKiroEndpoints, getKiroRegionFromEndpoint, resolveApiRegion } from "./kiro-endpoints.js";
+import { getKiroProfileArn } from "../../config.ts";
+import {
+  getKiroEndpoints,
+  getKiroRegionFromEndpoint,
+  resolveApiRegion,
+} from "./kiro-endpoints.js";
 import { parseKiroEvent } from "./kiro-event-parser.js";
 import { ThinkingTagParser } from "./kiro-thinking-parser.js";
-import { buildHistory, convertImagesToKiro, convertToolsToKiro, EMPTY_CONTENT_PLACEHOLDER, extractImages, getContentText, type KiroHistoryEntry, type KiroImage, type KiroToolResult, type KiroToolSpec, type KiroUserInputMessage, normalizeMessages, sanitizeSurrogates, TOOL_RESULT_LIMIT, truncate } from "./kiro-transform.js";
-import { getKiroEffortConfig, buildKiroAdditionalModelRequestFields, type KiroAdditionalModelRequestFields } from "./kiro-effort.js";
-import { resolveKiroModel, updateKiroModelsCache, isCacheStale } from "./kiro-models.js";
-import { capacityRetryConfig, exponentialBackoff, FIRST_TOKEN_TIMEOUT, isCapacityError, isNonRetryableBodyError, isTooBigError, MAX_RETRY_DELAY } from "./kiro-retry.js";
+import {
+  buildHistory,
+  convertImagesToKiro,
+  convertToolsToKiro,
+  EMPTY_CONTENT_PLACEHOLDER,
+  extractImages,
+  getContentText,
+  type KiroHistoryEntry,
+  type KiroImage,
+  type KiroToolResult,
+  type KiroToolSpec,
+  type KiroUserInputMessage,
+  normalizeMessages,
+  sanitizeSurrogates,
+  TOOL_RESULT_LIMIT,
+  truncate,
+} from "./kiro-transform.js";
+import {
+  getKiroEffortConfig,
+  buildKiroAdditionalModelRequestFields,
+  type KiroAdditionalModelRequestFields,
+} from "./kiro-effort.js";
+import {
+  resolveKiroModel,
+  updateKiroModelsCache,
+  isCacheStale,
+} from "./kiro-models.js";
+import {
+  capacityRetryConfig,
+  exponentialBackoff,
+  FIRST_TOKEN_TIMEOUT,
+  isCapacityError,
+  isNonRetryableBodyError,
+  isTooBigError,
+  MAX_RETRY_DELAY,
+} from "./kiro-retry.js";
 
 const eventStreamMarshaller = new UniversalEventStreamMarshaller({
   utf8Encoder: (input: Uint8Array) => new TextDecoder().decode(input),
@@ -65,11 +102,26 @@ function emitToolCall(
     return false;
   }
   const contentIndex = output.content.length;
-  const toolCall: ToolCall = { type: "toolCall", id: state.toolUseId, name: state.name, arguments: args };
+  const toolCall: ToolCall = {
+    type: "toolCall",
+    id: state.toolUseId,
+    name: state.name,
+    arguments: args,
+  };
   output.content.push(toolCall);
   stream.push({ type: "toolcall_start", contentIndex, partial: output });
-  stream.push({ type: "toolcall_delta", contentIndex, delta: state.input, partial: output });
-  stream.push({ type: "toolcall_end", contentIndex, toolCall, partial: output });
+  stream.push({
+    type: "toolcall_delta",
+    contentIndex,
+    delta: state.input,
+    partial: output,
+  });
+  stream.push({
+    type: "toolcall_end",
+    contentIndex,
+    toolCall,
+    partial: output,
+  });
   return true;
 }
 
@@ -77,7 +129,14 @@ function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted) return Promise.reject(signal.reason);
   return new Promise((resolve, reject) => {
     const timer = setTimeout(resolve, ms);
-    signal?.addEventListener("abort", () => { clearTimeout(timer); reject(signal.reason); }, { once: true });
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        reject(signal.reason);
+      },
+      { once: true },
+    );
   });
 }
 
@@ -87,21 +146,57 @@ export function streamKiro(
   options?: SimpleStreamOptions,
 ): AssistantMessageEventStream {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const StreamCtor = (PiAi as any).AssistantMessageEventStream as new () => AssistantMessageEventStream;
+  const StreamCtor = (PiAi as any)
+    .AssistantMessageEventStream as new () => AssistantMessageEventStream;
   const stream = new StreamCtor();
   (async () => {
     const output: AssistantMessage = {
-      role: "assistant", content: [], api: model.api, provider: model.provider, model: model.id,
-      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
-      stopReason: "stop", timestamp: Date.now(),
+      role: "assistant",
+      content: [],
+      api: model.api,
+      provider: model.provider,
+      model: model.id,
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      stopReason: "stop",
+      timestamp: Date.now(),
     };
     try {
       const accessToken = options?.apiKey;
-      if (!accessToken) throw new Error("Kiro credentials not set. Run /login kiro or install kiro-cli.");
-      const modelMetadata = model as Model<Api> & { kiroModelId?: string; kiroRegion?: string; kiroProfileArn?: string; additionalModelRequestFieldsSchema?: Record<string, unknown> };
-      const region = modelMetadata.kiroRegion ?? getKiroRegionFromEndpoint(model.baseUrl) ?? "us-east-1";
-      const endpoint = new URL("generateAssistantResponse", getKiroEndpoints(region).runtime).toString();
-      const profileArn = modelMetadata.kiroProfileArn || "arn:aws:codewhisperer:us-east-1:000000000000:profile/default";
+      if (!accessToken)
+        throw new Error(
+          "Kiro credentials not set. Run /login kiro or install kiro-cli.",
+        );
+      const modelMetadata = model as Model<Api> & {
+        kiroModelId?: string;
+        kiroRegion?: string;
+        kiroProfileArn?: string;
+        additionalModelRequestFieldsSchema?: Record<string, unknown>;
+      };
+      const region =
+        modelMetadata.kiroRegion ??
+        getKiroRegionFromEndpoint(model.baseUrl) ??
+        "us-east-1";
+      const endpoint = new URL(
+        "generateAssistantResponse",
+        getKiroEndpoints(region).runtime,
+      ).toString();
+      const profileArn = modelMetadata.kiroProfileArn || getKiroProfileArn();
+      if (!profileArn) {
+        throw new Error(
+          "Kiro profileArn is required for this credential. " +
+            "pi-free's pi-cli OIDC client cannot call ListAvailableProfiles " +
+            "(no codewhisperer:profile:List scope). Set KIRO_PROFILE_ARN or " +
+            "kiro_profile_arn in ~/.pi/free.json to a real ARN obtained from " +
+            "the Kiro IDE developer tools or `kiro-cli profile`.",
+        );
+      }
 
       // Background models cache refresh
       if (isCacheStale(region)) {
@@ -109,13 +204,28 @@ export function streamKiro(
       }
 
       const kiroModelId = resolveKiroModel(model.id, modelMetadata.kiroModelId);
-      const effortConfig = getKiroEffortConfig(modelMetadata.additionalModelRequestFieldsSchema, kiroModelId);
-      const additionalModelRequestFields = buildKiroAdditionalModelRequestFields(modelMetadata, kiroModelId, options?.reasoning);
+      const effortConfig = getKiroEffortConfig(
+        modelMetadata.additionalModelRequestFieldsSchema,
+        kiroModelId,
+      );
+      const additionalModelRequestFields =
+        buildKiroAdditionalModelRequestFields(
+          modelMetadata,
+          kiroModelId,
+          options?.reasoning,
+        );
       const thinkingEnabled = !!options?.reasoning || model.reasoning;
 
       let systemPrompt = context.systemPrompt ?? "";
       if (thinkingEnabled && effortConfig?.field !== "reasoning") {
-        const budget = options?.reasoning === "xhigh" ? 50000 : options?.reasoning === "high" ? 30000 : options?.reasoning === "medium" ? 20000 : 10000;
+        const budget =
+          options?.reasoning === "xhigh"
+            ? 50000
+            : options?.reasoning === "high"
+              ? 30000
+              : options?.reasoning === "medium"
+                ? 20000
+                : 10000;
         systemPrompt = `<thinking_mode>enabled</thinking_mode><max_thinking_length>${budget}</max_thinking_length>${systemPrompt ? `\n${systemPrompt}` : ""}`;
       }
 
@@ -126,7 +236,11 @@ export function streamKiro(
       while (retryCount <= maxRetries) {
         if (options?.signal?.aborted) throw options.signal.reason;
         const normalized = normalizeMessages(context.messages);
-        const { history: rawHistory, systemPrepended, currentMsgStartIdx } = buildHistory(normalized, kiroModelId, systemPrompt);
+        const {
+          history: rawHistory,
+          systemPrepended,
+          currentMsgStartIdx,
+        } = buildHistory(normalized, kiroModelId, systemPrompt);
 
         const currentMessages = normalized.slice(currentMsgStartIdx);
         const firstMsg = currentMessages[0];
@@ -140,7 +254,9 @@ export function streamKiro(
             if (m.role === "toolResult") {
               const trm = m as ToolResultMessage;
               currentToolResults.push({
-                content: [{ text: truncate(getContentText(m), TOOL_RESULT_LIMIT) }],
+                content: [
+                  { text: truncate(getContentText(m), TOOL_RESULT_LIMIT) },
+                ],
                 status: trm.isError ? "error" : "success",
                 toolUseId: trm.toolCallId,
               });
@@ -152,7 +268,9 @@ export function streamKiro(
             if (m.role === "toolResult") {
               const trm = m as ToolResultMessage;
               currentToolResults.push({
-                content: [{ text: truncate(getContentText(m), TOOL_RESULT_LIMIT) }],
+                content: [
+                  { text: truncate(getContentText(m), TOOL_RESULT_LIMIT) },
+                ],
                 status: trm.isError ? "error" : "success",
                 toolUseId: trm.toolCallId,
               });
@@ -160,23 +278,36 @@ export function streamKiro(
           }
           currentContent = "";
         } else if (firstMsg?.role === "user") {
-          currentContent = typeof firstMsg.content === "string" ? firstMsg.content : getContentText(firstMsg);
-          if (systemPrompt && !systemPrepended) currentContent = `${systemPrompt}\n\n${currentContent}`;
+          currentContent =
+            typeof firstMsg.content === "string"
+              ? firstMsg.content
+              : getContentText(firstMsg);
+          if (systemPrompt && !systemPrepended)
+            currentContent = `${systemPrompt}\n\n${currentContent}`;
         }
 
-        if (currentContent === "" && currentToolResults.length === 0) currentContent = EMPTY_CONTENT_PLACEHOLDER;
+        if (currentContent === "" && currentToolResults.length === 0)
+          currentContent = EMPTY_CONTENT_PLACEHOLDER;
 
-        const baseTools = context.tools?.length ? convertToolsToKiro(context.tools) : [];
-        let uimc: { toolResults?: KiroToolResult[]; tools?: KiroToolSpec[] } | undefined;
+        const baseTools = context.tools?.length
+          ? convertToolsToKiro(context.tools)
+          : [];
+        let uimc:
+          | { toolResults?: KiroToolResult[]; tools?: KiroToolSpec[] }
+          | undefined;
         if (currentToolResults.length > 0 || baseTools.length > 0) {
           uimc = {};
-          if (currentToolResults.length > 0) uimc.toolResults = currentToolResults;
+          if (currentToolResults.length > 0)
+            uimc.toolResults = currentToolResults;
           if (baseTools.length > 0) uimc.tools = baseTools;
         }
 
         if (firstMsg?.role === "user") {
           const imgs = extractImages(firstMsg);
-          if (imgs.length > 0) currentImages = convertImagesToKiro(imgs as { mimeType: string; data: string }[]);
+          if (imgs.length > 0)
+            currentImages = convertImagesToKiro(
+              imgs as { mimeType: string; data: string }[],
+            );
         }
 
         const request: KiroRequest = {
@@ -195,9 +326,10 @@ export function streamKiro(
             },
             ...(rawHistory.length > 0 ? { history: rawHistory } : {}),
           },
-          ...(additionalModelRequestFields ? { additionalModelRequestFields } : {}),
+          ...(additionalModelRequestFields
+            ? { additionalModelRequestFields }
+            : {}),
           profileArn,
-          agentMode: "vibe",
         };
 
         let response: Response;
@@ -226,28 +358,49 @@ export function streamKiro(
 
           if (!response.ok) {
             let errText = "";
-            try { errText = await response.text(); } catch { errText = ""; }
+            try {
+              errText = await response.text();
+            } catch {
+              errText = "";
+            }
 
-            if (isCapacityError(errText) && capacityRetryCount < capacityRetryConfig.maxRetries) {
+            if (
+              isCapacityError(errText) &&
+              capacityRetryCount < capacityRetryConfig.maxRetries
+            ) {
               capacityRetryCount++;
-              const delayMs = exponentialBackoff(capacityRetryCount - 1, capacityRetryConfig.baseDelayMs, 30_000);
+              const delayMs = exponentialBackoff(
+                capacityRetryCount - 1,
+                capacityRetryConfig.baseDelayMs,
+                30_000,
+              );
               await abortableDelay(delayMs, options?.signal);
               continue;
             }
 
             if (isNonRetryableBodyError(errText) || isCapacityError(errText)) {
-              throw new Error(`Kiro API error: ${errText || response.statusText}`);
+              throw new Error(
+                `Kiro API error: ${errText || response.statusText}`,
+              );
             }
             if (isTooBigError(response.status, errText)) {
-              throw new Error(`Kiro API error: context_length_exceeded (${response.status} ${errText})`);
+              throw new Error(
+                `Kiro API error: context_length_exceeded (${response.status} ${errText})`,
+              );
             }
             if (response.status === 403 && retryCount < maxRetries) {
               retryCount++;
-              const delayMs = exponentialBackoff(retryCount - 1, 500, MAX_RETRY_DELAY);
+              const delayMs = exponentialBackoff(
+                retryCount - 1,
+                500,
+                MAX_RETRY_DELAY,
+              );
               await abortableDelay(delayMs, options?.signal);
               break;
             }
-            throw new Error(`Kiro API error: ${response.status} ${response.statusText} ${errText}`);
+            throw new Error(
+              `Kiro API error: ${response.status} ${response.statusText} ${errText}`,
+            );
           }
           break;
         }
@@ -256,12 +409,17 @@ export function streamKiro(
         stream.push({ type: "start", partial: output });
 
         if (!response.body) throw new Error("No response body");
-        const bodyReader = (response.body as unknown as ReadableStream<Uint8Array>).getReader();
+        const bodyReader = (
+          response.body as unknown as ReadableStream<Uint8Array>
+        ).getReader();
         let totalContent = "";
         let lastContentData = "";
-        let usageEvent: { inputTokens?: number; outputTokens?: number } | null = null;
+        let usageEvent: { inputTokens?: number; outputTokens?: number } | null =
+          null;
         let receivedContextUsage = false;
-        const thinkingParser = thinkingEnabled ? new ThinkingTagParser(output, stream) : null;
+        const thinkingParser = thinkingEnabled
+          ? new ThinkingTagParser(output, stream)
+          : null;
         let textBlockIndex: number | null = null;
         let emittedToolCalls = 0;
         let sawAnyToolCalls = false;
@@ -274,28 +432,50 @@ export function streamKiro(
         const bodyIterable: AsyncIterable<Uint8Array> = {
           async *[Symbol.asyncIterator]() {
             try {
-              while (true) { const { done, value } = await bodyReader.read(); if (done) return; yield value; }
-            } finally { bodyReader.releaseLock(); }
+              while (true) {
+                const { done, value } = await bodyReader.read();
+                if (done) return;
+                yield value;
+              }
+            } finally {
+              bodyReader.releaseLock();
+            }
           },
         };
         const utf8Decoder = new TextDecoder();
-        const eventStream = eventStreamMarshaller.deserialize(bodyIterable, async (event: Record<string, Message>) => {
-          const entry = Object.entries(event)[0];
-          if (!entry) throw new Error("Received an empty event stream message");
-          const [key, msg] = entry;
-          const parsed = JSON.parse(utf8Decoder.decode(msg.body)) as Record<string, unknown>;
-          return { [key]: parsed } as Record<string, unknown>;
-        });
-        const iterator = eventStream[Symbol.asyncIterator]() as AsyncIterator<Record<string, unknown>>;
+        const eventStream = eventStreamMarshaller.deserialize(
+          bodyIterable,
+          async (event: Record<string, Message>) => {
+            const entry = Object.entries(event)[0];
+            if (!entry)
+              throw new Error("Received an empty event stream message");
+            const [key, msg] = entry;
+            const parsed = JSON.parse(utf8Decoder.decode(msg.body)) as Record<
+              string,
+              unknown
+            >;
+            return { [key]: parsed } as Record<string, unknown>;
+          },
+        );
+        const iterator = eventStream[Symbol.asyncIterator]() as AsyncIterator<
+          Record<string, unknown>
+        >;
 
         while (true) {
           let iterResult: IteratorResult<Record<string, unknown>>;
           try {
-            if (!gotFirstToken) {
+            if (gotFirstToken) {
+              iterResult = await iterator.next();
+            } else {
               const readPromise = iterator.next();
               const result = await Promise.race([
                 readPromise,
-                new Promise<typeof FIRST_TOKEN_SENTINEL>((resolve) => setTimeout(() => resolve(FIRST_TOKEN_SENTINEL), FIRST_TOKEN_TIMEOUT)),
+                new Promise<typeof FIRST_TOKEN_SENTINEL>((resolve) =>
+                  setTimeout(
+                    () => resolve(FIRST_TOKEN_SENTINEL),
+                    FIRST_TOKEN_TIMEOUT,
+                  ),
+                ),
               ]);
               if (result === FIRST_TOKEN_SENTINEL) {
                 readPromise.catch(() => {});
@@ -305,24 +485,31 @@ export function streamKiro(
               }
               iterResult = result as IteratorResult<Record<string, unknown>>;
               gotFirstToken = true;
-            } else {
-              iterResult = await iterator.next();
             }
           } catch (e) {
-            streamError = e instanceof Error ? e.message : String(e) || "Unknown stream error";
+            streamError =
+              e instanceof Error
+                ? e.message
+                : String(e) || "Unknown stream error";
             break;
           }
           const { done, value } = iterResult;
           if (done) break;
-          const eventPayload = Object.values(value as Record<string, unknown>)[0] as Record<string, unknown>;
+          const eventPayload = Object.values(
+            value as Record<string, unknown>,
+          )[0] as Record<string, unknown>;
           const event = parseKiroEvent(eventPayload);
           if (!event) continue;
 
           switch (event.type) {
             case "contextUsage": {
               const pct = event.data.contextUsagePercentage;
-              output.usage.input = Math.round((pct / 100) * model.contextWindow);
-              (output.usage as unknown as Record<string, unknown>).contextPercent = pct;
+              output.usage.input = Math.round(
+                (pct / 100) * model.contextWindow,
+              );
+              (
+                output.usage as unknown as Record<string, unknown>
+              ).contextPercent = pct;
               receivedContextUsage = true;
               break;
             }
@@ -348,32 +535,63 @@ export function streamKiro(
                 if (textBlockIndex === null) {
                   textBlockIndex = output.content.length;
                   output.content.push({ type: "text", text: "" });
-                  stream.push({ type: "text_start", contentIndex: textBlockIndex, partial: output });
+                  stream.push({
+                    type: "text_start",
+                    contentIndex: textBlockIndex,
+                    partial: output,
+                  });
                 }
-                (output.content[textBlockIndex] as TextContent).text += event.data;
-                stream.push({ type: "text_delta", contentIndex: textBlockIndex, delta: event.data, partial: output });
+                (output.content[textBlockIndex] as TextContent).text +=
+                  event.data;
+                stream.push({
+                  type: "text_delta",
+                  contentIndex: textBlockIndex,
+                  delta: event.data,
+                  partial: output,
+                });
               }
               break;
             }
             case "toolUse": {
               const tc = event.data;
               sawAnyToolCalls = true;
-              if (!currentToolCall || currentToolCall.toolUseId !== tc.toolUseId) {
-                if (currentToolCall) { if (emitToolCall(currentToolCall, output, stream)) emittedToolCalls++; }
-                currentToolCall = { toolUseId: tc.toolUseId, name: tc.name, input: "" };
+              if (
+                !currentToolCall ||
+                currentToolCall.toolUseId !== tc.toolUseId
+              ) {
+                if (currentToolCall) {
+                  if (emitToolCall(currentToolCall, output, stream))
+                    emittedToolCalls++;
+                }
+                currentToolCall = {
+                  toolUseId: tc.toolUseId,
+                  name: tc.name,
+                  input: "",
+                };
               }
               currentToolCall.input += tc.input || "";
               if (tc.input) totalContent += tc.input;
-              if (tc.stop) { if (currentToolCall) { if (emitToolCall(currentToolCall, output, stream)) emittedToolCalls++; } currentToolCall = null; }
+              if (tc.stop) {
+                if (currentToolCall) {
+                  if (emitToolCall(currentToolCall, output, stream))
+                    emittedToolCalls++;
+                }
+                currentToolCall = null;
+              }
               break;
             }
             case "toolUseInput": {
-              if (currentToolCall) currentToolCall.input += event.data.input || "";
+              if (currentToolCall)
+                currentToolCall.input += event.data.input || "";
               if (event.data.input) totalContent += event.data.input;
               break;
             }
             case "toolUseStop": {
-              if (event.data.stop && currentToolCall) { if (emitToolCall(currentToolCall, output, stream)) emittedToolCalls++; currentToolCall = null; }
+              if (event.data.stop && currentToolCall) {
+                if (emitToolCall(currentToolCall, output, stream))
+                  emittedToolCalls++;
+                currentToolCall = null;
+              }
               break;
             }
             case "usage": {
@@ -381,7 +599,9 @@ export function streamKiro(
               break;
             }
             case "error": {
-              streamError = event.data.message ? `${event.data.error}: ${event.data.message}` : event.data.error;
+              streamError = event.data.message
+                ? `${event.data.error}: ${event.data.message}`
+                : event.data.error;
               void bodyReader.cancel().catch(() => {});
               break;
             }
@@ -392,40 +612,86 @@ export function streamKiro(
         if (firstTokenTimedOut || streamError) {
           if (retryCount < maxRetries) {
             retryCount++;
-            const delayMs = exponentialBackoff(retryCount - 1, 1000, MAX_RETRY_DELAY);
+            const delayMs = exponentialBackoff(
+              retryCount - 1,
+              1000,
+              MAX_RETRY_DELAY,
+            );
             await abortableDelay(delayMs, options?.signal);
             continue;
           }
-          if (streamError) throw new Error(`Kiro API stream error after max retries: ${streamError}`);
-          throw new Error(`Kiro API error: first token timeout after max retries`);
+          if (streamError)
+            throw new Error(
+              `Kiro API stream error after max retries: ${streamError}`,
+            );
+          throw new Error(
+            `Kiro API error: first token timeout after max retries`,
+          );
         }
 
-        if (currentToolCall) { if (emitToolCall(currentToolCall, output, stream)) emittedToolCalls++; }
+        if (currentToolCall) {
+          if (emitToolCall(currentToolCall, output, stream)) emittedToolCalls++;
+        }
         if (thinkingParser) {
           thinkingParser.finalize();
           textBlockIndex = thinkingParser.getTextBlockIndex();
         }
 
         if (textBlockIndex !== null) {
-          stream.push({ type: "text_end", contentIndex: textBlockIndex, content: (output.content[textBlockIndex] as TextContent).text, partial: output });
+          stream.push({
+            type: "text_end",
+            contentIndex: textBlockIndex,
+            content: (output.content[textBlockIndex] as TextContent).text,
+            partial: output,
+          });
         }
 
-        if (usageEvent?.inputTokens !== undefined) output.usage.input = usageEvent.inputTokens;
+        if (usageEvent?.inputTokens !== undefined)
+          output.usage.input = usageEvent.inputTokens;
         output.usage.output = usageEvent?.outputTokens ?? totalContent.length;
         output.usage.totalTokens = output.usage.input + output.usage.output;
-        output.usage.cost = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
+        output.usage.cost = {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          total: 0,
+        };
 
-        output.stopReason = emittedToolCalls > 0 ? "toolUse" : receivedContextUsage ? "stop" : "length";
-        stream.push({ type: "done", reason: output.stopReason as "stop" | "toolUse", message: output });
+        output.stopReason =
+          emittedToolCalls > 0
+            ? "toolUse"
+            : receivedContextUsage
+              ? "stop"
+              : "length";
+        stream.push({
+          type: "done",
+          reason: output.stopReason as "stop" | "toolUse",
+          message: output,
+        });
         stream.end();
         break;
       }
     } catch (error) {
       output.stopReason = options?.signal?.aborted ? "aborted" : "error";
-      output.errorMessage = error instanceof Error ? error.message : String(error);
+      output.errorMessage =
+        error instanceof Error ? error.message : String(error);
       stream.push({ type: "error", reason: output.stopReason, error: output });
       stream.end();
     }
-  })().catch(() => { try { stream.end(); } catch {} });
+  })().catch(() => {
+    // The IIFE already pushes a `error` event into the stream and calls
+    // `stream.end()` on every error path; this outer catch is a defensive
+    // last-resort net for synchronous throws that escape the async block.
+    // SAFETY: an empty catch is intentional here — re-throwing would crash
+    // the agent harness, and the stream-level error event already carries
+    // the upstream message to the user.
+    try {
+      stream.end();
+    } catch {
+      // SAFETY: `stream.end()` is idempotent and best-effort; a double-end
+      // throw must not surface as an uncaught error.
+    }
+  });
   return stream;
 }
