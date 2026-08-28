@@ -15,7 +15,8 @@ import type {
 
 export const SSO_OIDC_ENDPOINT = "https://oidc.us-east-1.amazonaws.com";
 export const BUILDER_ID_START_URL = "https://view.awsapps.com/start";
-export const KIRO_DESKTOP_REFRESH_URL = "https://prod.{region}.auth.desktop.kiro.dev/refreshToken";
+export const KIRO_DESKTOP_REFRESH_URL =
+  "https://prod.{region}.auth.desktop.kiro.dev/refreshToken";
 export const SSO_SCOPES = [
   "codewhisperer:completions",
   "codewhisperer:analysis",
@@ -24,7 +25,7 @@ export const SSO_SCOPES = [
   "codewhisperer:taskassist",
 ];
 
-export type KiroAuthMethod = "idc" | "desktop";
+export type KiroAuthMethod = "idc" | "desktop" | "web-portal";
 export type KiroLoginMethod = "auto" | "builder-id" | "google" | "github";
 
 export interface KiroCredentials extends OAuthCredential {
@@ -33,12 +34,25 @@ export interface KiroCredentials extends OAuthCredential {
   region: string;
   authMethod: KiroAuthMethod;
   profileArn?: string;
+  /** Set when `authMethod: "web-portal"`. The IdP the token was issued for. */
+  idp?: string;
+  /** Set when `authMethod: "web-portal"`. The CSRF token from the ExchangeToken response. */
+  csrfToken?: string;
+  /** Set when `authMethod: "web-portal"`. Stable per-host identifier for the Kiro Desktop refresh User-Agent. */
+  machineId?: string;
 }
 
 const IDC_PROBE_REGIONS = [
-  "us-east-1", "eu-west-1", "eu-central-1", "us-east-2",
-  "eu-west-2", "eu-west-3", "eu-north-1", "ap-southeast-1",
-  "ap-northeast-1", "us-west-2",
+  "us-east-1",
+  "eu-west-1",
+  "eu-central-1",
+  "us-east-2",
+  "eu-west-2",
+  "eu-west-3",
+  "eu-north-1",
+  "ap-southeast-1",
+  "ap-northeast-1",
+  "us-west-2",
 ];
 
 const PROBE_TIMEOUT_MS = 15_000;
@@ -57,7 +71,12 @@ async function tryRegisterAndAuthorize(
   startUrl: string,
   region: string,
   externalSignal?: AbortSignal,
-): Promise<{ clientId: string; clientSecret: string; oidcEndpoint: string; devAuth: DeviceAuth } | null> {
+): Promise<{
+  clientId: string;
+  clientSecret: string;
+  oidcEndpoint: string;
+  devAuth: DeviceAuth;
+} | null> {
   const oidcEndpoint = `https://oidc.${region}.amazonaws.com`;
   const mergedSignal = externalSignal
     ? AbortSignal.any([externalSignal, AbortSignal.timeout(PROBE_TIMEOUT_MS)])
@@ -70,11 +89,17 @@ async function tryRegisterAndAuthorize(
       clientName: "pi-cli",
       clientType: "public",
       scopes: SSO_SCOPES,
-      grantTypes: ["urn:ietf:params:oauth:grant-type:device_code", "refresh_token"],
+      grantTypes: [
+        "urn:ietf:params:oauth:grant-type:device_code",
+        "refresh_token",
+      ],
     }),
   });
   if (!regResp.ok) return null;
-  const { clientId, clientSecret } = (await regResp.json()) as { clientId: string; clientSecret: string };
+  const { clientId, clientSecret } = (await regResp.json()) as {
+    clientId: string;
+    clientSecret: string;
+  };
   const devResp = await fetch(`${oidcEndpoint}/device_authorization`, {
     method: "POST",
     signal: mergedSignal,
@@ -82,7 +107,12 @@ async function tryRegisterAndAuthorize(
     body: JSON.stringify({ clientId, clientSecret, startUrl }),
   });
   if (!devResp.ok) return null;
-  return { clientId, clientSecret, oidcEndpoint, devAuth: (await devResp.json()) as DeviceAuth };
+  return {
+    clientId,
+    clientSecret,
+    oidcEndpoint,
+    devAuth: (await devResp.json()) as DeviceAuth,
+  };
 }
 
 async function pollDeviceCode(
@@ -110,7 +140,10 @@ async function pollDeviceCode(
     const tokResp = await fetch(`${oidcEndpoint}/token`, {
       method: "POST",
       signal: interaction.signal
-        ? AbortSignal.any([interaction.signal, AbortSignal.timeout(PROBE_TIMEOUT_MS)])
+        ? AbortSignal.any([
+            interaction.signal,
+            AbortSignal.timeout(PROBE_TIMEOUT_MS),
+          ])
         : AbortSignal.timeout(PROBE_TIMEOUT_MS),
       headers: { "Content-Type": "application/json", "User-Agent": "pi-cli" },
       body: JSON.stringify({
@@ -121,7 +154,10 @@ async function pollDeviceCode(
       }),
     });
     const tokData = (await tokResp.json()) as {
-      error?: string; accessToken?: string; refreshToken?: string; expiresIn?: number;
+      error?: string;
+      accessToken?: string;
+      refreshToken?: string;
+      expiresIn?: number;
     };
 
     switch (tokData.error) {
@@ -131,7 +167,10 @@ async function pollDeviceCode(
             type: "oauth",
             refresh: tokData.refreshToken,
             access: tokData.accessToken,
-            expires: Date.now() + (tokData.expiresIn || 3600) * 1000 - EXPIRES_BUFFER_MS,
+            expires:
+              Date.now() +
+              (tokData.expiresIn || 3600) * 1000 -
+              EXPIRES_BUFFER_MS,
             clientId,
             clientSecret,
             region,
@@ -139,36 +178,74 @@ async function pollDeviceCode(
           } as KiroCredentials;
         }
         break;
-      case "authorization_pending": break;
-      case "slow_down": interval += baseInterval; break;
-      default: throw new Error(`Authorization failed: ${tokData.error}`);
+      case "authorization_pending":
+        break;
+      case "slow_down":
+        interval += baseInterval;
+        break;
+      default:
+        throw new Error(`Authorization failed: ${tokData.error}`);
     }
   }
   throw new Error("Authorization timed out");
 }
 
-async function runDeviceCodeFlow(interaction: AuthInteraction, startUrl: string, region: string): Promise<OAuthCredential> {
+async function runDeviceCodeFlow(
+  interaction: AuthInteraction,
+  startUrl: string,
+  region: string,
+): Promise<OAuthCredential> {
   const result = await tryRegisterAndAuthorize(startUrl, region);
   if (!result) throw new Error(`Device authorization failed in ${region}`);
-  return pollDeviceCode(interaction, result.clientId, result.clientSecret, region, result.oidcEndpoint, result.devAuth);
-}
-
-async function _runDeviceCodeFlowWithRegionDetection(interaction: AuthInteraction, startUrl: string): Promise<OAuthCredential> {
-  interaction.notify({ type: "progress", message: "Detecting your Identity Center region..." });
-  for (const region of IDC_PROBE_REGIONS) {
-    const result = await tryRegisterAndAuthorize(startUrl, region).catch(() => null);
-    if (result) {
-      interaction.notify({ type: "progress", message: `Region detected: ${region}` });
-      return pollDeviceCode(interaction, result.clientId, result.clientSecret, region, result.oidcEndpoint, result.devAuth);
-    }
-  }
-  throw new Error(
-    `Could not find an AWS region that accepts ${startUrl}. Tried: ${IDC_PROBE_REGIONS.join(", ")}.`
+  return pollDeviceCode(
+    interaction,
+    result.clientId,
+    result.clientSecret,
+    region,
+    result.oidcEndpoint,
+    result.devAuth,
   );
 }
 
-async function loginKiro(interaction: AuthInteraction): Promise<OAuthCredential> {
-  interaction.notify({ type: "progress", message: "Getting AWS Builder ID login..." });
+async function _runDeviceCodeFlowWithRegionDetection(
+  interaction: AuthInteraction,
+  startUrl: string,
+): Promise<OAuthCredential> {
+  interaction.notify({
+    type: "progress",
+    message: "Detecting your Identity Center region...",
+  });
+  for (const region of IDC_PROBE_REGIONS) {
+    const result = await tryRegisterAndAuthorize(startUrl, region).catch(
+      () => null,
+    );
+    if (result) {
+      interaction.notify({
+        type: "progress",
+        message: `Region detected: ${region}`,
+      });
+      return pollDeviceCode(
+        interaction,
+        result.clientId,
+        result.clientSecret,
+        region,
+        result.oidcEndpoint,
+        result.devAuth,
+      );
+    }
+  }
+  throw new Error(
+    `Could not find an AWS region that accepts ${startUrl}. Tried: ${IDC_PROBE_REGIONS.join(", ")}.`,
+  );
+}
+
+async function loginKiro(
+  interaction: AuthInteraction,
+): Promise<OAuthCredential> {
+  interaction.notify({
+    type: "progress",
+    message: "Getting AWS Builder ID login...",
+  });
   interaction.notify({
     type: "auth_url",
     url: BUILDER_ID_START_URL,
@@ -178,11 +255,35 @@ async function loginKiro(interaction: AuthInteraction): Promise<OAuthCredential>
   return runDeviceCodeFlow(interaction, BUILDER_ID_START_URL, "us-east-1");
 }
 
-async function refreshKiroCredential(credential: OAuthCredential, _signal?: AbortSignal): Promise<OAuthCredential> {
+async function refreshKiroCredential(
+  credential: OAuthCredential,
+  _signal?: AbortSignal,
+): Promise<OAuthCredential> {
+  const kiroCred = credential as KiroCredentials;
+  // Prefer the typed `authMethod` field (used by `web-portal` and
+  // modern `desktop` credentials). Fall back to the legacy
+  // pipe-encoded suffix for older `desktop` credentials where the
+  // refresh string ends with "|desktop".
+  let authMethod: KiroAuthMethod = kiroCred.authMethod ?? "idc";
   const parts = credential.refresh.split("|");
-  const refreshToken = parts[0] ?? "";
-  const authMethod = (parts[parts.length - 1] ?? "idc") as KiroAuthMethod;
-  const region = (credential as KiroCredentials).region || "us-east-1";
+  const rawRefresh = parts[0] ?? "";
+  const refreshToken = rawRefresh;
+  if (authMethod === "idc" && parts.length > 1) {
+    const legacy = parts[parts.length - 1] ?? "idc";
+    if (legacy === "desktop" || legacy === "web-portal") {
+      authMethod = legacy;
+    }
+  }
+  const region = kiroCred.region || "us-east-1";
+
+  if (authMethod === "web-portal") {
+    // Phase D: route to the new Web Portal refresh path which
+    // also extracts profileArn from the response.
+    const { refreshKiroDesktopCredential } = await import(
+      "./kiro-desktop-auth.js"
+    );
+    return refreshKiroDesktopCredential(kiroCred, _signal);
+  }
 
   if (authMethod === "desktop") {
     const url = KIRO_DESKTOP_REFRESH_URL.replace("{region}", region);
@@ -191,9 +292,16 @@ async function refreshKiroCredential(credential: OAuthCredential, _signal?: Abor
       headers: { "Content-Type": "application/json", "User-Agent": "pi-cli" },
       body: JSON.stringify({ refreshToken }),
     });
-    if (!response.ok) throw new Error(`Desktop token refresh failed: ${response.status}`);
-    const data = (await response.json()) as { accessToken: string; refreshToken?: string; expiresIn: number; profileArn?: string };
-    if (!data.accessToken) throw new Error("Desktop token refresh: missing accessToken");
+    if (!response.ok)
+      throw new Error(`Desktop token refresh failed: ${response.status}`);
+    const data = (await response.json()) as {
+      accessToken: string;
+      refreshToken?: string;
+      expiresIn: number;
+      profileArn?: string;
+    };
+    if (!data.accessToken)
+      throw new Error("Desktop token refresh: missing accessToken");
     return {
       ...credential,
       refresh: `${data.refreshToken || refreshToken}|desktop`,
@@ -208,15 +316,25 @@ async function refreshKiroCredential(credential: OAuthCredential, _signal?: Abor
   }
 
   const clientId = (credential as KiroCredentials).clientId ?? parts[1] ?? "";
-  const clientSecret = (credential as KiroCredentials).clientSecret ?? parts[2] ?? "";
+  const clientSecret =
+    (credential as KiroCredentials).clientSecret ?? parts[2] ?? "";
   const ssoEndpoint = `https://oidc.${region}.amazonaws.com`;
   const response = await fetch(`${ssoEndpoint}/token`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "User-Agent": "pi-cli" },
-    body: JSON.stringify({ clientId, clientSecret, refreshToken, grantType: "refresh_token" }),
+    body: JSON.stringify({
+      clientId,
+      clientSecret,
+      refreshToken,
+      grantType: "refresh_token",
+    }),
   });
   if (!response.ok) throw new Error(`Token refresh failed: ${response.status}`);
-  const data = (await response.json()) as { accessToken: string; refreshToken: string; expiresIn: number };
+  const data = (await response.json()) as {
+    accessToken: string;
+    refreshToken: string;
+    expiresIn: number;
+  };
   return {
     ...credential,
     refresh: `${data.refreshToken}${clientId ? `|${clientId}` : ""}|${clientSecret}|idc`,

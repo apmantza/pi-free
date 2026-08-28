@@ -415,12 +415,12 @@ auth flow.
 
 | Phase | What | Status | PR |
 | --- | --- | --- | --- |
-| A | This design document | **in progress** (this PR) | TBD |
-| B | `kiro-web-portal-cbor.ts` + `cbor-x` dep + unit tests | not started | — |
-| C | `kiro-pkce.ts` + `kiro-web-portal.ts` + unit tests | not started | — |
-| D | `kiro-desktop-auth.ts` + browser redirect UX + refresh | not started | — |
-| E | `kiro_auth_method` config + `kiro-stream.ts` credential read + `getKiroAuthMethod()` + tests | not started | — |
-| F | End-to-end test, release notes, roadmap doc update | not started | — |
+| A | This design document | shipped | #486 |
+| B | `kiro-web-portal-cbor.ts` + `cbor-x` dep + unit tests | shipped | #487 |
+| C | `kiro-pkce.ts` + `kiro-web-portal.ts` + unit tests | shipped | #487 |
+| D | `kiro-desktop-auth.ts` + browser redirect UX + refresh path | shipped | #487 |
+| E | `kiro_auth_method` config + `kiro-stream.ts` credential read + `getKiroAuthMethod()` + tests | shipped | #487 |
+| F | End-to-end test, release notes, roadmap doc update | shipped | #487 |
 
 Each phase is its own PR. A through E are reviewable independently. F
 is a final polish PR that just runs the live API test, updates the
