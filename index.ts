@@ -29,6 +29,8 @@ import {
 	processQuotaResponse,
 	formatQuotaStatus,
 } from "./lib/quota-monitor.ts";
+import { fallbackState } from "./lib/fallback-state.ts";
+import { createAutoFallback } from "./lib/auto-fallback/index.ts";
 import { formatHealthReport } from "./lib/health.ts";
 import { logWireSignature } from "./lib/wire-signature.ts";
 import {
@@ -322,6 +324,15 @@ function setupQuotaMonitoring(pi: ExtensionAPI) {
 
 				processQuotaResponse(providerId, event.status, event.headers);
 
+				// Mirror the status into fallback-state so the abort
+				// heuristic (Q23 = B) can read it. We deliberately do not
+				// read response bodies — header names + status only
+				// (AGENTS.md convention 17, wire-signature).
+				const modelId = ctx.model?.id;
+				if (modelId) {
+					fallbackState.recordResponse(providerId, modelId, event.status);
+				}
+
 				// Update status bar with quota for the active provider
 				const status = formatQuotaStatus(providerId);
 				if (status) {
@@ -457,6 +468,30 @@ function setupTelemetry(pi: ExtensionAPI) {
 }
 
 // =============================================================================
+// Auto-Fallback
+// =============================================================================
+
+// Module-scope handle so `/pi-free-health` can read its status without
+// re-constructing the pipeline. Reset on each piFreeEntry() so a reload
+// gets fresh state (and fresh event registrations).
+let autoFallback: ReturnType<typeof createAutoFallback> | undefined;
+
+/**
+ * The factory is intentionally not invoked until after the global handlers
+ * are registered — auto-fallback's event subscribers must use the SAME
+ * `pi` instance that the runner owns, otherwise the ExtensionAPI's
+ * additive `pi.on()` semantics leak duplicate handlers.
+ */
+function setupAutoFallback(pi: ExtensionAPI): void {
+	autoFallback = createAutoFallback();
+	autoFallback.register(pi);
+}
+
+export function getAutoFallback() {
+	return autoFallback;
+}
+
+// =============================================================================
 // Main Entry Point
 // =============================================================================
 
@@ -494,6 +529,9 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 
 		// Setup model telemetry (tracks real-world performance)
 		setupTelemetry(pi);
+
+		// Setup auto-fallback (event-driven model switching on errors)
+		setupAutoFallback(pi);
 	}
 	endPhase("global-handlers");
 

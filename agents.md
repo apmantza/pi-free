@@ -33,6 +33,15 @@ index.ts                          ← Extension entry point (piFreeEntry)
   ├─ lib/provider-cache.ts        ← Disk cache for fetched model lists
   ├─ lib/provider-compat.ts       ← DeepSeek proxy compat flag detection
   ├─ lib/util.ts                  ← fetchWithRetry, model size parsing, OpenRouter mapping
+  ├─ lib/fallback-state.ts        ← Shared in-memory store (last HTTP status per model) used by both quota-monitor and auto-fallback
+  ├─ lib/auto-fallback/           ← Auto-fallback to another free model on error (since 2.7.0)
+  │   ├─ index.ts                 ← Event wiring (after_provider_response / message_end / agent_end / agent_settled / model_select)
+  │   ├─ classifier.ts            ← HTTP status + errorMessage regex classification (mirrors pi-ai's `isRetryableAssistantError`)
+  │   ├─ blacklist.ts             ← In-memory failure tracking with TTL + max-strikes
+  │   ├─ selection.ts             ← CI-score candidate ordering + scope filter (provider / global / whitelist)
+  │   ├─ notify.ts                ← 5-minute windowed notification aggregation
+  │   ├─ commands.ts              ← /toggle-auto-fallback / /free-fallback-history / /reset-fallback-blacklist
+  │   └─ config.ts                ← Typed accessors for the 7 `auto_fallback_*` / `fallback_*` config fields
   │
   ├─ config.ts                    ← ~/.pi/free.json + env var resolution (ALL config lives here)
   ├─ constants.ts                 ← Provider IDs, base URLs, timeouts, thresholds
@@ -179,6 +188,37 @@ Debug logging writes to `~/.pi/free.log` under the `benchmark-lookup` namespace:
 
 `lib/quota-monitor.ts` passively extracts rate-limit headers from provider responses. Tries 5 header pair formats in priority order. Shows quota in status bar with warning icons when < 25%.
 
+### Auto-Fallback
+
+`lib/auto-fallback/` automatically switches to another free model when the current one errors, so the conversation keeps moving during quota outages / provider hiccups. Active only when `/toggle-free` is **ON**.
+
+**Pipeline (each event handler in `index.ts`):**
+
+- `after_provider_response` — record `{provider, model, status}` into `lib/fallback-state.ts`; mark the model as blacklisted for HTTP-level recoverable/unrecoverable codes (no body read, AGENTS.md wire-signature convention).
+- `message_end` — when `stopReason === "error" | "aborted"`, classify the `errorMessage` against the regex tables (mirrors pi-ai's `NON_RETRYABLE_PROVIDER_LIMIT_ERROR_PATTERN` / `RETRYABLE_PROVIDER_ERROR_PATTERN`); blacklist the model. **No switch yet.**
+- `agent_end` — PRIMARY trigger. Only acts when `willRetry === false` (Pi has finished its own backoff). Classifies the last assistant message; if recoverable, runs the selector, calls `pi.setModel()`, and records the switch in in-memory history. Idempotency key `{provider/model}:{turnIndex}` prevents double-switching when the same failure triggers multiple events.
+- `agent_settled` — recovery detection: if the model we landed on completes a successful run, mark the history entry recovered, clear the blacklist, and (per `fallback_restore`) optionally switch back to the user's pre-fallback pick.
+- `model_select` — clears the restore marker when the user manually picks a different model.
+
+**`classifier.ts` decision matrix:**
+
+| HTTP status | 4xx unrecoverable set | 4xx recoverable set | 5xx | abort + last status ≥ 500 |
+|---|---|---|---|---|
+| action | blacklist, NO switch | blacklist + switch | blacklist + switch | recoverable (switch) |
+| examples | 400, 401, 403, 404, 422 | 402, 408, 425, 429 | 500–504, 521–527, 529 | server killed mid-flight |
+
+**`blacklist.ts` dual rule (Q9 = C):** single failures expire after `auto_fallback_blacklist_ttl_ms` (default 10 min); `auto_fallback_blacklist_max` strikes (default 3) within the window promote the model to a permanent session ban. `/reset-fallback-blacklist` clears everything (escape hatch after exhaustion).
+
+**`selection.ts` strategy (Q3 = D):** filter by `auto_fallback_scope` (provider | global | whitelist), exclude current model + blacklisted, sort by CI score descending (uses `provider-failover/benchmark-lookup.ts`). Unscored candidates rank below any scored candidate, alphabetical tiebreaker.
+
+**`notify.ts` aggregation (Q31 = B):** first switch toasts immediately; subsequent switches within a 5-minute window roll into a single summary ("Auto-fallback: tried N free models in last 5min, currently on X"). Status bar shows `🛟 Fallback active` until recovery.
+
+**Hard limits (mid-flight switching is impossible from extensions):**
+- Pi does not expose a turn-replay hook (issue earendil-works/pi #1248, `not_planned`).
+- `pi.setModel()` always rewrites the global default — fallback is sticky.
+- Failed turn is shown to the user as an error; the *next* turn uses the new model.
+- The auto-fallback module deliberately does NOT import `@earendil-works/pi-ai` at module scope (convention 16); the classifier regex tables are kept locally with a comment pointing at pi-ai's `src/utils/retry.ts` as the canonical source.
+
 ---
 
 ## Provider Categories
@@ -204,6 +244,7 @@ Debug logging writes to `~/.pi/free.log` under the `benchmark-lookup` namespace:
 - **Qoder stream metadata:** `~/.pi/agent/qoder-models-cache.json`
 - **Native models store:** `~/.pi/agent/models-store.json` (all native providers, owned by Pi)
 - **Native auth store:** `~/.pi/agent/auth.json` (native-provider credentials, owned by Pi)
+- **Auto-fallback blacklist:** in-memory only (resets on extension reload). Session-start restores the blacklist to empty; `/reset-fallback-blacklist` clears manually.
 
 ---
 
@@ -238,6 +279,9 @@ Debug logging writes to `~/.pi/free.log` under the `benchmark-lookup` namespace:
 | `/free-providers`    | Global       | Show free/paid counts for all providers   |
 | `/free-startup`      | Global       | Show last startup timing breakdown        |
 | `/pi-free-health`    | Global       | Show diagnostic status and log path      |
+| `/toggle-auto-fallback` | Global    | Toggle auto-fallback on model errors      |
+| `/free-fallback-history` | Global    | Show session switch log + blacklist       |
+| `/reset-fallback-blacklist` | Global | Clear the in-memory fallback blacklist     |
 | `/free-telemetry`    | Global       | Show local free-model performance data   |
 | `/clear-free-telemetry` | Global    | Clear local telemetry data               |
 | `/toggle-{provider}` | Per-provider | Toggle between free and all models        |

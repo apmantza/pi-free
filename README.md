@@ -22,6 +22,7 @@ When you install pi-free, it:
 6. Supports OAuth and API-key authentication where a provider offers them.
 7. Adds Coding Index scores to model names and can probe and hide unavailable models.
 8. Provides `/pi-free-health` and `/free-startup` diagnostics without exposing credentials.
+9. Auto-fallbacks to another free model when the current one errors (see [Auto-fallback](#auto-fallback)).
 
 ## Install
 
@@ -58,7 +59,10 @@ Qoder supports `/login qoder` with PAT or browser OAuth, then `/toggle-qoder` sw
 /toggle-kilo
 /toggle-openrouter
 /toggle-free
+/toggle-auto-fallback
 /free-providers
+/free-fallback-history
+/reset-fallback-blacklist
 /pi-free-health
 ```
 
@@ -72,6 +76,39 @@ First run creates `~/.pi/free.json`. Add extension-provider keys there or use th
   "anyapi_api_key": "..."
 }
 ```
+
+## Auto-fallback
+
+When `/toggle-free` is **ON** and the current free model errors, pi-free automatically switches to another free model so the conversation keeps moving. The feature is event-driven: every `429 / 5xx / quota / network / timeout` is detected at `after_provider_response` + `message_end`; the actual switch fires from `agent_end` once Pi has finished its own same-model backoff retries (so we don't fight Pi's retries).
+
+Three commands:
+
+- `/toggle-auto-fallback` — on/off switch (persists in `~/.pi/free.json`).
+- `/free-fallback-history` — list of session switches + current blacklist.
+- `/reset-fallback-blacklist` — clear the in-memory blacklist (escape hatch after an exhaustion).
+
+Configuration (`~/.pi/free.json`, all optional, defaults shown):
+
+```jsonc
+{
+  "auto_fallback": true,                          // master switch
+  "auto_fallback_scope": "provider",             // "provider" | "global" | "whitelist"
+  "auto_fallback_providers": [],                 // only when scopes="whitelist"
+  "auto_fallback_blacklist_ttl_ms": 600000,      // 10-min soft ban window
+  "auto_fallback_blacklist_max": 3,              // strikes → permanent session ban
+  "fallback_notify": "toast",                    // "silent" | "toast" | "status_bar" | "both"
+  "fallback_restore": "manual"                   // "manual" | "auto_next_turn" | "auto_session_end"
+}
+```
+
+How it picks the next one: highest Coding Index score among free models not currently blacklisted, scoped to the failing provider by default. The blacklist uses a counter + time dual rule — a single transient quota error expires after the TTL, but `max` strikes in the window promotes the model to a hard session ban.
+
+Caveats:
+
+- **Mid-flight switching is not possible from extensions** (Pi does not expose a turn-replay hook; issue #1248, `not_planned`). The failed turn is shown to the user as an error; the *next* turn uses the new model.
+- **`setModel()` rewrites the global default** (issue #1248). Recovery can optionally restore the user's pre-fallback pick via `fallback_restore: "auto_next_turn"`.
+- Errors are classified by HTTP status (4xx recoverable set: 429/402/408/425; 5xx all) and `errorMessage` regex (mirrors pi-ai's `isRetryableAssistantError`). 401/403/404/422 are *not* recoverable — switching would only burn candidates.
+- All classifications run without reading response bodies (AGENTS.md wire-signature convention).
 
 ## Provider Catalog
 
