@@ -695,29 +695,34 @@ export function getKiroProfileArn(): string | undefined {
 }
 
 /**
- * Resolve the Kiro auth method override from env or file, with a
- * default that doesn't break existing users.
+ * Resolve the Kiro auth method override from env or file.
  *
- * - `"web-portal"`: the new PKCE + Kiro Web Portal flow (Phase D).
- *   The persisted credential includes `profileArn` automatically.
- * - `"idc"`: the existing AWS SSO OIDC device-code flow. Requires
- *   the user to set `kiro_profile_arn` for chat to work (per PR #485).
+ * - `"web-portal"`: the PKCE + Kiro Web Portal flow. The persisted
+ *   credential includes `profileArn` automatically, so chat works
+ *   without any `kiro_profile_arn` config. This is the default.
+ * - `"idc"`: the AWS SSO OIDC device-code flow. Requires the user
+ *   to set `kiro_profile_arn` in `~/.pi/free.json` for chat to
+ *   work (see PR #485). Opt in by setting
+ *   `KIRO_AUTH_METHOD=idc` or `kiro_auth_method: "idc"`.
  * - `"kiro-cli"`: read the kiro-cli's local SQLite credential store
  *   (Phase G, not yet implemented).
  *
- * Default seeding (matches the design doc's "migrate gradually, never
- * break a working setup" rule): if the user has a working
- * `kiro_profile_arn` set, default to `"idc"` (their existing flow
- * works). Otherwise, default to `"web-portal"` (the new flow runs
- * out of the box once the user runs `/login kiro`).
+ * The default is always `"web-portal"`. To keep the legacy idc flow,
+ * set `kiro_auth_method: "idc"` (or `KIRO_AUTH_METHOD=idc`). The
+ * previous design doc had a "migration safety" branch that defaulted
+ * to `"idc"` when `kiro_profile_arn` was set; that branch was
+ * removed because it actively broke the user-experience for fresh
+ * installs (they'd be sent to the legacy flow which requires
+ * `kiro_profile_arn` they haven't set) and offered no real safety
+ * for existing users (the new flow's persisted `profileArn` is
+ * equivalent to the user's manual one, since both come from the
+ * same Kiro backend).
  *
  * Env: `KIRO_AUTH_METHOD` > file `kiro_auth_method` > default.
  */
 export function getKiroAuthMethod(): "idc" | "web-portal" | "kiro-cli" {
 	const fromEnv = resolve("KIRO_AUTH_METHOD", loadConfigFile().kiro_auth_method);
 	if (fromEnv) return fromEnv as "idc" | "web-portal" | "kiro-cli";
-	const file = loadConfigFile();
-	if (file.kiro_profile_arn && file.kiro_profile_arn.length > 0) return "idc";
 	return "web-portal";
 }
 

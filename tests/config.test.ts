@@ -250,13 +250,13 @@ describe("show-paid getters", () => {
 	});
 
 	// ── getKiroAuthMethod (Phase E) ───────────────────────────────────
-	it("getKiroAuthMethod defaults to 'web-portal' when no kiro_profile_arn is set", async () => {
+	it("getKiroAuthMethod defaults to 'web-portal'", async () => {
 		vi.stubEnv("HOME", "/tmp");
 		const { getKiroAuthMethod } = await import("../config.ts");
 		expect(getKiroAuthMethod()).toBe("web-portal");
 	});
 
-	it("getKiroAuthMethod defaults to 'idc' when kiro_profile_arn is set (migration safety)", async () => {
+	it("getKiroAuthMethod defaults to 'web-portal' even when kiro_profile_arn is set (the new flow persists its own profileArn, so the manual config is now redundant)", async () => {
 		vi.stubEnv("HOME", "/tmp");
 		const fs = await import("node:fs");
 		const { __mockData } = fs as any;
@@ -267,26 +267,15 @@ describe("show-paid getters", () => {
 			}),
 		);
 
+		const { getKiroAuthMethod } = await import("../config.ts");
+		expect(getKiroAuthMethod()).toBe("web-portal");
+	});
+
+	it("getKiroAuthMethod respects KIRO_AUTH_METHOD env over the default", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		vi.stubEnv("KIRO_AUTH_METHOD", "idc");
 		const { getKiroAuthMethod } = await import("../config.ts");
 		expect(getKiroAuthMethod()).toBe("idc");
-	});
-
-	it("getKiroAuthMethod prefers KIRO_AUTH_METHOD env over the migration default", async () => {
-		vi.stubEnv("HOME", "/tmp");
-		vi.stubEnv("KIRO_AUTH_METHOD", "web-portal");
-		const fs = await import("node:fs");
-		const { __mockData } = fs as any;
-		// kiro_profile_arn is set, which would normally seed to "idc",
-		// but the env var should override that.
-		__mockData.set(
-			configPath(),
-			JSON.stringify({
-				kiro_profile_arn: "arn:aws:codewhisperer:us-east-1:123:profile/ABC",
-			}),
-		);
-
-		const { getKiroAuthMethod } = await import("../config.ts");
-		expect(getKiroAuthMethod()).toBe("web-portal");
 	});
 
 	it("getKiroAuthMethod reads kiro_auth_method from ~/.pi/free.json", async () => {

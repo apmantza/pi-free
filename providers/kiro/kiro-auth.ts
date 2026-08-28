@@ -12,6 +12,7 @@ import type {
   ProviderAuth,
   ModelAuth,
 } from "@earendil-works/pi-ai";
+import { getKiroAuthMethod } from "../../config.ts";
 
 export const SSO_OIDC_ENDPOINT = "https://oidc.us-east-1.amazonaws.com";
 export const BUILDER_ID_START_URL = "https://view.awsapps.com/start";
@@ -41,19 +42,6 @@ export interface KiroCredentials extends OAuthCredential {
   /** Set when `authMethod: "web-portal"`. Stable per-host identifier for the Kiro Desktop refresh User-Agent. */
   machineId?: string;
 }
-
-const IDC_PROBE_REGIONS = [
-  "us-east-1",
-  "eu-west-1",
-  "eu-central-1",
-  "us-east-2",
-  "eu-west-2",
-  "eu-west-3",
-  "eu-north-1",
-  "ap-southeast-1",
-  "ap-northeast-1",
-  "us-west-2",
-];
 
 const PROBE_TIMEOUT_MS = 15_000;
 const EXPIRES_BUFFER_MS = 5 * 60 * 1000;
@@ -207,41 +195,29 @@ async function runDeviceCodeFlow(
   );
 }
 
-async function _runDeviceCodeFlowWithRegionDetection(
-  interaction: AuthInteraction,
-  startUrl: string,
-): Promise<OAuthCredential> {
-  interaction.notify({
-    type: "progress",
-    message: "Detecting your Identity Center region...",
-  });
-  for (const region of IDC_PROBE_REGIONS) {
-    const result = await tryRegisterAndAuthorize(startUrl, region).catch(
-      () => null,
-    );
-    if (result) {
-      interaction.notify({
-        type: "progress",
-        message: `Region detected: ${region}`,
-      });
-      return pollDeviceCode(
-        interaction,
-        result.clientId,
-        result.clientSecret,
-        region,
-        result.oidcEndpoint,
-        result.devAuth,
-      );
-    }
-  }
-  throw new Error(
-    `Could not find an AWS region that accepts ${startUrl}. Tried: ${IDC_PROBE_REGIONS.join(", ")}.`,
-  );
-}
-
 async function loginKiro(
   interaction: AuthInteraction,
 ): Promise<OAuthCredential> {
+  // Dispatch to the configured auth method (per docs/kiro-web-portal-auth.md):
+  //   - "web-portal" (default for fresh installs): PKCE + Kiro Web Portal
+  //     flow that persists profileArn automatically. The user signs in
+  //     via browser and pastes the redirect URL back.
+  //   - "idc" (default when kiro_profile_arn is set): the existing
+  //     AWS SSO OIDC device-code flow. Requires the user to set
+  //     kiro_profile_arn in ~/.pi/free.json for chat to work.
+  //   - "kiro-cli": Phase G fallback, not yet implemented — falls
+  //     through to the idc flow for now.
+  const method = getKiroAuthMethod();
+  if (method === "web-portal") {
+    const { loginKiroDesktop } = await import("./kiro-desktop-auth.js");
+    interaction.notify({
+      type: "progress",
+      message: "Starting Kiro Web Portal login (PKCE + browser redirect)...",
+    });
+    return loginKiroDesktop(interaction);
+  }
+
+  // Legacy SSO OIDC device-code flow.
   interaction.notify({
     type: "progress",
     message: "Getting AWS Builder ID login...",
@@ -251,7 +227,6 @@ async function loginKiro(
     url: BUILDER_ID_START_URL,
     instructions: "Initiating AWS Builder ID device authorization",
   });
-  // Default to Builder ID device code flow
   return runDeviceCodeFlow(interaction, BUILDER_ID_START_URL, "us-east-1");
 }
 
@@ -348,8 +323,8 @@ async function refreshKiroCredential(
 }
 
 export const kiroOAuthAuth: OAuthAuth = {
-  name: "Kiro (AWS Builder ID)",
-  loginLabel: "Sign in with AWS Builder ID",
+  name: "Kiro",
+  loginLabel: "Sign in with Kiro",
   login: loginKiro,
   refresh: refreshKiroCredential,
   async toAuth(credential: OAuthCredential): Promise<ModelAuth> {
