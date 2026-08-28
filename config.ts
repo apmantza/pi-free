@@ -49,6 +49,14 @@ import {
 	PROVIDER_MERGE,
 	PROVIDER_COMMANDCODE,
 } from "./constants.ts";
+// SAFETY: This re-export is intentional — every provider module imports its
+// `PROVIDER_*` constant via `from "../../config.ts"` (see providers/kilo/kilo.ts,
+// providers/gmi/gmi.ts, etc.). Collapsing the import path into a single barrel
+// here keeps the import surface stable when constants move, and avoids forcing
+// every provider to add a second import line for `./constants.ts`. The cost
+// is that this file looks like a barrel — it isn't; it's the single source of
+// truth for runtime config (env vars, ~/.pi/free.json resolution, defaults)
+// and the provider-id constants happen to live alongside it.
 export {
 	PROVIDER_ANYAPI,
 	PROVIDER_BAI,
@@ -153,6 +161,7 @@ interface PiFreeConfig {
 	opencode_go_show_paid?: boolean;
 	qoder_show_paid?: boolean;
 	kiro_show_paid?: boolean;
+	kiro_profile_arn?: string;
 }
 
 const CONFIG_TEMPLATE: PiFreeConfig = {
@@ -213,6 +222,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	opencode_go_show_paid: false,
 	qoder_show_paid: false,
 	kiro_show_paid: false,
+	kiro_profile_arn: "",
 };
 
 const CONFIG_PATH = join(PI_DATA_DIR, "free.json");
@@ -666,6 +676,21 @@ export function getOpencodeGoShowPaid(): boolean {
 
 export function getKiroShowPaid(): boolean {
 	return resolveBool("KIRO_SHOW_PAID", loadConfigFile().kiro_show_paid);
+}
+
+/**
+ * Resolve the Kiro profileArn override from env or config.
+ *
+ * The Kiro streaming endpoint requires a real `profileArn` for the credential;
+ * pi-free's `pi-cli` OIDC client does not have the `codewhisperer:profile:List`
+ * scope needed to discover it from `ListAvailableProfiles`, so the user must
+ * supply it explicitly. Set `KIRO_PROFILE_ARN` or `kiro_profile_arn` in
+ * `~/.pi/free.json` to a real ARN (e.g. from the Kiro IDE's developer tools or
+ * `kiro-cli profile` output). When unset, the kiro stream provider will throw
+ * a clear error instead of silently retrying with an invalid placeholder ARN.
+ */
+export function getKiroProfileArn(): string | undefined {
+	return resolve("KIRO_PROFILE_ARN", loadConfigFile().kiro_profile_arn);
 }
 
 export function getProviderShowPaid(providerId: string): boolean {

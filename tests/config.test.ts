@@ -52,11 +52,7 @@ function parseMockJson(value: unknown): Record<string, unknown> {
 			throw new TypeError("mock JSON value is not a string");
 		}
 		const parsed: unknown = JSON.parse(value);
-		if (
-			parsed === null ||
-			typeof parsed !== "object" ||
-			Array.isArray(parsed)
-		) {
+		if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
 			throw new TypeError("mock JSON value is not an object");
 		}
 		return parsed as Record<string, unknown>;
@@ -198,14 +194,66 @@ describe("show-paid getters", () => {
 		expect(getKiloShowPaid()).toBe(false);
 	});
 
-	it("getOpenrouterShowPaid reads from file", async () => {
+	it("getKiroProfileArn returns undefined when neither env nor file is set", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const { getKiroProfileArn } = await import("../config.ts");
+		expect(getKiroProfileArn()).toBeUndefined();
+	});
+
+	it("getKiroProfileArn reads from ~/.pi/free.json kiro_profile_arn", async () => {
 		vi.stubEnv("HOME", "/tmp");
 		const fs = await import("node:fs");
 		const { __mockData } = fs as any;
 		__mockData.set(
 			configPath(),
-			JSON.stringify({ openrouter_show_paid: true }),
+			JSON.stringify({
+				kiro_profile_arn:
+					"arn:aws:codewhisperer:us-east-1:610548660232:profile/VNECVYCYYAWN",
+			}),
 		);
+
+		const { getKiroProfileArn } = await import("../config.ts");
+		expect(getKiroProfileArn()).toBe(
+			"arn:aws:codewhisperer:us-east-1:610548660232:profile/VNECVYCYYAWN",
+		);
+	});
+
+	it("getKiroProfileArn prefers KIRO_PROFILE_ARN env over file value", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		vi.stubEnv(
+			"KIRO_PROFILE_ARN",
+			"arn:aws:codewhisperer:eu-central-1:12345:profile/ENV",
+		);
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(
+			configPath(),
+			JSON.stringify({
+				kiro_profile_arn: "arn:aws:codewhisperer:us-east-1:0000:profile/FILE",
+			}),
+		);
+
+		const { getKiroProfileArn } = await import("../config.ts");
+		expect(getKiroProfileArn()).toBe(
+			"arn:aws:codewhisperer:eu-central-1:12345:profile/ENV",
+		);
+	});
+
+	it("getKiroProfileArn returns undefined for an explicitly empty file value", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(configPath(), JSON.stringify({ kiro_profile_arn: "" }));
+
+		const { getKiroProfileArn } = await import("../config.ts");
+		expect(getKiroProfileArn()).toBeUndefined();
+	});
+
+	it("getOpenrouterShowPaid reads from file", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(configPath(), JSON.stringify({ openrouter_show_paid: true }));
 
 		const { getOpenrouterShowPaid } = await import("../config.ts");
 		expect(getOpenrouterShowPaid()).toBe(true);
@@ -271,10 +319,7 @@ describe("show-paid getters", () => {
 		vi.stubEnv("HOME", "/tmp");
 		const fs = await import("node:fs");
 		const { __mockData } = fs as any;
-		__mockData.set(
-			configPath(),
-			JSON.stringify({ opengateway_show_paid: true }),
-		);
+		__mockData.set(configPath(), JSON.stringify({ opengateway_show_paid: true }));
 
 		const { getOpengatewayShowPaid, getProviderShowPaid } = await import(
 			"../config.ts"
@@ -418,10 +463,7 @@ describe("updateConfig", () => {
 		vi.stubEnv("HOME", "/tmp");
 		const fs = await import("node:fs");
 		const { __mockData } = fs as any;
-		__mockData.set(
-			configPath(),
-			JSON.stringify({ hidden_models: ["initial"] }),
-		);
+		__mockData.set(configPath(), JSON.stringify({ hidden_models: ["initial"] }));
 
 		const { updateConfig } = await import("../config.ts");
 		// Simulate two providers' probes updating hidden_models concurrently

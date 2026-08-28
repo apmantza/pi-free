@@ -180,3 +180,94 @@ built-in catalog surfaces by design.
    be migrated without reintroducing startup network work.
 3. Consider built-in free-filter ports or preventive XML leak handling only when
    user demand and model-specific evidence justify the maintenance cost.
+
+---
+
+## Kiro auth-flow follow-up (post #485)
+
+**Context.** PR #485 (#485) fixed a 400 `REQUEST_BODY_INVALID` on the Kiro
+streaming endpoint by replacing a silent placeholder `profileArn` with a
+`getKiroProfileArn()` config knob. The user must now set `kiro_profile_arn`
+(or `KIRO_PROFILE_ARN`) in `~/.pi/free.json` for chat to work. This is the
+smallest fix that unblocks the user; the larger question of *why the OIDC
+token doesn't carry a profileArn* is open and is a separate work item.
+
+**Root cause (verified against a real Kiro credential).** Three independent
+limits, none of which can be patched in our auth flow without one of the
+following:
+1. **The SSO OIDC token response doesn't include `profileArn`.** The
+   `accessToken` JWT body carries `clientName: "pi-cli"`, `scopes: [...]`,
+   `expiresAt` — no `applicationArn`, no `ownerAccountId`, no `profileArn`.
+   The Cognito `https://oidc.{region}.amazonaws.com/token` response is
+   `{ accessToken, refreshToken, idToken, tokenType, expiresIn, ... }` —
+   `profileArn` is not in the spec.
+2. **`ListAvailableProfiles` is out of scope for our OIDC client.** Both
+   `management.{region}.kiro.dev` (403 "User is not authorized to access
+   this feature") and the legacy `codewhisperer.{region}.amazonaws.com`
+   (403 "AWS Builder ID is not supported for this operation") refuse. The
+   Kiro account-manager project's region-aware fallback ARN
+   (`arn:aws:codewhisperer:{region}:610548660232:profile/VNECVYCYYAWN`)
+   also returns 403 against our token ("The bearer token included in the
+   request is invalid"). The `pi-cli` OIDC client lacks the
+   `codewhisperer:profile:List` scope that the kiro-cli's own public client
+   carries.
+3. **No public Builder-ID fallback ARN.** Enterprise IdC has the
+   region-aware fallback above. Builder ID has none — the Kiro IDE uses an
+   unpublished, client-specific ARN that's only valid for tokens obtained
+   from the official kiro-cli OAuth flow.
+
+**What the kiro-cli itself does** (reverse-engineered from
+`keggin-CHN/kiro-auto-register/src/services/kiro_oauth.py`,
+`ZyphrZero/kiro.rs` provider impl, `1070920013wh/kiro-gateway/docs/refresh-token.md`,
+`kirodotdev/Kiro` docs, and the Kiro Web Portal's CBOR/Smithy RPC):
+1. `InitiateLogin` (PKCE) at
+   `https://app.kiro.dev/service/KiroWebPortalService/operation/InitiateLogin`
+   → returns a `redirectUrl` (Kiro's own authorize page, not AWS Cognito).
+2. User authenticates at `app.kiro.dev/signin/oauth?...` (browser flow).
+3. `ExchangeToken` (CBOR, Smithy rpc-v2-cbor) at the same Kiro Web Portal
+   endpoint → **returns `{ accessToken, csrfToken, expiresIn, profileArn }`**
+   plus `RefreshToken` / `SessionToken` cookies. **This is the only place
+   `profileArn` is exposed.**
+4. Subsequent refresh at
+   `https://prod.{region}.auth.desktop.kiro.dev/refreshToken` (json 1.0,
+   `User-Agent: KiroIDE-0.6.18-{machineId}`) → returns a fresh
+   `{ accessToken, refreshToken, profileArn, expiresIn, csrfToken }` on
+   every refresh. The `profileArn` is stable across refreshes for a given
+   credential.
+
+**Proposed follow-up (separate PR, not part of #485).** Replace the current
+SSO OIDC device-code flow with the Kiro Web Portal PKCE + `ExchangeToken`
+flow. The new `kiro-auth.ts` would:
+1. Generate PKCE `code_verifier` / `code_challenge` (S256) and `state`.
+2. POST to `InitiateLogin` with `idp: "BuilderId" | "Google" | "Github" |
+   "AWSIdC" | "Internal"` → get `redirectUrl` + a list of allowed `idp`s.
+3. Surface the `redirectUrl` to the user (via Pi's `auth_url` notify) and
+   start a local HTTP listener (or reuse Pi's existing `OAuthLoginCallbacks`
+   surface) to capture the redirect back to `app.kiro.dev/signin/oauth?code=...&state=...`.
+4. POST to `ExchangeToken` (CBOR) with `{ idp, code, codeVerifier, redirectUri, state }` →
+   persist `{ accessToken, refreshToken, csrfToken, profileArn, expiresAt, idp, region }` to
+   `auth.json` (kiro entry) + a new `kiro-desktop-cache.json` modeled on
+   the kiro-cli's `~/.local/share/kiro-cli/data.sqlite3` `auth_kv` table.
+5. On refresh (every ~1h), call
+   `prod.{region}.auth.desktop.kiro.dev/refreshToken` (which we already
+   half-implement for the `desktop` `authMethod` path) and update the
+   cached `profileArn` if it changes (rare, but possible after subscription
+   upgrades).
+
+**Why this isn't in #485.** ~200-300 lines of new auth code that depend
+on a third-party protocol (the Kiro Web Portal CBOR API), a public OIDC
+client ID we don't own (the kiro-cli's, widely shared but not officially
+public), and a browser-redirect UX that Pi's `AuthInteraction` already
+supports but we haven't used. Risks: Kiro could change the Web Portal
+protocol or revoke the public client at any time (the kiro-account-manager
+project explicitly warns: "this project and its methods might be outdated
+due to Kiro's updated account termination policies"). The current fix
+unblocks the user today with 5 lines of config; the rewrite is a
+multi-day investment that should ship behind a feature flag and a fallback
+to the SSO OIDC path.
+
+**Tracking.** Will be filed as a separate issue once #485 lands, with a
+detailed implementation plan, risk register, and rollback strategy
+(keep the current `idc` flow as `authMethod: "idc"` opt-in for users who
+already have a working `kiro_profile_arn` set).
+
