@@ -518,6 +518,10 @@ export interface OpenAIModelEntry {
 	max_tokens?: number;
 	/** Extended: per-model pricing (SambaNova, etc.) */
 	pricing?: { prompt?: string | number; completion?: string | number };
+	/** Extended: authoritative free/paid flag (camelCase, OpenRouter convention). */
+	isFree?: boolean;
+	/** Extended: authoritative free/paid flag (snake_case, GMI Cloud convention). */
+	is_free?: boolean;
 }
 
 /**
@@ -625,7 +629,15 @@ export async function fetchOpenAICompatibleModels(
 					maxTokens,
 					compat: getCompat({ id: m.id, name }),
 					_pricingKnown: hasApiPricing,
-				} as PiProviderModelConfig & { _pricingKnown?: boolean };
+					...((typeof m.isFree === "boolean" || typeof m.is_free === "boolean") && {
+						_freeKnown: true,
+						_isFree: (m.isFree ?? m.is_free) === true,
+					}),
+				} as PiProviderModelConfig & {
+					_pricingKnown?: boolean;
+					_freeKnown?: boolean;
+					_isFree?: boolean;
+				};
 			});
 
 		return await safeEnrichModelsWithModelsDev(mapped, { providerId });

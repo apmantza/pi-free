@@ -1,98 +1,97 @@
 /**
  * GMI provider model-catalog tests.
  *
- * Covers the by-id dedupe of GMI's duplicated catalog SKUs (observed live:
- * MiniMax Week models are published twice — one priced SKU, one $0 SKU) and
- * the promotion free-stamping window logic including its boundaries.
+ * Covers the catalog's pass-through behavior. GMI publishes priced +
+ * promotional SKUs side-by-side; both are expected to survive `fetchGmiModels`
+ * (no dedupe), and the promotional `is_free: true` row must surface as a
+ * distinct free entry. Previously, GMI's free weeks required a hardcoded
+ * PROMOTIONS window and a by-id dedupe; both were removed when
+ * `fetchOpenAICompatibleModels` grew native `is_free` handling.
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 
-import {
-	dedupeGmiModelsById,
-	activePromotionalFreeIds,
-} from "../providers/gmi/gmi-models.ts";
+import { fetchGmiModels } from "../providers/gmi/gmi-models.ts";
 
-function model(
-	id: string,
-	inputCost: number,
-	outputCost = 0,
-): ProviderModelConfig {
+function mockFetchOk(body: unknown) {
+	globalThis.fetch = vi.fn().mockResolvedValue({
+		ok: true,
+		status: 200,
+		json: async () => body,
+	} as unknown as Response);
+}
+
+function asGmiEntry(overrides: Record<string, unknown> = {}) {
 	return {
-		id,
-		name: id,
-		reasoning: false,
-		input: ["text"],
-		cost: { input: inputCost, output: outputCost, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 128_000,
-		maxTokens: 16_384,
+		id: "some/model",
+		object: "model",
+		owned_by: "GMI Cloud",
+		context_length: 128_000,
+		pricing: {
+			prompt: "0.000000300",
+			completion: "0.000001200",
+			request: "0",
+			image: "0",
+			input_cache_read: "0",
+			input_cache_write: "0",
+		},
+		discount_to_user: 0,
+		...overrides,
 	};
 }
 
-describe("dedupeGmiModelsById", () => {
-	it("keeps the priced SKU when GMI publishes priced + $0 copies", () => {
-		const deduped = dedupeGmiModelsById([
-			model("MiniMaxAI/MiniMax-M3", 6e-7, 2.4e-6),
-			model("MiniMaxAI/MiniMax-M3", 0),
-		]);
-		expect(deduped).toHaveLength(1);
-		expect(deduped[0]?.cost.input).toBe(6e-7);
+describe("fetchGmiModels — promotional free SKUs", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
 	});
 
-	it("keeps the priced copy regardless of order", () => {
-		const deduped = dedupeGmiModelsById([
-			model("MiniMaxAI/MiniMax-M2.7", 0),
-			model("MiniMaxAI/MiniMax-M2.7", 3e-7, 1.2e-6),
-		]);
-		expect(deduped).toHaveLength(1);
-		expect(deduped[0]?.cost.output).toBe(1.2e-6);
+	it("keeps both the priced and the promotional is_free rows (no dedupe)", async () => {
+		mockFetchOk({
+			object: "list",
+			data: [
+				asGmiEntry({ id: "MiniMaxAI/MiniMax-M3" }),
+				asGmiEntry({
+					id: "MiniMaxAI/MiniMax-M3",
+					pricing: {
+						prompt: "0",
+						completion: "0",
+						request: "0",
+						image: "0",
+						input_cache_read: "0",
+						input_cache_write: "0",
+					},
+					is_free: true,
+				}),
+			],
+		});
+
+		const models = (await fetchGmiModels("sk-test")) as Array<
+			ProviderModelConfig & { _freeKnown?: boolean; _isFree?: boolean }
+		>;
+
+		expect(models).toHaveLength(2);
+
+		const priced = models.find((m) => (m.cost?.input ?? 0) > 0);
+		const promo = models.find((m) => (m.cost?.input ?? 0) === 0);
+
+		expect(priced).toBeDefined();
+		expect(priced?._freeKnown).toBeUndefined();
+
+		expect(promo).toBeDefined();
+		expect(promo?._freeKnown).toBe(true);
+		expect(promo?._isFree).toBe(true);
 	});
 
-	it("keeps the first entry when neither duplicate is priced", () => {
-		const first = model("some/model", 0);
-		const deduped = dedupeGmiModelsById([first, model("some/model", 0)]);
-		expect(deduped).toHaveLength(1);
-		expect(deduped[0]).toBe(first);
-	});
+	it("returns an empty catalog when the API fails", async () => {
+		globalThis.fetch = vi.fn().mockResolvedValue({
+			ok: false,
+			status: 500,
+			json: async () => ({}),
+		} as unknown as Response);
 
-	it("keeps unique ids and preserves catalog order", () => {
-		const a = model("a/model", 1e-6);
-		const b = model("b/model", 0);
-		const dupA = model("a/model", 0);
-		const deduped = dedupeGmiModelsById([a, b, dupA]);
-		expect(deduped.map((m) => m.id)).toEqual(["a/model", "b/model"]);
-		expect(deduped[0]?.cost.input).toBe(1e-6);
-	});
-});
-
-describe("activePromotionalFreeIds", () => {
-	// MiniMax Week window: [2026-08-24T00:00Z, 2026-09-07T00:00Z)
-	const START = Date.UTC(2026, 7, 24);
-	const END = Date.UTC(2026, 8, 7);
-
-	it("returns an empty set before the window opens (start is inclusive)", () => {
-		expect(activePromotionalFreeIds(START - 1).size).toBe(0);
-	});
-
-	it("includes promo models at the exact start instant", () => {
-		const free = activePromotionalFreeIds(START);
-		expect(free.has("MiniMaxAI/MiniMax-M3")).toBe(true);
-		expect(free.has("MiniMaxAI/MiniMax-M2.7")).toBe(true);
-	});
-
-	it("excludes promo models at the exact end instant (end is exclusive)", () => {
-		expect(activePromotionalFreeIds(END).size).toBe(0);
-	});
-
-	it("includes promo models mid-window and excludes other ids", () => {
-		const free = activePromotionalFreeIds(Date.UTC(2026, 7, 30));
-		expect(free.size).toBe(2);
-		expect(free.has("google/gemini-3.7-flash")).toBe(false);
-	});
-
-	it("returns an empty set long after the promotion expires", () => {
-		expect(activePromotionalFreeIds(END + 86_400_000).size).toBe(0);
+		const models = await fetchGmiModels("sk-test");
+		expect(models).toEqual([]);
 	});
 });

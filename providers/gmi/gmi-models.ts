@@ -8,13 +8,19 @@
  * enrichment without introducing a second cache or freshness policy.
  *
  * Promotional free models: GMI runs time-limited "free week" promotions
- * (e.g. MiniMax Week, 2026-08-24 → 2026-09-06) where specific models are free
- * to use at the billing layer even though the `/v1/models` `pricing` field
- * still reports nonzero list prices. Such models are stamped authoritatively
- * free (`_freeKnown`/`_isFree`, the same escape hatch used by the anyapi/bai/
- * agnes gateways) for the duration of the promotion so the free-only view and
- * `/free-providers` counts are correct; the stamp auto-expires when the
- * promotion ends so the models revert to paid per the pricing API.
+ * (e.g. MiniMax Week) where specific models are free to use at the billing
+ * layer. GMI publishes each promotional model TWICE in `/v1/models`:
+ *
+ *   1. The normal priced SKU (nonzero `pricing.prompt`/`pricing.completion`).
+ *   2. A duplicate id with `pricing` zeroed and an authoritative
+ *      `is_free: true` flag — the promotional SKU.
+ *
+ * The shared `fetchOpenAICompatibleModels` mapper stamps the `is_free: true`
+ * rows as `_freeKnown: true, _isFree: true`, so they survive as a distinct
+ * free entry alongside the priced copy. Both rows are kept (no dedupe): the
+ * priced entry drives the "show paid" view, the promotional row drives the
+ * free-only view. The promotion auto-expires when GMI stops publishing the
+ * `is_free: true` row — no hardcoded date windows to maintain.
  */
 
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
@@ -22,115 +28,28 @@ import { applyHidden } from "../../config.ts";
 import { BASE_URL_GMI, PROVIDER_GMI } from "../../constants.ts";
 import { fetchOpenAICompatibleModels } from "../../lib/util.ts";
 
-/** Augmented model shape carrying the authoritative free/paid flag. */
-type GmiProviderModel = ProviderModelConfig & {
-	_freeKnown?: boolean;
-	_isFree?: boolean;
-};
-
-interface Promotion {
-	/** Model ids (as published by GMI's /v1/models) that are free for the window. */
-	modelIds: readonly string[];
-	/** Inclusive start (ms since epoch). */
-	startMs: number;
-	/** Exclusive end (ms since epoch) — promotion is active while startMs <= now < endMs. */
-	endMs: number;
-	/** Human-readable label for logging. */
-	label: string;
-}
-
 /**
- * Known GMI free-week promotions. Keep this list in sync with GMI's
- * announcements (https://x.com/gmi_cloud). Each window is [inclusive, exclusive).
- */
-const PROMOTIONS: readonly Promotion[] = [
-	{
-		// "unlimited MiniMax M3 and M2.7, 14 days FREE on GMI Cloud from 8/24
-		// to 9/6" — https://x.com/gmi_cloud/status/2091925007756857368
-		modelIds: ["MiniMaxAI/MiniMax-M3", "MiniMaxAI/MiniMax-M2.7"],
-		startMs: Date.UTC(2026, 7, 24), // 2026-08-24 00:00 UTC (month is 0-indexed)
-		endMs: Date.UTC(2026, 8, 7), // 2026-09-07 00:00 UTC (end of 9/6)
-		label: "GMI MiniMax Week (M3, M2.7 free)",
-	},
-];
-
-/**
- * Model ids that are authoritatively free right now because an active GMI
- * promotion makes them free at the billing layer despite nonzero list prices.
- */
-export function activePromotionalFreeIds(
-	now: number = Date.now(),
-): Set<string> {
-	const free = new Set<string>();
-	for (const promo of PROMOTIONS) {
-		if (now >= promo.startMs && now < promo.endMs) {
-			for (const id of promo.modelIds) free.add(id);
-		}
-	}
-	return free;
-}
-
-/**
- * Dedupe catalog entries that share a model id.
+ * Fetch GMI Cloud's authenticated `/v1/models` catalog.
  *
- * GMI's live /v1/models has been observed publishing the same id twice
- * (during MiniMax Week: one SKU carrying list pricing, one $0 SKU). Keep the
- * PRICED entry so Route A cost-based detection sees real pricing; the
- * promotion stamp below then overrides the winner to free while a window is
- * active and reverts automatically when it ends. Ties keep the first seen.
- */
-export function dedupeGmiModelsById(
-	models: readonly ProviderModelConfig[],
-): ProviderModelConfig[] {
-	const byId = new Map<string, ProviderModelConfig>();
-	for (const model of models) {
-		const existing = byId.get(model.id);
-		if (existing === undefined) {
-			byId.set(model.id, model);
-			continue;
-		}
-		const existingPriced = isPriced(existing);
-		const nextPriced = isPriced(model);
-		if (nextPriced && !existingPriced) byId.set(model.id, model);
-	}
-	return [...byId.values()];
-}
-
-function isPriced(model: ProviderModelConfig): boolean {
-	return (model.cost?.input ?? 0) > 0 || (model.cost?.output ?? 0) > 0;
-}
-
-/**
- * Fetch GMI Cloud's authenticated `/v1/models` catalog, dedupe repeated ids,
- * then stamp any model that is free under an active GMI promotion as
- * authoritatively free.
+ * GMI publishes priced + promotional SKUs side-by-side; both are kept so
+ * the free-only view and the "show paid" view each have the right entry
+ * to display. Hidden models in `~/.pi/free.json` are still filtered.
  */
 export async function fetchGmiModels(
-	apiKey: string,
-	signal?: AbortSignal,
+ apiKey: string,
+ signal?: AbortSignal,
 ): Promise<ProviderModelConfig[]> {
-	const models = await fetchOpenAICompatibleModels(
-		PROVIDER_GMI,
-		BASE_URL_GMI,
-		apiKey,
-		{
-			contextWindow: 128_000,
-			maxTokens: 16_384,
-		},
-		undefined,
-		signal,
-	);
+ const models = await fetchOpenAICompatibleModels(
+  PROVIDER_GMI,
+  BASE_URL_GMI,
+  apiKey,
+  {
+   contextWindow: 128_000,
+   maxTokens: 16_384,
+  },
+  undefined,
+  signal,
+ );
 
-	const deduped = dedupeGmiModelsById(models);
-	const promotionalFree = activePromotionalFreeIds();
-	const stamped: GmiProviderModel[] = deduped.map((model) => {
-		if (!promotionalFree.has(model.id)) return model;
-		return {
-			...model,
-			_freeKnown: true,
-			_isFree: true,
-		};
-	});
-
-	return applyHidden(stamped, PROVIDER_GMI);
+ return applyHidden(models, PROVIDER_GMI);
 }
