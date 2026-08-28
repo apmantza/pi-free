@@ -419,8 +419,8 @@ auth flow.
 | B | `kiro-web-portal-cbor.ts` + `cbor-x` dep + unit tests | shipped | #487 |
 | C | `kiro-pkce.ts` + `kiro-web-portal.ts` + unit tests | shipped | #487 |
 | D | `kiro-desktop-auth.ts` + browser redirect UX + refresh path | shipped | #487 |
-| E | `kiro_auth_method` config + `kiro-stream.ts` credential read + `getKiroAuthMethod()` + tests | **in progress** (this PR) | TBD |
-| F | End-to-end test, release notes, roadmap doc update | not started | — |
+| E | `kiro_auth_method` config + `kiro-stream.ts` credential read + `getKiroAuthMethod()` + tests | shipped | #487 |
+| F | End-to-end test, release notes, roadmap doc update | shipped | #487 |
 
 Each phase is its own PR. A through E are reviewable independently. F
 is a final polish PR that just runs the live API test, updates the

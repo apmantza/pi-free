@@ -183,7 +183,7 @@ built-in catalog surfaces by design.
 
 ---
 
-## Kiro auth-flow follow-up (post #485)
+## Kiro auth-flow follow-up (post #485) — SHIPPED in #487
 
 **Context.** PR #485 (#485) fixed a 400 `REQUEST_BODY_INVALID` on the Kiro
 streaming endpoint by replacing a silent placeholder `profileArn` with a
@@ -195,6 +195,7 @@ token doesn't carry a profileArn* is open and is a separate work item.
 **Root cause (verified against a real Kiro credential).** Three independent
 limits, none of which can be patched in our auth flow without one of the
 following:
+
 1. **The SSO OIDC token response doesn't include `profileArn`.** The
    `accessToken` JWT body carries `clientName: "pi-cli"`, `scopes: [...]`,
    `expiresAt` — no `applicationArn`, no `ownerAccountId`, no `profileArn`.
@@ -220,6 +221,7 @@ following:
 `keggin-CHN/kiro-auto-register/src/services/kiro_oauth.py`,
 `ZyphrZero/kiro.rs` provider impl, `1070920013wh/kiro-gateway/docs/refresh-token.md`,
 `kirodotdev/Kiro` docs, and the Kiro Web Portal's CBOR/Smithy RPC):
+
 1. `InitiateLogin` (PKCE) at
    `https://app.kiro.dev/service/KiroWebPortalService/operation/InitiateLogin`
    → returns a `redirectUrl` (Kiro's own authorize page, not AWS Cognito).
@@ -238,6 +240,7 @@ following:
 **Proposed follow-up (separate PR, not part of #485).** Replace the current
 SSO OIDC device-code flow with the Kiro Web Portal PKCE + `ExchangeToken`
 flow. The new `kiro-auth.ts` would:
+
 1. Generate PKCE `code_verifier` / `code_challenge` (S256) and `state`.
 2. POST to `InitiateLogin` with `idp: "BuilderId" | "Google" | "Github" |
    "AWSIdC" | "Internal"` → get `redirectUrl` + a list of allowed `idp`s.
@@ -266,8 +269,45 @@ unblocks the user today with 5 lines of config; the rewrite is a
 multi-day investment that should ship behind a feature flag and a fallback
 to the SSO OIDC path.
 
-**Tracking.** Will be filed as a separate issue once #485 lands, with a
+**Tracking.** ~~Will be filed as a separate issue once #485 lands, with a
 detailed implementation plan, risk register, and rollback strategy
 (keep the current `idc` flow as `authMethod: "idc"` opt-in for users who
-already have a working `kiro_profile_arn` set).
+already have a working `kiro_profile_arn` set).~~
 
+**Status: shipped in #487** (Phases A through F of `docs/kiro-web-portal-auth.md`):
+
+- **Phase A (#486)** — design document. The kiro Web Portal auth flow
+  was reverse-engineered from `keggin-CHN/kiro-auto-register`,
+  `ZyphrZero/kiro.rs`, `1070920013wh/kiro-gateway`,
+  `kirodotdev/Kiro` docs, and live probes against `app.kiro.dev`. The
+  protocol is Smithy `rpc-v2-cbor` with the 4 operations we need
+  (`InitiateLogin`, `ExchangeToken`, `GetUserInfo`, and the
+  `prod.{region}.auth.desktop.kiro.dev/refreshToken` JSON endpoint).
+- **Phase B** — typed CBOR encode/decode wrapper in
+  `providers/kiro/kiro-web-portal-cbor.ts` plus the `cbor-x@^1.6.6`
+  dep. 16 unit tests.
+- **Phase C** — PKCE helper (`kiro-pkce.ts`, RFC 7636, 10 unit tests
+  including the Appendix B known-answer vector) + HTTP client
+  (`kiro-web-portal.ts`, 15 unit tests with credential redaction
+  enforcement).
+- **Phase D** — the driver in `providers/kiro/kiro-desktop-auth.ts`
+  (16 unit tests). Uses a manual-paste fallback for the browser
+  redirect because the AWS SSO authorize URL hardcodes the
+  `callback_url` to Cognito (not localhost), so a local listener
+  can't catch the redirect. `refreshKiroCredential` in
+  `kiro-auth.ts` got a new `web-portal` branch that delegates to
+  `refreshKiroDesktopCredential`.
+- **Phase E** — `kiro_auth_method` config knob
+  (`"idc" | "web-portal" | "kiro-cli"`) with migration-safe defaults
+  (users with a working `kiro_profile_arn` keep `"idc"`), plus the
+  `readPersistedKiroProfileArn()` helper in
+  `providers/kiro/kiro-credential.ts` that reads the persisted ARN
+  from `~/.pi/agent/auth.json`. 15 new tests.
+- **Phase F** — live API test driver at
+  `scripts/test-kiro-desktop.mjs`. End-to-end protocol verified
+  against the real Kiro Web Portal (HTTP 200, real `applicationArn`,
+  real `redirectUrl` with all the right params).
+
+The Kiro Web Portal auth flow is now the default for fresh installs.
+Users who already had a working `kiro_profile_arn` keep the `"idc"`
+flow unless they explicitly set `kiro_auth_method: "web-portal"`.
