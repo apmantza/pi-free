@@ -882,9 +882,10 @@ export function getOpenrouterApiKey(): string | undefined {
 
 /** OpenCode key — pi's built-in provider. Read from env or auth.json. */
 export function getOpencodeApiKey(): string | undefined {
-	// Try "opencode" key first, then "opencode-go" — Pi may store OpenCode Go
-	// credentials under "opencode-go" (e.g. when logging in with /login opencode-go).
+	// Try "opencode-free" key first (e.g. /login opencode-free), then "opencode"
+	// and "opencode-go" — all share the same Zen API key.
 	return (
+		readAuthJsonKey("opencode-free", "OPENCODE_API_KEY") ??
 		readAuthJsonKey("opencode", "OPENCODE_API_KEY") ??
 		readAuthJsonKey("opencode-go", "OPENCODE_API_KEY")
 	);
