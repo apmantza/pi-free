@@ -388,4 +388,67 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 
 		expect(models).toHaveLength(2);
 	});
+
+	// ── Authoritative free/paid flag ───────────────────────────
+	it("stamps _freeKnown + _isFree when API returns is_free: true (snake_case)", async () => {
+		mockFetchOk({
+			data: [
+				{
+					id: "promo/model",
+					pricing: { prompt: "0", completion: "0" },
+					is_free: true,
+				},
+			],
+		});
+
+		const models = (await fetchOpenAICompatibleModels(
+			"test",
+			"https://api.example.com/v1",
+			"sk-test",
+		)) as Array<{ _freeKnown?: boolean; _isFree?: boolean }>;
+
+		expect(models[0]?._freeKnown).toBe(true);
+		expect(models[0]?._isFree).toBe(true);
+	});
+
+	it("stamps _freeKnown + _isFree when API returns isFree: true (camelCase)", async () => {
+		mockFetchOk({
+			data: [
+				{
+					id: "promo/camel",
+					pricing: { prompt: "0", completion: "0" },
+					isFree: true,
+				},
+			],
+		});
+
+		const models = (await fetchOpenAICompatibleModels(
+			"test",
+			"https://api.example.com/v1",
+			"sk-test",
+		)) as Array<{ _freeKnown?: boolean; _isFree?: boolean }>;
+
+		expect(models[0]?._freeKnown).toBe(true);
+		expect(models[0]?._isFree).toBe(true);
+	});
+
+	it("does not stamp the free flag when neither is_free nor isFree is set", async () => {
+		mockFetchOk({
+			data: [
+				{
+					id: "regular/model",
+					pricing: { prompt: "0.000001", completion: "0.000002" },
+				},
+			],
+		});
+
+		const models = (await fetchOpenAICompatibleModels(
+			"test",
+			"https://api.example.com/v1",
+			"sk-test",
+		)) as Array<{ _freeKnown?: boolean; _isFree?: boolean }>;
+
+		expect(models[0]?._freeKnown).toBeUndefined();
+		expect(models[0]?._isFree).toBeUndefined();
+	});
 });
