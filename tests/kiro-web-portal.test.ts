@@ -41,17 +41,19 @@ function mockFetchCbor(
     "content-type": "application/cbor",
   });
   if (options.setCookie) {
-    for (const cookie of options.setCookie) headers.append("set-cookie", cookie);
+    for (const cookie of options.setCookie)
+      headers.append("set-cookie", cookie);
   }
   return {
     ok: status >= 200 && status < 300,
     status,
     statusText: status === 200 ? "OK" : "Error",
     headers,
-    arrayBuffer: async () => buffer.buffer.slice(
-      buffer.byteOffset,
-      buffer.byteOffset + buffer.byteLength,
-    ),
+    arrayBuffer: async () =>
+      buffer.buffer.slice(
+        buffer.byteOffset,
+        buffer.byteOffset + buffer.byteLength,
+      ),
   } as unknown as Response;
 }
 
@@ -76,9 +78,11 @@ describe("kiro-web-portal — initiateLogin", () => {
       redirectUrl:
         "https://us-east-1.signin.aws/platform/authorize?client_id=arn%3A...",
     };
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      mockFetchCbor(200, responseBody),
-    ) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        mockFetchCbor(200, responseBody),
+      ) as unknown as typeof fetch;
 
     const result = await initiateLogin({
       idp: "BuilderId",
@@ -144,9 +148,11 @@ describe("kiro-web-portal — initiateLogin", () => {
   });
 
   it("propagates a 5xx as KiroWebPortalHttpError", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      mockFetchCbor(503, { __type: "ServiceUnavailable" }),
-    ) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        mockFetchCbor(503, { __type: "ServiceUnavailable" }),
+      ) as unknown as typeof fetch;
 
     await expect(
       initiateLogin({ idp: "BuilderId", codeChallenge: "x", state: "y" }),
@@ -164,9 +170,11 @@ describe("kiro-web-portal — initiateLogin", () => {
   });
 
   it("throws when the 2xx body is missing redirectUrl", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      mockFetchCbor(200, { applicationArn: "arn:foo" }),
-    ) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        mockFetchCbor(200, { applicationArn: "arn:foo" }),
+      ) as unknown as typeof fetch;
 
     await expect(
       initiateLogin({ idp: "BuilderId", codeChallenge: "x", state: "y" }),
@@ -191,9 +199,11 @@ describe("kiro-web-portal — exchangeToken", () => {
       "SessionToken=st-secret; HttpOnly; Secure; Path=/",
       "Idp=BuilderId; Path=/",
     ];
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      mockFetchCbor(200, responseBody, { setCookie }),
-    ) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        mockFetchCbor(200, responseBody, { setCookie }),
+      ) as unknown as typeof fetch;
 
     const result = await exchangeToken({
       idp: "BuilderId",
@@ -218,7 +228,9 @@ describe("kiro-web-portal — exchangeToken", () => {
     const responseBody = { accessToken: "aoa...", expiresIn: 604800 };
     globalThis.fetch = vi
       .fn()
-      .mockResolvedValue(mockFetchCbor(200, responseBody)) as unknown as typeof fetch;
+      .mockResolvedValue(
+        mockFetchCbor(200, responseBody),
+      ) as unknown as typeof fetch;
 
     const result = await exchangeToken({
       idp: "BuilderId",
@@ -266,9 +278,11 @@ describe("kiro-web-portal — exchangeToken", () => {
   });
 
   it("throws when the 2xx body is missing accessToken", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      mockFetchCbor(200, { expiresIn: 3600 }),
-    ) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        mockFetchCbor(200, { expiresIn: 3600 }),
+      ) as unknown as typeof fetch;
 
     await expect(
       exchangeToken({
@@ -293,9 +307,11 @@ describe("kiro-web-portal — getUserInfo", () => {
       userId: "user-abc123",
       subscriptionInfo: { tier: "Free", quota: 100 },
     };
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      mockFetchCbor(200, responseBody),
-    ) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        mockFetchCbor(200, responseBody),
+      ) as unknown as typeof fetch;
 
     const result = await getUserInfo({
       origin: "KIRO_IDE",
@@ -321,9 +337,11 @@ describe("kiro-web-portal — getUserInfo", () => {
   });
 
   it("decodes a Stale-status response", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      mockFetchCbor(200, { status: "Stale" }),
-    ) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        mockFetchCbor(200, { status: "Stale" }),
+      ) as unknown as typeof fetch;
 
     const result = await getUserInfo({
       origin: "KIRO_IDE",

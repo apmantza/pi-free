@@ -56,9 +56,7 @@ describe("kiro-pkce — code_challenge (RFC 7636 §4.2 S256)", () => {
 
   it("is deterministic for a given verifier", () => {
     const verifier = "abcdef1234567890abcdef1234567890abcdef12345678";
-    expect(computeCodeChallenge(verifier)).toBe(
-      computeCodeChallenge(verifier),
-    );
+    expect(computeCodeChallenge(verifier)).toBe(computeCodeChallenge(verifier));
   });
 
   it("differs for different verifiers (collision resistance)", () => {

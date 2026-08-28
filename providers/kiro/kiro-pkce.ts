@@ -24,26 +24,26 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
  * the browser redirect.
  */
 export interface PkcePair {
-  /**
-   * Random 43-128 char base64url-encoded string. Stored by the caller
-   * for the duration of the login flow; sent to `ExchangeToken` as
-   * `code_verifier`. Never log this.
-   */
-  codeVerifier: string;
+ /**
+  * Random 43-128 char base64url-encoded string. Stored by the caller
+  * for the duration of the login flow; sent to `ExchangeToken` as
+  * `code_verifier`. Never log this.
+  */
+ codeVerifier: string;
 
-  /**
-   * base64url(SHA256(codeVerifier)). Sent to `InitiateLogin` as
-   * `code_challenge`. Safe to log (it's a public value).
-   */
-  codeChallenge: string;
+ /**
+  * base64url(SHA256(codeVerifier)). Sent to `InitiateLogin` as
+  * `code_challenge`. Safe to log (it's a public value).
+  */
+ codeChallenge: string;
 
-  /**
-   * Random UUID v4. Sent to `InitiateLogin` and expected back in the
-   * browser redirect's `state` query parameter. The caller MUST
-   * verify the returned `state` matches this before calling
-   * `ExchangeToken`.
-   */
-  state: string;
+ /**
+  * Random UUID v4. Sent to `InitiateLogin` and expected back in the
+  * browser redirect's `state` query parameter. The caller MUST
+  * verify the returned `state` matches this before calling
+  * `ExchangeToken`.
+  */
+ state: string;
 }
 
 /**
@@ -54,9 +54,9 @@ export interface PkcePair {
  * @internal Exported for testing only.
  */
 export function generateCodeVerifier(): string {
-  // 64 bytes → 64*4/3 = 85.3 chars, ceil to 86 base64url chars.
-  // The base64url alphabet is RFC 4648 §5 — no `+`, `/`, or `=`.
-  return randomBytes(64).toString("base64url");
+ // 64 bytes → 64*4/3 = 85.3 chars, ceil to 86 base64url chars.
+ // The base64url alphabet is RFC 4648 §5 — no `+`, `/`, or `=`.
+ return randomBytes(64).toString("base64url");
 }
 
 /**
@@ -69,7 +69,7 @@ export function generateCodeVerifier(): string {
  * @internal Exported for testing only.
  */
 export function computeCodeChallenge(codeVerifier: string): string {
-  return createHash("sha256").update(codeVerifier, "utf8").digest("base64url");
+ return createHash("sha256").update(codeVerifier, "utf8").digest("base64url");
 }
 
 /**
@@ -79,10 +79,10 @@ export function computeCodeChallenge(codeVerifier: string): string {
  * redirect) and pass them to `ExchangeToken`.
  */
 export function generatePkce(): PkcePair {
-  const codeVerifier = generateCodeVerifier();
-  return {
-    codeVerifier,
-    codeChallenge: computeCodeChallenge(codeVerifier),
-    state: randomUUID(),
-  };
+ const codeVerifier = generateCodeVerifier();
+ return {
+  codeVerifier,
+  codeChallenge: computeCodeChallenge(codeVerifier),
+  state: randomUUID(),
+ };
 }

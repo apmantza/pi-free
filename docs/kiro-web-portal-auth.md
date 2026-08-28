@@ -417,8 +417,8 @@ auth flow.
 | --- | --- | --- | --- |
 | A | This design document | shipped | #486 |
 | B | `kiro-web-portal-cbor.ts` + `cbor-x` dep + unit tests | shipped | #487 |
-| C | `kiro-pkce.ts` + `kiro-web-portal.ts` + unit tests | **in progress** (this PR) | TBD |
-| D | `kiro-desktop-auth.ts` + browser redirect UX + refresh | not started | — |
+| C | `kiro-pkce.ts` + `kiro-web-portal.ts` + unit tests | shipped | #487 |
+| D | `kiro-desktop-auth.ts` + browser redirect UX + refresh path | **in progress** (this PR) | TBD |
 | E | `kiro_auth_method` config + `kiro-stream.ts` credential read + `getKiroAuthMethod()` + tests | not started | — |
 | F | End-to-end test, release notes, roadmap doc update | not started | — |
 

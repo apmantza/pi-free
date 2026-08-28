@@ -67,7 +67,10 @@ export class KiroWebPortalHttpError extends Error {
 
 /** Thrown on 5xx, network failure, or unparseable error body. */
 export class KiroWebPortalServiceError extends Error {
-  constructor(message: string, readonly status?: number) {
+  constructor(
+    message: string,
+    readonly status?: number,
+  ) {
     super(message);
     this.name = "KiroWebPortalServiceError";
   }
@@ -127,7 +130,9 @@ async function postWebPortal(
   const setCookieHeaders =
     typeof (response.headers as Headers & { getSetCookie?: () => string[] })
       .getSetCookie === "function"
-      ? (response.headers as Headers & { getSetCookie: () => string[] }).getSetCookie()
+      ? (
+          response.headers as Headers & { getSetCookie: () => string[] }
+        ).getSetCookie()
       : [];
 
   if (!response.ok) {
