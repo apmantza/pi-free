@@ -45,7 +45,8 @@ describe("kiro-web-portal-cbor — InitiateLogin round-trip", () => {
   it("decodes a flat InitiateLogin 200 response", () => {
     // Mimics the live response shape confirmed by the throwaway probe.
     const liveResponse = {
-      applicationArn: "arn:aws:sso::432677196278:application/ssoins-xxx/apl-xxx",
+      applicationArn:
+        "arn:aws:sso::432677196278:application/ssoins-xxx/apl-xxx",
       instanceRegion: "us-east-1",
       redirectUrl:
         "https://us-east-1.signin.aws/platform/authorize?client_id=arn%3A...",

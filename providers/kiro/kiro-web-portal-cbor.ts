@@ -30,7 +30,12 @@ import { encode as cborEncode, decode as cborDecode } from "cbor-x";
 export const KIRO_WEB_PORTAL = "https://app.kiro.dev";
 
 /** `idp` values the Portal accepts. Internal is excluded — not relevant for pi-free users. */
-export const KIRO_IDP_VALUES = ["BuilderId", "Google", "Github", "AWSIdC"] as const;
+export const KIRO_IDP_VALUES = [
+  "BuilderId",
+  "Google",
+  "Github",
+  "AWSIdC",
+] as const;
 export type KiroIdp = (typeof KIRO_IDP_VALUES)[number];
 
 // =============================================================================
@@ -130,6 +135,11 @@ export interface GetUserInfoOutput {
   email?: string;
   userId?: string;
   subscriptionInfo?: Record<string, unknown>;
+}
+
+/** CBOR-encode a GetUserInfo request body. */
+export function encodeGetUserInfo(input: GetUserInfoInput): Uint8Array {
+  return cborEncode(input);
 }
 
 /** Decode a GetUserInfo 200 response. */
