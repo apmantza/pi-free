@@ -249,6 +249,91 @@ describe("show-paid getters", () => {
 		expect(getKiroProfileArn()).toBeUndefined();
 	});
 
+	// ── getKiroAuthMethod (Phase E) ───────────────────────────────────
+	it("getKiroAuthMethod defaults to 'web-portal' when no kiro_profile_arn is set", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const { getKiroAuthMethod } = await import("../config.ts");
+		expect(getKiroAuthMethod()).toBe("web-portal");
+	});
+
+	it("getKiroAuthMethod defaults to 'idc' when kiro_profile_arn is set (migration safety)", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(
+			configPath(),
+			JSON.stringify({
+				kiro_profile_arn: "arn:aws:codewhisperer:us-east-1:123:profile/ABC",
+			}),
+		);
+
+		const { getKiroAuthMethod } = await import("../config.ts");
+		expect(getKiroAuthMethod()).toBe("idc");
+	});
+
+	it("getKiroAuthMethod prefers KIRO_AUTH_METHOD env over the migration default", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		vi.stubEnv("KIRO_AUTH_METHOD", "web-portal");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		// kiro_profile_arn is set, which would normally seed to "idc",
+		// but the env var should override that.
+		__mockData.set(
+			configPath(),
+			JSON.stringify({
+				kiro_profile_arn: "arn:aws:codewhisperer:us-east-1:123:profile/ABC",
+			}),
+		);
+
+		const { getKiroAuthMethod } = await import("../config.ts");
+		expect(getKiroAuthMethod()).toBe("web-portal");
+	});
+
+	it("getKiroAuthMethod reads kiro_auth_method from ~/.pi/free.json", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(
+			configPath(),
+			JSON.stringify({ kiro_auth_method: "kiro-cli" }),
+		);
+
+		const { getKiroAuthMethod } = await import("../config.ts");
+		expect(getKiroAuthMethod()).toBe("kiro-cli");
+	});
+
+	it("getKiroAuthMethod prefers KIRO_AUTH_METHOD env over file value", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		vi.stubEnv("KIRO_AUTH_METHOD", "idc");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(
+			configPath(),
+			JSON.stringify({ kiro_auth_method: "web-portal" }),
+		);
+
+		const { getKiroAuthMethod } = await import("../config.ts");
+		expect(getKiroAuthMethod()).toBe("idc");
+	});
+
+	it("getKiroAuthMethod file value overrides the migration default", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		// kiro_profile_arn is set (would seed to "idc"), but explicit
+		// kiro_auth_method: "web-portal" in the file overrides that.
+		__mockData.set(
+			configPath(),
+			JSON.stringify({
+				kiro_profile_arn: "arn:aws:codewhisperer:us-east-1:123:profile/ABC",
+				kiro_auth_method: "web-portal",
+			}),
+		);
+
+		const { getKiroAuthMethod } = await import("../config.ts");
+		expect(getKiroAuthMethod()).toBe("web-portal");
+	});
+
 	it("getOpenrouterShowPaid reads from file", async () => {
 		vi.stubEnv("HOME", "/tmp");
 		const fs = await import("node:fs");

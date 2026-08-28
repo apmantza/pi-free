@@ -162,6 +162,7 @@ interface PiFreeConfig {
 	qoder_show_paid?: boolean;
 	kiro_show_paid?: boolean;
 	kiro_profile_arn?: string;
+	kiro_auth_method?: "idc" | "web-portal" | "kiro-cli";
 }
 
 const CONFIG_TEMPLATE: PiFreeConfig = {
@@ -691,6 +692,33 @@ export function getKiroShowPaid(): boolean {
  */
 export function getKiroProfileArn(): string | undefined {
 	return resolve("KIRO_PROFILE_ARN", loadConfigFile().kiro_profile_arn);
+}
+
+/**
+ * Resolve the Kiro auth method override from env or file, with a
+ * default that doesn't break existing users.
+ *
+ * - `"web-portal"`: the new PKCE + Kiro Web Portal flow (Phase D).
+ *   The persisted credential includes `profileArn` automatically.
+ * - `"idc"`: the existing AWS SSO OIDC device-code flow. Requires
+ *   the user to set `kiro_profile_arn` for chat to work (per PR #485).
+ * - `"kiro-cli"`: read the kiro-cli's local SQLite credential store
+ *   (Phase G, not yet implemented).
+ *
+ * Default seeding (matches the design doc's "migrate gradually, never
+ * break a working setup" rule): if the user has a working
+ * `kiro_profile_arn` set, default to `"idc"` (their existing flow
+ * works). Otherwise, default to `"web-portal"` (the new flow runs
+ * out of the box once the user runs `/login kiro`).
+ *
+ * Env: `KIRO_AUTH_METHOD` > file `kiro_auth_method` > default.
+ */
+export function getKiroAuthMethod(): "idc" | "web-portal" | "kiro-cli" {
+	const fromEnv = resolve("KIRO_AUTH_METHOD", loadConfigFile().kiro_auth_method);
+	if (fromEnv) return fromEnv as "idc" | "web-portal" | "kiro-cli";
+	const file = loadConfigFile();
+	if (file.kiro_profile_arn && file.kiro_profile_arn.length > 0) return "idc";
+	return "web-portal";
 }
 
 export function getProviderShowPaid(providerId: string): boolean {

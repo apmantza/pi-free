@@ -13,7 +13,6 @@ import type {
   Model,
   SimpleStreamOptions,
   TextContent,
-  ThinkingContent,
   ToolCall,
   ToolResultMessage,
 } from "@earendil-works/pi-ai";
@@ -21,10 +20,10 @@ import * as PiAi from "@earendil-works/pi-ai";
 import { UniversalEventStreamMarshaller } from "@smithy/core/event-streams";
 import type { Message } from "@smithy/types";
 import { getKiroProfileArn } from "../../config.ts";
+import { readPersistedKiroProfileArn } from "./kiro-credential.ts";
 import {
   getKiroEndpoints,
   getKiroRegionFromEndpoint,
-  resolveApiRegion,
 } from "./kiro-endpoints.js";
 import { parseKiroEvent } from "./kiro-event-parser.js";
 import { ThinkingTagParser } from "./kiro-thinking-parser.js";
@@ -187,14 +186,23 @@ export function streamKiro(
         "generateAssistantResponse",
         getKiroEndpoints(region).runtime,
       ).toString();
-      const profileArn = modelMetadata.kiroProfileArn || getKiroProfileArn();
+      // Resolution order (per design doc Phase E):
+      //   1. modelMetadata.kiroProfileArn  — per-model override (testing/canary)
+      //   2. credential.profileArn           — persisted by the web-portal login flow
+      //   3. getKiroProfileArn()             — user config knob (kiro_profile_arn / KIRO_PROFILE_ARN)
+      const profileArn =
+        modelMetadata.kiroProfileArn ||
+        readPersistedKiroProfileArn() ||
+        getKiroProfileArn();
       if (!profileArn) {
         throw new Error(
           "Kiro profileArn is required for this credential. " +
             "pi-free's pi-cli OIDC client cannot call ListAvailableProfiles " +
-            "(no codewhisperer:profile:List scope). Set KIRO_PROFILE_ARN or " +
-            "kiro_profile_arn in ~/.pi/free.json to a real ARN obtained from " +
-            "the Kiro IDE developer tools or `kiro-cli profile`.",
+            "(no codewhisperer:profile:List scope). Either run /login kiro to " +
+            "use the new Web Portal flow (which persists the profileArn " +
+            "automatically), or set KIRO_PROFILE_ARN / kiro_profile_arn in " +
+            "~/.pi/free.json to a real ARN obtained from the Kiro IDE developer " +
+            "tools or `kiro-cli profile`.",
         );
       }
 
@@ -409,6 +417,13 @@ export function streamKiro(
         stream.push({ type: "start", partial: output });
 
         if (!response.body) throw new Error("No response body");
+        // SAFETY: Kiro's runtime endpoint returns a binary AWS event-stream
+        // body. The `Response.body` type in pi-ai is generic; we know
+        // from the Kiro docs that this specific endpoint emits
+        // `application/vnd.amazon.eventstream`, so the underlying
+        // stream IS a `ReadableStream<Uint8Array>` — the cast is
+        // the only way to consume the reader without an extra
+        // runtime check.
         const bodyReader = (
           response.body as unknown as ReadableStream<Uint8Array>
         ).getReader();
@@ -422,7 +437,6 @@ export function streamKiro(
           : null;
         let textBlockIndex: number | null = null;
         let emittedToolCalls = 0;
-        let sawAnyToolCalls = false;
         let currentToolCall: KiroToolCallState | null = null;
         let gotFirstToken = false;
         let firstTokenTimedOut = false;
@@ -507,6 +521,15 @@ export function streamKiro(
               output.usage.input = Math.round(
                 (pct / 100) * model.contextWindow,
               );
+              // SAFETY: `AssistantMessage.usage` is a typed struct in
+              // pi-ai; the `contextPercent` field is Kiro-specific
+              // (set in the contextUsage event) and isn't part of
+              // the pi-ai type. The cast widens the typed object
+              // to a plain record so we can attach the extra field
+              // without a duplicate object. The field is purely
+              // informational (used by /free-startup and similar
+              // observability) — downstream consumers that don't
+              // recognize it ignore it.
               (
                 output.usage as unknown as Record<string, unknown>
               ).contextPercent = pct;
@@ -554,7 +577,6 @@ export function streamKiro(
             }
             case "toolUse": {
               const tc = event.data;
-              sawAnyToolCalls = true;
               if (
                 !currentToolCall ||
                 currentToolCall.toolUseId !== tc.toolUseId
