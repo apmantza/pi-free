@@ -21,6 +21,7 @@ import type {
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
 import {
+	getOpencodeApiKey,
 	getOpencodeFreeShowPaid,
 	getOpencodeGoShowPaid,
 	getOpenrouterShowPaid,
@@ -858,6 +859,10 @@ async function resolveApiKey(
 	if (providerId === "opencode-free" || providerId === "opencode") {
 		const sharedKey = await modelRegistry.getApiKeyForProvider?.("opencode-go");
 		if (sharedKey) return sharedKey;
+		const ownKey = await modelRegistry.getApiKeyForProvider?.(providerId);
+		if (ownKey) return ownKey;
+		const configKey = await getOpencodeApiKey();
+		if (configKey) return configKey;
 	}
 
 	return getApiKeyEnvForProvider(providerId);
