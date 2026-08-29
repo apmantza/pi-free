@@ -167,6 +167,46 @@ describe("kiro-auth — loginKiro dispatch", () => {
 		expect(kiroOAuthAuth.loginLabel).toBe("Sign in with Kiro");
 		expect(kiroOAuthAuth.name).toBe("Kiro");
 	});
+
+	// Regression test for the user-reported bug: pi-coding-agent's
+	// `adaptOAuth` (in provider-composer.js) calls extension login()
+	// with the LEGACY OAuthLoginCallbacks shape (onAuth, onPrompt,
+	// etc.) even though the pi-ai type declares the new AuthInteraction
+	// shape. Before this fix, calling `interaction.notify(...)` on
+	// the legacy object threw "TypeError: interaction.notify is not a
+	// function" and the user saw "Failed to login to Kiro". The fix
+	// detects the legacy shape and normalizes it to the new one.
+	it("handles the legacy OAuthLoginCallbacks shape from adaptOAuth", async () => {
+		mockGetKiroAuthMethod.mockReturnValue("web-portal");
+		const onAuthSpy = vi.fn();
+		const onDeviceCodeSpy = vi.fn();
+		const onProgressSpy = vi.fn();
+		const onPromptSpy = vi.fn().mockResolvedValue("typed-text");
+		const onManualCodeInputSpy = vi.fn().mockResolvedValue("pasted-code");
+		const onSelectSpy = vi.fn().mockResolvedValue("opt");
+		const signal = new AbortController().signal;
+		const legacyCallbacks = {
+			signal,
+			onAuth: onAuthSpy,
+			onDeviceCode: onDeviceCodeSpy,
+			onPrompt: onPromptSpy,
+			onProgress: onProgressSpy,
+			onManualCodeInput: onManualCodeInputSpy,
+			onSelect: onSelectSpy,
+		} as never;
+		const { kiroOAuthAuth } = await import("../providers/kiro/kiro-auth.ts");
+		// Should not throw — the legacy callbacks should be normalized
+		// to the new shape internally, then loginKiroDesktop runs as
+		// usual. loginKiroDesktop's mocked promise resolves to a
+		// valid credential so the call completes.
+		const cred = (await kiroOAuthAuth.login!(legacyCallbacks)) as unknown as {
+			authMethod: string;
+		};
+		expect(cred.authMethod).toBe("web-portal");
+		// loginKiroDesktop was called exactly once (the dispatch went
+		// through).
+		expect(mockLoginKiroDesktop).toHaveBeenCalledTimes(1);
+	});
 });
 
 describe("kiro-auth — legacy OAuthLoginCallbacks translation", () => {
