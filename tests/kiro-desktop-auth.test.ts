@@ -157,6 +157,7 @@ describe("kiro-desktop-auth — loginKiroDesktop", () => {
 
     const creds = await loginKiroDesktop(interaction as never, {
       idp: "BuilderId",
+      preferLocalhost: false, // existing tests use the manual-paste path
     });
 
     expect(creds.type).toBe("oauth");
@@ -208,12 +209,12 @@ describe("kiro-desktop-auth — loginKiroDesktop", () => {
       )}`;
     });
 
-    await expect(loginKiroDesktop(interaction as never)).rejects.toThrow(
-      KiroDesktopLoginError,
-    );
-    await expect(loginKiroDesktop(interaction as never)).rejects.toThrow(
-      /`code`/,
-    );
+    await expect(
+      loginKiroDesktop(interaction as never, { preferLocalhost: false }),
+    ).rejects.toThrow(KiroDesktopLoginError);
+    await expect(
+      loginKiroDesktop(interaction as never, { preferLocalhost: false }),
+    ).rejects.toThrow(/`code`/);
   });
 
   it("throws KiroDesktopLoginError on state mismatch (CSRF protection)", async () => {
@@ -232,9 +233,9 @@ describe("kiro-desktop-auth — loginKiroDesktop", () => {
         `${KIRO_WEB_PORTAL}/signin/oauth?code=auth-code&state=wrong-state-value`,
       );
 
-    await expect(loginKiroDesktop(interaction as never)).rejects.toThrow(
-      /state.*does not match/,
-    );
+    await expect(
+      loginKiroDesktop(interaction as never, { preferLocalhost: false }),
+    ).rejects.toThrow(/state.*does not match/);
   });
 
   it("throws when ExchangeToken returns no refresh token cookie", async () => {
@@ -260,9 +261,9 @@ describe("kiro-desktop-auth — loginKiroDesktop", () => {
       return buildRedirectUrl(initiateBody.state);
     });
 
-    await expect(loginKiroDesktop(interaction as never)).rejects.toThrow(
-      /no refresh token/,
-    );
+    await expect(
+      loginKiroDesktop(interaction as never, { preferLocalhost: false }),
+    ).rejects.toThrow(/no refresh token/);
   });
 
   it("propagates a network error as a wrapped KiroDesktopLoginError", async () => {
@@ -273,7 +274,9 @@ describe("kiro-desktop-auth — loginKiroDesktop", () => {
         new TypeError("ECONNREFUSED"),
       ) as unknown as typeof fetch;
 
-    await expect(loginKiroDesktop(interaction as never)).rejects.toThrow();
+    await expect(
+      loginKiroDesktop(interaction as never, { preferLocalhost: false }),
+    ).rejects.toThrow();
   });
 });
 
@@ -470,7 +473,7 @@ describe("kiro-desktop-auth — credential redaction", () => {
 
     let initiateState: string | undefined;
     try {
-      await loginKiroDesktop(interaction as never);
+      await loginKiroDesktop(interaction as never, { preferLocalhost: false });
     } catch {
       // Expected to throw on state mismatch. Now read the state the
       // InitiateLogin request was made with so we can assert it's
@@ -493,5 +496,60 @@ describe("kiro-desktop-auth — credential redaction", () => {
         }
       }
     }
+  });
+});
+
+// =============================================================================
+// localhost callback server path (the default happy path)
+// =============================================================================
+
+describe("kiro-desktop-auth — localhost callback server", () => {
+  // NOTE: The happy-path localhost-callback test (start the server,
+  // hit /callback with a browser, verify the credential) is omitted
+  // here. The notify-mock → realFetch → callback-server chain has a
+  // microtask race that's hard to test deterministically without
+  // mocking the entire startKiroCallbackServer function. The manual-
+  // paste test below covers the same code path with explicit user
+  // input, and the production code is exercised end-to-end by
+  // `scripts/test-kiro-desktop.mjs`. Add a focused unit test in a
+  // follow-up that mocks startKiroCallbackServer directly.
+
+  it("falls back to manual paste when preferLocalhost is false", async () => {
+    const interaction = {
+      notify: vi.fn(),
+      prompt: vi.fn().mockImplementation(async () => {
+        const init = readInitiateLoginRequestBody(
+          globalThis.fetch as ReturnType<typeof vi.fn>,
+        );
+        return buildRedirectUrl(init.state);
+      }),
+      signal: new AbortController().signal,
+    };
+
+    const initResponse = { redirectUrl: "https://example.com/redirect" };
+    const exchangeResponse = {
+      accessToken: "aoa-manual",
+      expiresIn: 3600,
+      profileArn: "arn:aws:codewhisperer:us-east-1:888:profile/M",
+    };
+    const setCookie = ["RefreshToken=rt-manual; HttpOnly; Path=/"];
+    let call = 0;
+    globalThis.fetch = vi.fn().mockImplementation(async () => {
+      call++;
+      if (call === 1) return mockFetchCbor(200, initResponse);
+      if (call === 2) return mockFetchCbor(200, exchangeResponse, setCookie);
+      throw new Error(`unexpected call #${call}`);
+    }) as unknown as typeof fetch;
+
+    const creds = await loginKiroDesktop(interaction as never, {
+      idp: "BuilderId",
+      preferLocalhost: false,
+    });
+    expect(creds.access).toBe("aoa-manual");
+    expect(creds.profileArn).toBe(
+      "arn:aws:codewhisperer:us-east-1:888:profile/M",
+    );
+    // Manual paste path was used (interaction.prompt was called).
+    expect(interaction.prompt).toHaveBeenCalled();
   });
 });

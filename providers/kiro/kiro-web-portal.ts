@@ -165,6 +165,15 @@ export interface InitiateLoginArgs {
   idp: KiroIdp;
   codeChallenge: string;
   state: string;
+  /**
+   * Our `redirect_uri` — the Kiro Web Portal will redirect the browser
+   * to this URL after the user signs in. Defaults to
+   * `${KIRO_WEB_PORTAL}/signin/oauth` (the Portal's own callback,
+   * which the caller would have to capture manually). Callers that
+   * run a local HTTP server (e.g. the desktop-auth flow's localhost
+   * callback) should pass their own URL here.
+   */
+  redirectUri?: string;
   signal?: AbortSignal;
 }
 
@@ -178,7 +187,7 @@ export async function initiateLogin(
 ): Promise<InitiateLoginOutput> {
   const input: InitiateLoginInput = {
     idp: args.idp,
-    redirectUri: KIRO_WEB_PORTAL_REDIRECT_URI,
+    redirectUri: args.redirectUri ?? KIRO_WEB_PORTAL_REDIRECT_URI,
     codeChallenge: args.codeChallenge,
     codeChallengeMethod: "S256",
     state: args.state,
@@ -204,6 +213,12 @@ export interface ExchangeTokenArgs {
   code: string;
   /** The PKCE `code_verifier` from the original `InitiateLogin` call. */
   codeVerifier: string;
+  /**
+   * Must match the `redirect_uri` passed to `InitiateLogin` (per
+   * OAuth 2.0 §4.1.3). Defaults to the Portal's own callback for
+   * backward compat with the no-callback-server callers.
+   */
+  redirectUri?: string;
   state: string;
   signal?: AbortSignal;
 }
@@ -277,7 +292,7 @@ export async function exchangeToken(
     idp: args.idp,
     code: args.code,
     codeVerifier: args.codeVerifier,
-    redirectUri: KIRO_WEB_PORTAL_REDIRECT_URI,
+    redirectUri: args.redirectUri ?? KIRO_WEB_PORTAL_REDIRECT_URI,
     state: args.state,
   };
 
