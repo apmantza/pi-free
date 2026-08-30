@@ -5,7 +5,10 @@
 > follow-up to PR #485 — the immediate fix is shipped; this document
 > describes the long-term plan.
 >
-> **Status: proposed, Phase A (plan + spec) of six.**
+> **Status: shipped, all phases merged.** See the post-ship addendum at
+> the bottom for the live-verified redirect-URI allowlist findings that
+> supersede parts of the original protocol spec.
+>
 > Phase tracker at the bottom of this document.
 
 ## Context
@@ -425,3 +428,54 @@ auth flow.
 Each phase is its own PR. A through E are reviewable independently. F
 is a final polish PR that just runs the live API test, updates the
 roadmap entry, and writes the release notes.
+
+## Post-ship addendum: the redirect-URI allowlist (live-verified 2026-09-01)
+
+The original spec's InitiateLogin example sent
+`"redirectUri": "https://app.kiro.dev/signin/oauth"` and the localhost-
+callback experiment (PR #491) assumed the Portal would accept any
+`redirect_uri` we hand it. Both assumptions needed correction after the
+"Failed to login to Kiro: Kiro Web Portal InitiateLogin failed:
+Authentication required or access denied." reports: the Portal validates
+`redirect_uri` against an allowlist that differs **per IdP leg**, and the
+Kiro web bundle (`assets.app.kiro.dev/releases/*/main.js` + `vendor.js`)
+confirmed the exact rules. Probed live against the real endpoints:
+
+| IdP | redirect_uri | Result |
+| --- | --- | --- |
+| BuilderId | `https://app.kiro.dev/signin/oauth` | 200 — AWS SSO authorize URL issued |
+| BuilderId | any loopback (`127.0.0.1`/`localhost`, any port/path, incl. `localhost:3128`) | **401 `UnauthorizedException` "Authentication required or access denied."** — the reported error |
+| BuilderId | loopback + `redirectFrom: "KiroIDE"` | 200 — but the "redirectUrl" is a device-flow **descriptor** back to our own URL (`issuer_url=https://view.awsapps.com/start&idc_region=us-east-1&state=…`), not an IdP redirect |
+| Google/Github | `http://localhost:3128/oauth/callback` (bare) | 200 — Cognito authorize URL embeds our `state` + `code_challenge`; Cognito 302s to the IdP for exactly this URI |
+| Google/Github | suffixed `?login_option=…` and other non-bare loopback variants | InitiateLogin may 200, but Cognito authorize fails with `redirect_mismatch` (the bare `127.0.0.1:3128` form was also observed passing the Cognito hop in one probe; only the bare `localhost` form is relied on) |
+| AWSIdC | loopback + `redirectFrom: "KiroIDE"` | 400 "Start URL is required" |
+
+Consequences, now implemented:
+
+1. **BuilderId cannot use a localhost callback at all.** The v2.3.0
+   manual-paste flow (Portal's own redirect URI + CBOR `ExchangeToken`)
+   is the only working path and was restored as such. The `redirectFrom:
+   "KiroIDE"` leg returns a descriptor, not an authorization redirect —
+   it leads to the device flow, not a PKCE code.
+2. **Google/Github get automatic capture** via the one loopback URI the
+   whole chain accepts: `http://localhost:3128/oauth/callback` (fixed
+   port — it is part of Cognito's registered redirect URI and cannot be
+   randomized). The code exchanges at the IDE's social token endpoint
+   `prod.us-east-1.auth.desktop.kiro.dev/oauth/token` with JSON
+   `{code, code_verifier, redirect_uri}` →
+   `{accessToken, refreshToken, profileArn, expiresIn}` (distinct from
+   the `/refreshToken` refresh endpoint). Implementation:
+   `providers/kiro/kiro-signin-flow.ts`; path selection and fallback to
+   manual paste live in `kiro-desktop-auth.ts`.
+3. The web bundle's `/signin` page (used by the Kiro IDE) parses exactly
+   `state`, `code_challenge`, `code_challenge_method`, `redirect_uri`,
+   `redirect_from` — the parameter set the relay flow builds. For CLI
+   flows the page derives its InitiateLogin redirect from the
+   `redirect_uri` param + a leg-specific suffix; the bare-loopback form
+   probed above is what the IDE's own client registers.
+
+`scripts/test-kiro-desktop.mjs` still drives the BuilderId manual-paste
+flow, which is unchanged from v2.3.0, for any `--idp` value (the relay
+flow is exercised by `tests/kiro-signin-flow.test.ts`; a manual social-
+relay live check would need the relay bound while the browser completes
+the Cognito leg).

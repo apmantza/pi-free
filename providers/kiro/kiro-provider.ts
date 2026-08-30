@@ -18,7 +18,10 @@ import type {
 import { PROVIDER_KIRO } from "../../config.ts";
 import { isFreeModel } from "../../lib/registry.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
-import { refreshNativeProviderModels, filterNativeModels } from "../../lib/native-provider.ts";
+import {
+  refreshNativeProviderModels,
+  filterNativeModels,
+} from "../../lib/native-provider.ts";
 import { getKiroShowPaid } from "../../config.ts";
 import { getKiroEndpoints } from "./kiro-endpoints.js";
 import { kiroAuth } from "./kiro-auth.js";
@@ -43,7 +46,10 @@ function credentialToken(credential?: Credential): string | undefined {
 export function createKiroProvider(): KiroNativeProvider {
   const stored: StoredModels = { free: [], all: [] };
 
-  function prepare(all: KiroModelType[], free: KiroModelType[]): { all: KiroModelType[]; free: KiroModelType[] } {
+  function prepare(
+    all: KiroModelType[],
+    free: KiroModelType[],
+  ): { all: KiroModelType[]; free: KiroModelType[] } {
     return { all, free };
   }
 
@@ -69,9 +75,13 @@ export function createKiroProvider(): KiroNativeProvider {
         const token = credentialToken(context.credential);
         if (token && context.allowNetwork) {
           try {
-            const { updateKiroModelsCache, getCachedModels } = await import("./kiro-models.js");
+            const { updateKiroModelsCache, getCachedModels } = await import(
+              "./kiro-models.js"
+            );
             const { resolveApiRegion } = await import("./kiro-endpoints.js");
-            const region = resolveApiRegion((context.credential as { region?: string })?.region);
+            const region = resolveApiRegion(
+              (context.credential as { region?: string })?.region,
+            );
             await updateKiroModelsCache(token, region);
             const cached = getCachedModels(region);
             if (cached.length > 0) {
@@ -121,7 +131,8 @@ export function createKiroProvider(): KiroNativeProvider {
         freeModels: stored.free,
       }),
     refreshModels,
-    stream: (model, context, options) => streams.stream(model, context, options),
+    stream: (model, context, options) =>
+      streams.stream(model, context, options),
     streamSimple: (model, context, options) =>
       streams.streamSimple(model, context, options),
   };

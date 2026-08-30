@@ -17,6 +17,35 @@ import {
 import { KIRO_WEB_PORTAL } from "../providers/kiro/kiro-web-portal-cbor.ts";
 import type { KiroCredentials } from "../providers/kiro/kiro-auth.ts";
 
+// The social relay binds the FIXED port 3128, and vitest runs test files
+// in parallel — the real-server test in kiro-signin-flow.test.ts would
+// collide. Mock the relay module instead; the real relay behavior is
+// covered end to end there.
+vi.mock("../providers/kiro/kiro-signin-flow.ts", () => {
+  return {
+    KIRO_SOCIAL_IDPS: ["Google", "Github"],
+    KiroSigninFlowError: class KiroSigninFlowError extends Error {
+      isBindFailure = false;
+      constructor(message: string, isBindFailure = false) {
+        super(message);
+        this.name = "KiroSigninFlowError";
+        this.isBindFailure = isBindFailure;
+      }
+    },
+    startKiroSocialLoginAttempt: vi.fn(),
+    exchangeKiroSocialCode: vi.fn(),
+  };
+});
+
+import {
+  exchangeKiroSocialCode,
+  KiroSigninFlowError,
+  startKiroSocialLoginAttempt,
+} from "../providers/kiro/kiro-signin-flow.ts";
+
+/** The real fetch, captured before any test mocks globalThis.fetch. */
+const pristineFetch = globalThis.fetch;
+
 /**
  * Read the CBOR-encoded InitiateLogin request body from a mocked
  * fetch call. Returns the decoded input shape (idp, codeChallenge,
@@ -26,6 +55,7 @@ function readInitiateLoginRequestBody(mockFetch: ReturnType<typeof vi.fn>): {
   idp: string;
   codeChallenge: string;
   state: string;
+  redirectUri?: string;
 } {
   const init = mockFetch.mock.calls[0]?.[1] as RequestInit | undefined;
   const body = init?.body as Uint8Array | undefined;
@@ -35,6 +65,27 @@ function readInitiateLoginRequestBody(mockFetch: ReturnType<typeof vi.fn>): {
     idp: string;
     codeChallenge: string;
     state: string;
+    redirectUri?: string;
+  };
+}
+
+/**
+ * Read the CBOR body of the Nth (1-based) mocked fetch call — used when a
+ * flow makes several fetches and an earlier call's body is needed.
+ */
+function readInitiateLoginRequestBodyAt(
+  mockFetch: ReturnType<typeof vi.fn>,
+  callNumber: number,
+): { idp: string; state: string; redirectUri?: string } {
+  const init = mockFetch.mock.calls[callNumber - 1]?.[1] as
+    | RequestInit
+    | undefined;
+  const body = init?.body as Uint8Array | undefined;
+  if (!body) throw new Error(`fetch call #${callNumber} had no CBOR body`);
+  return cborDecode(body) as {
+    idp: string;
+    state: string;
+    redirectUri?: string;
   };
 }
 
@@ -109,6 +160,11 @@ function buildRedirectUrl(state: string, code = "auth-code-from-idp"): string {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  // Tests assign globalThis.fetch directly (mocks for the CBOR/JSON
+  // endpoints); restore the real fetch so mocks never leak between
+  // tests — the relay-path test passes localhost hits through to the
+  // real fetch and would otherwise recurse into the previous mock.
+  globalThis.fetch = pristineFetch;
 });
 
 // =============================================================================
@@ -500,19 +556,57 @@ describe("kiro-desktop-auth — credential redaction", () => {
 });
 
 // =============================================================================
-// localhost callback server path (the default happy path)
+// Redirect capture path selection (post-relay-protocol-fix)
 // =============================================================================
 
-describe("kiro-desktop-auth — localhost callback server", () => {
-  // NOTE: The happy-path localhost-callback test (start the server,
-  // hit /callback with a browser, verify the credential) is omitted
-  // here. The notify-mock → realFetch → callback-server chain has a
-  // microtask race that's hard to test deterministically without
-  // mocking the entire startKiroCallbackServer function. The manual-
-  // paste test below covers the same code path with explicit user
-  // input, and the production code is exercised end-to-end by
-  // `scripts/test-kiro-desktop.mjs`. Add a focused unit test in a
-  // follow-up that mocks startKiroCallbackServer directly.
+describe("kiro-desktop-auth — capture path selection", () => {
+  // The regression under fix: the v2.3.1 localhost-callback flow passed
+  // `redirect_uri = http://127.0.0.1:<port>/callback` to InitiateLogin for
+  // ALL IdPs, but the portal's AWS SSO leg (BuilderId) rejects every
+  // loopback redirect URI at InitiateLogin time — that was the reported
+  // "Failed to login to Kiro: Authentication required or access denied."
+  // error. BuilderId must go straight to manual paste with the Portal's
+  // own redirect URI.
+  it("BuilderId never sends a loopback redirect_uri to InitiateLogin", async () => {
+    const interaction = makeInteraction();
+    const initResponse = { redirectUrl: "https://example.com/redirect" };
+    const exchangeResponse = {
+      accessToken: "aoa-builderid",
+      expiresIn: 3600,
+      profileArn: "arn:aws:codewhisperer:us-east-1:777:profile/B",
+    };
+    let call = 0;
+    globalThis.fetch = vi.fn().mockImplementation(async () => {
+      call++;
+      if (call === 1) return mockFetchCbor(200, initResponse);
+      if (call === 2)
+        return mockFetchCbor(200, exchangeResponse, [
+          "RefreshToken=rt-b; Path=/",
+        ]);
+      throw new Error(`unexpected call #${call}`);
+    }) as unknown as typeof fetch;
+
+    interaction.prompt = vi.fn().mockImplementation(async () => {
+      const initiateBody = readInitiateLoginRequestBody(
+        globalThis.fetch as ReturnType<typeof vi.fn>,
+      );
+      return buildRedirectUrl(initiateBody.state);
+    });
+
+    const creds = await loginKiroDesktop(interaction as never, {
+      idp: "BuilderId",
+      // Default preferLocalhost (true) — the old code would have started
+      // a localhost callback server and passed its URL as redirect_uri.
+    });
+    expect(creds.access).toBe("aoa-builderid");
+
+    const initiateBody = readInitiateLoginRequestBody(
+      globalThis.fetch as ReturnType<typeof vi.fn>,
+    );
+    expect(initiateBody.redirectUri).toBe(`${KIRO_WEB_PORTAL}/signin/oauth`);
+    // No prompt for a callback server: the manual paste prompt ran.
+    expect(interaction.prompt).toHaveBeenCalled();
+  });
 
   it("falls back to manual paste when preferLocalhost is false", async () => {
     const interaction = {
@@ -551,5 +645,205 @@ describe("kiro-desktop-auth — localhost callback server", () => {
     );
     // Manual paste path was used (interaction.prompt was called).
     expect(interaction.prompt).toHaveBeenCalled();
+  });
+
+  it("Google drives the automatic relay flow end to end (no paste)", async () => {
+    // Path: relay attempt (mocked here; real behavior in
+    // kiro-signin-flow.test.ts) → state check → JSON exchange →
+    // credential assembled. No interaction.prompt call.
+    const interaction = {
+      notify: vi.fn(),
+      prompt: vi.fn(),
+      signal: new AbortController().signal,
+    };
+
+    const relayState = "relay-state-uuid";
+    vi.mocked(startKiroSocialLoginAttempt).mockResolvedValueOnce({
+      authorizeUrl: "https://cognito.example/authorize?simulated=1",
+      pkce: {
+        codeVerifier: "mock-verifier",
+        codeChallenge: "mock-challenge",
+        state: relayState,
+      },
+      relay: {
+        waitForRelay: Promise.resolve({
+          code: "relay-code",
+          state: relayState,
+        }),
+        close: vi.fn(),
+      },
+    });
+    vi.mocked(exchangeKiroSocialCode).mockResolvedValueOnce({
+      accessToken: "aoa-google",
+      refreshToken: "rt-google",
+      profileArn: "arn:aws:codewhisperer:us-east-1:999:profile/G",
+      expiresIn: 3600,
+    });
+    // No network calls expected on this path — the exchange is mocked.
+    globalThis.fetch = vi.fn() as unknown as typeof fetch;
+
+    const creds = await loginKiroDesktop(interaction as never, {
+      idp: "Google",
+    });
+    expect(creds.access).toBe("aoa-google");
+    expect(creds.refresh).toBe("rt-google");
+    expect(creds.profileArn).toBe(
+      "arn:aws:codewhisperer:us-east-1:999:profile/G",
+    );
+    expect(creds.idp).toBe("Google");
+    expect(creds.authMethod).toBe("web-portal");
+    expect(creds.clientId).toBe("");
+    // No paste prompt — automatic capture.
+    expect(interaction.prompt).not.toHaveBeenCalled();
+    // Notify carried the Cognito authorize URL.
+    const authUrlCall = (
+      interaction.notify as ReturnType<typeof vi.fn>
+    ).mock.calls.find((c) => (c[0] as { type?: string }).type === "auth_url");
+    expect((authUrlCall![0] as { url: string }).url).toBe(
+      "https://cognito.example/authorize?simulated=1",
+    );
+  });
+
+  it("Google falls back to manual paste when the relay port cannot bind", async () => {
+    const interaction = {
+      notify: vi.fn(),
+      prompt: vi.fn().mockImplementation(async () => {
+        const init = readInitiateLoginRequestBody(
+          globalThis.fetch as ReturnType<typeof vi.fn>,
+        );
+        return buildRedirectUrl(init.state);
+      }),
+      signal: new AbortController().signal,
+    };
+
+    // Bind failure on the fixed relay port → recoverable → manual paste.
+    vi.mocked(startKiroSocialLoginAttempt).mockRejectedValueOnce(
+      new KiroSigninFlowError("port taken", true),
+    );
+
+    const initResponse = { redirectUrl: "https://example.com/redirect" };
+    const exchangeResponse = {
+      accessToken: "aoa-google-fallback",
+      expiresIn: 3600,
+      profileArn: "arn:aws:codewhisperer:us-east-1:555:profile/F",
+    };
+    let call = 0;
+    globalThis.fetch = vi.fn().mockImplementation(async () => {
+      call++;
+      if (call === 1) return mockFetchCbor(200, initResponse);
+      if (call === 2)
+        return mockFetchCbor(200, exchangeResponse, [
+          "RefreshToken=rt-gf; Path=/",
+        ]);
+      throw new Error(`unexpected call #${call}`);
+    }) as unknown as typeof fetch;
+
+    const creds = await loginKiroDesktop(interaction as never, {
+      idp: "Google",
+    });
+    expect(creds.access).toBe("aoa-google-fallback");
+    expect(interaction.prompt).toHaveBeenCalled();
+    // The fallback InitiateLogin used the PORTAL redirect URI, not loopback.
+    const fallbackBody = readInitiateLoginRequestBodyAt(
+      globalThis.fetch as ReturnType<typeof vi.fn>,
+      1,
+    );
+    expect(fallbackBody.redirectUri).toBe(`${KIRO_WEB_PORTAL}/signin/oauth`);
+  });
+
+  it("Google does not fall back when the relay fails mid-flow", async () => {
+    const interaction = {
+      notify: vi.fn(),
+      prompt: vi.fn(),
+      signal: new AbortController().signal,
+    };
+
+    // Non-recoverable failure (state mismatch surfaces from the relay
+    // promise, not as a bind failure) must propagate, not silently
+    // restart the flow via manual paste.
+    vi.mocked(startKiroSocialLoginAttempt).mockRejectedValueOnce(
+      new KiroDesktopLoginError("state mismatch"),
+    );
+    globalThis.fetch = vi.fn() as unknown as typeof fetch;
+
+    await expect(
+      loginKiroDesktop(interaction as never, { idp: "Google" }),
+    ).rejects.toThrow("state mismatch");
+    expect(interaction.prompt).not.toHaveBeenCalled();
+  });
+
+  it("Google propagates a relay timeout/abort rejection without falling back", async () => {
+    // waitForRelay rejecting (5-min timeout or cancel) after a successful
+    // attempt start must surface to the user, not silently restart via
+    // manual paste — and the relay must be closed in the finally.
+    const interaction = {
+      notify: vi.fn(),
+      prompt: vi.fn(),
+      signal: new AbortController().signal,
+    };
+
+    const relayClose = vi.fn();
+    vi.mocked(startKiroSocialLoginAttempt).mockResolvedValueOnce({
+      authorizeUrl: "https://cognito.example/authorize?timeout=1",
+      pkce: {
+        codeVerifier: "v",
+        codeChallenge: "c",
+        state: "s-timeout",
+      },
+      relay: {
+        waitForRelay: Promise.reject(
+          new KiroSigninFlowError(
+            "Kiro login timed out: the browser did not relay back within 5 minutes.",
+          ),
+        ),
+        close: relayClose,
+      },
+    });
+    globalThis.fetch = vi.fn() as unknown as typeof fetch;
+
+    await expect(
+      loginKiroDesktop(interaction as never, { idp: "Google" }),
+    ).rejects.toThrow(/timed out/);
+    expect(interaction.prompt).not.toHaveBeenCalled();
+    expect(relayClose).toHaveBeenCalled();
+  });
+
+  it("Google rejects with KiroDesktopLoginError when the relayed state mismatches (CSRF)", async () => {
+    const interaction = {
+      notify: vi.fn(),
+      prompt: vi.fn(),
+      signal: new AbortController().signal,
+    };
+
+    // Fresh mock state — earlier tests in this file called the mocked
+    // exchange with valid data; this test asserts THIS login never did.
+    vi.mocked(exchangeKiroSocialCode).mockClear();
+
+    // The relay resolves with a state that does NOT match the generated
+    // PKCE state (forged/stale callback). The login must fail closed.
+    const relayClose = vi.fn();
+    vi.mocked(startKiroSocialLoginAttempt).mockResolvedValueOnce({
+      authorizeUrl: "https://cognito.example/authorize?forged=1",
+      pkce: {
+        codeVerifier: "v",
+        codeChallenge: "c",
+        state: "expected-state",
+      },
+      relay: {
+        waitForRelay: Promise.resolve({
+          code: "attacker-code",
+          state: "forged-state",
+        }),
+        close: relayClose,
+      },
+    });
+    globalThis.fetch = vi.fn() as unknown as typeof fetch;
+
+    const rejection = loginKiroDesktop(interaction as never, { idp: "Google" });
+    await expect(rejection).rejects.toThrow(KiroDesktopLoginError);
+    await expect(rejection).rejects.toThrow(/state.*does not match/);
+    // The attacker's code was never exchanged.
+    expect(vi.mocked(exchangeKiroSocialCode)).not.toHaveBeenCalled();
+    expect(relayClose).toHaveBeenCalled();
   });
 });

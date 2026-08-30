@@ -53,8 +53,7 @@ describe("kiro-credential — readPersistedKiroProfileArn", () => {
 					access: "aoa...",
 					refresh: "rt...",
 					expires: 1787906008267,
-					profileArn:
-						"arn:aws:codewhisperer:us-east-1:123456789:profile/ABCDE",
+					profileArn: "arn:aws:codewhisperer:us-east-1:123456789:profile/ABCDE",
 				},
 			}),
 		);
@@ -139,9 +138,7 @@ describe("kiro-credential — readPersistedKiroProfileArn", () => {
 			}),
 		);
 		const result = readPersistedKiroProfileArn();
-		expect(result).toBe(
-			"arn:aws:codewhisperer:us-east-1:123:profile/X",
-		);
+		expect(result).toBe("arn:aws:codewhisperer:us-east-1:123:profile/X");
 		// The return type is a string, not an object, so there's no
 		// way to leak access/refresh. This test documents the contract.
 	});
