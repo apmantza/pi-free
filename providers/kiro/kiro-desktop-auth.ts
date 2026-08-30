@@ -1,46 +1,33 @@
 /**
- * Kiro Web Portal auth flow driver (Phase D of the kiro-web-portal-auth plan).
- *
- * Composes `kiro-pkce` + `kiro-web-portal` + a localhost HTTP callback
- * server into the top-level login + refresh entry points that
+ * Kiro login flow driver — top-level login + refresh entry points that
  * `kiro-auth.ts` calls when `kiro_auth_method === "web-portal"` (or when
  * the user runs `/login kiro` on a fresh install).
  *
- * The flow:
- *   1. PKCE: generate a code_verifier / code_challenge / state
- *   2. InitiateLogin: POST the PKCE pair to the Kiro Web Portal with
- *      `redirect_uri = http://127.0.0.1:<port>/callback` (our localhost
- *      server). Get back the URL the user opens in their browser.
- *   3. Browser-redirect loop: the user signs in with their IdP; the
- *      Kiro Web Portal redirects the browser to our localhost URL with
- *      `?code=...&state=...`. The callback server resolves the wait
- *      promise with the code.
- *   4. State verification: confirm the returned `state` matches what
- *      we stored (CSRF protection per OAuth 2.0 §10.12).
- *   5. ExchangeToken: POST the code + code_verifier (with the same
- *      `redirect_uri` we used in step 2) to get the access token +
- *      refresh token cookie + profileArn.
- *   6. Persist as KiroCredentials (extends the existing shape with
- *      `idp`, `profileArn`, `csrfToken`, `machineId`).
+ * Two capture paths, selected by IdP (see `loginKiroDesktop`):
  *
- * The localhost callback server is the same pattern Cline's
- * `startCallbackServer` uses and the Kiro-Go reference uses. The Portal
- * supports `redirect_uri = http://127.0.0.1:<port>/...` (per the
- * `kiro.dev/docs/enterprise/identity-provider/*` redirect-URI docs), so
- * the browser comes back to our server automatically — no manual URL
- * paste required.
+ *   - Social relay (Google, Github — `kiro-signin-flow.ts`): automatic.
+ *     A localhost relay binds the fixed port 3128 (the loopback URL
+ *     registered with Kiro's Cognito app), `InitiateLogin` runs with that
+ *     loopback redirect URI, and the browser comes back by itself after
+ *     the user signs in. The code is exchanged at the IDE's social token
+ *     endpoint (`/oauth/token`, JSON).
+ *   - Manual paste (BuilderId, and the fallback for everything):
+ *     `InitiateLogin` runs against the Portal's own redirect URI
+ *     (`app.kiro.dev/signin/oauth` — the only value the AWS SSO leg
+ *     accepts; every loopback redirect URI 401s at InitiateLogin time,
+ *     which was the reported "Authentication required or access denied."
+ *     error). The user pastes the final `?code=...&state=...` URL back
+ *     and the CBOR `ExchangeToken` completes the flow.
  *
- * If the localhost server can't bind (port already in use, sandbox
- * restrictions, very old Node, etc.) we fall through to a manual
- * paste prompt — the same path Phase D had before the callback server
- * existed. The user types the redirect URL, we parse `code` + `state`,
- * and continue. Set `options.preferLocalhost = false` to skip the
- * callback server entirely and go straight to manual paste.
+ * Both paths verify the returned `state` (CSRF protection per OAuth 2.0
+ * §10.12), persist `profileArn` (the field that makes streaming work,
+ * PR #485), and produce the same KiroCredentials shape (`idp`,
+ * `profileArn`, `csrfToken`, `machineId`).
  *
- * Per design doc Phase D: this is the only file in the kiro module that
- * drives the login UX. Higher-level modules (Phase E's kiro-stream.ts,
- * kiro-provider.ts) consume the returned KiroCredentials shape
- * unchanged.
+ * Per the kiro-web-portal-auth design doc: this is the only file in the
+ * kiro module that drives the login UX. Higher-level modules
+ * (kiro-stream.ts, kiro-provider.ts) consume the returned
+ * KiroCredentials shape unchanged.
  *
  * Logging rules (per `agents.md` convention #17):
  *   - idp, region, status codes, operation names: safe to log
@@ -52,25 +39,23 @@
  */
 
 import { createHash } from "node:crypto";
-import {
-  createServer,
-  type IncomingMessage,
-  type Server,
-  type ServerResponse,
-} from "node:http";
-import type { Socket } from "node:net";
 import { hostname } from "node:os";
-import { networkInterfaces } from "node:os";
-import type { AddressInfo } from "node:net";
 import type { AuthInteraction } from "@earendil-works/pi-ai";
 import { createLogger } from "../../lib/logger.ts";
 import { KIRO_WEB_PORTAL } from "./kiro-web-portal-cbor.ts";
-import { generatePkce, type PkcePair } from "./kiro-pkce.ts";
+import { generatePkce } from "./kiro-pkce.ts";
 import {
   exchangeToken as webPortalExchangeToken,
   initiateLogin as webPortalInitiateLogin,
+  KiroWebPortalHttpError,
 } from "./kiro-web-portal.ts";
 import type { KiroIdp } from "./kiro-web-portal-cbor.ts";
+import {
+  KIRO_SOCIAL_IDPS,
+  KiroSigninFlowError,
+  exchangeKiroSocialCode,
+  startKiroSocialLoginAttempt,
+} from "./kiro-signin-flow.ts";
 import {
   KIRO_DESKTOP_REFRESH_URL,
   type KiroAuthMethod,
@@ -83,17 +68,19 @@ const _logger = createLogger("kiro-desktop-auth");
 const EXPIRES_BUFFER_MS = 5 * 60 * 1000;
 
 /**
- * Port range for the localhost callback server. 53100-53199 (100 ports)
- * is in the IANA dynamic/private range (49152-65535) so we don't
- * collide with well-known service ports. The Cline extension uses
- * 48801-48811 (10 ports); we use a wider range to reduce bind-failure
- * retries on developer machines with many listening services.
+ * How the browser redirect is captured.
+ *
+ *   - Social relay (automatic) — a localhost relay on the fixed port
+ *     3128 (the loopback URL registered with Kiro's Cognito app) captures
+ *     the portal redirect for the Cognito-backed social IdPs (Google,
+ *     Github). Implemented in `kiro-signin-flow.ts`.
+ *   - Manual paste — the user pastes the
+ *     `app.kiro.dev/signin/oauth?code=...&state=...` URL back into Pi.
+ *     The only option for BuilderId: the portal's AWS SSO leg rejects every
+ *     loopback redirect URI at InitiateLogin time (verified live — that
+ *     was the reported "Authentication required or access denied." error),
+ *     so the flow must use the Portal's own redirect URI.
  */
-const CALLBACK_PORT_START = 53100;
-const CALLBACK_PORT_END = 53199;
-
-/** How long the callback server waits for the browser redirect before giving up. */
-const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000;
 
 // =============================================================================
 // Errors
@@ -108,216 +95,18 @@ export class KiroDesktopLoginError extends Error {
 }
 
 // =============================================================================
-// Localhost callback server
-// =============================================================================
-
-/**
- * A localhost HTTP server that waits for the Kiro Web Portal to redirect
- * the user's browser to it with `?code=...&state=...`. Renders a tiny
- * success page so the user sees confirmation in their browser.
- *
- * Pattern: Cline's `startCallbackServer` and the Kiro-Go reference
- * `kiro_sso.go` use the same approach. The Portal's
- * `redirect_uri` field accepts a localhost URL with a free port in
- * the IANA dynamic range (49152-65535) per the kiro.dev SSO setup
- * docs.
- */
-function startKiroCallbackServer(signal?: AbortSignal): Promise<{
-  /** The full `redirect_uri` to pass to `initiateLogin`, e.g. `http://127.0.0.1:53123/callback`. */
-  url: string;
-  /** Resolves on the first request the browser sends to `/callback`. */
-  waitForCallback: Promise<{ code: string; state: string }>;
-  /** Stops the server. Safe to call after `waitForCallback` resolves. */
-  close: () => void;
-}> {
-  return new Promise((resolve, reject) => {
-    const ports = Array.from(
-      { length: CALLBACK_PORT_END - CALLBACK_PORT_START + 1 },
-      (_, i) => CALLBACK_PORT_START + i,
-    );
-
-    let settled = false;
-    let server: Server | undefined;
-    let serverTimeout: ReturnType<typeof setTimeout> | undefined;
-    let abortListener: (() => void) | undefined;
-
-    const cleanup = () => {
-      if (serverTimeout) {
-        clearTimeout(serverTimeout);
-        serverTimeout = undefined;
-      }
-      if (signal && abortListener) {
-        signal.removeEventListener("abort", abortListener);
-        abortListener = undefined;
-      }
-      if (server) {
-        server.close();
-        server = undefined;
-      }
-    };
-
-    const settle = (fn: () => void) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      fn();
-    };
-
-    // Render a tiny success page so the user sees confirmation in
-    // their browser tab when the redirect lands. This is the same
-    // page Cline and the Kiro-Go reference render.
-    const successHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-<title>Kiro login complete</title>
-<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
-font-family:system-ui,sans-serif;background:#fff;color:#333}
-.box{text-align:center;padding:24px;border:1px solid #e1e1e1;border-radius:8px;background:#f8f8f8}
-.ok{color:#2f855a;font-size:20px;margin-bottom:8px}</style></head>
-<body><div class="box"><div class="ok">✓ Kiro login complete</div>
-<p>You can close this window and return to your terminal.</p></div></body></html>`;
-
-    // The promise the caller awaits. Resolves on the first hit on
-    // `/callback` with `code` and `state` query params; rejects on
-    // timeout or a malformed hit.
-    let resolveWait: ((r: { code: string; state: string }) => void) | undefined;
-    let rejectWait: ((e: Error) => void) | undefined;
-    const waitForCallback = new Promise<{ code: string; state: string }>(
-      (res, rej) => {
-        resolveWait = res;
-        rejectWait = rej;
-      },
-    );
-    void waitForCallback.catch(() => {});
-
-    const tryListen = (portIdx: number) => {
-      if (portIdx >= ports.length) {
-        settle(() =>
-          rejectWait?.(
-            new KiroDesktopLoginError(
-              `Could not bind a localhost callback port in ${CALLBACK_PORT_START}-${CALLBACK_PORT_END}. All ports are in use. Set kiro_auth_method: "idc" to use the legacy device-code flow instead, or free one of these ports.`,
-            ),
-          ),
-        );
-        return;
-      }
-      const port = ports[portIdx] as number;
-
-      const candidate: Server = createServer(
-        (req: IncomingMessage, res: ServerResponse) => {
-          try {
-            const url = new URL(req.url ?? "", `http://127.0.0.1:${port}`);
-            // Accept any path; the Kiro Web Portal uses
-            // `/callback` (per the docs) but the actual path is
-            // whatever we pass as `redirect_uri`, so we accept all.
-            const code = url.searchParams.get("code");
-            const state = url.searchParams.get("state");
-            if (req.method !== "GET" || !code || !state) {
-              // Render a minimal error so the user's browser tab
-              // doesn't look broken if they hit the wrong path.
-              res.writeHead(400, { "Content-Type": "text/html" });
-              res.end(
-                `<!DOCTYPE html><html><body>Kiro callback: missing or invalid request (expected ?code=...&state=... in the URL).</body></html>`,
-              );
-              // Don't settle — let the user retry by going back to
-              // the Web Portal URL in their other tab.
-              return;
-            }
-            res.writeHead(200, { "Content-Type": "text/html" });
-            res.end(successHTML);
-            settle(() => resolveWait?.({ code, state }));
-          } catch (err) {
-            settle(() =>
-              rejectWait?.(
-                err instanceof Error
-                  ? new KiroDesktopLoginError(
-                      `Kiro callback handler error: ${err.message}`,
-                    )
-                  : new KiroDesktopLoginError(
-                      "Kiro callback handler error: unknown",
-                    ),
-              ),
-            );
-          }
-        },
-      );
-
-      candidate.once("error", (err: Error) => {
-        candidate.close();
-        if ((err as NodeJS.ErrnoException).code === "EADDRINUSE") {
-          // Port taken — try the next one.
-          tryListen(portIdx + 1);
-          return;
-        }
-        settle(() =>
-          rejectWait?.(
-            new KiroDesktopLoginError(
-              `Kiro callback server failed: ${err.message}`,
-            ),
-          ),
-        );
-      });
-
-      candidate.listen(port, "127.0.0.1", () => {
-        // Bound successfully.
-        server = candidate;
-        const addr = candidate.address() as AddressInfo | null;
-        const chosenPort = addr?.port ?? port;
-        const callbackUrl = `http://127.0.0.1:${chosenPort}/callback`;
-        _logger.info(
-          `[callback server] listening at ${callbackUrl} (5 min timeout)`,
-        );
-        serverTimeout = setTimeout(() => {
-          settle(() =>
-            rejectWait?.(
-              new KiroDesktopLoginError(
-                "Kiro login timed out: the browser did not redirect back to the callback server within 5 minutes. Try again.",
-              ),
-            ),
-          );
-        }, CALLBACK_TIMEOUT_MS);
-        if (signal) {
-          abortListener = () => {
-            settle(() => rejectWait?.(new Error("Login cancelled")));
-          };
-          signal.addEventListener("abort", abortListener, { once: true });
-        }
-        resolve({
-          url: callbackUrl,
-          waitForCallback,
-          close: cleanup,
-        });
-      });
-    };
-
-    tryListen(0);
-  });
-}
-
-/**
- * Build a localhost URL the Web Portal can redirect the user's browser
- * to. The Portal supports `http://127.0.0.1:<port>/...` (and
- * `http://localhost:<port>/...`) per the kiro.dev SSO setup docs.
- *
- * Exported for testing only.
- */
-export function buildCallbackUrl(
-  host: string,
-  port: number,
-  path = "/callback",
-): string {
-  return `http://${host}:${port}${path}`;
-}
-
-// =============================================================================
-// Helpers
+// Manual-paste redirect parser
 // =============================================================================
 
 /**
  * Parse a `app.kiro.dev/signin/oauth?code=...&state=...` redirect URL into
- * its `code` and `state` query parameters. Tolerates trailing whitespace and
- * a leading/trailing newline (the user might paste with a stray Enter).
+ * its `code` and `state` query parameters. Tolerates surrounding whitespace
+ * (the user might paste with a stray Enter).
  *
- * Used as the manual-paste fallback when the localhost callback server
- * can't bind or when `options.preferLocalhost === false`.
+ * Used as the fallback when the social relay can't bind or when
+ * `options.preferLocalhost === false`. Also the only capture path for
+ * BuilderId, whose AWS SSO leg rejects every loopback redirect URI at
+ * `InitiateLogin` time.
  */
 function parseKiroRedirectUrl(pasted: string): { code: string; state: string } {
   const trimmed = pasted.trim();
@@ -381,24 +170,220 @@ export interface LoginKiroDesktopOptions {
   /** Defaults to "us-east-1". */
   region?: string;
   /**
-   * When true (default), the desktop-auth flow starts a localhost
-   * HTTP server on a free port in the IANA dynamic range (53100-53199)
-   * and registers it as the Portal's `redirect_uri`. The browser
-   * comes back automatically after the user signs in. When false
-   * (or when the localhost server can't bind), falls through to a
-   * manual-paste prompt.
+   * When true (default), social IdPs (Google, Github) try the automatic
+   * localhost relay on the fixed port 3128 first. BuilderId always uses
+   * the manual-paste path — its AWS SSO leg rejects every loopback
+   * redirect URI at InitiateLogin time. When false, all IdPs go straight
+   * to the manual-paste prompt.
    */
   preferLocalhost?: boolean;
 }
 
 /**
- * Drive the full Web Portal login flow. Returns a `KiroCredentials`
+ * Manual-paste login: InitiateLogin against the Portal's own redirect URI
+ * (`app.kiro.dev/signin/oauth` — the only redirect the AWS SSO leg
+ * accepts, and the reliable fallback for every IdP), then the user pastes
+ * the `?code=...&state=...` URL back and we run the CBOR ExchangeToken.
+ * This is the v2.3.0 flow, restored as the BuilderId path and the
+ * universal fallback.
+ */
+async function loginViaManualPaste(
+  interaction: AuthInteraction,
+  args: { idp: KiroIdp; region: string },
+): Promise<KiroCredentials> {
+  const { idp, region } = args;
+  const pkce = generatePkce();
+
+  // 1. InitiateLogin against the Portal's own redirect URI (the default —
+  // no redirectUri override). The returned URL is what the user opens.
+  const init = await webPortalInitiateLogin({
+    idp,
+    codeChallenge: pkce.codeChallenge,
+    state: pkce.state,
+    signal: interaction.signal,
+  });
+
+  if (interaction.signal?.aborted) {
+    throw new Error("Login cancelled");
+  }
+
+  // 2. Show the URL and ask the user to paste the final redirect back.
+  const instructions = [
+    `Open the URL above in your browser and sign in with ${idp}.`,
+    `After signing in, your browser will land on ${KIRO_WEB_PORTAL}/signin/oauth?code=...&state=...`,
+    `Copy the full URL from your browser's address bar and paste it back here.`,
+    `(The state value is a CSRF token — it MUST match what we generated.)`,
+  ].join("\n");
+  interaction.notify({
+    type: "auth_url",
+    url: init.redirectUrl,
+    instructions,
+  });
+
+  const pastedUrl = await interaction.prompt({
+    type: "manual_code",
+    message: "Paste the full redirect URL from your browser",
+  });
+  if (interaction.signal?.aborted) throw new Error("Login cancelled");
+  const { code, state: returnedState } = parseKiroRedirectUrl(pastedUrl);
+
+  // 3. CSRF check
+  if (returnedState !== pkce.state) {
+    // SECURITY: log a truncated state (first 8 chars) for debug, never
+    // the full state value or the full pasted URL.
+    _logger.error(
+      `[loginViaManualPaste] state mismatch (returned first 8: ${returnedState.slice(0, 8)}...)`,
+    );
+    throw new KiroDesktopLoginError(
+      "Kiro login failed: the returned URL's `state` parameter does not match what we generated. This usually means the URL was captured from a stale tab or a different login attempt. Please try again.",
+    );
+  }
+
+  // 4. ExchangeToken (CBOR) — the redirect_uri must match InitiateLogin's
+  // (the Portal's own, which is what the no-override default resolves to).
+  const result = await webPortalExchangeToken({
+    idp,
+    code,
+    codeVerifier: pkce.codeVerifier,
+    state: pkce.state,
+    signal: interaction.signal,
+  });
+
+  return buildKiroCredentials(result.body, result.cookies.refreshToken, {
+    idp,
+    region,
+    clientId: init.applicationArn ?? "",
+    csrfToken: result.body.csrfToken,
+    expiresInSeconds: result.body.expiresIn,
+  });
+}
+
+/**
+ * Automatic relay login for the Cognito-backed social IdPs (Google,
+ * Github): bind the loopback relay on the fixed port 3128, InitiateLogin
+ * with the loopback redirect URI (which both the Portal and Cognito
+ * accept), and capture the browser redirect automatically. The code is
+ * exchanged at the IDE's social token endpoint (JSON) — no paste needed.
+ */
+async function loginViaSocialRelay(
+  interaction: AuthInteraction,
+  args: { idp: KiroIdp; region: string },
+): Promise<KiroCredentials> {
+  const { idp, region } = args;
+  const attempt = await startKiroSocialLoginAttempt({
+    idp,
+    signal: interaction.signal,
+  });
+
+  try {
+    const instructions = [
+      `Open the URL above in your browser and sign in with ${idp}.`,
+      `After signing in, the browser will come back automatically and Kiro will continue.`,
+    ].join("\n");
+    interaction.notify({
+      type: "auth_url",
+      url: attempt.authorizeUrl,
+      instructions,
+    });
+
+    const { code, state } = await attempt.relay.waitForRelay;
+    if (interaction.signal?.aborted) throw new Error("Login cancelled");
+
+    // CSRF check (the relay verified nothing; the state match is ours).
+    if (state !== attempt.pkce.state) {
+      _logger.error(
+        `[loginViaSocialRelay] state mismatch (returned first 8: ${state.slice(0, 8)}...)`,
+      );
+      throw new KiroDesktopLoginError(
+        "Kiro login failed: the relayed `state` parameter does not match what we generated. This usually means the redirect came from a stale tab or a different login attempt. Please try again.",
+      );
+    }
+
+    const tokens = await exchangeKiroSocialCode({
+      code,
+      codeVerifier: attempt.pkce.codeVerifier,
+      signal: interaction.signal,
+    });
+
+    return buildKiroCredentials(tokens, tokens.refreshToken, {
+      idp,
+      region,
+      // The social JSON exchange returns no applicationArn (that field is
+      // specific to the Portal's SSO leg); the refresh path does not use it.
+      clientId: "",
+      csrfToken: undefined,
+      expiresInSeconds: tokens.expiresIn,
+    });
+  } finally {
+    attempt.relay.close();
+  }
+}
+
+/**
+ * Assemble the persisted credential from either flow's token outcome.
+ * The "refresh" field carries the refresh token: the CBOR ExchangeToken
+ * path returns it as a Set-Cookie (the body never carries it per the
+ * Kiro Web Portal protocol), the social JSON path returns it in the body.
+ * It MUST be present; otherwise the portal changed its contract.
+ */
+function buildKiroCredentials(
+  tokens: { accessToken: string; profileArn?: string },
+  refreshToken: string | undefined,
+  args: {
+    idp: KiroIdp;
+    region: string;
+    clientId: string;
+    csrfToken?: string;
+    expiresInSeconds: number;
+  },
+): KiroCredentials {
+  if (!refreshToken) {
+    // SECURITY: don't log the cookies or the accessToken.
+    throw new KiroDesktopLoginError(
+      "Kiro login succeeded but no refresh token was returned. The Kiro Web Portal may have changed its contract; try a different IdP or re-login.",
+    );
+  }
+
+  const machineId = deriveMachineId();
+  const credentials: KiroCredentials = {
+    type: "oauth",
+    access: tokens.accessToken,
+    refresh: refreshToken,
+    expires: Date.now() + args.expiresInSeconds * 1000 - EXPIRES_BUFFER_MS,
+    clientId: args.clientId,
+    clientSecret: "", // public-client flow, no clientSecret
+    region: args.region,
+    authMethod: "web-portal",
+    ...(tokens.profileArn ? { profileArn: tokens.profileArn } : {}),
+    ...(args.csrfToken ? { csrfToken: args.csrfToken } : {}),
+    machineId,
+    idp: args.idp,
+  };
+
+  _logger.info(
+    `[loginKiroDesktop] ${args.idp} login complete (expires in ${args.expiresInSeconds}s, machineId ${machineId.slice(0, 8)}..., profileArn ${tokens.profileArn ? "set (last 20: ...'" + tokens.profileArn.slice(-20) + "')" : "absent"})`,
+  );
+  return credentials;
+}
+
+/**
+ * Drive the full Kiro login flow. Returns a `KiroCredentials`
  * shape that includes `profileArn` (the field that fixes the
  * 400 'Improperly formed request' streaming error from PR #485).
  *
+ * Path selection:
+ *   - Social IdPs (Google, Github) with `preferLocalhost` (default):
+ *     automatic loopback relay capture, with a fall back to the
+ *     manual-paste flow when the fixed relay port cannot bind (the port
+ *     is part of Kiro's registered redirect URI and cannot be randomized)
+ *     or when InitiateLogin for the loopback redirect fails.
+ *   - BuilderId (and everything with `preferLocalhost: false`):
+ *     manual paste — the Portal's AWS SSO leg rejects every loopback
+ *     redirect URI at InitiateLogin time (verified live; that was the
+ *     reported "Authentication required or access denied." error).
+ *
  * Throws `KiroDesktopLoginError` if the user cancels, the pasted URL
- * is invalid, the state doesn't match (CSRF), or the callback times
- * out.
+ * is invalid, the state doesn't match (CSRF), or the relay times out.
  */
 export async function loginKiroDesktop(
   interaction: AuthInteraction,
@@ -408,155 +393,28 @@ export async function loginKiroDesktop(
   const region = options.region ?? "us-east-1";
   const preferLocalhost = options.preferLocalhost ?? true;
 
-  // 1. PKCE
-  const pkce: PkcePair = generatePkce();
-  _logger.info(
-    `[loginKiroDesktop] starting ${idp} PKCE flow (state, code_challenge generated)`,
-  );
+  _logger.info(`[loginKiroDesktop] starting ${idp} login flow`);
 
-  // 2. Start the localhost callback server (if enabled) so the Portal
-  // can redirect the user's browser back to us. We defer InitiateLogin
-  // until we have a port bound — otherwise the redirect_uri we hand
-  // the Portal wouldn't be listening yet, and the browser would hit
-  // a connection refused.
-  let callbackServer:
-    | Awaited<ReturnType<typeof startKiroCallbackServer>>
-    | undefined;
-  let redirectUri: string | undefined;
-  if (preferLocalhost) {
+  if (preferLocalhost && KIRO_SOCIAL_IDPS.includes(idp)) {
     try {
-      callbackServer = await startKiroCallbackServer(interaction.signal);
-      redirectUri = callbackServer.url;
+      return await loginViaSocialRelay(interaction, { idp, region });
     } catch (err) {
+      if (interaction.signal?.aborted) throw new Error("Login cancelled");
+      // Fall back to manual paste only for recoverable setup failures:
+      // the fixed relay port is taken (bind failure) or the Portal
+      // rejected the loopback InitiateLogin. Everything else (state
+      // mismatch, exchange failure, timeout) surfaces to the user.
+      const recoverable =
+        (err instanceof KiroSigninFlowError && err.isBindFailure) ||
+        err instanceof KiroWebPortalHttpError;
+      if (!recoverable) throw err;
       _logger.warn(
-        `[loginKiroDesktop] localhost callback server failed: ${
-          err instanceof Error ? err.message : String(err)
-        } — falling back to manual paste`,
+        `[loginKiroDesktop] social relay unavailable (${err instanceof Error ? err.message : String(err)}) — falling back to manual paste`,
       );
-      // Fall through; manual paste will be used below.
     }
   }
 
-  // 3. InitiateLogin (with our localhost redirect_uri if available)
-  const init = await webPortalInitiateLogin({
-    idp,
-    codeChallenge: pkce.codeChallenge,
-    state: pkce.state,
-    redirectUri,
-    signal: interaction.signal,
-  });
-
-  if (interaction.signal?.aborted) {
-    callbackServer?.close();
-    throw new Error("Login cancelled");
-  }
-
-  // 4. Show the URL to the user.
-  // - If we have a localhost callback server, the browser comes back
-  //   automatically; the user just opens the URL and signs in.
-  // - If not, the user needs to paste the final URL from their
-  //   browser's address bar (the URL will start with
-  //   `${KIRO_WEB_PORTAL}/signin/oauth?code=...&state=...`).
-  const instructions = callbackServer
-    ? [
-        `Open the URL above in your browser and sign in with ${idp}.`,
-        `After signing in, the browser will redirect back to ${callbackServer.url} automatically and Kiro will continue.`,
-        `(The state value is a CSRF token — it MUST match what we generated.)`,
-      ].join("\n")
-    : [
-        `Open the URL above in your browser and sign in with ${idp}.`,
-        `After signing in, your browser will land on ${KIRO_WEB_PORTAL}/signin/oauth?code=...&state=...`,
-        `Copy the full URL from your browser's address bar and paste it back here.`,
-        `(The state value is a CSRF token — it MUST match what we generated.)`,
-      ].join("\n");
-  interaction.notify({
-    type: "auth_url",
-    url: init.redirectUrl,
-    instructions,
-  });
-
-  // 5. Wait for the auth code — either via the localhost callback
-  // (automatic) or via a manual paste prompt (fallback).
-  let code: string;
-  let returnedState: string;
-  if (callbackServer) {
-    try {
-      const callback = await callbackServer.waitForCallback;
-      code = callback.code;
-      returnedState = callback.state;
-    } finally {
-      callbackServer.close();
-    }
-  } else {
-    const pastedUrl = await interaction.prompt({
-      type: "manual_code",
-      message: "Paste the full redirect URL from your browser",
-    });
-    if (interaction.signal?.aborted) throw new Error("Login cancelled");
-    ({ code, state: returnedState } = parseKiroRedirectUrl(pastedUrl));
-  }
-
-  // 6. CSRF check
-  if (returnedState !== pkce.state) {
-    // SECURITY: log a truncated state (first 8 chars) for debug, never
-    // the full state value or the full pasted URL.
-    _logger.error(
-      `[loginKiroDesktop] state mismatch (returned first 8: ${returnedState.slice(0, 8)}...)`,
-    );
-    throw new KiroDesktopLoginError(
-      "Kiro login failed: the returned URL's `state` parameter does not match what we generated. This usually means the URL was captured from a stale tab or a different login attempt. Please try again.",
-    );
-  }
-
-  // 7. ExchangeToken (with the same redirect_uri we used in step 3)
-  const result = await webPortalExchangeToken({
-    idp,
-    code,
-    codeVerifier: pkce.codeVerifier,
-    redirectUri,
-    state: pkce.state,
-    signal: interaction.signal,
-  });
-
-  // 8. Build the KiroCredentials shape. The "refresh" field carries
-  // the refresh token cookie (the body never carries it per the
-  // Kiro Web Portal protocol; confirmed by the kiro-auto-register
-  // Python ref and the kiro-account-manager changelog). The cookie
-  // MUST be present; if it isn't, the Web Portal changed its contract.
-  const refreshToken = result.cookies.refreshToken;
-  if (!refreshToken) {
-    // SECURITY: don't log the cookies or the accessToken.
-    throw new KiroDesktopLoginError(
-      "Kiro login succeeded but no refresh token was returned. The Kiro Web Portal may have changed its contract; try a different IdP or re-login.",
-    );
-  }
-
-  const machineId = deriveMachineId();
-
-  // The applicationArn returned by InitiateLogin IS the OAuth clientId
-  // for the Kiro Web Portal flow (confirmed by the live probe — it's
-  // embedded in the authorize URL's `client_id` query param).
-  const clientId = init.applicationArn ?? "";
-
-  const credentials: KiroCredentials = {
-    type: "oauth",
-    access: result.body.accessToken,
-    refresh: refreshToken,
-    expires: Date.now() + result.body.expiresIn * 1000 - EXPIRES_BUFFER_MS,
-    clientId,
-    clientSecret: "", // public-client flow, no clientSecret
-    region,
-    authMethod: "web-portal",
-    ...(result.body.profileArn ? { profileArn: result.body.profileArn } : {}),
-    ...(result.body.csrfToken ? { csrfToken: result.body.csrfToken } : {}),
-    machineId,
-    idp,
-  };
-
-  _logger.info(
-    `[loginKiroDesktop] ${idp} login complete (expires in ${result.body.expiresIn}s, machineId ${machineId.slice(0, 8)}..., profileArn ${result.body.profileArn ? "set (last 20: ...'" + result.body.profileArn.slice(-20) + "')" : "absent"})`,
-  );
-  return credentials;
+  return loginViaManualPaste(interaction, { idp, region });
 }
 
 // =============================================================================
@@ -648,9 +506,3 @@ export async function refreshKiroDesktopCredential(
 // Re-export the `KiroAuthMethod` type so callers (kiro-auth.ts) can
 // narrow the credential shape without depending on kiro-auth.ts.
 export type { KiroAuthMethod };
-// Reference the unused `networkInterfaces` and `Socket` imports so
-// the tree-shaker doesn't drop them — they may be useful in future
-// edits for SO_REUSEADDR, dual-stack binding, etc. (keeps the surface
-// stable across refactors).
-void networkInterfaces;
-void (null as Socket | null);
