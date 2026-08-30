@@ -196,73 +196,81 @@ async function runDeviceCodeFlow(
   );
 }
 
-async function loginKiro(
-  callbacks: OAuthLoginCallbacks,
-): Promise<OAuthCredential> {
-  // Translate the legacy OAuthLoginCallbacks surface (what Pi's
-  // adaptOAuth actually passes) into the new AuthInteraction shape.
-  // This mirrors the Cline provider's pattern in cline-auth.ts: the
-  // legacy callbacks map 1:1 to interaction.notify / interaction.prompt
-  // calls, and the translation is local to this function so the
-  // downstream helpers (loginKiroDesktop, pollDeviceCode) keep
-  // working with the new shape unchanged.
-  const interaction: AuthInteraction = {
-    signal: callbacks.signal,
+/**
+ * Pi's runtime can call our `login` with either of two shapes:
+ *
+ *   1. The new `AuthInteraction` shape (signal, notify, prompt) — used
+ *      by Pi's `/login` slash command in interactive-mode.js.
+ *
+ *   2. The legacy `OAuthLoginCallbacks` shape (signal, onAuth,
+ *      onDeviceCode, onPrompt, onProgress, onManualCodeInput, onSelect)
+ *      — used by `adaptOAuth` in provider-composer.js, which wraps the
+ *      extension's login() during runtime composition.
+ *
+ * The pi-ai type `OAuthAuth.login(interaction: ProviderAuthInteraction)`
+ * declares only the new shape, but at runtime adaptOAuth passes the
+ * legacy shape. The two coexist in Pi 0.84+; we handle both by
+ * detecting the shape via duck-typing and normalizing to the new one
+ * before calling the downstream helpers. This mirrors the pattern the
+ * Cline provider uses in cline-auth.ts (it takes the legacy shape
+ * directly and translates internally).
+ */
+function normalizeAuthInteraction(
+  arg: AuthInteraction | OAuthLoginCallbacks,
+): AuthInteraction {
+  // Legacy shape: has `onAuth` (and the rest of the callbacks).
+  // New shape: has `notify`.
+  if (typeof (arg as { notify?: unknown }).notify === "function") {
+    return arg as AuthInteraction;
+  }
+  const legacy = arg as OAuthLoginCallbacks;
+  return {
+    signal: legacy.signal,
     notify: (event) => {
       switch (event.type) {
         case "info":
-          callbacks.onProgress?.(event.message);
+        case "progress":
+          legacy.onProgress?.(event.message);
           return;
         case "auth_url":
-          callbacks.onAuth({
+          legacy.onAuth({
             url: event.url,
             instructions: event.instructions,
           });
           return;
         case "device_code":
-          callbacks.onDeviceCode({
+          legacy.onDeviceCode({
             userCode: event.userCode,
             verificationUri: event.verificationUri,
             intervalSeconds: event.intervalSeconds,
             expiresInSeconds: event.expiresInSeconds,
           });
           return;
-        case "progress":
-          callbacks.onProgress?.(event.message);
-          return;
       }
     },
-    prompt: async (prompt): Promise<string> => {
-      // The legacy OAuthLoginCallbacks splits text/secret/select into
-      // onPrompt vs the manual-code path lives in onManualCodeInput.
-      // The new AuthInteraction.prompt covers all of these via a
-      // discriminated union. Translate each variant to its legacy
-      // equivalent.
+    prompt: async (prompt) => {
       switch (prompt.type) {
         case "text":
         case "secret":
-          return callbacks.onPrompt({
+          return legacy.onPrompt({
             message: prompt.message,
             placeholder: prompt.placeholder,
           });
         case "manual_code":
-          if (!callbacks.onManualCodeInput) {
+          if (!legacy.onManualCodeInput) {
             throw new Error(
               "Manual code input is not supported by this provider's auth flow.",
             );
           }
-          return callbacks.onManualCodeInput();
+          return legacy.onManualCodeInput();
         case "select":
-          if (!callbacks.onSelect) {
+          if (!legacy.onSelect) {
             throw new Error(
               "Select prompt is not supported by this provider's auth flow.",
             );
           }
-          // onSelect returns Promise<string | undefined> per the
-          // legacy contract; coerce undefined to "" to satisfy
-          // AuthInteraction.prompt's strict string return.
           return (
-            (await callbacks.onSelect({
+            (await legacy.onSelect({
               message: prompt.message,
               options: [...prompt.options],
             })) ?? ""
@@ -270,14 +278,21 @@ async function loginKiro(
       }
     },
   };
+}
+
+async function loginKiro(
+  arg: AuthInteraction | OAuthLoginCallbacks,
+): Promise<OAuthCredential> {
+  const interaction = normalizeAuthInteraction(arg);
 
   // Dispatch to the configured auth method (per docs/kiro-web-portal-auth.md):
   //   - "web-portal" (default for fresh installs): PKCE + Kiro Web Portal
   //     flow that persists profileArn automatically. The user signs in
-  //     via browser and pastes the redirect URL back.
-  //   - "idc": the existing AWS SSO OIDC device-code flow. Requires
-  //     the user to set kiro_profile_arn in ~/.pi/free.json for chat
-  //     to work.
+  //     via browser; the localhost callback server (Phase D+) captures
+  //     the redirect automatically.
+  //   - "idc" (default when kiro_profile_arn is set): the existing
+  //     AWS SSO OIDC device-code flow. Requires the user to set
+  //     kiro_profile_arn in ~/.pi/free.json for chat to work.
   //   - "kiro-cli": Phase G fallback, not yet implemented — falls
   //     through to the idc flow for now.
   const method = getKiroAuthMethod();
