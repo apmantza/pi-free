@@ -49,7 +49,7 @@ import { createBlacklist, type Blacklist } from "./blacklist.ts";
 import { getAutoFallbackConfig } from "./config.ts";
 import {
 	modelKey,
-	selectFallbackModel,
+	rankFallbackCandidates,
 	type FallbackCandidate,
 	type FallbackScope,
 } from "./selection.ts";
@@ -89,6 +89,8 @@ interface ModelIdentity {
  */
 interface ModelRegistryLike {
 	getAll?: () => ModelIdentity[];
+	/** Resolves the provider's auth, or undefined if no usable auth (no key). */
+	getProviderAuth?: (provider: string) => Promise<unknown>;
 }
 
 export interface AutoFallbackHandle {
@@ -104,6 +106,21 @@ export function createAutoFallback(): AutoFallbackHandle {
 	const handledFailureKeys = new Set<string>();
 	let lastSeenCtx: ExtensionContext | undefined;
 	let pi: ExtensionAPI | undefined;
+
+	// Auto-continue: capture the user's most recent prompt so that after a
+	// successful fallback switch we can re-issue it on the new model without
+	// the user having to manually re-send. Pi has no turn-replay hook (issue
+	// #1248, not_planned), so this is the only way to keep a failed turn's
+	// intent moving forward.
+	interface CapturedPrompt {
+		text: string;
+		images?: unknown[];
+	}
+	let lastUserPrompt: CapturedPrompt | null = null;
+	let pendingAutoContinue: { failureKey: string; turnIndex: number | undefined } | null =
+		null;
+	let autoContinueBudget = 0;
+	let budgetInitialized = false;
 
 	// Built lazily on first event (we need a fresh ctx per event, and the
 	// notifier config is resolved when the first switch happens so live
@@ -129,9 +146,12 @@ export function createAutoFallback(): AutoFallbackHandle {
 		}
 	}
 
-	function candidatesFor(failingProvider: string): FallbackCandidate[] {
+	function candidatesFor(
+		failingProvider: string,
+		scopeOverride?: FallbackScope,
+	): FallbackCandidate[] {
 		const cfg = getAutoFallbackConfig();
-		const scope: FallbackScope = cfg.scope;
+		const scope: FallbackScope = scopeOverride ?? cfg.scope;
 		const registry = getProviderRegistry();
 		const out: FallbackCandidate[] = [];
 		for (const [providerId, entry] of registry) {
@@ -169,69 +189,130 @@ export function createAutoFallback(): AutoFallbackHandle {
 			return { switched: false, reason: "no-current-model-identity" };
 		}
 
-		const selection = selectFallbackModel(provider, modelId, {
-			scope: getAutoFallbackConfig().scope,
-			whitelist: getAutoFallbackConfig().whitelistProviders,
+		// Always blacklist the model that failed so a later same-turn retry
+		// (or a future turn) does not loop on it.
+		blacklist.recordFailure(modelKey(provider, modelId), failureReason);
+
+		const cfg = getAutoFallbackConfig();
+		// Rank candidates by CI score. Prefer the configured scope
+		// (provider/whitelist); if that yields nothing and the scope is
+		// provider, fall through to a GLOBAL pool so a provider-wide outage
+		// still triggers a switch to *any* other free model instead of
+		// silently doing nothing.
+		const ranked = rankFallbackCandidates(provider, modelId, {
+			scope: cfg.scope,
+			whitelist: cfg.whitelistProviders,
 			blacklist,
-			getCandidates: () => candidatesFor(provider),
+			getCandidates: () => candidatesFor(provider, cfg.scope),
 		});
-		if (!selection) {
-			blacklist.recordFailure(
-				modelKey(provider, modelId),
-				failureReason,
+		if (ranked.length === 0 && cfg.scope === "provider") {
+			ranked.push(
+				...rankFallbackCandidates(provider, modelId, {
+					scope: "global",
+					whitelist: cfg.whitelistProviders,
+					blacklist,
+					getCandidates: () => candidatesFor(provider, "global"),
+				}),
+			);
+		}
+
+		if (ranked.length === 0) {
+			const exhausted = noCandidatesAvailable();
+			ctx.ui.notify(
+				exhausted
+					? `Auto-fallback: no other free model available (provider ${provider} exhausted) — staying on ${provider}/${modelId}.`
+					: `Auto-fallback: no alternative free model for ${provider}/${modelId}.`,
+				"warning",
 			);
 			return { switched: false, reason: "no-candidate" };
 		}
 
-		// Resolve the actual Model object from the registry. setModel()
-		// expects the registry's identity, not just ids.
-		const allModels =
-			(ctx.modelRegistry as ModelRegistryLike | undefined)?.getAll?.() ?? [];
-		const newModel = allModels.find(
-			(m) =>
-				m.provider === selection.provider && m.id === selection.modelId,
-		);
-		if (!newModel) {
-			blacklist.recordFailure(
-				modelKey(provider, modelId),
-				failureReason,
+		const registry = ctx.modelRegistry as ModelRegistryLike | undefined;
+		const allModels = registry?.getAll?.() ?? [];
+		// Try each candidate in CI-score order. Skip providers that have no
+		// usable auth — pi.setModel() rejects those with "No API key", so we
+		// must not waste a switch attempt (and the resulting warning) on a
+		// provider the user hasn't configured.
+		let tried = 0;
+		for (const cand of ranked) {
+			const newModel = allModels.find(
+				(m) => m.provider === cand.provider && m.id === cand.modelId,
 			);
-			return { switched: false, reason: "candidate-not-in-catalog" };
+			if (!newModel) {
+				blacklist.recordFailure(
+					modelKey(cand.provider, cand.modelId),
+					"not-in-catalog",
+				);
+				continue;
+			}
+			// Provider auth resolution can reject (no usable credential); treat
+			// a throw the same as "no auth" and skip the candidate.
+			let hasAuth = true;
+			if (registry?.getProviderAuth) {
+				try {
+					hasAuth = !!(await registry.getProviderAuth(cand.provider));
+				} catch {
+				hasAuth = false;
+				}
+			}
+			if (!hasAuth) {
+				// Provider has no usable auth (e.g. needs an API key). Skip it
+				// and remember not to retry it this session window.
+				blacklist.recordFailure(
+					modelKey(cand.provider, cand.modelId),
+					"no-auth",
+				);
+				tried++;
+				continue;
+			}
+			const ok = await safeSetModel(newModel);
+			if (!ok) {
+				blacklist.recordFailure(
+					modelKey(cand.provider, cand.modelId),
+					"setModel-rejected",
+				);
+				tried++;
+				continue;
+			}
+
+			// Success: remember the user's original pick so we can
+			// (optionally) restore it later.
+			if (!preFallbackModel) {
+				preFallbackModel = { provider, modelId };
+			}
+
+			recordHistory({
+				at: Date.now(),
+				fromKey: modelKey(provider, modelId),
+				toKey: modelKey(cand.provider, cand.modelId),
+				reason: failureReason,
+				recovered: false,
+			});
+			getNotifier().recordSwitch({
+				fromKey: modelKey(provider, modelId),
+				toKey: modelKey(cand.provider, cand.modelId),
+				reason: failureReason,
+				at: Date.now(),
+			});
+			_logger.info(
+				`auto-fallback: switched ${modelKey(provider, modelId)} → ${modelKey(cand.provider, cand.modelId)} (reason=${failureReason})`,
+			);
+
+			const idemKey = `${failureKey}:${turnIndex ?? "?"}`;
+			handledFailureKeys.add(idemKey);
+			// Mark for auto-continue: agent_settled will replay the captured
+			// prompt on the new model so the user doesn't have to re-send.
+			pendingAutoContinue = { failureKey, turnIndex };
+			return { switched: true, reason: failureReason };
 		}
 
-		// Record failure on the OLD key before switching.
-		blacklist.recordFailure(modelKey(provider, modelId), failureReason);
-
-		const ok = await safeSetModel(newModel);
-		if (!ok) {
-			return { switched: false, reason: "setModel-rejected" };
-		}
-
-		// Remember the user's original pick so we can (optionally) restore.
-		if (!preFallbackModel) {
-			preFallbackModel = { provider, modelId };
-		}
-
-		recordHistory({
-			at: Date.now(),
-			fromKey: modelKey(provider, modelId),
-			toKey: modelKey(selection.provider, selection.modelId),
-			reason: failureReason,
-			recovered: false,
-		});
-		getNotifier().recordSwitch({
-			fromKey: modelKey(provider, modelId),
-			toKey: modelKey(selection.provider, selection.modelId),
-			reason: failureReason,
-			at: Date.now(),
-		});
-		_logger.info(
-			`auto-fallback: switched ${modelKey(provider, modelId)} → ${modelKey(selection.provider, selection.modelId)} (reason=${failureReason})`,
+		// We had candidates but none were switchable (all lacked auth or
+		// rejected the switch).
+		ctx.ui.notify(
+			`Auto-fallback: no switchable free model available (tried ${tried} candidate${tried === 1 ? "" : "s"}; the rest need an API key or rejected the switch).`,
+			"warning",
 		);
-
-		const idemKey = `${failureKey}:${turnIndex ?? "?"}`;
-		handledFailureKeys.add(idemKey);
-		return { switched: true, reason: failureReason };
+		return { switched: false, reason: "no-switchable-candidate" };
 	}
 
 	function maybeRestorePreFallback(ctx: ExtensionContext): void {
@@ -315,6 +396,31 @@ export function createAutoFallback(): AutoFallbackHandle {
 		}
 	}
 
+	/**
+	 * Re-issue the captured user prompt on the now-active model. Called from
+	 * `agent_settled` after a successful fallback switch. Pi has no turn-
+	 * replay hook, so this is the only way to keep the conversation moving
+	 * without the user manually re-sending. `expandPromptTemplates` is
+	 * disabled to avoid surprising template expansion on a replay.
+	 */
+	function safeSendUserMessage(content: string | unknown[]): void {
+		if (!pi) return;
+		const sender = (pi as unknown as {
+			sendUserMessage?: (
+				content: unknown,
+				options?: { expandPromptTemplates?: boolean },
+			) => Promise<unknown> | void;
+		}).sendUserMessage;
+		if (typeof sender !== "function") return;
+		try {
+			void sender(content, { expandPromptTemplates: false });
+		} catch (err) {
+			_logger.warn("auto-fallback: sendUserMessage threw", {
+				error: err instanceof Error ? err.message : String(err),
+			});
+		}
+	}
+
 	return {
 		register(extensionPi: ExtensionAPI) {
 			pi = extensionPi;
@@ -328,11 +434,27 @@ export function createAutoFallback(): AutoFallbackHandle {
 
 			extensionPi.on("session_start", () => {
 				handledFailureKeys.clear();
+				pendingAutoContinue = null;
+				lastUserPrompt = null;
+				budgetInitialized = false;
 			});
 
 			extensionPi.on("agent_start", (_event, ctx) => {
 				lastSeenCtx = ctx;
 			});
+
+			// Capture the user's most recent prompt so we can replay it on
+			// the new model after an auto-fallback switch (see safeSendUserMessage).
+			extensionPi.on(
+				"before_agent_start",
+				(event, ctx) => {
+					lastSeenCtx = ctx;
+					const e = event as { prompt?: string; images?: unknown[] };
+					if (e && typeof e.prompt === "string") {
+						lastUserPrompt = { text: e.prompt, images: e.images };
+					}
+				},
+			);
 
 			extensionPi.on(
 				"after_provider_response",
@@ -408,7 +530,15 @@ export function createAutoFallback(): AutoFallbackHandle {
 						(m) =>
 							m.stopReason === "error" || m.stopReason === "aborted",
 					);
-				if (!lastAssistant) return;
+				if (!lastAssistant) {
+					// Successful turn (no error/aborted in any assistant
+					// message). Refill the auto-continue budget so a future,
+					// independent failure gets a fresh allowance rather than
+					// being penalised by a previous failure chain.
+					autoContinueBudget = getAutoFallbackConfig().autoContinueMax;
+					budgetInitialized = true;
+					return;
+				}
 
 				const provider = lastAssistant.provider ?? ctx.model?.provider;
 				const modelId = lastAssistant.model ?? ctx.model?.id;
@@ -450,7 +580,49 @@ export function createAutoFallback(): AutoFallbackHandle {
 					entry.recovered = true;
 					blacklist.clear(key);
 					getNotifier().clearStatus();
+					// Budget is refilled in agent_end on a successful turn
+					// (not here on landing) so a chained-failure loop
+					// depletes it instead of being reset every switch.
 					maybeRestorePreFallback(ctx);
+				}
+
+				// Auto-continue: if we just switched due to a failure, replay
+				// the captured prompt on the now-active model so the user
+				// doesn't have to re-send manually. Pi has no turn-replay hook
+				// (issue #1248, not_planned), so this is the only way to keep
+				// the conversation moving. Bounded by autoContinueBudget to
+				// prevent infinite auto-replay loops when many models fail in
+				// a row.
+				if (pendingAutoContinue) {
+					const cfg = getAutoFallbackConfig();
+					// Lazy first-time init: the recovery block already (re)sets
+					// the budget when a prior switch recovered. For the very
+					// first auto-continuation of a session there is no prior
+					// recovery, so we seed the budget here from config.
+					if (!budgetInitialized) {
+						autoContinueBudget = cfg.autoContinueMax;
+						budgetInitialized = true;
+					}
+					if (
+						cfg.autoContinue &&
+						autoContinueBudget > 0 &&
+						lastUserPrompt &&
+						lastUserPrompt.text
+					) {
+						autoContinueBudget--;
+						const prompt = lastUserPrompt;
+						const content: string | unknown[] =
+							prompt.images && prompt.images.length > 0
+								? [{ type: "text", text: prompt.text }, ...prompt.images]
+								: prompt.text;
+						_logger.info(
+							`auto-fallback: auto-continuing on ${ctx.model.provider}/${ctx.model.id} (budget remaining: ${autoContinueBudget})`,
+						);
+						pendingAutoContinue = null;
+						safeSendUserMessage(content);
+					} else {
+						pendingAutoContinue = null;
+					}
 				}
 			});
 

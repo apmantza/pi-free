@@ -39,6 +39,12 @@ export interface AutoFallbackConfig {
 	notifyLevel: FallbackNotifyLevel;
 	/** Whether to auto-restore the original model after fallback. Default "manual". */
 	restoreMode: FallbackRestoreMode;
+	/** Re-issue the user's last prompt on the new model after a switch, so the
+	 *  conversation keeps moving without a manual re-send. Default true. */
+	autoContinue: boolean;
+	/** Max consecutive auto-replays (loop guard) before falling back to manual.
+	 *  Default 3. */
+	autoContinueMax: number;
 }
 
 const DEFAULTS: AutoFallbackConfig = {
@@ -49,6 +55,8 @@ const DEFAULTS: AutoFallbackConfig = {
 	blacklistMaxStrikes: 3,
 	notifyLevel: "toast",
 	restoreMode: "manual",
+	autoContinue: true,
+	autoContinueMax: 3,
 };
 
 let defaultsLogged = false;
@@ -62,6 +70,8 @@ function logDefaultsOnce(config: AutoFallbackConfig): void {
 		cfg.auto_fallback_providers !== undefined ||
 		cfg.auto_fallback_blacklist_ttl_ms !== undefined ||
 		cfg.auto_fallback_blacklist_max !== undefined ||
+		cfg.auto_fallback_auto_continue !== undefined ||
+		cfg.auto_fallback_auto_continue_max !== undefined ||
 		cfg.fallback_notify !== undefined ||
 		cfg.fallback_restore !== undefined;
 	if (!hasAny) {
@@ -96,6 +106,15 @@ export function getAutoFallbackConfig(): AutoFallbackConfig {
 				: DEFAULTS.blacklistMaxStrikes,
 		notifyLevel: parseNotifyLevel(cfg.fallback_notify),
 		restoreMode: parseRestoreMode(cfg.fallback_restore),
+		autoContinue:
+			cfg.auto_fallback_auto_continue === undefined
+				? DEFAULTS.autoContinue
+				: cfg.auto_fallback_auto_continue === true,
+		autoContinueMax:
+			typeof cfg.auto_fallback_auto_continue_max === "number" &&
+			cfg.auto_fallback_auto_continue_max > 0
+				? cfg.auto_fallback_auto_continue_max
+				: DEFAULTS.autoContinueMax,
 	};
 	logDefaultsOnce(result);
 	return result;

@@ -163,6 +163,10 @@ interface PiFreeConfig {
 	auto_fallback_blacklist_max?: number;
 	fallback_notify?: "silent" | "toast" | "status_bar" | "both";
 	fallback_restore?: "manual" | "auto_next_turn" | "auto_session_end";
+	// Re-issue the user's last prompt on the new model after a fallback
+	// switch (loop-bounded by `auto_fallback_auto_continue_max`).
+	auto_fallback_auto_continue?: boolean;
+	auto_fallback_auto_continue_max?: number;
 }
 
 const CONFIG_TEMPLATE: PiFreeConfig = {

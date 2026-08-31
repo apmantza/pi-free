@@ -66,11 +66,11 @@ export interface CandidateSource {
  * @param currentModelId - Model id of the failing model (always excluded
  *     from candidates, even when the provider has multiple ids).
  */
-export function selectFallbackModel(
+export function rankFallbackCandidates(
 	currentProvider: string,
 	currentModelId: string,
 	options: SelectionOptions,
-): FallbackCandidate | null {
+): FallbackCandidate[] {
 	const scopedCandidates = filterByScope(
 		options.getCandidates(),
 		options.scope,
@@ -94,7 +94,7 @@ export function selectFallbackModel(
 		filtered.push(candidate);
 	}
 
-	if (filtered.length === 0) return null;
+	if (filtered.length === 0) return [];
 
 	// Score and sort. CI score is best-effort; missing scores rank below
 	// any scored candidate. Stable secondary sort by model id keeps the
@@ -115,7 +115,19 @@ export function selectFallbackModel(
 			return b.ciScore - a.ciScore;
 		});
 
-	return scored[0] ?? null;
+	return scored;
+}
+
+/**
+ * Pick the single best fallback candidate (top of `rankFallbackCandidates`),
+ * or null if the scoped pool is empty. Kept for callers that only need one.
+ */
+export function selectFallbackModel(
+	currentProvider: string,
+	currentModelId: string,
+	options: SelectionOptions,
+): FallbackCandidate | null {
+	return rankFallbackCandidates(currentProvider, currentModelId, options)[0] ?? null;
 }
 
 function filterByScope(
