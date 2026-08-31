@@ -18,11 +18,14 @@ import type {
 import { PROVIDER_KIRO } from "../../config.ts";
 import { isFreeModel } from "../../lib/registry.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
-import { refreshNativeProviderModels, filterNativeModels } from "../../lib/native-provider.ts";
+import {
+  refreshNativeProviderModels,
+  filterNativeModels,
+} from "../../lib/native-provider.ts";
 import { getKiroShowPaid } from "../../config.ts";
 import { getKiroEndpoints } from "./kiro-endpoints.js";
 import { kiroAuth } from "./kiro-auth.js";
-import { kiroModels, type KiroModel } from "./kiro-models.js";
+import { kiroModels } from "./kiro-models.js";
 import { streamKiro } from "./kiro-stream.js";
 
 type KiroModelType = Model<"kiro-api">;
@@ -43,7 +46,10 @@ function credentialToken(credential?: Credential): string | undefined {
 export function createKiroProvider(): KiroNativeProvider {
   const stored: StoredModels = { free: [], all: [] };
 
-  function prepare(all: KiroModelType[], free: KiroModelType[]): { all: KiroModelType[]; free: KiroModelType[] } {
+  function prepare(
+    all: KiroModelType[],
+    free: KiroModelType[],
+  ): { all: KiroModelType[]; free: KiroModelType[] } {
     return { all, free };
   }
 
@@ -69,10 +75,13 @@ export function createKiroProvider(): KiroNativeProvider {
         const token = credentialToken(context.credential);
         if (token && context.allowNetwork) {
           try {
-            const { updateKiroModelsCache, getCachedModels } = await import("./kiro-models.js");
+            const { updateKiroModelsCache, getCachedModels } = await import(
+              "./kiro-models.js"
+            );
             const { resolveApiRegion } = await import("./kiro-endpoints.js");
-            const { resolveKiroProfileArn } = await import("./kiro-management.js");
-            const region = resolveApiRegion((context.credential as { region?: string })?.region);
+            const region = resolveApiRegion(
+              (context.credential as { region?: string })?.region,
+            );
             await updateKiroModelsCache(token, region);
             const cached = getCachedModels(region);
             if (cached.length > 0) {
@@ -83,6 +92,12 @@ export function createKiroProvider(): KiroNativeProvider {
           }
         }
         // Return bootstrap models as the baseline with CI scores.
+        // SAFETY: `kiroModels` is our own bootstrap catalog typed as
+        // `KiroModel[]` (the legacy shape), but `enhanceWithCI` expects
+        // the new pi-ai `Model<Api>[]` shape. The two shapes are
+        // structurally compatible for the fields enhanceWithCI reads
+        // (id, name, cost, contextWindow, maxTokens, etc.) — the cast
+        // is safe at runtime but TypeScript can't prove it.
         const all = enhanceWithCI(
           kiroModels as unknown as Parameters<typeof enhanceWithCI>[0],
           PROVIDER_KIRO,
@@ -116,7 +131,8 @@ export function createKiroProvider(): KiroNativeProvider {
         freeModels: stored.free,
       }),
     refreshModels,
-    stream: (model, context, options) => streams.stream(model, context, options),
+    stream: (model, context, options) =>
+      streams.stream(model, context, options),
     streamSimple: (model, context, options) =>
       streams.streamSimple(model, context, options),
   };

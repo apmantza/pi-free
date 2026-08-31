@@ -7,6 +7,7 @@ const mockGetOpencodeFreeShowPaid = vi.fn();
 const mockGetOpencodeGoShowPaid = vi.fn();
 const mockGetOpenrouterShowPaid = vi.fn();
 const mockGetOpenrouterApiKey = vi.fn();
+const mockGetOpencodeApiKey = vi.fn();
 const mockSaveConfig = vi.fn();
 const mockRegisterWithGlobalToggle = vi.fn();
 const mockProviderRegistry = new Map<string, unknown>();
@@ -22,6 +23,7 @@ async function settleDetachedCapture(): Promise<void> {
 }
 
 vi.mock("../config.ts", () => ({
+	getOpencodeApiKey: () => mockGetOpencodeApiKey(),
 	getOpencodeShowPaid: () => mockGetOpencodeShowPaid(),
 	getOpencodeFreeShowPaid: () => mockGetOpencodeFreeShowPaid(),
 	getOpencodeGoShowPaid: () => mockGetOpencodeGoShowPaid(),
@@ -986,5 +988,87 @@ describe("built-in provider toggles", () => {
 		await settleDetachedCapture();
 
 		expect(mockPi.setModel).not.toHaveBeenCalled();
+	});
+
+	it("prefers the provider's own stored key over the env placeholder for opencode-free", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		const ownKey = "opencode-free-key";
+		const models = [
+			{
+				provider: "opencode",
+				id: "free-model",
+				name: "Free Model",
+				api: "openai-completions",
+				reasoning: false,
+				input: ["text"],
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 128000,
+				maxTokens: 4096,
+				baseUrl: "https://example.com",
+			},
+		];
+
+		await handlers.session_start(
+			{},
+			{
+				modelRegistry: {
+					getAvailable: () => models,
+					getApiKeyForProvider: (id: string) =>
+						id === "opencode-free" ? ownKey : undefined,
+					registerProvider: mockRegisterProvider,
+				},
+			},
+		);
+		await settleDetachedCapture();
+
+		expect(mockRegisterProvider).toHaveBeenCalledWith(
+			"opencode-free",
+			expect.objectContaining({
+				api: "opencode-dynamic",
+				apiKey: ownKey,
+			}),
+		);
+	});
+
+	it("falls back to getOpencodeApiKey when modelRegistry has no opencode-free key", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		const configKey = "opencode-free-authjson-key";
+		mockGetOpencodeApiKey.mockReturnValue(configKey);
+		const models = [
+			{
+				provider: "opencode",
+				id: "free-model",
+				name: "Free Model",
+				api: "openai-completions",
+				reasoning: false,
+				input: ["text"],
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 128000,
+				maxTokens: 4096,
+				baseUrl: "https://example.com",
+			},
+		];
+
+		await handlers.session_start(
+			{},
+			{
+				modelRegistry: {
+					getAvailable: () => models,
+					getApiKeyForProvider: () => undefined,
+					registerProvider: mockRegisterProvider,
+				},
+			},
+		);
+		await settleDetachedCapture();
+
+		expect(mockRegisterProvider).toHaveBeenCalledWith(
+			"opencode-free",
+			expect.objectContaining({
+				api: "opencode-dynamic",
+				apiKey: configKey,
+			}),
+		);
 	});
 });

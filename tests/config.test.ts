@@ -52,11 +52,7 @@ function parseMockJson(value: unknown): Record<string, unknown> {
 			throw new TypeError("mock JSON value is not a string");
 		}
 		const parsed: unknown = JSON.parse(value);
-		if (
-			parsed === null ||
-			typeof parsed !== "object" ||
-			Array.isArray(parsed)
-		) {
+		if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
 			throw new TypeError("mock JSON value is not an object");
 		}
 		return parsed as Record<string, unknown>;
@@ -198,14 +194,140 @@ describe("show-paid getters", () => {
 		expect(getKiloShowPaid()).toBe(false);
 	});
 
-	it("getOpenrouterShowPaid reads from file", async () => {
+	it("getKiroProfileArn returns undefined when neither env nor file is set", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const { getKiroProfileArn } = await import("../config.ts");
+		expect(getKiroProfileArn()).toBeUndefined();
+	});
+
+	it("getKiroProfileArn reads from ~/.pi/free.json kiro_profile_arn", async () => {
 		vi.stubEnv("HOME", "/tmp");
 		const fs = await import("node:fs");
 		const { __mockData } = fs as any;
 		__mockData.set(
 			configPath(),
-			JSON.stringify({ openrouter_show_paid: true }),
+			JSON.stringify({
+				kiro_profile_arn:
+					"arn:aws:codewhisperer:us-east-1:610548660232:profile/VNECVYCYYAWN",
+			}),
 		);
+
+		const { getKiroProfileArn } = await import("../config.ts");
+		expect(getKiroProfileArn()).toBe(
+			"arn:aws:codewhisperer:us-east-1:610548660232:profile/VNECVYCYYAWN",
+		);
+	});
+
+	it("getKiroProfileArn prefers KIRO_PROFILE_ARN env over file value", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		vi.stubEnv(
+			"KIRO_PROFILE_ARN",
+			"arn:aws:codewhisperer:eu-central-1:12345:profile/ENV",
+		);
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(
+			configPath(),
+			JSON.stringify({
+				kiro_profile_arn: "arn:aws:codewhisperer:us-east-1:0000:profile/FILE",
+			}),
+		);
+
+		const { getKiroProfileArn } = await import("../config.ts");
+		expect(getKiroProfileArn()).toBe(
+			"arn:aws:codewhisperer:eu-central-1:12345:profile/ENV",
+		);
+	});
+
+	it("getKiroProfileArn returns undefined for an explicitly empty file value", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(configPath(), JSON.stringify({ kiro_profile_arn: "" }));
+
+		const { getKiroProfileArn } = await import("../config.ts");
+		expect(getKiroProfileArn()).toBeUndefined();
+	});
+
+	// ── getKiroAuthMethod (Phase E) ───────────────────────────────────
+	it("getKiroAuthMethod defaults to 'web-portal'", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const { getKiroAuthMethod } = await import("../config.ts");
+		expect(getKiroAuthMethod()).toBe("web-portal");
+	});
+
+	it("getKiroAuthMethod defaults to 'web-portal' even when kiro_profile_arn is set (the new flow persists its own profileArn, so the manual config is now redundant)", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(
+			configPath(),
+			JSON.stringify({
+				kiro_profile_arn: "arn:aws:codewhisperer:us-east-1:123:profile/ABC",
+			}),
+		);
+
+		const { getKiroAuthMethod } = await import("../config.ts");
+		expect(getKiroAuthMethod()).toBe("web-portal");
+	});
+
+	it("getKiroAuthMethod respects KIRO_AUTH_METHOD env over the default", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		vi.stubEnv("KIRO_AUTH_METHOD", "idc");
+		const { getKiroAuthMethod } = await import("../config.ts");
+		expect(getKiroAuthMethod()).toBe("idc");
+	});
+
+	it("getKiroAuthMethod reads kiro_auth_method from ~/.pi/free.json", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(
+			configPath(),
+			JSON.stringify({ kiro_auth_method: "kiro-cli" }),
+		);
+
+		const { getKiroAuthMethod } = await import("../config.ts");
+		expect(getKiroAuthMethod()).toBe("kiro-cli");
+	});
+
+	it("getKiroAuthMethod prefers KIRO_AUTH_METHOD env over file value", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		vi.stubEnv("KIRO_AUTH_METHOD", "idc");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(
+			configPath(),
+			JSON.stringify({ kiro_auth_method: "web-portal" }),
+		);
+
+		const { getKiroAuthMethod } = await import("../config.ts");
+		expect(getKiroAuthMethod()).toBe("idc");
+	});
+
+	it("getKiroAuthMethod file value overrides the migration default", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		// kiro_profile_arn is set (would seed to "idc"), but explicit
+		// kiro_auth_method: "web-portal" in the file overrides that.
+		__mockData.set(
+			configPath(),
+			JSON.stringify({
+				kiro_profile_arn: "arn:aws:codewhisperer:us-east-1:123:profile/ABC",
+				kiro_auth_method: "web-portal",
+			}),
+		);
+
+		const { getKiroAuthMethod } = await import("../config.ts");
+		expect(getKiroAuthMethod()).toBe("web-portal");
+	});
+
+	it("getOpenrouterShowPaid reads from file", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(configPath(), JSON.stringify({ openrouter_show_paid: true }));
 
 		const { getOpenrouterShowPaid } = await import("../config.ts");
 		expect(getOpenrouterShowPaid()).toBe(true);
@@ -271,10 +393,7 @@ describe("show-paid getters", () => {
 		vi.stubEnv("HOME", "/tmp");
 		const fs = await import("node:fs");
 		const { __mockData } = fs as any;
-		__mockData.set(
-			configPath(),
-			JSON.stringify({ opengateway_show_paid: true }),
-		);
+		__mockData.set(configPath(), JSON.stringify({ opengateway_show_paid: true }));
 
 		const { getOpengatewayShowPaid, getProviderShowPaid } = await import(
 			"../config.ts"
@@ -418,10 +537,7 @@ describe("updateConfig", () => {
 		vi.stubEnv("HOME", "/tmp");
 		const fs = await import("node:fs");
 		const { __mockData } = fs as any;
-		__mockData.set(
-			configPath(),
-			JSON.stringify({ hidden_models: ["initial"] }),
-		);
+		__mockData.set(configPath(), JSON.stringify({ hidden_models: ["initial"] }));
 
 		const { updateConfig } = await import("../config.ts");
 		// Simulate two providers' probes updating hidden_models concurrently

@@ -49,6 +49,14 @@ import {
 	PROVIDER_MERGE,
 	PROVIDER_COMMANDCODE,
 } from "./constants.ts";
+// SAFETY: This re-export is intentional — every provider module imports its
+// `PROVIDER_*` constant via `from "../../config.ts"` (see providers/kilo/kilo.ts,
+// providers/gmi/gmi.ts, etc.). Collapsing the import path into a single barrel
+// here keeps the import surface stable when constants move, and avoids forcing
+// every provider to add a second import line for `./constants.ts`. The cost
+// is that this file looks like a barrel — it isn't; it's the single source of
+// truth for runtime config (env vars, ~/.pi/free.json resolution, defaults)
+// and the provider-id constants happen to live alongside it.
 export {
 	PROVIDER_ANYAPI,
 	PROVIDER_BAI,
@@ -167,6 +175,8 @@ interface PiFreeConfig {
 	// switch (loop-bounded by `auto_fallback_auto_continue_max`).
 	auto_fallback_auto_continue?: boolean;
 	auto_fallback_auto_continue_max?: number;
+	kiro_profile_arn?: string;
+	kiro_auth_method?: "idc" | "web-portal" | "kiro-cli";
 }
 
 const CONFIG_TEMPLATE: PiFreeConfig = {
@@ -236,6 +246,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	auto_fallback_blacklist_max: 3,
 	fallback_notify: "toast",
 	fallback_restore: "manual",
+	kiro_profile_arn: "",
 };
 
 const CONFIG_PATH = join(PI_DATA_DIR, "free.json");
@@ -691,6 +702,53 @@ export function getKiroShowPaid(): boolean {
 	return resolveBool("KIRO_SHOW_PAID", loadConfigFile().kiro_show_paid);
 }
 
+/**
+ * Resolve the Kiro profileArn override from env or config.
+ *
+ * The Kiro streaming endpoint requires a real `profileArn` for the credential;
+ * pi-free's `pi-cli` OIDC client does not have the `codewhisperer:profile:List`
+ * scope needed to discover it from `ListAvailableProfiles`, so the user must
+ * supply it explicitly. Set `KIRO_PROFILE_ARN` or `kiro_profile_arn` in
+ * `~/.pi/free.json` to a real ARN (e.g. from the Kiro IDE's developer tools or
+ * `kiro-cli profile` output). When unset, the kiro stream provider will throw
+ * a clear error instead of silently retrying with an invalid placeholder ARN.
+ */
+export function getKiroProfileArn(): string | undefined {
+	return resolve("KIRO_PROFILE_ARN", loadConfigFile().kiro_profile_arn);
+}
+
+/**
+ * Resolve the Kiro auth method override from env or file.
+ *
+ * - `"web-portal"`: the PKCE + Kiro Web Portal flow. The persisted
+ *   credential includes `profileArn` automatically, so chat works
+ *   without any `kiro_profile_arn` config. This is the default.
+ * - `"idc"`: the AWS SSO OIDC device-code flow. Requires the user
+ *   to set `kiro_profile_arn` in `~/.pi/free.json` for chat to
+ *   work (see PR #485). Opt in by setting
+ *   `KIRO_AUTH_METHOD=idc` or `kiro_auth_method: "idc"`.
+ * - `"kiro-cli"`: read the kiro-cli's local SQLite credential store
+ *   (Phase G, not yet implemented).
+ *
+ * The default is always `"web-portal"`. To keep the legacy idc flow,
+ * set `kiro_auth_method: "idc"` (or `KIRO_AUTH_METHOD=idc`). The
+ * previous design doc had a "migration safety" branch that defaulted
+ * to `"idc"` when `kiro_profile_arn` was set; that branch was
+ * removed because it actively broke the user-experience for fresh
+ * installs (they'd be sent to the legacy flow which requires
+ * `kiro_profile_arn` they haven't set) and offered no real safety
+ * for existing users (the new flow's persisted `profileArn` is
+ * equivalent to the user's manual one, since both come from the
+ * same Kiro backend).
+ *
+ * Env: `KIRO_AUTH_METHOD` > file `kiro_auth_method` > default.
+ */
+export function getKiroAuthMethod(): "idc" | "web-portal" | "kiro-cli" {
+	const fromEnv = resolve("KIRO_AUTH_METHOD", loadConfigFile().kiro_auth_method);
+	if (fromEnv) return fromEnv as "idc" | "web-portal" | "kiro-cli";
+	return "web-portal";
+}
+
 export function getProviderShowPaid(providerId: string): boolean {
 	return resolveShowPaidForProvider(providerId);
 }
@@ -847,9 +905,10 @@ export function getOpenrouterApiKey(): string | undefined {
 
 /** OpenCode key — pi's built-in provider. Read from env or auth.json. */
 export function getOpencodeApiKey(): string | undefined {
-	// Try "opencode" key first, then "opencode-go" — Pi may store OpenCode Go
-	// credentials under "opencode-go" (e.g. when logging in with /login opencode-go).
+	// Try "opencode-free" key first (e.g. /login opencode-free), then "opencode"
+	// and "opencode-go" — all share the same Zen API key.
 	return (
+		readAuthJsonKey("opencode-free", "OPENCODE_API_KEY") ??
 		readAuthJsonKey("opencode", "OPENCODE_API_KEY") ??
 		readAuthJsonKey("opencode-go", "OPENCODE_API_KEY")
 	);
