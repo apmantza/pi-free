@@ -308,6 +308,7 @@ already have a working `kiro_profile_arn` set).~~
   against the real Kiro Web Portal (HTTP 200, real `applicationArn`,
   real `redirectUrl` with all the right params).
 
-The Kiro Web Portal auth flow is now the default for fresh installs.
-Users who already had a working `kiro_profile_arn` keep the `"idc"`
-flow unless they explicitly set `kiro_auth_method: "web-portal"`.
+At the time of #487, the Kiro Web Portal auth flow was the default for fresh
+installs. (The kiro provider has since been removed entirely — see the
+CHANGELOG.) Users who already had a working `kiro_profile_arn` kept the
+`"idc"` flow unless they explicitly set `kiro_auth_method: "web-portal"`.
