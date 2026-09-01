@@ -33,7 +33,6 @@
  */
 
 import type {
-	Api,
 	Model,
 	Provider,
 	RefreshModelsContext,

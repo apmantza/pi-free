@@ -12,9 +12,12 @@
  * value naturally co-locates with the blacklist key.
  */
 
-export class FallbackSharedState {
+class FallbackSharedState {
 	private readonly lastStatusByKey = new Map<string, number>();
-	private readonly lastHttpByKey = new Map<string, { status: number; at: number }>();
+	private readonly lastHttpByKey = new Map<
+		string,
+		{ status: number; at: number }
+	>();
 
 	/**
 	 * Record the HTTP status seen on `after_provider_response`.

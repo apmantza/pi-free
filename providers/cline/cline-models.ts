@@ -147,9 +147,9 @@ function modelFromCatalog(
 	info: ClineRaw,
 	freeToTryIds: ReadonlySet<string>,
 ): ProviderModelConfig & { _pricingKnown?: boolean } {
-	const isReasoning = !!(
+	const isReasoning = Boolean(
 		info.supported_parameters?.includes("include_reasoning") ||
-		info.supported_parameters?.includes("reasoning")
+			info.supported_parameters?.includes("reasoning"),
 	);
 	const isFreeToTry = freeToTryIds.has(info.id);
 	const inputCost = isFreeToTry ? 0 : parsePricing(info.pricing?.prompt);
@@ -226,7 +226,7 @@ async function fetchClineCatalogModels(): Promise<ClineRaw[]> {
  * Fetch models from Cline.
  * @param freeOnly - If true, return only zero-cost/free-to-try models
  */
-export async function fetchClineModels(
+async function fetchClineModels(
 	freeOnly = false,
 ): Promise<ProviderModelConfig[]> {
 	const [catalogModels, recommendedFreeModels] = await Promise.all([
@@ -263,13 +263,6 @@ export async function fetchClineModels(
 		}),
 		PROVIDER_CLINE,
 	);
-}
-
-/**
- * Fetch only free models (backward compatibility).
- */
-export async function fetchClineFreeModels(): Promise<ProviderModelConfig[]> {
-	return fetchClineModels(true);
 }
 
 // =============================================================================
@@ -316,9 +309,7 @@ export async function fetchClineCatalog(options?: {
  * gateway baseUrl that the legacy registerProvider config form used to supply
  * implicitly. Cline's endpoint speaks vanilla OpenAI Chat Completions (#433).
  */
-export function toClineModel(
-	m: ProviderModelConfig,
-): Model<"openai-completions"> {
+function toClineModel(m: ProviderModelConfig): Model<"openai-completions"> {
 	return withGatewayCompat({
 		...m,
 		api: "openai-completions",

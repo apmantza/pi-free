@@ -41,26 +41,26 @@ export interface ProviderModelConfig {
 // models.dev schema types
 // =============================================================================
 
-export interface ModelsDevCost {
+interface ModelsDevCost {
 	input: number;
 	output: number;
 	cache_read?: number;
 	cache_write?: number;
 }
 
-export interface ModelsDevReasoningOption {
+interface ModelsDevReasoningOption {
 	type: "effort" | "toggle" | "budget_tokens";
 	values?: string[];
 	min?: number;
 	max?: number;
 }
 
-export interface ModelsDevLimit {
+interface ModelsDevLimit {
 	context: number;
 	output: number;
 }
 
-export interface ModelsDevModalities {
+interface ModelsDevModalities {
 	input?: string[];
 	output?: string[];
 }
@@ -79,4 +79,3 @@ export interface ModelsDevProvider {
 	api: string;
 	models: Record<string, ModelsDevModel>;
 }
-

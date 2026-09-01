@@ -50,7 +50,7 @@ interface QoderMessage {
 /**
  * Extract text content from a message, joining all text/thinking blocks.
  */
-export function getContentText(msg: Message): string {
+function getContentText(msg: Message): string {
 	if (typeof msg.content === "string") return msg.content;
 	if (Array.isArray(msg.content)) {
 		return msg.content
@@ -94,9 +94,7 @@ export function transformMessagesForQoder(messages: Message[]): QoderMessage[] {
 		if (msg.role === "user") {
 			normalizedMessages.push(transformUserMessage(msg));
 		} else if (msg.role === "assistant") {
-			normalizedMessages.push(
-				transformAssistantMessage(msg as AssistantMessage),
-			);
+			normalizedMessages.push(transformAssistantMessage(msg as AssistantMessage));
 		} else if (msg.role === "toolResult") {
 			normalizedMessages.push(
 				transformToolResultMessage(msg as ToolResultMessage),

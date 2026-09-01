@@ -31,7 +31,7 @@ async function resolveRequestyApiKey(input: {
 	};
 }
 
-export const requestyApiKeyAuth: ApiKeyAuth = {
+const requestyApiKeyAuth: ApiKeyAuth = {
 	name: "Requesty API key",
 	async login(interaction: AuthInteraction): Promise<ApiKeyCredential> {
 		const key = await interaction.prompt({

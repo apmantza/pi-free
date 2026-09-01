@@ -20,12 +20,12 @@
  */
 
 import type {
-	ApiKeyAuth,
-	ApiKeyCredential,
-	AuthContext,
-	AuthInteraction,
-	AuthResult,
-	ProviderAuth,
+  ApiKeyAuth,
+  ApiKeyCredential,
+  AuthContext,
+  AuthInteraction,
+  AuthResult,
+  ProviderAuth,
 } from "@earendil-works/pi-ai/compat";
 import { getLlm7ApiKey } from "../../config.ts";
 
@@ -37,35 +37,35 @@ import { getLlm7ApiKey } from "../../config.ts";
  * public free catalog visible (see module docstring).
  */
 async function resolveLlm7ApiKey(input: {
-	ctx: AuthContext;
-	credential?: ApiKeyCredential;
-	signal?: AbortSignal;
+  ctx: AuthContext;
+  credential?: ApiKeyCredential;
+  signal?: AbortSignal;
 }): Promise<AuthResult | undefined> {
-	const key = input.credential?.key ?? getLlm7ApiKey();
-	if (!key) {
-		return { auth: {}, source: "public free tier (no account)" };
-	}
-	return {
-		auth: { apiKey: key },
-		source: input.credential?.key ? "stored API key" : "LLM7_API_KEY",
-	};
+  const key = input.credential?.key ?? getLlm7ApiKey();
+  if (!key) {
+    return { auth: {}, source: "public free tier (no account)" };
+  }
+  return {
+    auth: { apiKey: key },
+    source: input.credential?.key ? "stored API key" : "LLM7_API_KEY",
+  };
 }
 
-export const llm7ApiKeyAuth: ApiKeyAuth = {
-	name: "LLM7 API key",
-	async login(interaction: AuthInteraction): Promise<ApiKeyCredential> {
-		const key = await interaction.prompt({
-			type: "secret",
-			message: "LLM7 API key (free token from https://token.llm7.io/)",
-		});
-		return { type: "api_key", key };
-	},
-	resolve: resolveLlm7ApiKey,
+const llm7ApiKeyAuth: ApiKeyAuth = {
+  name: "LLM7 API key",
+  async login(interaction: AuthInteraction): Promise<ApiKeyCredential> {
+    const key = await interaction.prompt({
+      type: "secret",
+      message: "LLM7 API key (free token from https://token.llm7.io/)",
+    });
+    return { type: "api_key", key };
+  },
+  resolve: resolveLlm7ApiKey,
 };
 
 /**
  * Native auth for the LLM7 provider: API key only (LLM7 has no OAuth flow).
  */
 export const llm7Auth: ProviderAuth = {
-	apiKey: llm7ApiKeyAuth,
+  apiKey: llm7ApiKeyAuth,
 };

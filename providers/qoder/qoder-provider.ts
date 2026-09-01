@@ -9,7 +9,6 @@
  */
 
 import type {
-	Api,
 	Model,
 	Provider,
 	RefreshModelsContext,
@@ -110,5 +109,3 @@ export function createQoderProvider(): QoderNativeProvider {
 
 	return { provider, stored, ingest };
 }
-
-export { toQoderModel, toQoderModels };

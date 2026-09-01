@@ -98,19 +98,3 @@ export function wrapSessionStartHandler<TArgs extends unknown[]>(
 		}
 	};
 }
-
-/**
- * Time a synchronous or asynchronous block and log its duration.
- * Returns the result of the block.
- */
-export async function timeAsync<T>(
-	label: string,
-	block: () => T | Promise<T>,
-): Promise<T> {
-	const start = now();
-	try {
-		return await block();
-	} finally {
-		_logger.info(`${label}: ${Math.round(now() - start)}ms`);
-	}
-}

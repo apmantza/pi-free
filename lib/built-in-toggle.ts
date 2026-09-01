@@ -459,11 +459,9 @@ async function maybeRestoreSavedModel(
 					// Refresh failures are logged by the refresh task itself.
 				}
 				const refreshedCatalog =
-					snapshot.modelRegistry.getAll?.() ??
-					snapshot.modelRegistry.getAvailable();
+					snapshot.modelRegistry.getAll?.() ?? snapshot.modelRegistry.getAvailable();
 				model = refreshedCatalog.find(
-					(m: Model<Api>) =>
-						m.provider === config.id && m.id === saved.modelId,
+					(m: Model<Api>) => m.provider === config.id && m.id === saved.modelId,
 				);
 			}
 		}
@@ -861,7 +859,7 @@ async function resolveApiKey(
 		if (sharedKey) return sharedKey;
 		const ownKey = await modelRegistry.getApiKeyForProvider?.(providerId);
 		if (ownKey) return ownKey;
-		const configKey = await getOpencodeApiKey();
+		const configKey = getOpencodeApiKey();
 		if (configKey) return configKey;
 	}
 

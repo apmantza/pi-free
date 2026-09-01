@@ -42,14 +42,6 @@ export function isCurrentModelOAuth(ctx: unknown): boolean {
 	);
 }
 
-export function isOAuthCredential(
-	credential: unknown,
-): credential is { type: "oauth"; access: string } {
-	if (!credential || typeof credential !== "object") return false;
-	const candidate = credential as { type?: unknown; access?: unknown };
-	return candidate.type === "oauth" && typeof candidate.access === "string";
-}
-
 // =============================================================================
 // Types
 // =============================================================================

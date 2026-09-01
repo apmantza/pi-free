@@ -104,9 +104,7 @@ export function fetchLlm7Catalog(): {
  * Adds the provider id, wire api, and gateway baseUrl that the legacy
  * registerProvider config form used to supply implicitly.
  */
-export function toLlm7Model(
-	m: ProviderModelConfig,
-): Model<"openai-completions"> {
+function toLlm7Model(m: ProviderModelConfig): Model<"openai-completions"> {
 	return withGatewayCompat({
 		...m,
 		api: "openai-completions",

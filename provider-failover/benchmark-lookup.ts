@@ -19,8 +19,6 @@ import {
 } from "./hardcoded-benchmarks.ts";
 
 // Re-export the type and data so callers can migrate imports here
-export { HARDCODED_BENCHMARKS, type HardcodedBenchmark };
-
 type BenchmarkEntry = [string, HardcodedBenchmark];
 
 type BenchmarkIndex = {
@@ -76,13 +74,6 @@ function getBenchmarkIndex(): BenchmarkIndex {
 // the structured logger (namespace "benchmark-lookup") to ~/.pi/free.log via
 // the buffered async stream — no per-model synchronous file writes.
 let debugEnabled = process.env.PI_FREE_BENCHMARK_DEBUG === "1";
-
-/**
- * Enable/disable debug logging
- */
-export function setDebugLogging(enabled: boolean): void {
-	debugEnabled = enabled;
-}
 
 /**
  * Emit a structured debug line for a benchmark match attempt/match/miss.
@@ -295,8 +286,7 @@ function applyProviderNormalization(
 		ctx.strategies.push("llama-dash-general");
 	}
 
-	if (provider === "ollama" || provider === "ollama-cloud")
-		normalizeOllama(ctx);
+	if (provider === "ollama" || provider === "ollama-cloud") normalizeOllama(ctx);
 	if (provider === "groq") normalizeGroq(ctx);
 	if (provider === "cerebras") normalizeCerebras(ctx);
 	if (provider === "mistral") normalizeMistral(ctx);
@@ -621,10 +611,7 @@ function tryProviderNormalizedMatch(
 	provider: string | undefined,
 	modelName: string,
 ): { result: HardcodedBenchmark | null; normalized: string } {
-	const { normalized, strategy } = applyProviderNormalization(
-		modelId,
-		provider,
-	);
+	const { normalized, strategy } = applyProviderNormalization(modelId, provider);
 
 	if (normalized === modelId.toLowerCase()) {
 		return { result: null, normalized };

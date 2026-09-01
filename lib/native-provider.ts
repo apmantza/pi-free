@@ -51,7 +51,7 @@ const STALE_STORE_WARN_MS = 7 * 24 * 60 * 60 * 1000;
 const _staleWarnedProviders = new Set<string>();
 
 /** Compatibility bridge for the native single-argument registrar. */
-export type NativeRegistrar = {
+type NativeRegistrar = {
 	registerProvider(provider: Provider): void;
 };
 

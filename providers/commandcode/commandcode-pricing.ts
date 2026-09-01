@@ -10,14 +10,14 @@
  * (divide by 1e6) in commandcode-models.ts.
  */
 
-export interface CommandCodeModelCostRates {
+interface CommandCodeModelCostRates {
 	input: number;
 	output: number;
 	cacheRead: number;
 	cacheWrite: number;
 }
 
-export interface CommandCodeModelCostTier extends CommandCodeModelCostRates {
+interface CommandCodeModelCostTier extends CommandCodeModelCostRates {
 	inputTokensAbove: number;
 }
 
@@ -30,10 +30,6 @@ export interface TemporaryPricing {
 	expiresOn: string;
 	description: string;
 }
-
-export const PRICING_SOURCE_URL =
-	"https://commandcode.ai/docs/resources/pricing-limits";
-export const PRICING_LAST_VERIFIED = "2026-08-25";
 
 /**
  * Display prices in USD per million tokens.

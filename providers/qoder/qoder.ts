@@ -39,12 +39,6 @@ export default async function qoderProvider(pi: ExtensionAPI): Promise<void> {
 	registerNativeProviderRefresh(pi, PROVIDER_QODER);
 }
 
-export { createQoderProvider } from "./qoder-provider.ts";
-export {
-	loginQoder,
-	loginQoderNative,
-	refreshQoderCredential,
-	refreshQoderToken,
-	qoderAuth,
-} from "./auth.ts";
-export { streamQoder } from "./stream.ts";
+// Re-export the auth object for tests (tests/qoder-auth.test.ts imports it
+// from this module, the provider's public entry point).
+export { qoderAuth } from "./auth.ts";

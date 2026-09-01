@@ -29,7 +29,6 @@ index.ts                          ← Extension entry point (piFreeEntry)
   ├─ lib/json-persistence.ts      ← Generic JSON/JSONL file stores
   ├─ lib/pi-ai-loader.ts          ← Robust runtime loader for pi-ai entry points (bare specifier + on-disk fallback incl. running-host entry)
   ├─ lib/model-detection.ts       ← Model family grouping, name normalization
-  ├─ lib/model-enhancer.ts        ← CI score name decoration (thin wrapper)
   ├─ lib/provider-cache.ts        ← Disk cache for fetched model lists
   ├─ lib/provider-compat.ts       ← DeepSeek proxy compat flag detection
   ├─ lib/util.ts                  ← fetchWithRetry, model size parsing, OpenRouter mapping

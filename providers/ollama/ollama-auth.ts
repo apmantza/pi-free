@@ -23,7 +23,7 @@ async function resolveOllamaApiKey(input: {
 	};
 }
 
-export const ollamaApiKeyAuth: ApiKeyAuth = {
+const ollamaApiKeyAuth: ApiKeyAuth = {
 	name: "Ollama Cloud API key",
 	async login(interaction: AuthInteraction): Promise<ApiKeyCredential> {
 		const key = await interaction.prompt({

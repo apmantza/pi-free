@@ -36,7 +36,7 @@ const PAT_REFRESH_PREFIX = "pat";
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 /** Extended credentials with Qoder-specific identity fields. */
-export interface QoderCredentials extends OAuthCredentials {
+interface QoderCredentials extends OAuthCredentials {
 	userID: string;
 	email: string;
 	name: string;
@@ -61,9 +61,7 @@ function encodePatRefresh(
 	userID: string,
 	machineID: string,
 ): string {
-	return [PAT_REFRESH_PREFIX, pat, jobRefreshToken, userID, machineID].join(
-		"|",
-	);
+	return [PAT_REFRESH_PREFIX, pat, jobRefreshToken, userID, machineID].join("|");
 }
 
 function decodePatRefresh(refresh: string): {
@@ -561,7 +559,7 @@ export async function refreshQoderCredential(
 	return { ...(await refreshQoderToken(credential)), type: "oauth" };
 }
 
-export const qoderOAuthAuth: OAuthAuth = {
+const qoderOAuthAuth: OAuthAuth = {
 	name: "Qoder (Browser OAuth / PAT)",
 	loginLabel: "Sign in with Qoder",
 	login: loginQoderNative,

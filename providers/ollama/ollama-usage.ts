@@ -15,19 +15,19 @@ import { fetchWithRetry } from "../../lib/util.ts";
 // Types
 // ---------------------------------------------------------------------------
 
-export interface UsageModel {
+interface UsageModel {
 	name: string;
 	request_count: number;
 }
 
-export interface UsageLimit {
+interface UsageLimit {
 	/** Fraction of the plan's cap, 0-1 (not tokens). */
 	usage: number;
 	/** Per-model request counts (not token counts). */
 	models: UsageModel[];
 }
 
-export interface UsageActivity {
+interface UsageActivity {
 	cost?: string;
 	period?: {
 		type?: string;
