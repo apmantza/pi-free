@@ -160,7 +160,8 @@ interface PiFreeConfig {
 	qoder_show_paid?: boolean;
 }
 
-const CONFIG_TEMPLATE: PiFreeConfig = {	nvidia_api_key: "",
+const CONFIG_TEMPLATE: PiFreeConfig = {
+	nvidia_api_key: "",
 	ollama_api_key: "",
 	zenmux_api_key: "",
 	crofai_api_key: "",
