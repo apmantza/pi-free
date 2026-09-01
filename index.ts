@@ -73,7 +73,6 @@ import zenmux from "./providers/zenmux/zenmux.ts";
 import bai from "./providers/bai/bai.ts";
 import anyapi from "./providers/anyapi/anyapi.ts";
 import qoder from "./providers/qoder/qoder.ts";
-import kiro from "./providers/kiro/kiro.ts";
 
 /**
  * Single source of truth for unique provider extensions (providers NOT
@@ -108,7 +107,6 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 	anyapi,
 	bai,
 	qoder,
-	kiro,
 ];
 
 const _logger = createLogger("pi-free");
