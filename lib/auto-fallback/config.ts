@@ -1,11 +1,17 @@
 /**
  * Typed configuration accessors for auto-fallback.
  *
- * Resolves the 7 fields added to `~/.pi/free.json` (Q12 = A) via the
- * existing config-loader in `config.ts`. All fields are optional with
- * sensible defaults (Q29 = A), so existing config files work unchanged
- * — the extension simply logs a one-time INFO message on first run
- * letting the user know they are operating on defaults (Q29 = C).
+ * Resolves the 9 optional `~/.pi/free.json` fields (Q12 = A) with the
+ * repo-standard env > file precedence: every field also honors an env var
+ * (`AUTO_FALLBACK`, `AUTO_FALLBACK_SCOPE`, `AUTO_FALLBACK_PROVIDERS`,
+ * `AUTO_FALLBACK_BLACKLIST_TTL_MS`, `AUTO_FALLBACK_BLACKLIST_MAX`,
+ * `FALLBACK_NOTIFY`, `FALLBACK_RESTORE`, `AUTO_FALLBACK_AUTO_CONTINUE`,
+ * `AUTO_FALLBACK_AUTO_CONTINUE_MAX`), so headless/CI users can configure
+ * the feature without touching JSON.
+ *
+ * Default state is OFF (`enabled: false`): an auto-switching feature that
+ * rewrites the user's global default model (pi#1248 — setModel is sticky
+ * and persists across sessions) must be opt-in, not silently forced on.
  *
  * Reading the config on every getter (rather than caching) means that
  * `/toggle-auto-fallback` writes and the next event handler read see
@@ -48,7 +54,7 @@ export interface AutoFallbackConfig {
 }
 
 const DEFAULTS: AutoFallbackConfig = {
-	enabled: true,
+	enabled: false,
 	scope: "provider",
 	whitelistProviders: [],
 	blacklistTtlMs: 10 * 60 * 1000,
@@ -58,6 +64,43 @@ const DEFAULTS: AutoFallbackConfig = {
 	autoContinue: true,
 	autoContinueMax: 3,
 };
+
+/** env > file boolean resolution (same precedence as config.ts resolveBool). */
+function envBool(envKey: string, fileVal: boolean | undefined, fallback: boolean): boolean {
+	const raw = process.env[envKey];
+	if (raw === "true") return true;
+	if (raw === "false") return false;
+	if (fileVal !== undefined) return fileVal === true;
+	return fallback;
+}
+
+/** env > file number resolution. */
+function envNumber(envKey: string, fileVal: number | undefined, fallback: number): number {
+	const raw = process.env[envKey];
+	if (raw !== undefined) {
+		const parsed = Number(raw);
+		if (Number.isFinite(parsed) && parsed > 0) return parsed;
+	}
+	return typeof fileVal === "number" && fileVal > 0 ? fileVal : fallback;
+}
+
+/** env > file string resolution. */
+function envString(envKey: string, fileVal: unknown): string | undefined {
+	return process.env[envKey] || (typeof fileVal === "string" && fileVal.trim() ? fileVal.trim() : undefined);
+}
+
+/** env > file string[] resolution (comma-separated env value). */
+function envStringList(envKey: string, fileVal: unknown): string[] | undefined {
+	const envRaw = process.env[envKey];
+	if (envRaw !== undefined) {
+		return envRaw.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+	}
+	if (Array.isArray(fileVal)) {
+		const out = fileVal.filter((e): e is string => typeof e === "string" && e.length > 0);
+		if (out.length > 0) return out;
+	}
+	return undefined;
+}
 
 let defaultsLogged = false;
 
@@ -76,7 +119,7 @@ function logDefaultsOnce(config: AutoFallbackConfig): void {
 		cfg.fallback_restore !== undefined;
 	if (!hasAny) {
 		_logger.info(
-			"auto_fallback: no user config found; using defaults (enabled=true, scope=provider, ttl=10m, max=3, notify=toast, restore=manual)",
+			"auto_fallback: no user config found; feature stays OFF by default (opt in via /toggle-auto-fallback, auto_fallback: true, or AUTO_FALLBACK=true)",
 		);
 		defaultsLogged = true;
 	} else {
@@ -90,31 +133,32 @@ function logDefaultsOnce(config: AutoFallbackConfig): void {
 export function getAutoFallbackConfig(): AutoFallbackConfig {
 	const cfg = loadConfigFile();
 	const result: AutoFallbackConfig = {
-		enabled:
-			cfg.auto_fallback === undefined ? DEFAULTS.enabled : cfg.auto_fallback === true,
-		scope: parseScope(cfg.auto_fallback_scope),
-		whitelistProviders: parseWhitelist(cfg.auto_fallback_providers),
-		blacklistTtlMs:
-			typeof cfg.auto_fallback_blacklist_ttl_ms === "number" &&
-			cfg.auto_fallback_blacklist_ttl_ms > 0
-				? cfg.auto_fallback_blacklist_ttl_ms
-				: DEFAULTS.blacklistTtlMs,
-		blacklistMaxStrikes:
-			typeof cfg.auto_fallback_blacklist_max === "number" &&
-			cfg.auto_fallback_blacklist_max > 0
-				? cfg.auto_fallback_blacklist_max
-				: DEFAULTS.blacklistMaxStrikes,
-		notifyLevel: parseNotifyLevel(cfg.fallback_notify),
-		restoreMode: parseRestoreMode(cfg.fallback_restore),
-		autoContinue:
-			cfg.auto_fallback_auto_continue === undefined
-				? DEFAULTS.autoContinue
-				: cfg.auto_fallback_auto_continue === true,
-		autoContinueMax:
-			typeof cfg.auto_fallback_auto_continue_max === "number" &&
-			cfg.auto_fallback_auto_continue_max > 0
-				? cfg.auto_fallback_auto_continue_max
-				: DEFAULTS.autoContinueMax,
+		enabled: envBool("AUTO_FALLBACK", cfg.auto_fallback, DEFAULTS.enabled),
+		scope: parseScope(envString("AUTO_FALLBACK_SCOPE", cfg.auto_fallback_scope)),
+		whitelistProviders:
+			parseWhitelist(envStringList("AUTO_FALLBACK_PROVIDERS", cfg.auto_fallback_providers)),
+		blacklistTtlMs: envNumber(
+			"AUTO_FALLBACK_BLACKLIST_TTL_MS",
+			cfg.auto_fallback_blacklist_ttl_ms,
+			DEFAULTS.blacklistTtlMs,
+		),
+		blacklistMaxStrikes: envNumber(
+			"AUTO_FALLBACK_BLACKLIST_MAX",
+			cfg.auto_fallback_blacklist_max,
+			DEFAULTS.blacklistMaxStrikes,
+		),
+		notifyLevel: parseNotifyLevel(envString("FALLBACK_NOTIFY", cfg.fallback_notify)),
+		restoreMode: parseRestoreMode(envString("FALLBACK_RESTORE", cfg.fallback_restore)),
+		autoContinue: envBool(
+			"AUTO_FALLBACK_AUTO_CONTINUE",
+			cfg.auto_fallback_auto_continue,
+			DEFAULTS.autoContinue,
+		),
+		autoContinueMax: envNumber(
+			"AUTO_FALLBACK_AUTO_CONTINUE_MAX",
+			cfg.auto_fallback_auto_continue_max,
+			DEFAULTS.autoContinueMax,
+		),
 	};
 	logDefaultsOnce(result);
 	return result;

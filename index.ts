@@ -31,6 +31,7 @@ import {
 } from "./lib/quota-monitor.ts";
 import { fallbackState } from "./lib/fallback-state.ts";
 import { createAutoFallback } from "./lib/auto-fallback/index.ts";
+import { registerAutoFallbackStatusGetter } from "./lib/auto-fallback-status.ts";
 import { formatHealthReport } from "./lib/health.ts";
 import { logWireSignature } from "./lib/wire-signature.ts";
 import {
@@ -483,10 +484,10 @@ let autoFallback: ReturnType<typeof createAutoFallback> | undefined;
 function setupAutoFallback(pi: ExtensionAPI): void {
 	autoFallback = createAutoFallback();
 	autoFallback.register(pi);
-}
-
-export function getAutoFallback() {
-	return autoFallback;
+	// Health reads the handle through the registration module (not a
+	// direct import of this file) to keep the dependency direction
+	// index -> health one-way.
+	registerAutoFallbackStatusGetter(() => autoFallback);
 }
 
 // =============================================================================

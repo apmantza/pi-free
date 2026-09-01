@@ -233,7 +233,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	qoder_show_paid: false,
 
 	// Auto-fallback defaults (lib/auto-fallback/config.ts reads these).
-	auto_fallback: true,
+	auto_fallback: false,
 	auto_fallback_scope: "provider",
 	auto_fallback_providers: [],
 	auto_fallback_blacklist_ttl_ms: 600000, // 10 minutes

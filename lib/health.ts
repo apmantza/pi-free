@@ -11,7 +11,7 @@ import {
 	isFileLoggingEnabled,
 } from "./logger.ts";
 import { getAllResponseCounters } from "./quota-monitor.ts";
-import { getAutoFallback } from "../index.ts";
+import { getAutoFallback } from "./auto-fallback-status.ts";
 
 /**
  * Render a credential-free diagnostic report for `/pi-free-health`.

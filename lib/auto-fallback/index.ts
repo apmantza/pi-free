@@ -85,8 +85,20 @@ interface ModelIdentity {
  */
 interface ModelRegistryLike {
 	getAll?: () => ModelIdentity[];
-	/** Resolves the provider's auth, or undefined if no usable auth (no key). */
-	getProviderAuth?: (provider: string) => Promise<unknown>;
+	/**
+	 * Provider-level auth check. NOTE: this resolves truthy for
+	 * anonymous-public-catalog providers (Kilo, Cline, ... resolve keyless
+	 * auth per AGENTS.md), so it answers "would setModel succeed" but NOT
+	 * "would chat succeed". Prefer {@link hasConfiguredAuth} when present.
+	 */
+	getProviderAuth?(provider: string): Promise<unknown>;
+	/**
+	 * Synchronous "does this provider have a real configured credential"
+	 * check (runtime key, stored credential, or env). False for
+	 * anonymous-catalog providers with no configured key — the correct
+	 * signal for skipping chat-doomed candidates.
+	 */
+	hasConfiguredAuth?(model: ModelIdentity): boolean;
 }
 
 export interface AutoFallbackHandle {
@@ -261,11 +273,19 @@ export function createAutoFallback(): AutoFallbackHandle {
 			// Provider auth resolution can reject (no usable credential); treat
 			// a throw the same as "no auth" and skip the candidate.
 			let hasAuth = true;
-			if (registry?.getProviderAuth) {
+			if (registry?.hasConfiguredAuth) {
+				// Preferred: strict "configured credential" check. Anonymous
+				// public-catalog providers (truthy keyless auth) fail this,
+				// which is the point — switching to an unconfigured provider
+				// just produces a 401 on the next turn.
+				hasAuth = registry.hasConfiguredAuth(newModel);
+			} else if (registry?.getProviderAuth) {
+				// Degrade gracefully on registries without hasConfiguredAuth:
+				// the provider-level check (may pass anonymous catalogs).
 				try {
 					hasAuth = !!(await registry.getProviderAuth(cand.provider));
 				} catch {
-				hasAuth = false;
+					hasAuth = false;
 				}
 			}
 			if (!hasAuth) {
@@ -545,7 +565,11 @@ export function createAutoFallback(): AutoFallbackHandle {
 							.find((h) => h.toKey === key);
 						if (entry && !entry.recovered) {
 							entry.recovered = true;
-							blacklist.clear(key);
+							// Un-ban the model that FAILED (the history entry's
+							// fromKey — the only key with strikes). Clearing the
+							// landing key would be a no-op: it was never struck,
+							// which left the failed model banned forever.
+							blacklist.clear(entry.fromKey);
 							getNotifier().clearStatus();
 							maybeRestorePreFallback(ctx);
 						}

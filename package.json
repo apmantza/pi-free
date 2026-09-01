@@ -54,6 +54,7 @@
 		"test": "vitest",
 		"test:ui": "vitest --ui",
 		"drive": "tsx scripts/drive-pi-ai.ts",
+		"smoke:auto-fallback": "tsx scripts/smoke-auto-fallback.ts",
 		"test:run": "vitest run",
 		"bench:startup": "tsx scripts/bench-startup.ts",
 		"smoke:compiled": "node scripts/smoke-compiled.mjs",
