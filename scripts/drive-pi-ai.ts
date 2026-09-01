@@ -91,7 +91,7 @@ function parseArgs(argv: string[]): Record<string, string | boolean> {
 }
 
 function listProviders(store: Record<string, { models?: StoreModel[] }>): void {
-	const ids = Object.keys(store).sort();
+	const ids = Object.keys(store).sort((a, b) => a.localeCompare(b));
 	for (const id of ids) {
 		const models = store[id]?.models ?? [];
 		console.log(`${id}: ${models.length} models`);
@@ -153,7 +153,7 @@ async function main(): Promise<number> {
 	const providerModels = store[providerId]?.models ?? [];
 	if (providerModels.length === 0) {
 		console.error(`Provider '${providerId}' has no models in the store.`);
-		console.error(`Available: ${Object.keys(store).sort().join(", ")}`);
+		console.error(`Available: ${Object.keys(store).sort((a, b) => a.localeCompare(b)).join(", ")}`);
 		return 1;
 	}
 
