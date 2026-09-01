@@ -34,14 +34,14 @@ index.ts                          ← Extension entry point (piFreeEntry)
   ├─ lib/provider-compat.ts       ← DeepSeek proxy compat flag detection
   ├─ lib/util.ts                  ← fetchWithRetry, model size parsing, OpenRouter mapping
   ├─ lib/fallback-state.ts        ← Shared in-memory store (last HTTP status per model) used by both quota-monitor and auto-fallback
-  ├─ lib/auto-fallback/           ← Auto-fallback to another free model on error (since 2.7.0)
-  │   ├─ index.ts                 ← Event wiring (after_provider_response / message_end / agent_end / agent_settled / model_select)
+  ├─ lib/auto-fallback/           ← Auto-fallback to another free model on error (since 2.7.0; opt-in, default off)
+  │   ├─ index.ts                 ← Event wiring (message_end observer / agent_settled single decision point / model_select)
   │   ├─ classifier.ts            ← HTTP status + errorMessage regex classification (mirrors pi-ai's `isRetryableAssistantError`)
   │   ├─ blacklist.ts             ← In-memory failure tracking with TTL + max-strikes
   │   ├─ selection.ts             ← CI-score candidate ordering + scope filter (provider / global / whitelist)
   │   ├─ notify.ts                ← 5-minute windowed notification aggregation
   │   ├─ commands.ts              ← /toggle-auto-fallback / /free-fallback-history / /reset-fallback-blacklist
-  │   └─ config.ts                ← Typed accessors for the 7 `auto_fallback_*` / `fallback_*` config fields
+  │   └─ config.ts                ← Typed accessors for the 9 `auto_fallback_*` / `fallback_*` config fields (env > file)
   │
   ├─ config.ts                    ← ~/.pi/free.json + env var resolution (ALL config lives here)
   ├─ constants.ts                 ← Provider IDs, base URLs, timeouts, thresholds
@@ -190,22 +190,26 @@ Debug logging writes to `~/.pi/free.log` under the `benchmark-lookup` namespace:
 
 ### Auto-Fallback
 
-`lib/auto-fallback/` automatically switches to another free model when the current one errors, so the conversation keeps moving during quota outages / provider hiccups. Active only when `/toggle-free` is **ON**.
+`lib/auto-fallback/` automatically switches to another free model when the current one errors, so the conversation keeps moving during quota outages / provider hiccups. **Opt-in** (`auto_fallback: false` by default — a switch rewrites the active model for the session).
 
 **Pipeline (each event handler in `index.ts`):**
 
-- `after_provider_response` — record `{provider, model, status}` into `lib/fallback-state.ts`; mark the model as blacklisted for HTTP-level recoverable/unrecoverable codes (no body read, AGENTS.md wire-signature convention).
-- `message_end` — when `stopReason === "error" | "aborted"`, classify the `errorMessage` against the regex tables (mirrors pi-ai's `NON_RETRYABLE_PROVIDER_LIMIT_ERROR_PATTERN` / `RETRYABLE_PROVIDER_ERROR_PATTERN`); blacklist the model. **No switch yet.**
-- `agent_end` — PRIMARY trigger. Only acts when `willRetry === false` (Pi has finished its own backoff). Classifies the last assistant message; if recoverable, runs the selector, calls `pi.setModel()`, and records the switch in in-memory history. Idempotency key `{provider/model}:{turnIndex}` prevents double-switching when the same failure triggers multiple events.
-- `agent_settled` — recovery detection: if the model we landed on completes a successful run, mark the history entry recovered, clear the blacklist, and (per `fallback_restore`) optionally switch back to the user's pre-fallback pick.
+- `after_provider_response` — observation only: records `{provider, model, status}` into `lib/fallback-state.ts` (no body read, wire-signature convention). No strikes here — Pi's internal retries re-emit this event per attempt.
+- `message_end` — observation only: stores the latest assistant message for the settled-time decision. No strikes (would multi-count one failure and burn strikes on user aborts).
+- `agent_settled` — the SINGLE decision point (per Pi's contract: no further automatic retry/compaction/continuation will run). One pass, in order: (1) recovery — a clean run (last assistant stopReason not error/aborted) un-bans the failed model via the history entry's `fromKey` and refills the replay budget; (2) failure handling — classify the assistant message (delegates to pi-ai's `isRetryableAssistantError`, lazily loaded on the failure path; user aborts without a 5xx never strike), record ONE strike, `pi.setModel()`, arm the replay; (3) auto-continue dispatch — after a switch, re-issue the captured prompt on the new model (budget-capped). `before_agent_start` clears any armed replay when the user sends their own prompt.
 - `model_select` — clears the restore marker when the user manually picks a different model.
 
 **`classifier.ts` decision matrix:**
 
-| HTTP status | 4xx unrecoverable set | 4xx recoverable set | 5xx | abort + last status ≥ 500 |
-|---|---|---|---|---|
-| action | blacklist, NO switch | blacklist + switch | blacklist + switch | recoverable (switch) |
-| examples | 400, 401, 403, 404, 422 | 402, 408, 425, 429 | 500–504, 521–527, 529 | server killed mid-flight |
+| signal | classification | action |
+| --- | --- | --- |
+| fatal pattern (invalid key, model not found, context length) | unrecoverable | no switch |
+| HTTP 400/401/403/404/422 | unrecoverable | no switch |
+| HTTP 402/408/425/429, 5xx (500-504, 521-527, 529) | recoverable | strike + switch |
+| pi-ai retryable error text | recoverable | strike + switch |
+| pi-ai non-retryable + quota pattern | recoverable | strike + switch |
+| abort + last status >= 500 | recoverable | strike + switch |
+| abort without 5xx (user Esc) | not a failure | no strike, no switch |
 
 **`blacklist.ts` dual rule (Q9 = C):** single failures expire after `auto_fallback_blacklist_ttl_ms` (default 10 min); `auto_fallback_blacklist_max` strikes (default 3) within the window promote the model to a permanent session ban. `/reset-fallback-blacklist` clears everything (escape hatch after exhaustion).
 
@@ -214,6 +218,7 @@ Debug logging writes to `~/.pi/free.log` under the `benchmark-lookup` namespace:
 **`notify.ts` aggregation (Q31 = B):** first switch toasts immediately; subsequent switches within a 5-minute window roll into a single summary ("Auto-fallback: tried N free models in last 5min, currently on X"). Status bar shows `🛟 Fallback active` until recovery.
 
 **Hard limits (mid-flight switching is impossible from extensions):**
+
 - Pi does not expose a turn-replay hook (issue earendil-works/pi #1248, `not_planned`).
 - `pi.setModel()` always rewrites the global default — fallback is sticky.
 - Failed turn is shown to the user as an error; the *next* turn uses the new model.

@@ -208,9 +208,12 @@ export function createAutoFallback(): AutoFallbackHandle {
 			return { switched: false, reason: "no-current-model-identity" };
 		}
 
-		// Always blacklist the model that failed so a later same-turn retry
-		// (or a future turn) does not loop on it.
-		blacklist.recordFailure(modelKey(provider, modelId), failureReason);
+		// NO strike here — the settled handler already recorded the ONE
+		// strike for this failure against the assistant message's own
+		// provider/model (the correct key even if the user manually
+		// switched models mid-run). Striking again here double-counted
+		// (instant hard-ban at default max=3) and could blame ctx.model —
+		// an innocent bystander when the user moved on before the settle.
 
 		const cfg = getAutoFallbackConfig();
 		// Rank candidates by CI score. Prefer the configured scope
@@ -469,6 +472,11 @@ export function createAutoFallback(): AutoFallbackHandle {
 			// the new model after an auto-fallback switch (see safeSendUserMessage).
 			extensionPi.on("before_agent_start", (event, ctx) => {
 				lastSeenCtx = ctx;
+				// A genuine user prompt supersedes any armed replay: if the
+				// user typed something between our switch and the next
+				// settle, replaying the old prompt would duplicate a turn
+				// they already handled themselves.
+				pendingAutoContinue = null;
 				const e = event as { prompt?: string; images?: unknown[] };
 				if (e && typeof e.prompt === "string") {
 					lastUserPrompt = { text: e.prompt, images: e.images };
@@ -554,37 +562,9 @@ export function createAutoFallback(): AutoFallbackHandle {
 					}
 				}
 
-				// --- Auto-continue: replay the captured prompt on the
-				// --- now-active model after a switch.
-				if (pendingAutoContinue) {
-					const cfg = getAutoFallbackConfig();
-					if (!budgetInitialized) {
-						autoContinueBudget = cfg.autoContinueMax;
-						budgetInitialized = true;
-					}
-					if (
-						cfg.autoContinue &&
-						autoContinueBudget > 0 &&
-						lastUserPrompt &&
-						lastUserPrompt.text
-					) {
-						autoContinueBudget--;
-						const prompt = lastUserPrompt;
-						const content: string | unknown[] =
-							prompt.images && prompt.images.length > 0
-								? [{ type: "text", text: prompt.text }, ...prompt.images]
-								: prompt.text;
-						_logger.info(
-							`auto-fallback: auto-continuing on ${ctx.model.provider}/${ctx.model.id} (budget remaining: ${autoContinueBudget})`,
-						);
-						pendingAutoContinue = null;
-						safeSendUserMessage(content);
-					} else {
-						pendingAutoContinue = null;
-					}
-				}
-
-				// --- Failure handling: ONE strike per settled run.
+				// --- Failure handling: strike + switch FIRST, so an
+				// --- auto-continue (below) never replays the prompt onto a
+				// --- model this very settle just classified as failed.
 				const isFailure =
 					lastAssistant != null &&
 					(lastAssistant.stopReason === "error" ||
@@ -623,13 +603,52 @@ export function createAutoFallback(): AutoFallbackHandle {
 
 				const failureKey = `${failingProvider}/${failingModelId}`;
 				// One strike per settled run, recorded in exactly one
-				// place. Pi's internal retries (which re-emit
-				// after_provider_response / message_end per attempt) no
-				// longer inflate the count, so the 10-min TTL soft
-				// window is meaningful again.
+				// place (here — performSwitch does NOT strike). Pi's
+				// internal retries (which re-emit after_provider_response /
+				// message_end per attempt) no longer inflate the count, so
+				// the 10-min TTL soft window is meaningful again.
 				blacklist.recordFailure(failureKey, failureReason);
 
+				// Strike + switch FIRST. performSwitch completed setModel
+				// before returning, and it armed the replay — so the
+				// auto-continue dispatch below fires on the NEW model, never
+				// on the one this settle just failed, and setModel can never
+				// swap models under an in-flight replay run.
 				await performSwitch(ctx, failureReason, failureKey);
+
+				// --- Auto-continue: dispatch an armed replay (if any) on
+				// --- the now-active model. On failure settles this is the
+				// --- just-switched model (preserving the original PR's
+				// --- timing: switch and replay in one settle cycle); on
+				// --- clean settles the arm was already consumed, so this
+				// --- is a no-op.
+				if (pendingAutoContinue) {
+					const cfg = getAutoFallbackConfig();
+					if (!budgetInitialized) {
+						autoContinueBudget = cfg.autoContinueMax;
+						budgetInitialized = true;
+					}
+					if (
+						cfg.autoContinue &&
+						autoContinueBudget > 0 &&
+						lastUserPrompt &&
+						lastUserPrompt.text
+					) {
+						autoContinueBudget--;
+						const prompt = lastUserPrompt;
+						const content: string | unknown[] =
+							prompt.images && prompt.images.length > 0
+								? [{ type: "text", text: prompt.text }, ...prompt.images]
+								: prompt.text;
+						_logger.info(
+							`auto-fallback: auto-continuing on ${ctx.model.provider}/${ctx.model.id} (budget remaining: ${autoContinueBudget})`,
+						);
+						pendingAutoContinue = null;
+						safeSendUserMessage(content);
+					} else {
+						pendingAutoContinue = null;
+					}
+				}
 			});
 
 			extensionPi.on("model_select", (_event, ctx) => {

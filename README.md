@@ -79,7 +79,7 @@ First run creates `~/.pi/free.json`. Add extension-provider keys there or use th
 
 ## Auto-fallback
 
-When `/toggle-free` is **ON** and the current free model errors, pi-free automatically switches to another free model so the conversation keeps moving. The feature is event-driven: every `429 / 5xx / quota / network / timeout` is detected at `after_provider_response` + `message_end`; the actual switch fires from `agent_end` once Pi has finished its own same-model backoff retries (so we don't fight Pi's retries).
+When enabled and the current free model errors, pi-free automatically switches to another free model so the conversation keeps moving. The switch fires from `agent_settled` — the point in Pi's run lifecycle where no further automatic retry, compaction, or queued continuation will run — so pi-free never races Pi's own same-model retries. **Off by default** (a switch rewrites the active model for the session): opt in with `/toggle-auto-fallback`, `auto_fallback: true`, or `AUTO_FALLBACK=true`.
 
 Three commands:
 

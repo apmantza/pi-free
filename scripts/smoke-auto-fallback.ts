@@ -306,7 +306,11 @@ console.log(
 		.join("\n"),
 );
 
+// Give the async logger stream a beat before deleting the sandbox, so
+// its in-flight write doesn't race the rmSync and print a confusing
+// ENOENT trace after the success line (reviewer finding #5).
+await new Promise((resolve) => setTimeout(resolve, 100));
 rmSync(sandbox, { recursive: true, force: true });
 console.log(
-	`\nSMOKE OK — status surface verified against a real ModelRuntime (sandbox ${sandbox} removed)`,
+	`\nSMOKE OK — status surface verified against a real ModelRuntime`,
 );
