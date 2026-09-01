@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-09-02
+
 ### Removed
 
 - **Kiro provider** — removed entirely. Login never recovered reliably: the Kiro Web Portal validates `redirect_uri` against a per-IdP allowlist that rejected every loopback callback URL on the BuilderId (AWS SSO) leg with `401 "Authentication required or access denied."`, and after the redirect-allowlist fix the flow still could not be made dependable end to end. The provider directory (`providers/kiro/`, 18 modules), its 7 test files, the `docs/kiro-web-portal-auth.md` design doc, and the `scripts/test-kiro-desktop.mjs` live driver are gone, along with the `kiro` constants, the `kiro_show_paid` / `kiro_profile_arn` / `kiro_auth_method` config keys and getters, and the kiro-only dependencies (`@smithy/core`, `@smithy/types`, `cbor-x`). Existing users: any `kiro*` keys left in `~/.pi/free.json` are ignored harmlessly; the `kiro` entry in `~/.pi/agent/auth.json` becomes inert and can be deleted; `/login kiro`, `/logout kiro`, and the provider itself no longer exist.
