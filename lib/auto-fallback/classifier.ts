@@ -10,15 +10,19 @@
  *     pi-ai composes this into a free-text summary; today the AssistantMessage
  *     carries no structured status code (issue earendil-works/pi #7234).
  *
- * Regex tables mirror `@earendil-works/pi-ai`'s `src/utils/retry.ts`
- * (NON_RETRYABLE_PROVIDER_LIMIT_ERROR_PATTERN, RETRYABLE_PROVIDER_ERROR_PATTERN)
- * so the extension stays consistent with Pi's own retry classifier. We do
- * NOT import `isRetryableAssistantError` at runtime: AGENTS.md convention 16
- * forbids static pi-ai imports at startup, and the function is not exported
- * via the package's `exports` map (`./utils/*` is not exposed — see sub-agent
- * verification, only the bare `@earendil-works/pi-ai` root re-exports it).
- * If pi-ai's regexes ever diverge from these tables, this file is the single
- * point to update.
+ * Error-message classification delegates to pi-ai's own
+ * `isRetryableAssistantError` (re-exported from the bare
+ * `@earendil-works/pi-ai` root — `dist/index.js` does
+ * `export * from "./utils/retry.js"`), loaded lazily via
+ * `lib/pi-ai-loader.ts`'s single-flight loader (convention #16 forbids
+ * startup compat imports; this runs on the failure path only, never at
+ * startup). Delegating keeps our classifier in lockstep with Pi's own retry
+ * semantics instead of mirroring regex tables that drift.
+ *
+ * Complementary, not contradictory, to pi-ai's classifier: pi-ai marks
+ * provider-limit/quota errors NON-retryable because same-model retry cannot
+ * recover from "out of credits" — but switching to a different provider can,
+ * so we treat quota errors as recoverable for fallback purposes.
  */
 
 /**
@@ -84,52 +88,120 @@ export function classifyHttpStatus(status: number): FailureKind {
 }
 
 /**
- * Provider-limit / quota errors that Pi's retry classifier marks as
- * NON-retryable. We treat them as recoverable for OUR purposes: the
- * upstream Pi retry cannot recover from "out of credits", but switching
- * to a different provider can. The two classifications are complementary,
- * not contradictory.
- *
- * Source: `packages/ai/src/utils/retry.ts` (pi-mono v0.84.3).
- */
-const PROVIDER_LIMIT_ERROR_PATTERN =
-	/(?:go\s*usage\s*limit\s*error|free\s*usage\s*limit\s*error|monthly\s*usage\s*limit\s*reached|available\s*balance|insufficient[_\s-]?quota|out\s+of\s+budget|quota\s+exceeded|billing)/i;
-
-/**
- * Transient errors that Pi's retry classifier marks as retryable — also
- * valid signals for auto-fallback. Same source as above.
- */
-const TRANSIENT_ERROR_PATTERN =
-	/(?:overloaded|rate[\s-]?limit|too\s+many\s+requests|429|500|502|503|504|524|service[\s-]?unavailable|server[\s-]?error|internal[\s-]?error|fetch\s+failed|enotfound|eai_again|socket\s+hang\s+up|timed?\s*out|timeout|premature\s+close|stream\s+ended\s+before|http2\s+request\s+did\s+not\s+get\s+a_response|resourcelexexhausted)/i;
-
-/**
- * Non-retryable, non-recoverable errors — Pi's classifier rejects these,
- * and a model switch would hit the same wall (auth, policy, bad input).
+ * Errors that are unrecoverable for FALLBACK purposes — a model switch
+ * would hit the same wall (auth, policy, bad input). These are pi-free's
+ * own additions, NOT part of pi-ai's retry classifier (pi-ai only decides
+ * retry-vs-give-up for the same model; we decide switch-vs-stay).
  */
 const FATAL_ERROR_PATTERN =
 	/(?:invalid[_ -]?api[_ -]?key|invalid[_ -]?request|context[_ -]?length[_ -]?exceeded|model[_ -]?not[_ -]?found|permission[_ -]?denied|unauthorized|forbidden)/i;
 
 /**
+ * The lazily-loaded pi-ai retry classifier (single-flight via
+ * `lib/pi-ai-loader.ts`). Undefined until the first failure loads it; a
+ * failed load falls back to pi-free's local tables below, so classification
+ * never blocks on pi-ai availability.
+ */
+type PiAiRetryModule = {
+	isRetryableAssistantError: (message: {
+		stopReason?: string;
+		errorMessage?: string;
+	}) => boolean;
+};
+let piAiRetryModule: PiAiRetryModule | undefined;
+let piAiRetryLoadAttempted = false;
+
+async function loadPiAiRetryClassifier(): Promise<PiAiRetryModule | undefined> {
+	if (piAiRetryLoadAttempted) return piAiRetryModule;
+	piAiRetryLoadAttempted = true;
+	try {
+		// SAFETY: the bare pi-ai root re-exports utils/retry (dist/index.js:
+		// `export * from "./utils/retry.js"`), but its shape isn't in our
+		// type scope; the invariant is enforced right after the import by a
+		// `typeof fn === "function"` check — anything else leaves
+		// piAiRetryModule undefined and classification falls back to the
+		// local tables.
+		const mod = (await import("@earendil-works/pi-ai")) as unknown as
+			Record<string, unknown>;
+		const fn = mod.isRetryableAssistantError;
+		if (typeof fn === "function") {
+			piAiRetryModule = {
+				isRetryableAssistantError:
+					fn as PiAiRetryModule["isRetryableAssistantError"],
+			};
+		}
+	} catch {
+		// pi-ai unavailable (headless edge case) — local tables take over.
+	}
+	return piAiRetryModule;
+}
+
+/**
+ * Local fallback tables, used only if pi-ai's classifier cannot load.
+ * Kept minimal: they mirror the SHAPE of pi-ai's classification (fatal →
+ * unrecoverable, provider-limit/transient → recoverable) but only as a
+ * degraded mode — the authoritative tables live in pi-ai.
+ */
+const PROVIDER_LIMIT_ERROR_PATTERN =
+	/(?:usage\s*limit\s*error|monthly\s*usage\s*limit\s*reached|available\s*balance|insufficient[_\s-]?quota|out\s+of\s+budget|quota\s+exceeded|billing)/i;
+
+const TRANSIENT_ERROR_PATTERN =
+	/(?:overloaded|rate[\s-]?limit|too\s+many\s+requests|429|500|502|503|504|524|service[\s-]?unavailable|server[\s-]?error|internal[\s-]?error|fetch\s+failed|enotfound|eai_again|socket\s+hang\s+up|timed?\s*out|timeout|premature\s+close|stream\s+ended\s+before)/i;
+
+/**
+ * Local fallback classification (degraded mode only — see above).
+ */
+function classifyErrorMessageLocally(
+	errorMessage: string,
+): "recoverable" | "unrecoverable" | null {
+	if (FATAL_ERROR_PATTERN.test(errorMessage)) return "unrecoverable";
+	if (PROVIDER_LIMIT_ERROR_PATTERN.test(errorMessage)) return "recoverable";
+	if (TRANSIENT_ERROR_PATTERN.test(errorMessage)) return "recoverable";
+	return null;
+}
+
+/**
  * Classify an errorMessage string seen on `message_end.message`.
  *
- * Returns the FIRST matching pattern class. Order matters:
- * 1. Fatal (clearly unrecoverable — don't waste fallback attempts)
- * 2. Provider limit (recoverable — switch provider)
- * 3. Transient (recoverable — Pi may retry; we may also switch)
- * 4. null = no signal (e.g., empty errorMessage)
+ * Primary path: pi-ai's `isRetryableAssistantError` (lockstep with Pi's
+ * own retry semantics). Fallback: local tables. pi-ai returns false for
+ * provider-limit errors ("out of credits") — same-model retry cannot fix
+ * those, but a model switch can, so they map to RECOVERABLE here.
  *
  * Per AGENTS.md convention 17: we read the errorMessage TEXT only when it
  * arrives on `message_end.message` (Pi-composed, already in the session
  * transcript); we never read response bodies from `after_provider_response`.
+ *
+ * @returns the failure kind, or null when the message carries no usable
+ *   signal (empty message, or no pattern matched anywhere).
  */
 export function classifyErrorMessage(
 	errorMessage: string | undefined,
 ): FailureKind | null {
 	if (!errorMessage) return null;
 	if (FATAL_ERROR_PATTERN.test(errorMessage)) return "unrecoverable";
-	if (PROVIDER_LIMIT_ERROR_PATTERN.test(errorMessage)) return "recoverable";
-	if (TRANSIENT_ERROR_PATTERN.test(errorMessage)) return "recoverable";
-	return null;
+
+	if (piAiRetryModule) {
+		// pi-ai "retryable" → transient: same-model retry may work, a switch
+		// may too → recoverable. pi-ai "non-retryable" splits two ways:
+		// quota/limit classes (same-model retry is hopeless, a switch is
+		// THE fix → recoverable) vs no-signal (→ null, honest unknown).
+		if (
+			piAiRetryModule.isRetryableAssistantError({
+				stopReason: "error",
+				errorMessage,
+			})
+		) {
+			return "recoverable";
+		}
+		return PROVIDER_LIMIT_ERROR_PATTERN.test(errorMessage)
+			? "recoverable"
+			: null;
+	}
+	// Kick off the async load for next time (fire-and-forget; the current
+	// call uses the local tables so classification stays synchronous).
+	void loadPiAiRetryClassifier();
+	return classifyErrorMessageLocally(errorMessage);
 }
 
 /**
