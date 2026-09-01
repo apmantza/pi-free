@@ -5,8 +5,9 @@
  * then asserts that auto-fallback:
  *   - registers three commands (Q17 = B)
  *   - records the failure in the blacklist (Q9)
- *   - switches model via setModel when agent_end fires with willRetry:false
- *   - does NOT switch when willRetry:true (Q30 = B; Pi still trying)
+ *   - switches model via setModel at agent_settled when the run failed
+ *     with a classified, recoverable error (Pi retries internally BEFORE
+ *     settle — agent_settled means no further automatic retry will run)
  *   - early-returns when free-only is off (Q2)
  *
  * Mocks the registry + config so we don't touch the user's ~/.pi/free.json.
@@ -55,9 +56,7 @@ vi.mock("../lib/registry.ts", () => ({
 import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 import { createAutoFallback } from "../lib/auto-fallback/index.ts";
 
-interface EventHandler {
-	(event: unknown, ctx: unknown): void | Promise<void>;
-}
+type EventHandler = (event: unknown, ctx: unknown) => void | Promise<void>
 
 interface MockPi {
 	on: ReturnType<typeof vi.fn>;
@@ -68,7 +67,11 @@ interface MockPi {
 	handlers: Record<string, EventHandler[]>;
 }
 
-function buildMockPi(initialModel: { provider: string; id: string }): MockPi {
+function buildMockPi(_initialModel: {
+	provider: string;
+	id: string;
+}): MockPi {
+	// _initialModel is unused — the active model comes from buildMockCtx per event.
 	const handlers: Record<string, EventHandler[]> = {};
 	const commands: Record<string, { description: string; handler: Function }> = {};
 	const pi: MockPi = {
@@ -188,7 +191,7 @@ describe("auto-fallback integration", () => {
 		);
 	});
 
-	it("switches model when agent_end fires with willRetry=false and an error message", async () => {
+	it("switches model when the run settles with a classified error", async () => {
 		const pi = buildMockPi({ provider: "kilo", id: "gpt-4o" });
 		const handle = createAutoFallback();
 		handle.register(pi as unknown as Parameters<ReturnType<typeof createAutoFallback>["register"]>[0]);
@@ -205,6 +208,7 @@ describe("auto-fallback integration", () => {
 			"message_end",
 			{
 				message: {
+					role: "assistant",
 					provider: "kilo",
 					model: "gpt-4o",
 					stopReason: "error",
@@ -215,19 +219,8 @@ describe("auto-fallback integration", () => {
 		);
 		await emit(
 			pi,
-			"agent_end",
-			{
-				willRetry: false,
-				turnIndex: 1,
-				messages: [
-					{
-						provider: "kilo",
-						model: "gpt-4o",
-						stopReason: "error",
-						errorMessage: "rate limit exceeded",
-					},
-				],
-			},
+			"agent_settled",
+			{},
 			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
 		);
 
@@ -238,33 +231,6 @@ describe("auto-fallback integration", () => {
 		expect(status.blacklistSize).toBeGreaterThanOrEqual(1);
 	});
 
-	it("does NOT switch when agent_end fires with willRetry=true (Pi still trying)", async () => {
-		const pi = buildMockPi({ provider: "kilo", id: "gpt-4o" });
-		const handle = createAutoFallback();
-		handle.register(pi as unknown as Parameters<ReturnType<typeof createAutoFallback>["register"]>[0]);
-
-		await emit(pi, "session_start", {}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }));
-		await emit(
-			pi,
-			"agent_end",
-			{
-				willRetry: true,
-				turnIndex: 1,
-				messages: [
-					{
-						provider: "kilo",
-						model: "gpt-4o",
-						stopReason: "error",
-						errorMessage: "rate limit exceeded",
-					},
-				],
-			},
-			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
-		);
-
-		expect(pi.setModel).not.toHaveBeenCalled();
-	});
-
 	it("does NOT switch on unrecoverable errors (Q15)", async () => {
 		const pi = buildMockPi({ provider: "kilo", id: "gpt-4o" });
 		const handle = createAutoFallback();
@@ -273,19 +239,22 @@ describe("auto-fallback integration", () => {
 		await emit(pi, "session_start", {}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }));
 		await emit(
 			pi,
-			"agent_end",
+			"message_end",
 			{
-				willRetry: false,
-				turnIndex: 1,
-				messages: [
-					{
-						provider: "kilo",
-						model: "gpt-4o",
-						stopReason: "error",
-						errorMessage: "Invalid API key",
-					},
-				],
+				message: {
+					role: "assistant",
+					provider: "kilo",
+					model: "gpt-4o",
+					stopReason: "error",
+					errorMessage: "Invalid API key",
+				},
 			},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
+		await emit(
+			pi,
+			"agent_settled",
+			{},
 			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
 		);
 
@@ -311,19 +280,8 @@ describe("auto-fallback integration", () => {
 		await emit(pi, "session_start", {}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }));
 		await emit(
 			pi,
-			"agent_end",
-			{
-				willRetry: false,
-				turnIndex: 1,
-				messages: [
-					{
-						provider: "kilo",
-						model: "gpt-4o",
-						stopReason: "error",
-						errorMessage: "rate limit exceeded",
-					},
-				],
-			},
+			"agent_settled",
+			{},
 			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
 		);
 
@@ -347,8 +305,22 @@ describe("auto-fallback integration", () => {
 		await emit(pi, "session_start", {}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }));
 		await emit(
 			pi,
-			"after_provider_response",
-			{ status: 429, headers: {} },
+			"message_end",
+			{
+				message: {
+					role: "assistant",
+					provider: "kilo",
+					model: "gpt-4o",
+					stopReason: "error",
+					errorMessage: "rate limit exceeded",
+				},
+			},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
+		await emit(
+			pi,
+			"agent_settled",
+			{},
 			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
 		);
 		const statusBefore = handle.getStatus();
@@ -388,13 +360,9 @@ describe("auto-fallback integration", () => {
 
 		await emit(pi, "session_start", {}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }));
 		await emit(pi, "message_end", {
-			message: { provider: "kilo", model: "gpt-4o", stopReason: "error", errorMessage: "rate limit exceeded" },
+			message: { role: "assistant", provider: "kilo", model: "gpt-4o", stopReason: "error", errorMessage: "rate limit exceeded" },
 		}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }));
-		await emit(pi, "agent_end", {
-			willRetry: false,
-			turnIndex: 1,
-			messages: [{ provider: "kilo", model: "gpt-4o", stopReason: "error", errorMessage: "rate limit exceeded" }],
-		}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }));
+		await emit(pi, "agent_settled", {}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }));
 
 		expect(pi.setModel).toHaveBeenCalledTimes(1);
 		const switchedTo = pi.setModel.mock.calls[0][0] as { provider: string; id: string };
@@ -426,13 +394,9 @@ it("skips candidates whose provider has no usable auth and switches to the next 
 
 	await emit(pi, "session_start", {}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }, ["aaa"]));
 	await emit(pi, "message_end", {
-		message: { provider: "kilo", model: "gpt-4o", stopReason: "error", errorMessage: "rate limit exceeded" },
+		message: { role: "assistant", provider: "kilo", model: "gpt-4o", stopReason: "error", errorMessage: "rate limit exceeded" },
 	}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }, ["aaa"]));
-	await emit(pi, "agent_end", {
-		willRetry: false,
-		turnIndex: 1,
-		messages: [{ provider: "kilo", model: "gpt-4o", stopReason: "error", errorMessage: "rate limit exceeded" }],
-	}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }, ["aaa"]));
+	await emit(pi, "agent_settled", {}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }, ["aaa"]));
 
 	expect(pi.setModel).toHaveBeenCalledTimes(1);
 	const switchedTo = pi.setModel.mock.calls[0][0] as { provider: string; id: string };
@@ -454,26 +418,29 @@ it("skips candidates whose provider has no usable auth and switches to the next 
 		);
 		await emit(
 			pi,
-			"agent_end",
+			"message_end",
 			{
-				willRetry: false,
-				turnIndex: 1,
-				messages: [
-					{
-						provider: "kilo",
-						model: "gpt-4o",
-						stopReason: "error",
-						errorMessage: "rate limit exceeded",
-					},
-				],
+				message: {
+					role: "assistant",
+					provider: "kilo",
+					model: "gpt-4o",
+					stopReason: "error",
+					errorMessage: "rate limit exceeded",
+				},
 			},
 			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
 		);
-		// The switch happens here (in agent_end).
+		// The switch + strike happen at settle time.
+		await emit(
+			pi,
+			"agent_settled",
+			{},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
 		expect(pi.setModel).toHaveBeenCalledTimes(1);
 
-		// agent_settled fires after the failed run fully ends; that's where
-		// the auto-continue replay is dispatched.
+		// The auto-continue replay is dispatched on the NEXT settle (the
+		// replayed run's settle, with the switched model active).
 		await emit(
 			pi,
 			"agent_settled",
@@ -514,19 +481,22 @@ it("skips candidates whose provider has no usable auth and switches to the next 
 		);
 		await emit(
 			pi,
-			"agent_end",
+			"message_end",
 			{
-				willRetry: false,
-				turnIndex: 1,
-				messages: [
-					{
-						provider: "kilo",
-						model: "gpt-4o",
-						stopReason: "error",
-						errorMessage: "rate limit exceeded",
-					},
-				],
+				message: {
+					role: "assistant",
+					provider: "kilo",
+					model: "gpt-4o",
+					stopReason: "error",
+					errorMessage: "rate limit exceeded",
+				},
 			},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
+		await emit(
+			pi,
+			"agent_settled",
+			{},
 			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
 		);
 		expect(pi.setModel).toHaveBeenCalledTimes(1);
@@ -567,19 +537,22 @@ it("skips candidates whose provider has no usable auth and switches to the next 
 		);
 		await emit(
 			pi,
-			"agent_end",
+			"message_end",
 			{
-				willRetry: false,
-				turnIndex: 1,
-				messages: [
-					{
-						provider: "kilo",
-						model: "gpt-4o",
-						stopReason: "error",
-						errorMessage: "rate limit exceeded",
-					},
-				],
+				message: {
+					role: "assistant",
+					provider: "kilo",
+					model: "gpt-4o",
+					stopReason: "error",
+					errorMessage: "rate limit exceeded",
+				},
 			},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
+		await emit(
+			pi,
+			"agent_settled",
+			{},
 			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
 		);
 		await emit(
@@ -595,19 +568,22 @@ it("skips candidates whose provider has no usable auth and switches to the next 
 		// auto-replay (budget 1->0).
 		await emit(
 			pi,
-			"agent_end",
+			"message_end",
 			{
-				willRetry: false,
-				turnIndex: 2,
-				messages: [
-					{
-						provider: "kilo",
-						model: "claude-sonnet",
-						stopReason: "error",
-						errorMessage: "rate limit exceeded",
-					},
-				],
+				message: {
+					role: "assistant",
+					provider: "kilo",
+					model: "claude-sonnet",
+					stopReason: "error",
+					errorMessage: "rate limit exceeded",
+				},
 			},
+			buildMockCtx({ provider: "kilo", id: "claude-sonnet" }),
+		);
+		await emit(
+			pi,
+			"agent_settled",
+			{},
 			buildMockCtx({ provider: "kilo", id: "claude-sonnet" }),
 		);
 		await emit(
@@ -623,19 +599,22 @@ it("skips candidates whose provider has no usable auth and switches to the next 
 		// Budget is now 0 -> NO auto-replay.
 		await emit(
 			pi,
-			"agent_end",
+			"message_end",
 			{
-				willRetry: false,
-				turnIndex: 3,
-				messages: [
-					{
-						provider: "sambanova",
-						model: "llama-3.1-8b",
-						stopReason: "error",
-						errorMessage: "rate limit exceeded",
-					},
-				],
+				message: {
+					role: "assistant",
+					provider: "sambanova",
+					model: "llama-3.1-8b",
+					stopReason: "error",
+					errorMessage: "rate limit exceeded",
+				},
 			},
+			buildMockCtx({ provider: "sambanova", id: "llama-3.1-8b" }),
+		);
+		await emit(
+			pi,
+			"agent_settled",
+			{},
 			buildMockCtx({ provider: "sambanova", id: "llama-3.1-8b" }),
 		);
 		await emit(
@@ -663,19 +642,22 @@ it("skips candidates whose provider has no usable auth and switches to the next 
 		// First failure -> switch to claude-sonnet + auto-replay.
 		await emit(
 			pi,
-			"agent_end",
+			"message_end",
 			{
-				willRetry: false,
-				turnIndex: 1,
-				messages: [
-					{
-						provider: "kilo",
-						model: "gpt-4o",
-						stopReason: "error",
-						errorMessage: "rate limit exceeded",
-					},
-				],
+				message: {
+					role: "assistant",
+					provider: "kilo",
+					model: "gpt-4o",
+					stopReason: "error",
+					errorMessage: "rate limit exceeded",
+				},
 			},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
+		await emit(
+			pi,
+			"agent_settled",
+			{},
 			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
 		);
 		await emit(
@@ -690,17 +672,14 @@ it("skips candidates whose provider has no usable auth and switches to the next 
 		// path resets budget to max.
 		await emit(
 			pi,
-			"agent_end",
+			"message_end",
 			{
-				willRetry: false,
-				turnIndex: 2,
-				messages: [
-					{
-						provider: "kilo",
-						model: "claude-sonnet",
-						stopReason: "stop",
-					},
-				],
+				message: {
+					role: "assistant",
+					provider: "kilo",
+					model: "claude-sonnet",
+					stopReason: "stop",
+				},
 			},
 			buildMockCtx({ provider: "kilo", id: "claude-sonnet" }),
 		);
@@ -721,21 +700,25 @@ it("skips candidates whose provider has no usable auth and switches to the next 
 		);
 		await emit(
 			pi,
-			"agent_end",
+			"message_end",
 			{
-				willRetry: false,
-				turnIndex: 3,
-				messages: [
-					{
-						provider: "kilo",
-						model: "claude-sonnet",
-						stopReason: "error",
-						errorMessage: "rate limit exceeded",
-					},
-				],
+				message: {
+					role: "assistant",
+					provider: "kilo",
+					model: "claude-sonnet",
+					stopReason: "error",
+					errorMessage: "rate limit exceeded",
+				},
 			},
 			buildMockCtx({ provider: "kilo", id: "claude-sonnet" }),
 		);
+		await emit(
+			pi,
+			"agent_settled",
+			{},
+			buildMockCtx({ provider: "kilo", id: "claude-sonnet" }),
+		);
+		// The switch lands on sambanova; its settle dispatches the replay.
 		await emit(
 			pi,
 			"agent_settled",

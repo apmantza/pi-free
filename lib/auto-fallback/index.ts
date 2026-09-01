@@ -40,11 +40,7 @@ import type {
 import { getProviderRegistry } from "../registry.ts";
 import { fallbackState } from "../fallback-state.ts";
 import { createLogger } from "../logger.ts";
-import {
-	classifyAssistantFailure,
-	classifyAbort,
-	classifyHttpStatus,
-} from "./classifier.ts";
+import { classifyAssistantFailure, classifyAbort } from "./classifier.ts";
 import { createBlacklist, type Blacklist } from "./blacklist.ts";
 import { getAutoFallbackConfig } from "./config.ts";
 import {
@@ -103,9 +99,28 @@ export function createAutoFallback(): AutoFallbackHandle {
 	const blacklist: Blacklist = createBlacklist();
 	const history: HistoryEntry[] = [];
 	let preFallbackModel: { provider: string; modelId: string } | null = null;
-	const handledFailureKeys = new Set<string>();
 	let lastSeenCtx: ExtensionContext | undefined;
 	let pi: ExtensionAPI | undefined;
+
+	/**
+	 * The most recent ASSISTANT message observed on `message_end`, kept
+	 * until the next `agent_settled`. `agent_settled` carries no payload,
+	 * so the settled-time decisions (recovery / strike / switch) read the
+	 * run's final assistant message from this observer instead. Storing —
+	 * not classifying — here keeps strike accounting in exactly one place
+	 * (the settled handler) so one failed request is one strike no matter
+	 * how many times Pi's internal retries re-emit message events.
+	 */
+	let lastAssistantMessage: AssistantMessageLike | null = null;
+
+	/** Minimal assistant-message shape the settled-time logic needs. */
+	interface AssistantMessageLike {
+		role?: string;
+		provider?: string;
+		model?: string;
+		stopReason?: string;
+		errorMessage?: string;
+	}
 
 	// Auto-continue: capture the user's most recent prompt so that after a
 	// successful fallback switch we can re-issue it on the new model without
@@ -117,8 +132,7 @@ export function createAutoFallback(): AutoFallbackHandle {
 		images?: unknown[];
 	}
 	let lastUserPrompt: CapturedPrompt | null = null;
-	let pendingAutoContinue: { failureKey: string; turnIndex: number | undefined } | null =
-		null;
+	let pendingAutoContinue: { failureKey: string } | null = null;
 	let autoContinueBudget = 0;
 	let budgetInitialized = false;
 
@@ -178,7 +192,6 @@ export function createAutoFallback(): AutoFallbackHandle {
 		ctx: ExtensionContext,
 		failureReason: string,
 		failureKey: string,
-		turnIndex: number | undefined,
 	): Promise<{ switched: boolean; reason: string }> {
 		if (!pi) return { switched: false, reason: "pi-not-registered" };
 		const current = ctx.model;
@@ -298,11 +311,9 @@ export function createAutoFallback(): AutoFallbackHandle {
 				`auto-fallback: switched ${modelKey(provider, modelId)} → ${modelKey(cand.provider, cand.modelId)} (reason=${failureReason})`,
 			);
 
-			const idemKey = `${failureKey}:${turnIndex ?? "?"}`;
-			handledFailureKeys.add(idemKey);
 			// Mark for auto-continue: agent_settled will replay the captured
 			// prompt on the new model so the user doesn't have to re-send.
-			pendingAutoContinue = { failureKey, turnIndex };
+			pendingAutoContinue = { failureKey };
 			return { switched: true, reason: failureReason };
 		}
 
@@ -346,10 +357,6 @@ export function createAutoFallback(): AutoFallbackHandle {
 			}
 			preFallbackModel = null;
 		});
-	}
-
-	function clearHandledFailures(): void {
-		if (handledFailureKeys.size > 64) handledFailureKeys.clear();
 	}
 
 	function noCandidatesAvailable(): boolean {
@@ -405,12 +412,19 @@ export function createAutoFallback(): AutoFallbackHandle {
 	 */
 	function safeSendUserMessage(content: string | unknown[]): void {
 		if (!pi) return;
-		const sender = (pi as unknown as {
-			sendUserMessage?: (
-				content: unknown,
-				options?: { expandPromptTemplates?: boolean },
-			) => Promise<unknown> | void;
-		}).sendUserMessage;
+		// SAFETY: pi's runtime instance exposes `sendUserMessage` (the TUI
+		// prompt path) but the extension-facing `ExtensionAPI` type omits it,
+		// so the access is duck-typed and feature-detected via `typeof` —
+		// the invariant is that we only call it when the property exists,
+		// and we never send non-prompt content.
+		const sender = (
+			pi as unknown as {
+				sendUserMessage?: (
+					content: unknown,
+					options?: { expandPromptTemplates?: boolean },
+				) => Promise<unknown> | void;
+			}
+		).sendUserMessage;
 		if (typeof sender !== "function") return;
 		try {
 			void sender(content, { expandPromptTemplates: false });
@@ -433,9 +447,9 @@ export function createAutoFallback(): AutoFallbackHandle {
 			});
 
 			extensionPi.on("session_start", () => {
-				handledFailureKeys.clear();
 				pendingAutoContinue = null;
 				lastUserPrompt = null;
+				lastAssistantMessage = null;
 				budgetInitialized = false;
 			});
 
@@ -456,175 +470,170 @@ export function createAutoFallback(): AutoFallbackHandle {
 				},
 			);
 
-			extensionPi.on(
-				"after_provider_response",
-				(event, ctx) => {
-					lastSeenCtx = ctx;
-					if (!isAutoFallbackLive()) return;
-					const provider = ctx.model?.provider;
-					const modelId = ctx.model?.id;
-					if (!provider || !modelId) return;
-					fallbackState.recordResponse(provider, modelId, event.status);
-					const kind = classifyHttpStatus(event.status);
-					if (kind === "recoverable" || kind === "unrecoverable") {
-						blacklist.recordFailure(
-							modelKey(provider, modelId),
-							`http:${event.status}`,
-						);
-					}
-				},
+			extensionPi.on("after_provider_response", (event, ctx) => {
+				lastSeenCtx = ctx;
+				if (!isAutoFallbackLive()) return;
+				const provider = ctx.model?.provider;
+				const modelId = ctx.model?.id;
+				if (!provider || !modelId) return;
+				// Observation only. Strikes are recorded in ONE place — the
+				// agent_settled handler — so a single failed request (which
+				// Pi's internal retries can re-emit here several times)
+				// counts as ONE strike, not three-plus.
+				fallbackState.recordResponse(provider, modelId, event.status);
+			},
 			);
 
+			// message_end is an observation point only: it records the run's
+			// latest assistant message for the settled-time decisions, and
+			// records NO strikes. (Striking here would (a) multi-count one
+			// failure together with the settled-time strike and (b) burn
+			// strikes on user-initiated aborts — Esc on a slow stream —
+			// violating convention #15: aborts are expected, not failures.)
 			extensionPi.on("message_end", (event, ctx) => {
 				lastSeenCtx = ctx;
 				if (!isAutoFallbackLive()) return;
 				const msg = (
 					event as {
-						message?: {
-							provider?: string;
-							model?: string;
-							stopReason?: string;
-							errorMessage?: string;
-						};
+						message?: AssistantMessageLike;
 					}
 				).message;
-				if (!msg) return;
-				const provider = msg.provider ?? ctx.model?.provider;
-				const modelId = msg.model ?? ctx.model?.id;
-				if (!provider || !modelId) return;
-				const classified = classifyAssistantFailure(
-					msg.stopReason,
-					msg.errorMessage,
-				);
-				if (!classified) return;
-				blacklist.recordFailure(
-					modelKey(provider, modelId),
-					msg.stopReason === "aborted"
-						? "abort"
-						: msg.errorMessage?.slice(0, 80) ?? "error",
-				);
+				if (!msg || msg.role !== "assistant") return;
+				lastAssistantMessage = msg;
 			});
 
-			extensionPi.on("agent_end", async (event, ctx) => {
-				lastSeenCtx = ctx;
-				clearHandledFailures();
-				if (!isAutoFallbackLive()) return;
-				const willRetry =
-					(event as { willRetry?: boolean }).willRetry === true;
-				if (willRetry) return;
-				const messages = (
-					event as {
-						messages?: Array<{
-							provider?: string;
-							model?: string;
-							stopReason?: string;
-							errorMessage?: string;
-						}>;
-					}
-				).messages;
-				if (!Array.isArray(messages) || messages.length === 0) return;
+			// agent_end fires BEFORE Pi enriches willRetry (enrichment is for
+			// SDK listeners only — agent-session.js emits
+			// `{ ...event, willRetry }` to `this._emit` AFTER
+			// `_emitExtensionEvent`), and its extension payload is just
+			// `{ type, messages }` with no turnIndex. It also fires while
+			// retry/compaction/continuation may still be pending. The
+			// AgentSettledEvent contract is the reliable trigger:
+			// "Fired after an agent run has fully settled and no automatic
+			// retry, compaction, or queued continuation will run."
+			//
+			// This single handler owns ALL decisions (recovery, strikes,
+			// switching, auto-continue) so each settled run is processed
+			// exactly once, in order.
+			extensionPi.on(
+				"agent_settled",
+				async (_event, ctx) => {
+					lastSeenCtx = ctx;
+					if (!isAutoFallbackLive()) return;
+					if (!ctx.model) return;
 
-				const lastAssistant = [...messages]
-					.reverse()
-					.find(
-						(m) =>
-							m.stopReason === "error" || m.stopReason === "aborted",
-					);
-				if (!lastAssistant) {
-					// Successful turn (no error/aborted in any assistant
-					// message). Refill the auto-continue budget so a future,
-					// independent failure gets a fresh allowance rather than
-					// being penalised by a previous failure chain.
-					autoContinueBudget = getAutoFallbackConfig().autoContinueMax;
-					budgetInitialized = true;
-					return;
-				}
+					// `agent_settled` carries no payload; the run's final
+					// assistant message arrives via the message_end observer
+					// above. Null means the run produced no assistant message
+					// at all — nothing to classify either way.
+					const lastAssistant = lastAssistantMessage;
+					lastAssistantMessage = null;
 
-				const provider = lastAssistant.provider ?? ctx.model?.provider;
-				const modelId = lastAssistant.model ?? ctx.model?.id;
-				if (!provider || !modelId) return;
-
-				let failureReason = lastAssistant.stopReason ?? "error";
-				const classified = classifyAssistantFailure(
-					lastAssistant.stopReason,
-					lastAssistant.errorMessage,
-				);
-				if (!classified) return;
-				if (classified === "unrecoverable") return;
-
-				// Abort refinement (Q23 = B): combine with last HTTP status.
-				if (lastAssistant.stopReason === "aborted") {
-					const lastStatus = fallbackState.getLastStatus(provider, modelId);
-					const abortKind = classifyAbort(lastStatus);
-					if (!abortKind) return; // user-initiated, not a failure
-					if (abortKind === "unrecoverable") return;
-					failureReason = `abort+http:${lastStatus ?? "?"}`;
-				}
-
-				const failureKey = `${provider}/${modelId}`;
-				const turnIndex = (event as { turnIndex?: number }).turnIndex;
-				const idemKey = `${failureKey}:${turnIndex ?? "?"}`;
-				if (handledFailureKeys.has(idemKey)) return;
-				handledFailureKeys.add(idemKey);
-
-				await performSwitch(ctx, failureReason, failureKey, turnIndex);
-			});
-
-			extensionPi.on("agent_settled", async (_event, ctx) => {
-				lastSeenCtx = ctx;
-				if (!isAutoFallbackLive()) return;
-				if (!ctx.model) return;
-				const key = modelKey(ctx.model.provider, ctx.model.id);
-				const entry = [...history].reverse().find((h) => h.toKey === key);
-				if (entry && !entry.recovered) {
-					entry.recovered = true;
-					blacklist.clear(key);
-					getNotifier().clearStatus();
-					// Budget is refilled in agent_end on a successful turn
-					// (not here on landing) so a chained-failure loop
-					// depletes it instead of being reset every switch.
-					maybeRestorePreFallback(ctx);
-				}
-
-				// Auto-continue: if we just switched due to a failure, replay
-				// the captured prompt on the now-active model so the user
-				// doesn't have to re-send manually. Pi has no turn-replay hook
-				// (issue #1248, not_planned), so this is the only way to keep
-				// the conversation moving. Bounded by autoContinueBudget to
-				// prevent infinite auto-replay loops when many models fail in
-				// a row.
-				if (pendingAutoContinue) {
-					const cfg = getAutoFallbackConfig();
-					// Lazy first-time init: the recovery block already (re)sets
-					// the budget when a prior switch recovered. For the very
-					// first auto-continuation of a session there is no prior
-					// recovery, so we seed the budget here from config.
-					if (!budgetInitialized) {
-						autoContinueBudget = cfg.autoContinueMax;
+					// --- Recovery: only a run that finished CLEANLY un-bans
+					// --- the model it landed on and refills the budget.
+					const runClean =
+						lastAssistant != null &&
+						lastAssistant.stopReason !== "error" &&
+						lastAssistant.stopReason !== "aborted";
+					if (runClean) {
+						autoContinueBudget =
+							getAutoFallbackConfig().autoContinueMax;
 						budgetInitialized = true;
+						const key = modelKey(ctx.model.provider, ctx.model.id);
+						const entry = [...history]
+							.reverse()
+							.find((h) => h.toKey === key);
+						if (entry && !entry.recovered) {
+							entry.recovered = true;
+							blacklist.clear(key);
+							getNotifier().clearStatus();
+							maybeRestorePreFallback(ctx);
+						}
 					}
-					if (
-						cfg.autoContinue &&
-						autoContinueBudget > 0 &&
-						lastUserPrompt &&
-						lastUserPrompt.text
-					) {
-						autoContinueBudget--;
-						const prompt = lastUserPrompt;
-						const content: string | unknown[] =
-							prompt.images && prompt.images.length > 0
-								? [{ type: "text", text: prompt.text }, ...prompt.images]
-								: prompt.text;
-						_logger.info(
-							`auto-fallback: auto-continuing on ${ctx.model.provider}/${ctx.model.id} (budget remaining: ${autoContinueBudget})`,
+
+					// --- Auto-continue: replay the captured prompt on the
+					// --- now-active model after a switch.
+					if (pendingAutoContinue) {
+						const cfg = getAutoFallbackConfig();
+						if (!budgetInitialized) {
+							autoContinueBudget = cfg.autoContinueMax;
+							budgetInitialized = true;
+						}
+						if (
+							cfg.autoContinue &&
+							autoContinueBudget > 0 &&
+							lastUserPrompt &&
+							lastUserPrompt.text
+						) {
+							autoContinueBudget--;
+							const prompt = lastUserPrompt;
+							const content: string | unknown[] =
+								prompt.images && prompt.images.length > 0
+									? [
+										{ type: "text", text: prompt.text },
+										...prompt.images,
+									]
+									: prompt.text;
+							_logger.info(
+								`auto-fallback: auto-continuing on ${ctx.model.provider}/${ctx.model.id} (budget remaining: ${autoContinueBudget})`,
+							);
+							pendingAutoContinue = null;
+							safeSendUserMessage(content);
+						} else {
+							pendingAutoContinue = null;
+						}
+					}
+
+					// --- Failure handling: ONE strike per settled run.
+					const isFailure =
+						lastAssistant != null &&
+						(lastAssistant.stopReason === "error" ||
+							lastAssistant.stopReason === "aborted");
+					if (!isFailure || lastAssistant == null) {
+						return; // clean run — nothing to do
+					}
+					const failureAssistant: AssistantMessageLike = lastAssistant;
+
+					const failingProvider =
+						failureAssistant.provider ?? ctx.model.provider;
+					const failingModelId =
+						failureAssistant.model ?? ctx.model.id;
+					if (!failingProvider || !failingModelId) return;
+
+					let failureReason = failureAssistant.stopReason ?? "error";
+					const classified = classifyAssistantFailure(
+						failureAssistant.stopReason,
+						failureAssistant.errorMessage,
+					);
+					if (!classified) return;
+					if (classified === "unrecoverable") return;
+
+					// Abort refinement (Q23 = B): combine with last HTTP
+					// status. A user-initiated abort (Esc on a slow stream
+					// with no 5xx) is NOT a failure — no strike, no switch
+					// (convention #15: aborts are expected, not failures).
+					if (failureAssistant.stopReason === "aborted") {
+						const lastStatus = fallbackState.getLastStatus(
+							failingProvider,
+							failingModelId,
 						);
-						pendingAutoContinue = null;
-						safeSendUserMessage(content);
-					} else {
-						pendingAutoContinue = null;
+						const abortKind = classifyAbort(lastStatus);
+						if (!abortKind) return; // user-initiated
+						if (abortKind === "unrecoverable") return;
+						failureReason = `abort+http:${lastStatus ?? "?"}`;
 					}
-				}
-			});
+
+					const failureKey = `${failingProvider}/${failingModelId}`;
+					// One strike per settled run, recorded in exactly one
+					// place. Pi's internal retries (which re-emit
+					// after_provider_response / message_end per attempt) no
+					// longer inflate the count, so the 10-min TTL soft
+					// window is meaningful again.
+					blacklist.recordFailure(failureKey, failureReason);
+
+					await performSwitch(ctx, failureReason, failureKey);
+				},
+			);
 
 			extensionPi.on("model_select", (_event, ctx) => {
 				lastSeenCtx = ctx;
