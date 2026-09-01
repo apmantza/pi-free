@@ -158,6 +158,20 @@ interface PiFreeConfig {
 	opencode_free_show_paid?: boolean;
 	opencode_go_show_paid?: boolean;
 	qoder_show_paid?: boolean;
+
+	// Auto-fallback configuration (see lib/auto-fallback/config.ts for
+	// resolution + defaults).
+	auto_fallback?: boolean;
+	auto_fallback_scope?: "provider" | "global" | "whitelist";
+	auto_fallback_providers?: string[];
+	auto_fallback_blacklist_ttl_ms?: number;
+	auto_fallback_blacklist_max?: number;
+	fallback_notify?: "silent" | "toast" | "status_bar" | "both";
+	fallback_restore?: "manual" | "auto_next_turn" | "auto_session_end";
+	// Re-issue the user's last prompt on the new model after a fallback
+	// switch (loop-bounded by `auto_fallback_auto_continue_max`).
+	auto_fallback_auto_continue?: boolean;
+	auto_fallback_auto_continue_max?: number;
 }
 
 const CONFIG_TEMPLATE: PiFreeConfig = {
@@ -217,6 +231,15 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	opencode_free_show_paid: false,
 	opencode_go_show_paid: false,
 	qoder_show_paid: false,
+
+	// Auto-fallback defaults (lib/auto-fallback/config.ts reads these).
+	auto_fallback: false,
+	auto_fallback_scope: "provider",
+	auto_fallback_providers: [],
+	auto_fallback_blacklist_ttl_ms: 600000, // 10 minutes
+	auto_fallback_blacklist_max: 3,
+	fallback_notify: "toast",
+	fallback_restore: "manual",
 };
 
 const CONFIG_PATH = join(PI_DATA_DIR, "free.json");

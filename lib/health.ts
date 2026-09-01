@@ -11,6 +11,7 @@ import {
 	isFileLoggingEnabled,
 } from "./logger.ts";
 import { getAllResponseCounters } from "./quota-monitor.ts";
+import { getAutoFallback } from "./auto-fallback-status.ts";
 
 /**
  * Render a credential-free diagnostic report for `/pi-free-health`.
@@ -71,6 +72,21 @@ export function formatHealthReport(): string {
 	}
 	if (registry.size === 0) {
 		lines.push("No providers are registered; check the log for setup errors.");
+	}
+
+	// Auto-fallback status (Q32 = B). Credential-free: only enabled flag,
+	// counts, and the last failure class — never keys, tokens, or models
+	// payload. Missing handle (extension not initialized yet) is treated as
+	// "not loaded" rather than "broken".
+	const fallback = getAutoFallback();
+	if (fallback) {
+		const status = fallback.getStatus();
+		const statusLine =
+			`auto_fallback: ${status.enabled ? "enabled" : "disabled"}` +
+			` (switches: ${status.switchCount}` +
+			(status.lastSwitchReason ? `, last: ${status.lastSwitchReason}` : "") +
+			`${status.exhausted ? ", EXHAUSTED" : ""})`;
+		lines.push(statusLine);
 	}
 
 	return lines.join("\n");

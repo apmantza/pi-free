@@ -276,34 +276,34 @@ already have a working `kiro_profile_arn` set).~~
 
 **Status: shipped in #487** (Phases A through F of `docs/kiro-web-portal-auth.md`):
 
-- **Phase A (#486)** — design document. The kiro Web Portal auth flow
++ **Phase A (#486)** — design document. The kiro Web Portal auth flow
   was reverse-engineered from `keggin-CHN/kiro-auto-register`,
   `ZyphrZero/kiro.rs`, `1070920013wh/kiro-gateway`,
   `kirodotdev/Kiro` docs, and live probes against `app.kiro.dev`. The
   protocol is Smithy `rpc-v2-cbor` with the 4 operations we need
   (`InitiateLogin`, `ExchangeToken`, `GetUserInfo`, and the
   `prod.{region}.auth.desktop.kiro.dev/refreshToken` JSON endpoint).
-- **Phase B** — typed CBOR encode/decode wrapper in
++ **Phase B** — typed CBOR encode/decode wrapper in
   `providers/kiro/kiro-web-portal-cbor.ts` plus the `cbor-x@^1.6.6`
   dep. 16 unit tests.
-- **Phase C** — PKCE helper (`kiro-pkce.ts`, RFC 7636, 10 unit tests
++ **Phase C** — PKCE helper (`kiro-pkce.ts`, RFC 7636, 10 unit tests
   including the Appendix B known-answer vector) + HTTP client
   (`kiro-web-portal.ts`, 15 unit tests with credential redaction
   enforcement).
-- **Phase D** — the driver in `providers/kiro/kiro-desktop-auth.ts`
++ **Phase D** — the driver in `providers/kiro/kiro-desktop-auth.ts`
   (16 unit tests). Uses a manual-paste fallback for the browser
   redirect because the AWS SSO authorize URL hardcodes the
   `callback_url` to Cognito (not localhost), so a local listener
   can't catch the redirect. `refreshKiroCredential` in
   `kiro-auth.ts` got a new `web-portal` branch that delegates to
   `refreshKiroDesktopCredential`.
-- **Phase E** — `kiro_auth_method` config knob
++ **Phase E** — `kiro_auth_method` config knob
   (`"idc" | "web-portal" | "kiro-cli"`) with migration-safe defaults
   (users with a working `kiro_profile_arn` keep `"idc"`), plus the
   `readPersistedKiroProfileArn()` helper in
   `providers/kiro/kiro-credential.ts` that reads the persisted ARN
   from `~/.pi/agent/auth.json`. 15 new tests.
-- **Phase F** — live API test driver at
++ **Phase F** — live API test driver at
   `scripts/test-kiro-desktop.mjs`. End-to-end protocol verified
   against the real Kiro Web Portal (HTTP 200, real `applicationArn`,
   real `redirectUrl` with all the right params).
