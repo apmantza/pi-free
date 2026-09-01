@@ -37,10 +37,16 @@ const mockGetAutoFallbackConfig = vi.fn<() => MockFallbackConfig>(() => ({
 	autoContinueMax: 3,
 }));
 const mockSaveConfig = vi.fn();
-const mockProviderRegistry = new Map<string, {
-	stored: { free: Array<{ id: string; name: string }>; all: Array<{ id: string; name: string }> };
-	reRegister: ReturnType<typeof vi.fn>;
-}>();
+const mockProviderRegistry = new Map<
+	string,
+	{
+		stored: {
+			free: Array<{ id: string; name: string }>;
+			all: Array<{ id: string; name: string }>;
+		};
+		reRegister: ReturnType<typeof vi.fn>;
+	}
+>();
 
 vi.mock("../lib/auto-fallback/config.ts", () => ({
 	getAutoFallbackConfig: () => mockGetAutoFallbackConfig(),
@@ -56,7 +62,7 @@ vi.mock("../lib/registry.ts", () => ({
 import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 import { createAutoFallback } from "../lib/auto-fallback/index.ts";
 
-type EventHandler = (event: unknown, ctx: unknown) => void | Promise<void>
+type EventHandler = (event: unknown, ctx: unknown) => void | Promise<void>;
 
 interface MockPi {
 	on: ReturnType<typeof vi.fn>;
@@ -67,13 +73,11 @@ interface MockPi {
 	handlers: Record<string, EventHandler[]>;
 }
 
-function buildMockPi(_initialModel: {
-	provider: string;
-	id: string;
-}): MockPi {
+function buildMockPi(_initialModel: { provider: string; id: string }): MockPi {
 	// _initialModel is unused — the active model comes from buildMockCtx per event.
 	const handlers: Record<string, EventHandler[]> = {};
-	const commands: Record<string, { description: string; handler: Function }> = {};
+	const commands: Record<string, { description: string; handler: Function }> =
+		{};
 	const pi: MockPi = {
 		handlers,
 		commands,
@@ -84,9 +88,11 @@ function buildMockPi(_initialModel: {
 		// Pi's top-level sendUserMessage (ExtensionAPI) — used by auto-
 		// fallback's auto-continue to replay the last prompt after a switch.
 		sendUserMessage: vi.fn(async () => {}),
-		registerCommand: vi.fn((name: string, config: { description: string; handler: Function }) => {
-			commands[name] = config;
-		}),
+		registerCommand: vi.fn(
+			(name: string, config: { description: string; handler: Function }) => {
+				commands[name] = config;
+			},
+		),
 	};
 
 	// Pre-register a session_start so lastSeenCtx + session_start cleanup run.
@@ -176,7 +182,11 @@ afterEach(() => {
 describe("auto-fallback integration", () => {
 	it("registers the three slash commands (Q17 = B)", () => {
 		const pi = buildMockPi({ provider: "kilo", id: "gpt-4o" });
-		createAutoFallback().register(pi as unknown as Parameters<ReturnType<typeof createAutoFallback>["register"]>[0]);
+		createAutoFallback().register(
+			pi as unknown as Parameters<
+				ReturnType<typeof createAutoFallback>["register"]
+			>[0],
+		);
 		expect(pi.registerCommand).toHaveBeenCalledWith(
 			"toggle-auto-fallback",
 			expect.objectContaining({ handler: expect.any(Function) }),
@@ -194,9 +204,18 @@ describe("auto-fallback integration", () => {
 	it("switches model when the run settles with a classified error", async () => {
 		const pi = buildMockPi({ provider: "kilo", id: "gpt-4o" });
 		const handle = createAutoFallback();
-		handle.register(pi as unknown as Parameters<ReturnType<typeof createAutoFallback>["register"]>[0]);
+		handle.register(
+			pi as unknown as Parameters<
+				ReturnType<typeof createAutoFallback>["register"]
+			>[0],
+		);
 
-		await emit(pi, "session_start", {}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }));
+		await emit(
+			pi,
+			"session_start",
+			{},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
 		await emit(
 			pi,
 			"after_provider_response",
@@ -234,9 +253,18 @@ describe("auto-fallback integration", () => {
 	it("does NOT switch on unrecoverable errors (Q15)", async () => {
 		const pi = buildMockPi({ provider: "kilo", id: "gpt-4o" });
 		const handle = createAutoFallback();
-		handle.register(pi as unknown as Parameters<ReturnType<typeof createAutoFallback>["register"]>[0]);
+		handle.register(
+			pi as unknown as Parameters<
+				ReturnType<typeof createAutoFallback>["register"]
+			>[0],
+		);
 
-		await emit(pi, "session_start", {}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }));
+		await emit(
+			pi,
+			"session_start",
+			{},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
 		await emit(
 			pi,
 			"message_end",
@@ -275,9 +303,18 @@ describe("auto-fallback integration", () => {
 		});
 		const pi = buildMockPi({ provider: "kilo", id: "gpt-4o" });
 		const handle = createAutoFallback();
-		handle.register(pi as unknown as Parameters<ReturnType<typeof createAutoFallback>["register"]>[0]);
+		handle.register(
+			pi as unknown as Parameters<
+				ReturnType<typeof createAutoFallback>["register"]
+			>[0],
+		);
 
-		await emit(pi, "session_start", {}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }));
+		await emit(
+			pi,
+			"session_start",
+			{},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
 		await emit(
 			pi,
 			"agent_settled",
@@ -290,7 +327,11 @@ describe("auto-fallback integration", () => {
 
 	it("/toggle-auto-fallback persists the new state (Q6)", async () => {
 		const pi = buildMockPi({ provider: "kilo", id: "gpt-4o" });
-		createAutoFallback().register(pi as unknown as Parameters<ReturnType<typeof createAutoFallback>["register"]>[0]);
+		createAutoFallback().register(
+			pi as unknown as Parameters<
+				ReturnType<typeof createAutoFallback>["register"]
+			>[0],
+		);
 
 		const ctx = buildMockCtx({ provider: "kilo", id: "gpt-4o" });
 		await pi.commands["toggle-auto-fallback"].handler([], ctx);
@@ -300,9 +341,18 @@ describe("auto-fallback integration", () => {
 	it("/reset-fallback-blacklist clears every entry (Q10 = A escape hatch)", async () => {
 		const pi = buildMockPi({ provider: "kilo", id: "gpt-4o" });
 		const handle = createAutoFallback();
-		handle.register(pi as unknown as Parameters<ReturnType<typeof createAutoFallback>["register"]>[0]);
+		handle.register(
+			pi as unknown as Parameters<
+				ReturnType<typeof createAutoFallback>["register"]
+			>[0],
+		);
 
-		await emit(pi, "session_start", {}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }));
+		await emit(
+			pi,
+			"session_start",
+			{},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
 		await emit(
 			pi,
 			"message_end",
@@ -356,59 +406,133 @@ describe("auto-fallback integration", () => {
 
 		const pi = buildMockPi({ provider: "kilo", id: "gpt-4o" });
 		const handle = createAutoFallback();
-		handle.register(pi as unknown as Parameters<ReturnType<typeof createAutoFallback>["register"]>[0]);
+		handle.register(
+			pi as unknown as Parameters<
+				ReturnType<typeof createAutoFallback>["register"]
+			>[0],
+		);
 
-		await emit(pi, "session_start", {}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }));
-		await emit(pi, "message_end", {
-			message: { role: "assistant", provider: "kilo", model: "gpt-4o", stopReason: "error", errorMessage: "rate limit exceeded" },
-		}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }));
-		await emit(pi, "agent_settled", {}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }));
+		await emit(
+			pi,
+			"session_start",
+			{},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
+		await emit(
+			pi,
+			"message_end",
+			{
+				message: {
+					role: "assistant",
+					provider: "kilo",
+					model: "gpt-4o",
+					stopReason: "error",
+					errorMessage: "rate limit exceeded",
+				},
+			},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
+		await emit(
+			pi,
+			"agent_settled",
+			{},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
 
 		expect(pi.setModel).toHaveBeenCalledTimes(1);
-		const switchedTo = pi.setModel.mock.calls[0][0] as { provider: string; id: string };
-	expect(switchedTo.provider).toBe("sambanova");
-	expect(switchedTo.id).toBe("llama-3.1-8b");
-});
-
-it("skips candidates whose provider has no usable auth and switches to the next usable one (Q-B)", async () => {
-	// kilo (failing) exposes only one free model. The global fall-through
-	// pool contains `aaa` (NO auth) and `zzz` (has auth). `aaa` sorts first
-	// but must be skipped, so the switch lands on `zzz`.
-	mockProviderRegistry.clear();
-	mockProviderRegistry.set("kilo", {
-		stored: { free: [{ id: "gpt-4o", name: "gpt-4o" }], all: [{ id: "gpt-4o", name: "gpt-4o" }] },
-		reRegister: vi.fn(),
-	});
-	mockProviderRegistry.set("aaa", {
-		stored: { free: [{ id: "nokey-model", name: "nokey-model" }], all: [{ id: "nokey-model", name: "nokey-model" }] },
-		reRegister: vi.fn(),
-	});
-	mockProviderRegistry.set("zzz", {
-		stored: { free: [{ id: "good-model", name: "good-model" }], all: [{ id: "good-model", name: "good-model" }] },
-		reRegister: vi.fn(),
+		const switchedTo = pi.setModel.mock.calls[0][0] as {
+			provider: string;
+			id: string;
+		};
+		expect(switchedTo.provider).toBe("sambanova");
+		expect(switchedTo.id).toBe("llama-3.1-8b");
 	});
 
-	const pi = buildMockPi({ provider: "kilo", id: "gpt-4o" });
-	const handle = createAutoFallback();
-	handle.register(pi as unknown as Parameters<ReturnType<typeof createAutoFallback>["register"]>[0]);
+	it("skips candidates whose provider has no usable auth and switches to the next usable one (Q-B)", async () => {
+		// kilo (failing) exposes only one free model. The global fall-through
+		// pool contains `aaa` (NO auth) and `zzz` (has auth). `aaa` sorts first
+		// but must be skipped, so the switch lands on `zzz`.
+		mockProviderRegistry.clear();
+		mockProviderRegistry.set("kilo", {
+			stored: {
+				free: [{ id: "gpt-4o", name: "gpt-4o" }],
+				all: [{ id: "gpt-4o", name: "gpt-4o" }],
+			},
+			reRegister: vi.fn(),
+		});
+		mockProviderRegistry.set("aaa", {
+			stored: {
+				free: [{ id: "nokey-model", name: "nokey-model" }],
+				all: [{ id: "nokey-model", name: "nokey-model" }],
+			},
+			reRegister: vi.fn(),
+		});
+		mockProviderRegistry.set("zzz", {
+			stored: {
+				free: [{ id: "good-model", name: "good-model" }],
+				all: [{ id: "good-model", name: "good-model" }],
+			},
+			reRegister: vi.fn(),
+		});
 
-	await emit(pi, "session_start", {}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }, ["aaa"]));
-	await emit(pi, "message_end", {
-		message: { role: "assistant", provider: "kilo", model: "gpt-4o", stopReason: "error", errorMessage: "rate limit exceeded" },
-	}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }, ["aaa"]));
-	await emit(pi, "agent_settled", {}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }, ["aaa"]));
+		const pi = buildMockPi({ provider: "kilo", id: "gpt-4o" });
+		const handle = createAutoFallback();
+		handle.register(
+			pi as unknown as Parameters<
+				ReturnType<typeof createAutoFallback>["register"]
+			>[0],
+		);
 
-	expect(pi.setModel).toHaveBeenCalledTimes(1);
-	const switchedTo = pi.setModel.mock.calls[0][0] as { provider: string; id: string };
-	expect(switchedTo.provider).toBe("zzz");
-	expect(switchedTo.id).toBe("good-model");
-});
+		await emit(
+			pi,
+			"session_start",
+			{},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }, ["aaa"]),
+		);
+		await emit(
+			pi,
+			"message_end",
+			{
+				message: {
+					role: "assistant",
+					provider: "kilo",
+					model: "gpt-4o",
+					stopReason: "error",
+					errorMessage: "rate limit exceeded",
+				},
+			},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }, ["aaa"]),
+		);
+		await emit(
+			pi,
+			"agent_settled",
+			{},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }, ["aaa"]),
+		);
+
+		expect(pi.setModel).toHaveBeenCalledTimes(1);
+		const switchedTo = pi.setModel.mock.calls[0][0] as {
+			provider: string;
+			id: string;
+		};
+		expect(switchedTo.provider).toBe("zzz");
+		expect(switchedTo.id).toBe("good-model");
+	});
 
 	it("auto-continues by replaying the captured prompt after a switch (Q-C)", async () => {
 		const pi = buildMockPi({ provider: "kilo", id: "gpt-4o" });
-		createAutoFallback().register(pi as unknown as Parameters<ReturnType<typeof createAutoFallback>["register"]>[0]);
+		createAutoFallback().register(
+			pi as unknown as Parameters<
+				ReturnType<typeof createAutoFallback>["register"]
+			>[0],
+		);
 
-		await emit(pi, "session_start", {}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }));
+		await emit(
+			pi,
+			"session_start",
+			{},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
 		// Capture the user's prompt via before_agent_start.
 		await emit(
 			pi,
@@ -470,9 +594,18 @@ it("skips candidates whose provider has no usable auth and switches to the next 
 			autoContinueMax: 3,
 		});
 		const pi = buildMockPi({ provider: "kilo", id: "gpt-4o" });
-		createAutoFallback().register(pi as unknown as Parameters<ReturnType<typeof createAutoFallback>["register"]>[0]);
+		createAutoFallback().register(
+			pi as unknown as Parameters<
+				ReturnType<typeof createAutoFallback>["register"]
+			>[0],
+		);
 
-		await emit(pi, "session_start", {}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }));
+		await emit(
+			pi,
+			"session_start",
+			{},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
 		await emit(
 			pi,
 			"before_agent_start",
@@ -524,11 +657,20 @@ it("skips candidates whose provider has no usable auth and switches to the next 
 			autoContinueMax: 2, // tight budget so we hit the cap quickly
 		});
 		const pi = buildMockPi({ provider: "kilo", id: "gpt-4o" });
-		createAutoFallback().register(pi as unknown as Parameters<ReturnType<typeof createAutoFallback>["register"]>[0]);
+		createAutoFallback().register(
+			pi as unknown as Parameters<
+				ReturnType<typeof createAutoFallback>["register"]
+			>[0],
+		);
 
 		// Cycle 1: kilo/gpt-4o fails -> switch to kilo/claude-sonnet ->
 		// auto-replay (budget 2->1).
-		await emit(pi, "session_start", {}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }));
+		await emit(
+			pi,
+			"session_start",
+			{},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
 		await emit(
 			pi,
 			"before_agent_start",
@@ -629,9 +771,18 @@ it("skips candidates whose provider has no usable auth and switches to the next 
 
 	it("resets the auto-continue budget when the fallback model recovers (Q-C)", async () => {
 		const pi = buildMockPi({ provider: "kilo", id: "gpt-4o" });
-		createAutoFallback().register(pi as unknown as Parameters<ReturnType<typeof createAutoFallback>["register"]>[0]);
+		createAutoFallback().register(
+			pi as unknown as Parameters<
+				ReturnType<typeof createAutoFallback>["register"]
+			>[0],
+		);
 
-		await emit(pi, "session_start", {}, buildMockCtx({ provider: "kilo", id: "gpt-4o" }));
+		await emit(
+			pi,
+			"session_start",
+			{},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
 		await emit(
 			pi,
 			"before_agent_start",

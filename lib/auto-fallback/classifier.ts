@@ -121,8 +121,10 @@ async function loadPiAiRetryClassifier(): Promise<PiAiRetryModule | undefined> {
 		// `typeof fn === "function"` check — anything else leaves
 		// piAiRetryModule undefined and classification falls back to the
 		// local tables.
-		const mod = (await import("@earendil-works/pi-ai")) as unknown as
-			Record<string, unknown>;
+		const mod = (await import("@earendil-works/pi-ai")) as unknown as Record<
+			string,
+			unknown
+		>;
 		const fn = mod.isRetryableAssistantError;
 		if (typeof fn === "function") {
 			piAiRetryModule = {
@@ -194,9 +196,7 @@ export function classifyErrorMessage(
 		) {
 			return "recoverable";
 		}
-		return PROVIDER_LIMIT_ERROR_PATTERN.test(errorMessage)
-			? "recoverable"
-			: null;
+		return PROVIDER_LIMIT_ERROR_PATTERN.test(errorMessage) ? "recoverable" : null;
 	}
 	// Kick off the async load for next time (fire-and-forget; the current
 	// call uses the local tables so classification stays synchronous).

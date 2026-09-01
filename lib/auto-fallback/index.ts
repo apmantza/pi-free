@@ -50,10 +50,7 @@ import {
 	type FallbackScope,
 } from "./selection.ts";
 import { createNotifier, type Notifier } from "./notify.ts";
-import {
-	registerAutoFallbackCommands,
-	type HistoryEntry,
-} from "./commands.ts";
+import { registerAutoFallbackCommands, type HistoryEntry } from "./commands.ts";
 
 const _logger = createLogger("auto-fallback");
 
@@ -182,10 +179,7 @@ export function createAutoFallback(): AutoFallbackHandle {
 		const out: FallbackCandidate[] = [];
 		for (const [providerId, entry] of registry) {
 			if (scope === "provider" && providerId !== failingProvider) continue;
-			if (
-				scope === "whitelist" &&
-				!cfg.whitelistProviders.includes(providerId)
-			) {
+			if (scope === "whitelist" && !cfg.whitelistProviders.includes(providerId)) {
 				continue;
 			}
 			for (const m of entry.stored.free) {
@@ -291,10 +285,7 @@ export function createAutoFallback(): AutoFallbackHandle {
 			if (!hasAuth) {
 				// Provider has no usable auth (e.g. needs an API key). Skip it
 				// and remember not to retry it this session window.
-				blacklist.recordFailure(
-					modelKey(cand.provider, cand.modelId),
-					"no-auth",
-				);
+				blacklist.recordFailure(modelKey(cand.provider, cand.modelId), "no-auth");
 				tried++;
 				continue;
 			}
@@ -385,10 +376,7 @@ export function createAutoFallback(): AutoFallbackHandle {
 		const failingProvider = lastSeenCtx?.model?.provider;
 		let hasAny = false;
 		for (const [providerId, entry] of registry) {
-			if (
-				cfg.scope === "provider" &&
-				providerId !== failingProvider
-			) {
+			if (cfg.scope === "provider" && providerId !== failingProvider) {
 				continue;
 			}
 			if (
@@ -479,16 +467,13 @@ export function createAutoFallback(): AutoFallbackHandle {
 
 			// Capture the user's most recent prompt so we can replay it on
 			// the new model after an auto-fallback switch (see safeSendUserMessage).
-			extensionPi.on(
-				"before_agent_start",
-				(event, ctx) => {
-					lastSeenCtx = ctx;
-					const e = event as { prompt?: string; images?: unknown[] };
-					if (e && typeof e.prompt === "string") {
-						lastUserPrompt = { text: e.prompt, images: e.images };
-					}
-				},
-			);
+			extensionPi.on("before_agent_start", (event, ctx) => {
+				lastSeenCtx = ctx;
+				const e = event as { prompt?: string; images?: unknown[] };
+				if (e && typeof e.prompt === "string") {
+					lastUserPrompt = { text: e.prompt, images: e.images };
+				}
+			});
 
 			extensionPi.on("after_provider_response", (event, ctx) => {
 				lastSeenCtx = ctx;
@@ -501,8 +486,7 @@ export function createAutoFallback(): AutoFallbackHandle {
 				// Pi's internal retries can re-emit here several times)
 				// counts as ONE strike, not three-plus.
 				fallbackState.recordResponse(provider, modelId, event.status);
-			},
-			);
+			});
 
 			// message_end is an observation point only: it records the run's
 			// latest assistant message for the settled-time decisions, and
@@ -535,129 +519,118 @@ export function createAutoFallback(): AutoFallbackHandle {
 			// This single handler owns ALL decisions (recovery, strikes,
 			// switching, auto-continue) so each settled run is processed
 			// exactly once, in order.
-			extensionPi.on(
-				"agent_settled",
-				async (_event, ctx) => {
-					lastSeenCtx = ctx;
-					if (!isAutoFallbackLive()) return;
-					if (!ctx.model) return;
+			extensionPi.on("agent_settled", async (_event, ctx) => {
+				lastSeenCtx = ctx;
+				if (!isAutoFallbackLive()) return;
+				if (!ctx.model) return;
 
-					// `agent_settled` carries no payload; the run's final
-					// assistant message arrives via the message_end observer
-					// above. Null means the run produced no assistant message
-					// at all — nothing to classify either way.
-					const lastAssistant = lastAssistantMessage;
-					lastAssistantMessage = null;
+				// `agent_settled` carries no payload; the run's final
+				// assistant message arrives via the message_end observer
+				// above. Null means the run produced no assistant message
+				// at all — nothing to classify either way.
+				const lastAssistant = lastAssistantMessage;
+				lastAssistantMessage = null;
 
-					// --- Recovery: only a run that finished CLEANLY un-bans
-					// --- the model it landed on and refills the budget.
-					const runClean =
-						lastAssistant != null &&
-						lastAssistant.stopReason !== "error" &&
-						lastAssistant.stopReason !== "aborted";
-					if (runClean) {
-						autoContinueBudget =
-							getAutoFallbackConfig().autoContinueMax;
+				// --- Recovery: only a run that finished CLEANLY un-bans
+				// --- the model it landed on and refills the budget.
+				const runClean =
+					lastAssistant != null &&
+					lastAssistant.stopReason !== "error" &&
+					lastAssistant.stopReason !== "aborted";
+				if (runClean) {
+					autoContinueBudget = getAutoFallbackConfig().autoContinueMax;
+					budgetInitialized = true;
+					const key = modelKey(ctx.model.provider, ctx.model.id);
+					const entry = [...history].reverse().find((h) => h.toKey === key);
+					if (entry && !entry.recovered) {
+						entry.recovered = true;
+						// Un-ban the model that FAILED (the history entry's
+						// fromKey — the only key with strikes). Clearing the
+						// landing key would be a no-op: it was never struck,
+						// which left the failed model banned forever.
+						blacklist.clear(entry.fromKey);
+						getNotifier().clearStatus();
+						maybeRestorePreFallback(ctx);
+					}
+				}
+
+				// --- Auto-continue: replay the captured prompt on the
+				// --- now-active model after a switch.
+				if (pendingAutoContinue) {
+					const cfg = getAutoFallbackConfig();
+					if (!budgetInitialized) {
+						autoContinueBudget = cfg.autoContinueMax;
 						budgetInitialized = true;
-						const key = modelKey(ctx.model.provider, ctx.model.id);
-						const entry = [...history]
-							.reverse()
-							.find((h) => h.toKey === key);
-						if (entry && !entry.recovered) {
-							entry.recovered = true;
-							// Un-ban the model that FAILED (the history entry's
-							// fromKey — the only key with strikes). Clearing the
-							// landing key would be a no-op: it was never struck,
-							// which left the failed model banned forever.
-							blacklist.clear(entry.fromKey);
-							getNotifier().clearStatus();
-							maybeRestorePreFallback(ctx);
-						}
 					}
-
-					// --- Auto-continue: replay the captured prompt on the
-					// --- now-active model after a switch.
-					if (pendingAutoContinue) {
-						const cfg = getAutoFallbackConfig();
-						if (!budgetInitialized) {
-							autoContinueBudget = cfg.autoContinueMax;
-							budgetInitialized = true;
-						}
-						if (
-							cfg.autoContinue &&
-							autoContinueBudget > 0 &&
-							lastUserPrompt &&
-							lastUserPrompt.text
-						) {
-							autoContinueBudget--;
-							const prompt = lastUserPrompt;
-							const content: string | unknown[] =
-								prompt.images && prompt.images.length > 0
-									? [
-										{ type: "text", text: prompt.text },
-										...prompt.images,
-									]
-									: prompt.text;
-							_logger.info(
-								`auto-fallback: auto-continuing on ${ctx.model.provider}/${ctx.model.id} (budget remaining: ${autoContinueBudget})`,
-							);
-							pendingAutoContinue = null;
-							safeSendUserMessage(content);
-						} else {
-							pendingAutoContinue = null;
-						}
-					}
-
-					// --- Failure handling: ONE strike per settled run.
-					const isFailure =
-						lastAssistant != null &&
-						(lastAssistant.stopReason === "error" ||
-							lastAssistant.stopReason === "aborted");
-					if (!isFailure || lastAssistant == null) {
-						return; // clean run — nothing to do
-					}
-					const failureAssistant: AssistantMessageLike = lastAssistant;
-
-					const failingProvider =
-						failureAssistant.provider ?? ctx.model.provider;
-					const failingModelId =
-						failureAssistant.model ?? ctx.model.id;
-					if (!failingProvider || !failingModelId) return;
-
-					let failureReason = failureAssistant.stopReason ?? "error";
-					const classified = classifyAssistantFailure(
-						failureAssistant.stopReason,
-						failureAssistant.errorMessage,
-					);
-					if (!classified) return;
-					if (classified === "unrecoverable") return;
-
-					// Abort refinement (Q23 = B): combine with last HTTP
-					// status. A user-initiated abort (Esc on a slow stream
-					// with no 5xx) is NOT a failure — no strike, no switch
-					// (convention #15: aborts are expected, not failures).
-					if (failureAssistant.stopReason === "aborted") {
-						const lastStatus = fallbackState.getLastStatus(
-							failingProvider,
-							failingModelId,
+					if (
+						cfg.autoContinue &&
+						autoContinueBudget > 0 &&
+						lastUserPrompt &&
+						lastUserPrompt.text
+					) {
+						autoContinueBudget--;
+						const prompt = lastUserPrompt;
+						const content: string | unknown[] =
+							prompt.images && prompt.images.length > 0
+								? [{ type: "text", text: prompt.text }, ...prompt.images]
+								: prompt.text;
+						_logger.info(
+							`auto-fallback: auto-continuing on ${ctx.model.provider}/${ctx.model.id} (budget remaining: ${autoContinueBudget})`,
 						);
-						const abortKind = classifyAbort(lastStatus);
-						if (!abortKind) return; // user-initiated
-						if (abortKind === "unrecoverable") return;
-						failureReason = `abort+http:${lastStatus ?? "?"}`;
+						pendingAutoContinue = null;
+						safeSendUserMessage(content);
+					} else {
+						pendingAutoContinue = null;
 					}
+				}
 
-					const failureKey = `${failingProvider}/${failingModelId}`;
-					// One strike per settled run, recorded in exactly one
-					// place. Pi's internal retries (which re-emit
-					// after_provider_response / message_end per attempt) no
-					// longer inflate the count, so the 10-min TTL soft
-					// window is meaningful again.
-					blacklist.recordFailure(failureKey, failureReason);
+				// --- Failure handling: ONE strike per settled run.
+				const isFailure =
+					lastAssistant != null &&
+					(lastAssistant.stopReason === "error" ||
+						lastAssistant.stopReason === "aborted");
+				if (!isFailure || lastAssistant == null) {
+					return; // clean run — nothing to do
+				}
+				const failureAssistant: AssistantMessageLike = lastAssistant;
 
-					await performSwitch(ctx, failureReason, failureKey);
-				},
-			);
+				const failingProvider = failureAssistant.provider ?? ctx.model.provider;
+				const failingModelId = failureAssistant.model ?? ctx.model.id;
+				if (!failingProvider || !failingModelId) return;
+
+				let failureReason = failureAssistant.stopReason ?? "error";
+				const classified = classifyAssistantFailure(
+					failureAssistant.stopReason,
+					failureAssistant.errorMessage,
+				);
+				if (!classified) return;
+				if (classified === "unrecoverable") return;
+
+				// Abort refinement (Q23 = B): combine with last HTTP
+				// status. A user-initiated abort (Esc on a slow stream
+				// with no 5xx) is NOT a failure — no strike, no switch
+				// (convention #15: aborts are expected, not failures).
+				if (failureAssistant.stopReason === "aborted") {
+					const lastStatus = fallbackState.getLastStatus(
+						failingProvider,
+						failingModelId,
+					);
+					const abortKind = classifyAbort(lastStatus);
+					if (!abortKind) return; // user-initiated
+					if (abortKind === "unrecoverable") return;
+					failureReason = `abort+http:${lastStatus ?? "?"}`;
+				}
+
+				const failureKey = `${failingProvider}/${failingModelId}`;
+				// One strike per settled run, recorded in exactly one
+				// place. Pi's internal retries (which re-emit
+				// after_provider_response / message_end per attempt) no
+				// longer inflate the count, so the 10-min TTL soft
+				// window is meaningful again.
+				blacklist.recordFailure(failureKey, failureReason);
+
+				await performSwitch(ctx, failureReason, failureKey);
+			});
 
 			extensionPi.on("model_select", (_event, ctx) => {
 				lastSeenCtx = ctx;

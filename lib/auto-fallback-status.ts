@@ -15,12 +15,12 @@ let getAutoFallbackHandle: (() => AutoFallbackHandle | undefined) | undefined;
 
 /** Register (or replace) the status accessor. Called from `index.ts` setup. */
 export function registerAutoFallbackStatusGetter(
-	getter: () => AutoFallbackHandle | undefined,
+ getter: () => AutoFallbackHandle | undefined,
 ): void {
-	getAutoFallbackHandle = getter;
+ getAutoFallbackHandle = getter;
 }
 
 /** Read the current handle, or undefined when the extension isn't wired yet. */
 export function getAutoFallback(): AutoFallbackHandle | undefined {
-	return getAutoFallbackHandle?.();
+ return getAutoFallbackHandle?.();
 }

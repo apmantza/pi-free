@@ -84,9 +84,7 @@ export function formatHealthReport(): string {
 		const statusLine =
 			`auto_fallback: ${status.enabled ? "enabled" : "disabled"}` +
 			` (switches: ${status.switchCount}` +
-			(status.lastSwitchReason
-				? `, last: ${status.lastSwitchReason}`
-				: "") +
+			(status.lastSwitchReason ? `, last: ${status.lastSwitchReason}` : "") +
 			`${status.exhausted ? ", EXHAUSTED" : ""})`;
 		lines.push(statusLine);
 	}

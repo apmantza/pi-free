@@ -151,10 +151,12 @@ const { registerAutoFallbackStatusGetter } = await import(
 const { formatHealthReport } = await import("../lib/health.ts");
 const { loadConfigFile, updateConfig } = await import("../config.ts");
 
-type Emit = (event: string, payload: unknown, ctx: unknown) => Promise<void>
+type Emit = (event: string, payload: unknown, ctx: unknown) => Promise<void>;
 
-const handlers: Record<string, Array<(e: unknown, ctx: unknown) => unknown>> =
-	{};
+const handlers: Record<
+	string,
+	Array<(e: unknown, ctx: unknown) => unknown>
+> = {};
 const setModelCalls: unknown[] = [];
 const sentMessages: unknown[] = [];
 
@@ -198,9 +200,13 @@ if (cfgBefore.auto_fallback !== false) {
 	);
 }
 const status0 = handle.getStatus();
-if (status0.enabled !== false) fail(`default enabled should be false, got ${status0.enabled}`);
-if (status0.switchCount !== 0) fail(`initial switchCount should be 0, got ${status0.switchCount}`);
-console.log(`✓ 1. default status: enabled=false, switches=0 (opt-in by default)`);
+if (status0.enabled !== false)
+	fail(`default enabled should be false, got ${status0.enabled}`);
+if (status0.switchCount !== 0)
+	fail(`initial switchCount should be 0, got ${status0.switchCount}`);
+console.log(
+	`✓ 1. default status: enabled=false, switches=0 (opt-in by default)`,
+);
 
 // --- 2. Enable via the real config path, then fail + settle -----------------
 
@@ -209,9 +215,13 @@ await updateConfig((current) => ({
 	auto_fallback: true,
 }));
 if (handle.getStatus().enabled !== true) {
-	fail("getStatus().enabled should be true after updateConfig({auto_fallback:true})");
+	fail(
+		"getStatus().enabled should be true after updateConfig({auto_fallback:true})",
+	);
 }
-console.log(`✓ 2. config round-trip: /toggle-style write is visible to getStatus()`);
+console.log(
+	`✓ 2. config round-trip: /toggle-style write is visible to getStatus()`,
+);
 
 // Realistic failure sequence against the REAL registry: the failing
 // provider has NO configured auth on its models (pi-free's anonymous-
@@ -233,7 +243,9 @@ await emit("agent_settled", {}, makeCtx("afb-failing", "afb-fail-model"));
 
 const status1 = handle.getStatus();
 if (status1.switchCount !== 1) {
-	fail(`after failure+settle, switchCount should be 1, got ${status1.switchCount}`);
+	fail(
+		`after failure+settle, switchCount should be 1, got ${status1.switchCount}`,
+	);
 }
 if (status1.blacklistSize < 1) {
 	fail(`after failure+settle, blacklist should hold the failing model`);
@@ -243,7 +255,9 @@ if (
 	switchedTo?.provider !== "afb-target" ||
 	switchedTo?.id !== "afb-target-model"
 ) {
-	fail(`fallback should land on afb-target/afb-target-model, got ${JSON.stringify(switchedTo)}`);
+	fail(
+		`fallback should land on afb-target/afb-target-model, got ${JSON.stringify(switchedTo)}`,
+	);
 }
 console.log(
 	`✓ 3. failure → real-registry selection → setModel(afb-target/afb-target-model), blacklist=${status1.blacklistSize}`,
@@ -267,15 +281,21 @@ await emit("agent_settled", {}, makeCtx("afb-target", "afb-target-model"));
 
 const status2 = handle.getStatus();
 if (status2.blacklistSize !== 0) {
-	fail(`after clean settle, failing model should be un-banned, blacklist=${status2.blacklistSize}`);
+	fail(
+		`after clean settle, failing model should be un-banned, blacklist=${status2.blacklistSize}`,
+	);
 }
-console.log(`✓ 4. clean settle → recovery: blacklist cleared, switches=${status2.switchCount}`);
+console.log(
+	`✓ 4. clean settle → recovery: blacklist cleared, switches=${status2.switchCount}`,
+);
 
 // --- 4. /pi-free-health reports the live handle through the registry --------
 
 const report = formatHealthReport();
 if (!report.includes("auto_fallback")) {
-	fail("formatHealthReport() missing auto_fallback line — status registration broken");
+	fail(
+		"formatHealthReport() missing auto_fallback line — status registration broken",
+	);
 }
 console.log(`✓ 5. /pi-free-health auto_fallback line present:`);
 console.log(
@@ -287,4 +307,6 @@ console.log(
 );
 
 rmSync(sandbox, { recursive: true, force: true });
-console.log(`\nSMOKE OK — status surface verified against a real ModelRuntime (sandbox ${sandbox} removed)`);
+console.log(
+	`\nSMOKE OK — status surface verified against a real ModelRuntime (sandbox ${sandbox} removed)`,
+);

@@ -66,7 +66,11 @@ const DEFAULTS: AutoFallbackConfig = {
 };
 
 /** env > file boolean resolution (same precedence as config.ts resolveBool). */
-function envBool(envKey: string, fileVal: boolean | undefined, fallback: boolean): boolean {
+function envBool(
+	envKey: string,
+	fileVal: boolean | undefined,
+	fallback: boolean,
+): boolean {
 	const raw = process.env[envKey];
 	if (raw === "true") return true;
 	if (raw === "false") return false;
@@ -75,7 +79,11 @@ function envBool(envKey: string, fileVal: boolean | undefined, fallback: boolean
 }
 
 /** env > file number resolution. */
-function envNumber(envKey: string, fileVal: number | undefined, fallback: number): number {
+function envNumber(
+	envKey: string,
+	fileVal: number | undefined,
+	fallback: number,
+): number {
 	const raw = process.env[envKey];
 	if (raw !== undefined) {
 		const parsed = Number(raw);
@@ -86,17 +94,25 @@ function envNumber(envKey: string, fileVal: number | undefined, fallback: number
 
 /** env > file string resolution. */
 function envString(envKey: string, fileVal: unknown): string | undefined {
-	return process.env[envKey] || (typeof fileVal === "string" && fileVal.trim() ? fileVal.trim() : undefined);
+	return (
+		process.env[envKey] ||
+		(typeof fileVal === "string" && fileVal.trim() ? fileVal.trim() : undefined)
+	);
 }
 
 /** env > file string[] resolution (comma-separated env value). */
 function envStringList(envKey: string, fileVal: unknown): string[] | undefined {
 	const envRaw = process.env[envKey];
 	if (envRaw !== undefined) {
-		return envRaw.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+		return envRaw
+			.split(",")
+			.map((s) => s.trim())
+			.filter((s) => s.length > 0);
 	}
 	if (Array.isArray(fileVal)) {
-		const out = fileVal.filter((e): e is string => typeof e === "string" && e.length > 0);
+		const out = fileVal.filter(
+			(e): e is string => typeof e === "string" && e.length > 0,
+		);
 		if (out.length > 0) return out;
 	}
 	return undefined;
@@ -135,8 +151,9 @@ export function getAutoFallbackConfig(): AutoFallbackConfig {
 	const result: AutoFallbackConfig = {
 		enabled: envBool("AUTO_FALLBACK", cfg.auto_fallback, DEFAULTS.enabled),
 		scope: parseScope(envString("AUTO_FALLBACK_SCOPE", cfg.auto_fallback_scope)),
-		whitelistProviders:
-			parseWhitelist(envStringList("AUTO_FALLBACK_PROVIDERS", cfg.auto_fallback_providers)),
+		whitelistProviders: parseWhitelist(
+			envStringList("AUTO_FALLBACK_PROVIDERS", cfg.auto_fallback_providers),
+		),
 		blacklistTtlMs: envNumber(
 			"AUTO_FALLBACK_BLACKLIST_TTL_MS",
 			cfg.auto_fallback_blacklist_ttl_ms,
@@ -147,8 +164,12 @@ export function getAutoFallbackConfig(): AutoFallbackConfig {
 			cfg.auto_fallback_blacklist_max,
 			DEFAULTS.blacklistMaxStrikes,
 		),
-		notifyLevel: parseNotifyLevel(envString("FALLBACK_NOTIFY", cfg.fallback_notify)),
-		restoreMode: parseRestoreMode(envString("FALLBACK_RESTORE", cfg.fallback_restore)),
+		notifyLevel: parseNotifyLevel(
+			envString("FALLBACK_NOTIFY", cfg.fallback_notify),
+		),
+		restoreMode: parseRestoreMode(
+			envString("FALLBACK_RESTORE", cfg.fallback_restore),
+		),
 		autoContinue: envBool(
 			"AUTO_FALLBACK_AUTO_CONTINUE",
 			cfg.auto_fallback_auto_continue,
