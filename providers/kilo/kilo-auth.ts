@@ -50,12 +50,6 @@ export async function fetchKiloBalance(token: string): Promise<number | null> {
 	}
 }
 
-export function formatCredits(balance: number): string {
-	return balance >= 1000
-		? `$${(balance / 1000).toFixed(1)}k`
-		: `$${balance.toFixed(2)}`;
-}
-
 // =============================================================================
 // Device auth
 // =============================================================================

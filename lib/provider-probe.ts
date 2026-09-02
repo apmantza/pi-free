@@ -37,7 +37,7 @@ const _logger = createLogger("provider-probe");
 // Types
 // =============================================================================
 
-export type ProbeModelFn = (
+type ProbeModelFn = (
 	apiKey: string,
 	modelId: string,
 ) => Promise<"ok" | "broken" | "unknown">;
@@ -118,9 +118,7 @@ export function createOpenAIAvailabilityProbe(
 					},
 					10_000,
 				);
-				return response.status === 404 || response.status >= 500
-					? "broken"
-					: "ok";
+				return response.status === 404 || response.status >= 500 ? "broken" : "ok";
 			} catch {
 				return "unknown";
 			}

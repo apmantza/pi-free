@@ -19,11 +19,7 @@
  * (free providers flip free/paid status frequently).
  */
 
-import { createLogger } from "../logger.ts";
-
-const _logger = createLogger("auto-fallback");
-
-export interface BlacklistEntry {
+interface BlacklistEntry {
 	/** Consecutive failure count within the current TTL window. */
 	count: number;
 	/**
@@ -77,7 +73,7 @@ class BlacklistState {
 	 *
 	 * @param key - Composite key, conventionally `${provider}/${modelId}`.
 	 * @param reason - Short error class label (e.g. "429", "quota"). NOT the
- *     full errorMessage; that is for log/notify only.
+	 *     full errorMessage; that is for log/notify only.
 	 * @returns The updated record, or null if the entry was just evicted.
 	 */
 	recordFailure(
@@ -146,7 +142,11 @@ class BlacklistState {
 }
 
 export interface Blacklist {
-	recordFailure(key: string, reason: string, now?: number): BlacklistEntry | null;
+	recordFailure(
+		key: string,
+		reason: string,
+		now?: number,
+	): BlacklistEntry | null;
 	clear(key: string): void;
 	clearAll(): number;
 	isBlacklisted(key: string, now?: number): boolean;

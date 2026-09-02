@@ -163,5 +163,3 @@ export async function fetchCommandCodeModels(
 export function apiForModel(modelId: string): Api {
 	return apiForCommandCodeModel(modelId);
 }
-
-export { TEMPORARY_PRICING };

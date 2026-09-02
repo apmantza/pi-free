@@ -31,7 +31,7 @@ async function resolveFastrouterApiKey(input: {
 	};
 }
 
-export const fastrouterApiKeyAuth: ApiKeyAuth = {
+const fastrouterApiKeyAuth: ApiKeyAuth = {
 	name: "FastRouter API key",
 	async login(interaction: AuthInteraction): Promise<ApiKeyCredential> {
 		const key = await interaction.prompt({

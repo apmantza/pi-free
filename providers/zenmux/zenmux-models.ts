@@ -15,7 +15,7 @@ import { createLogger } from "../../lib/logger.ts";
 
 const _logger = createLogger("zenmux-models");
 
-export interface ZenMuxModel {
+interface ZenMuxModel {
 	id: string;
 	display_name?: string;
 	context_length?: number;
@@ -32,7 +32,7 @@ export interface ZenMuxModel {
 }
 
 /** Extract ZenMux's per-million-token price as a per-token Pi cost. */
-export function extractZenmuxPrice(
+function extractZenmuxPrice(
 	pricings: ZenMuxModel["pricings"],
 	key: "prompt" | "completion" | "input_cache_read",
 ): number {
@@ -120,7 +120,7 @@ export async function fetchZenmuxCatalog(options: {
 	}
 }
 
-export function toZenmuxModel(
+function toZenmuxModel(
 	model: ProviderModelConfig,
 ): Model<"openai-completions"> {
 	return withGatewayCompat({

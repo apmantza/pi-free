@@ -77,11 +77,10 @@ export async function fetchWithTimeout(
 	}
 
 	try {
-		const response = await fetch(url, {
+		return await fetch(url, {
 			...options,
 			signal: controller.signal,
 		});
-		return response;
 	} finally {
 		clearTimeout(timeoutId);
 		upstreamSignal?.removeEventListener("abort", abortFromUpstream);
@@ -497,7 +496,7 @@ export interface OpenAIModelDefaults {
  * the standard OpenAI format. We accept them loosely and use what's
  * available, falling back to defaults otherwise.
  */
-export interface OpenAIModelEntry {
+interface OpenAIModelEntry {
 	id: string;
 	object?: string;
 	created?: number;

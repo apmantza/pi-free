@@ -55,7 +55,7 @@ import { registerAutoFallbackCommands, type HistoryEntry } from "./commands.ts";
 const _logger = createLogger("auto-fallback");
 
 /** Exposed for `/pi-free-health`. */
-export interface AutoFallbackStatus {
+interface AutoFallbackStatus {
 	enabled: boolean;
 	exhausted: boolean;
 	blacklistSize: number;
@@ -666,7 +666,7 @@ export function createAutoFallback(): AutoFallbackHandle {
 
 		getStatus(): AutoFallbackStatus {
 			const cfg = getAutoFallbackConfig();
-			const last = history.length > 0 ? history[history.length - 1] : null;
+			const last = history.at(-1) ?? null;
 			return {
 				enabled: cfg.enabled,
 				exhausted: blacklist.size() > 0 && noCandidatesAvailable(),

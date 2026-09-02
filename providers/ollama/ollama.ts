@@ -68,7 +68,7 @@ const OLLAMA_KNOWN_403_MODELS: ReadonlySet<string> = new Set([
 // =============================================================================
 // Fallback models (used when API is unreachable and no cache exists)
 // =============================================================================
-export const FALLBACK_MODELS: ProviderModelConfig[] = [
+const FALLBACK_MODELS: ProviderModelConfig[] = [
 	{
 		id: "glm-5.2",
 		name: "GLM 5.2",
@@ -342,7 +342,9 @@ async function concurrentMap<T, R>(
 	workers: number,
 	fn: (item: T) => Promise<R>,
 ): Promise<PromiseSettledResult<R>[]> {
-	const results: PromiseSettledResult<R>[] = new Array(items.length);
+	const results: PromiseSettledResult<R>[] = Array.from({
+		length: items.length,
+	});
 	let next = 0;
 	await Promise.all(
 		Array.from({ length: Math.max(1, workers) }, async () => {
@@ -505,7 +507,7 @@ function assembleModels(
 // Fetch all models (orchestrates /v1/models + /api/show)
 // =============================================================================
 
-export async function fetchAllModels(
+async function fetchAllModels(
 	apiKey: string,
 	cachedModels: ProviderModelConfig[] = loadProviderCache(PROVIDER_OLLAMA) ?? [],
 	signal?: AbortSignal,
@@ -586,7 +588,7 @@ export async function fetchAllModels(
 	return applyHidden(models, PROVIDER_OLLAMA);
 }
 
-export async function runOllamaProbe(
+async function runOllamaProbe(
 	apiKey: string,
 	modelsToTest: ProviderModelConfig[],
 	applyModels: (models: ProviderModelConfig[]) => void,

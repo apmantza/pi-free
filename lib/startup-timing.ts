@@ -41,14 +41,14 @@ const MODULE_LOAD_ORIGIN = performance.now();
 // Types
 // =============================================================================
 
-export interface PhaseTiming {
+interface PhaseTiming {
 	/** Phase name (e.g. "providers", "global-handlers"). */
 	name: string;
 	/** Wall-clock duration in milliseconds. */
 	durationMs: number;
 }
 
-export interface ProviderTiming {
+interface ProviderTiming {
 	/** Provider name (derived from the setup function name). */
 	provider: string;
 	/** Wall-clock setup duration in milliseconds. */
@@ -59,13 +59,13 @@ export interface ProviderTiming {
 	error?: string;
 }
 
-export interface SessionStartTiming {
+interface SessionStartTiming {
 	label: string;
 	durationMs: number;
 	success: boolean;
 }
 
-export interface ProviderCacheNetworkTiming {
+interface ProviderCacheNetworkTiming {
 	provider: string;
 	cacheHits: number;
 	networkFetches: number;
@@ -482,7 +482,7 @@ export function recordNativeRestored(
 }
 
 /** Age threshold (ms) above which a restored store entry is flagged stale (M1 surface). */
-export const STALE_STORE_FLAG_MS = 7 * 24 * 60 * 60 * 1000; // 7d — matches native-provider's warn threshold
+const STALE_STORE_FLAG_MS = 7 * 24 * 60 * 60 * 1000; // 7d — matches native-provider's warn threshold
 
 function formatStoreAge(ageMs: number): string {
 	const hours = Math.round(ageMs / (60 * 60 * 1000));

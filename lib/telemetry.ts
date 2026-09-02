@@ -20,7 +20,7 @@ const _logger = createLogger("telemetry");
 /** Structured failure classification derived from status codes / error text (M2, #437). */
 export type ErrorClass = "401" | "403" | "429" | "5xx" | "network" | "other";
 
-export interface TelemetryEntry {
+interface TelemetryEntry {
 	timestamp: number;
 	provider: string;
 	model: string;
@@ -66,7 +66,7 @@ export interface ModelTelemetry {
 	recentCalls: TelemetryEntry[];
 }
 
-export interface TelemetryStore {
+interface TelemetryStore {
 	/** Keyed by "provider/model" */
 	models: Record<string, ModelTelemetry>;
 	/** When the store was last updated. */
@@ -237,58 +237,6 @@ export function getModelTelemetry(
 }
 
 /**
- * Format a model's telemetry as a human-readable string (for status bar / /model list).
- * Returns undefined if no telemetry data is available.
- */
-export function formatModelTelemetry(
-	provider: string,
-	model: string,
-): string | undefined {
-	const telemetry = getModelTelemetry(provider, model);
-	if (!telemetry || telemetry.totalCalls === 0) return undefined;
-
-	const parts: string[] = [];
-	if (telemetry.totalCalls > 0) {
-		parts.push(`${telemetry.totalCalls} calls`);
-	}
-	if (telemetry.successRate > 0) {
-		parts.push(`${telemetry.successRate}% ok`);
-	}
-	if (telemetry.avgLatencyMs > 0) {
-		parts.push(`${telemetry.avgLatencyMs}ms`);
-	}
-	if (telemetry.avgTokensPerSecond > 0) {
-		parts.push(`${telemetry.avgTokensPerSecond} tok/s`);
-	}
-
-	return parts.length > 0 ? parts.join(" · ") : undefined;
-}
-
-/**
- * Get telemetry summary for a provider (all models combined).
- */
-export function getProviderTelemetry(provider: string): {
-	totalCalls: number;
-	totalCost: number;
-	models: number;
-} {
-	const store = _store.load();
-	let totalCalls = 0;
-	let totalCost = 0;
-	let models = 0;
-
-	for (const [key, data] of Object.entries(store.models)) {
-		if (key.startsWith(`${provider}/`)) {
-			totalCalls += data.totalCalls;
-			totalCost += data.totalCost;
-			models++;
-		}
-	}
-
-	return { totalCalls, totalCost, models };
-}
-
-/**
  * Mark a model call as started and return a unique call id.
  * Pass this id to {@link recordModelCall} to pair the start/end correctly.
  */
@@ -432,7 +380,7 @@ export async function recordModelCall(
 		cost,
 		stopReason,
 		...(errorMessage ? { error: errorMessage } : {}),
-		...(statusCode !== undefined ? { statusCode } : {}),
+		...(statusCode === undefined ? {} : { statusCode }),
 		...(derivedErrorClass ? { errorClass: derivedErrorClass } : {}),
 	};
 

@@ -23,12 +23,9 @@ import { createLogger } from "../logger.ts";
 
 const _logger = createLogger("auto-fallback");
 
-export type FallbackScope = "provider" | "global" | "whitelist";
-export type FallbackNotifyLevel = "silent" | "toast" | "status_bar" | "both";
-export type FallbackRestoreMode =
-	| "manual"
-	| "auto_next_turn"
-	| "auto_session_end";
+type FallbackScope = "provider" | "global" | "whitelist";
+type FallbackNotifyLevel = "silent" | "toast" | "status_bar" | "both";
+type FallbackRestoreMode = "manual" | "auto_next_turn" | "auto_session_end";
 
 export interface AutoFallbackConfig {
 	/** Master on/off switch. Default true. */
@@ -120,7 +117,7 @@ function envStringList(envKey: string, fileVal: unknown): string[] | undefined {
 
 let defaultsLogged = false;
 
-function logDefaultsOnce(config: AutoFallbackConfig): void {
+function logDefaultsOnce(_config: AutoFallbackConfig): void {
 	if (defaultsLogged) return;
 	const cfg = loadConfigFile();
 	const hasAny =
@@ -133,15 +130,15 @@ function logDefaultsOnce(config: AutoFallbackConfig): void {
 		cfg.auto_fallback_auto_continue_max !== undefined ||
 		cfg.fallback_notify !== undefined ||
 		cfg.fallback_restore !== undefined;
-	if (!hasAny) {
-		_logger.info(
-			"auto_fallback: no user config found; feature stays OFF by default (opt in via /toggle-auto-fallback, auto_fallback: true, or AUTO_FALLBACK=true)",
-		);
-		defaultsLogged = true;
-	} else {
+	if (hasAny) {
 		// Once we see ANY field, future defaults resolution shouldn't spam
 		// even if a later config update removes them again — we trust the
 		// user has touched the feature.
+		defaultsLogged = true;
+	} else {
+		_logger.info(
+			"auto_fallback: no user config found; feature stays OFF by default (opt in via /toggle-auto-fallback, auto_fallback: true, or AUTO_FALLBACK=true)",
+		);
 		defaultsLogged = true;
 	}
 }

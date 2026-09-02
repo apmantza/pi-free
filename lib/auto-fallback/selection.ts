@@ -24,7 +24,6 @@
  * (auto-fallback entry point) takes the returned candidate and applies it.
  */
 
-import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { getHardcodedScore } from "../../provider-failover/benchmark-lookup.ts";
 import type { Blacklist } from "./blacklist.ts";
 
@@ -88,7 +87,11 @@ export function rankFallbackCandidates(
 			continue;
 		}
 		// Skip blacklisted (in-TTL soft ban + hard ban).
-		if (options.blacklist.isBlacklisted(modelKey(candidate.provider, candidate.modelId))) {
+		if (
+			options.blacklist.isBlacklisted(
+				modelKey(candidate.provider, candidate.modelId),
+			)
+		) {
 			continue;
 		}
 		filtered.push(candidate);
@@ -99,7 +102,7 @@ export function rankFallbackCandidates(
 	// Score and sort. CI score is best-effort; missing scores rank below
 	// any scored candidate. Stable secondary sort by model id keeps the
 	// output deterministic across calls with identical inputs.
-	const scored = filtered
+	return filtered
 		.map((candidate) => ({
 			...candidate,
 			ciScore: lookupCi(candidate.provider, candidate.modelId, candidate.name),
@@ -114,8 +117,6 @@ export function rankFallbackCandidates(
 			if (b.ciScore === null) return -1;
 			return b.ciScore - a.ciScore;
 		});
-
-	return scored;
 }
 
 /**
@@ -127,7 +128,9 @@ export function selectFallbackModel(
 	currentModelId: string,
 	options: SelectionOptions,
 ): FallbackCandidate | null {
-	return rankFallbackCandidates(currentProvider, currentModelId, options)[0] ?? null;
+	return (
+		rankFallbackCandidates(currentProvider, currentModelId, options)[0] ?? null
+	);
 }
 
 function filterByScope(
@@ -167,26 +170,4 @@ function lookupCi(
 /** Build a stable composite key for blacklist + log lines. */
 export function modelKey(provider: string, modelId: string): string {
 	return `${provider}/${modelId}`;
-}
-
-/**
- * Convenience helper to project `ProviderModelConfig` arrays from
- * `lib/registry.ts` into the slim shape the selector needs.
- */
-export function projectCandidates(
-	models: ReadonlyArray<ProviderModelConfig & { provider?: string }>,
-	providerId: string,
-): CandidateSource[] {
-	const projected: CandidateSource[] = [];
-	for (const model of models) {
-		// Prefer the model-level provider stamp (set by the enhancer or the
-		// native provider); fall back to the registration id otherwise.
-		const provider = model.provider ?? providerId;
-		projected.push({
-			provider,
-			modelId: model.id,
-			name: model.name,
-		});
-	}
-	return projected;
 }

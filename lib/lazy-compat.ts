@@ -51,7 +51,7 @@ export function __setCompatLoaderForTests(
 }
 
 /** Single-flight cached dynamic import of the heavy compat entry point. */
-export function loadPiAiCompat(): Promise<PiAiCompat> {
+function loadPiAiCompat(): Promise<PiAiCompat> {
 	if (!compatPromise) {
 		compatPromise = compatLoader().catch((error) => {
 			// Do not cache failures: a transient load error must not break

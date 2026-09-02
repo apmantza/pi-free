@@ -31,7 +31,7 @@ async function resolveZenmuxApiKey(input: {
 	};
 }
 
-export const zenmuxApiKeyAuth: ApiKeyAuth = {
+const zenmuxApiKeyAuth: ApiKeyAuth = {
 	name: "ZenMux API key",
 	async login(interaction: AuthInteraction): Promise<ApiKeyCredential> {
 		const key = await interaction.prompt({

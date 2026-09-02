@@ -138,27 +138,7 @@ export async function fetchOpenRouterCompatibleModels(
 		})
 		.map(mapOpenRouterModel);
 
-	return await safeEnrichModelsWithModelsDev(models, {
+	return safeEnrichModelsWithModelsDev(models, {
 		providerId: options.providerId,
 	});
-}
-
-/**
- * Fetch both free and all models in a single call.
- * Returns separate arrays for free and paid models.
- */
-export async function fetchOpenRouterModelsWithFree(
-	options: Omit<FetchModelsOptions, "freeOnly">,
-): Promise<{ free: ProviderModelConfig[]; all: ProviderModelConfig[] }> {
-	const all = await fetchOpenRouterCompatibleModels({
-		...options,
-		freeOnly: false,
-	});
-
-	const free = all.filter((m) => {
-		const cost = m.cost;
-		return cost != null && cost.input === 0 && cost.output === 0;
-	});
-
-	return { free, all };
 }

@@ -15,7 +15,7 @@ const VERSION_HEADING = /^## \[([^\]]+)\]/;
  * @param {string} text full CHANGELOG.md contents
  * @returns {Array<{ label: string, heading: string, body: string }>}
  */
-export function parseSections(text) {
+function parseSections(text) {
 	const lines = text.split(/\r?\n/);
 	const sections = [];
 	let current = null;
@@ -36,10 +36,7 @@ function finalize(current) {
 	return {
 		label: current.label,
 		heading: current.heading,
-		body: current.bodyLines
-			.join("\n")
-			.replace(/^\n+/, "")
-			.replace(/\s+$/, ""),
+		body: current.bodyLines.join("\n").replace(/^\n+/, "").replace(/\s+$/, ""),
 	};
 }
 
@@ -98,7 +95,7 @@ function cleanGist(rest, maxGist) {
  * Normalize a tag/version to its bare semver form: `v2.2.4` -> `2.2.4`.
  * @param {string} version
  */
-export function normalizeVersion(version) {
+function normalizeVersion(version) {
 	return String(version).trim().replace(/^v/i, "");
 }
 
@@ -116,10 +113,4 @@ export function extractSection(text, version) {
 		(s) => normalizeVersion(s.label) === want,
 	);
 	return section ? section.body : null;
-}
-
-/** True if the CHANGELOG has a non-empty section for this version. */
-export function hasSection(text, version) {
-	const body = extractSection(text, version);
-	return typeof body === "string" && body.trim().length > 0;
 }

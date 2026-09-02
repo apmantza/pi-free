@@ -21,7 +21,7 @@ const _logger = createLogger("provider-cache");
 // Types
 // =============================================================================
 
-export interface CachedProviderModels {
+interface CachedProviderModels {
 	/** Provider ID */
 	provider: string;
 	/** Cached model list */
@@ -155,27 +155,4 @@ export async function saveProviderCacheGuarded(
 	}
 	await saveProviderCache(providerId, models);
 	return true;
-}
-
-/**
- * Clear cached models for a provider.
- */
-export async function clearProviderCache(providerId: string): Promise<void> {
-	await _cache.update((data) => {
-		if (data.providers[providerId]) {
-			delete data.providers[providerId];
-			_logger.debug(`Cleared cache for ${providerId}`);
-		}
-		return data;
-	});
-}
-
-/**
- * Clear all provider caches.
- */
-export async function clearAllProviderCaches(): Promise<void> {
-	await _cache.update(() => {
-		_logger.debug("Cleared all provider caches");
-		return { providers: {} };
-	});
 }

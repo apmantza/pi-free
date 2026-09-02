@@ -79,7 +79,7 @@ const HEADER_PAIRS: [string, string][] = [
  * Attempt to extract quota from response headers.
  * Returns { remaining, limit, source } or null if no quota headers found.
  */
-export function extractQuota(
+function extractQuota(
 	headers: Record<string, string>,
 ): { remaining: number; limit: number; source: string } | null {
 	// Normalize keys to lowercase for case-insensitive matching.
@@ -178,13 +178,6 @@ export function getAllResponseCounters(): ReadonlyMap<
  */
 export function getQuota(providerId: string): QuotaSnapshot | null {
 	return _quotaState.get(providerId) ?? null;
-}
-
-/**
- * Get all tracked quotas.
- */
-export function getAllQuotas(): ReadonlyMap<string, QuotaSnapshot> {
-	return _quotaState;
 }
 
 /**

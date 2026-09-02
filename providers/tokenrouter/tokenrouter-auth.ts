@@ -23,7 +23,7 @@ async function resolveTokenRouterApiKey(input: {
 	};
 }
 
-export const tokenRouterApiKeyAuth: ApiKeyAuth = {
+const tokenRouterApiKeyAuth: ApiKeyAuth = {
 	name: "TokenRouter API key",
 	async login(interaction: AuthInteraction): Promise<ApiKeyCredential> {
 		const key = await interaction.prompt({

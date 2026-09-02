@@ -21,7 +21,7 @@ import { DEFAULT_FETCH_TIMEOUT_MS } from "../constants.ts";
 
 export const OPENCODE_DYNAMIC_API = "opencode-dynamic" as const;
 
-export const OPENCODE_STATIC_HEADERS = {
+const OPENCODE_STATIC_HEADERS = {
 	"User-Agent": "opencode/1.18.18",
 	"x-opencode-client": "cli",
 } as const;
@@ -65,7 +65,7 @@ export async function fetchOpenCodeModelIds(
 			data
 				.filter(
 					(item): item is { id: string } =>
-						!!item &&
+						item !== null &&
 						typeof item === "object" &&
 						typeof (item as { id?: unknown }).id === "string" &&
 						(item as { id: string }).id.length > 0,
@@ -718,7 +718,7 @@ export function ensureOpenCodeApiProviderRegistered(
  *
  * This sanitizer fixes all three issues with minimal placeholder messages.
  */
-export function sanitizeMessagesForOpenCode(messages: unknown[]): unknown[] {
+function sanitizeMessagesForOpenCode(messages: unknown[]): unknown[] {
 	if (!Array.isArray(messages)) return messages;
 
 	const sanitized: unknown[] = [];

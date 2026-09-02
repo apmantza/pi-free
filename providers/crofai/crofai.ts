@@ -129,7 +129,7 @@ async function fetchCrofaiModels(
 			} as ProviderModelConfig & { _pricingKnown?: boolean };
 		});
 
-	return await safeEnrichModelsWithModelsDev(mapped, {
+	return safeEnrichModelsWithModelsDev(mapped, {
 		providerId: PROVIDER_CROFAI,
 	});
 }

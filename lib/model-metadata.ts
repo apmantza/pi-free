@@ -410,9 +410,6 @@ export async function safeEnrichModelsWithModelsDev<
 // Native catalog fallback (Pi's build-time models.dev snapshot)
 // =============================================================================
 
-const NATIVE_FALLBACK_CONTEXT_WINDOWS = new Set([DEFAULT_CONTEXT_WINDOW, 4096]);
-const NATIVE_FALLBACK_MAX_TOKENS = new Set([DEFAULT_MAX_TOKENS, 4096]);
-
 type NativeCatalogModel = Pick<
 	ProviderModelConfig,
 	"id" | "api" | "baseUrl" | "compat" | "contextWindow" | "maxTokens" | "cost"
@@ -510,46 +507,4 @@ export async function applyNativeProtocolMetadata<
 			...(compat ? { compat } : {}),
 		};
 	});
-}
-
-/**
- * Fill context windows / max tokens from Pi's built-time native catalog
- * (shipped in `@earendil-works/pi-ai`) for models still carrying a generic
- * fallback value after the models.dev enrichment pass. Local, always
- * available — no network required.
- */
-export async function enrichFromNativeCatalog<T extends ProviderModelConfig>(
-	models: T[],
-	providerId: string,
-): Promise<T[]> {
-	if (models.length === 0) return models;
-
-	const nativeModels = await getNativeCatalogModels(providerId);
-	if (nativeModels.length === 0) return models;
-
-	const nativeById = new Map(nativeModels.map((m) => [m.id, m]));
-
-	let patched = 0;
-	const result = models.map((model) => {
-		if (!NATIVE_FALLBACK_CONTEXT_WINDOWS.has(model.contextWindow)) return model;
-		const native = nativeById.get(model.id);
-		if (!native) return model;
-
-		patched++;
-		return {
-			...model,
-			contextWindow: native.contextWindow,
-			maxTokens: NATIVE_FALLBACK_MAX_TOKENS.has(model.maxTokens)
-				? native.maxTokens
-				: model.maxTokens,
-		};
-	});
-
-	if (patched > 0) {
-		_logger.info(
-			`[native-catalog] ${providerId}: patched ${patched}/${models.length} models from Pi's native catalog`,
-		);
-	}
-
-	return result;
 }

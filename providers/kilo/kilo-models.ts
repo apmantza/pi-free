@@ -21,7 +21,7 @@ export const KILO_GATEWAY_BASE = `${KILO_API_BASE}/api/gateway`;
  * tracked in the repo issue tracker; the gateway treats these as attribution
  * metadata and accepts requests without them.
  */
-export const KILO_IDENTITY_HEADERS: Record<string, string> = Object.freeze({
+const KILO_IDENTITY_HEADERS: Record<string, string> = Object.freeze({
 	"X-KILOCODE-EDITORNAME": "Pi",
 	"User-Agent": "pi-free-providers",
 });
@@ -31,7 +31,7 @@ export const KILO_IDENTITY_HEADERS: Record<string, string> = Object.freeze({
 // =============================================================================
 
 /** Kilo Gateway compat overrides, borrowed from pi-kilo-provider. */
-export const KILO_COMPAT = {
+const KILO_COMPAT = {
 	supportsStore: false,
 	supportsDeveloperRole: false,
 	supportsReasoningEffort: false,
@@ -58,7 +58,7 @@ export function applyKiloCompat<
 // Fetch
 // =============================================================================
 
-export async function fetchKiloModels(options?: {
+async function fetchKiloModels(options?: {
 	token?: string;
 	freeOnly?: boolean;
 }): Promise<ProviderModelConfig[]> {
@@ -115,9 +115,7 @@ export async function fetchKiloCatalog(options?: {
  * Adds the provider id, wire api, and gateway baseUrl that the legacy
  * registerProvider config form used to supply implicitly.
  */
-export function toKiloModel(
-	m: ProviderModelConfig,
-): Model<"openai-completions"> {
+function toKiloModel(m: ProviderModelConfig): Model<"openai-completions"> {
 	return withGatewayCompat({
 		...m,
 		api: "openai-completions",

@@ -13,7 +13,7 @@ const _logger = createLogger("probe-cache");
 
 export const DEFAULT_PROBE_TTL_MS = 24 * 60 * 60 * 1000;
 
-export type ProbeStatus = "ok" | "broken";
+type ProbeStatus = "ok" | "broken";
 
 export interface ModelProbeResult {
 	modelId: string;

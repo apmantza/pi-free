@@ -16,10 +16,6 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { saveConfig } from "../../config.ts";
 import { getAutoFallbackConfig } from "./config.ts";
 import type { Blacklist } from "./blacklist.ts";
-import { modelKey } from "./selection.ts";
-import { createLogger } from "../logger.ts";
-
-const _logger = createLogger("auto-fallback");
 
 export interface CommandsDeps {
 	blacklist: Blacklist;
@@ -74,15 +70,11 @@ export function registerAutoFallbackCommands(
 	});
 
 	pi.registerCommand("free-fallback-history", {
-		description:
-			"Show auto-fallback switch history for the current session",
+		description: "Show auto-fallback switch history for the current session",
 		handler: async (_args, ctx) => {
 			const history = deps.getHistory();
 			if (history.length === 0) {
-				ctx.ui.notify(
-					"No auto-fallback switches this session.",
-					"info",
-				);
+				ctx.ui.notify("No auto-fallback switches this session.", "info");
 				return;
 			}
 			const cfg = getAutoFallbackConfig();

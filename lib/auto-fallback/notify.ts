@@ -17,13 +17,10 @@
  */
 
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { createLogger } from "../logger.ts";
 
-const _logger = createLogger("auto-fallback");
+type NotifyLevel = "silent" | "toast" | "status_bar" | "both";
 
-export type NotifyLevel = "silent" | "toast" | "status_bar" | "both";
-
-export interface SwitchRecord {
+interface SwitchRecord {
 	fromKey: string; // "provider/model" that failed
 	toKey: string; // "provider/model" we switched to
 	reason: string; // short class: "429", "quota", "5xx", "network", ...
@@ -74,7 +71,7 @@ export function createNotifier(
 			triedKeys.add(r.fromKey);
 			triedKeys.add(r.toKey);
 		}
-		const last = buffer[buffer.length - 1];
+		const last = buffer.at(-1);
 		const message =
 			buffer.length === 1
 				? `Auto-fallback: ${last?.fromKey} → ${last?.toKey} (${last?.reason ?? "unknown"})`

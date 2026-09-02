@@ -1,5 +1,4 @@
 import type {
-	Api,
 	Credential,
 	Model,
 	Provider,

@@ -16,6 +16,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # zizmor: artipacked - CI never pushes; no credential needed
+        with:
+          persist-credentials: false
 
       # v7.0.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -51,6 +54,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # zizmor: artipacked - CI never pushes; no credential needed
+        with:
+          persist-credentials: false
 
       # v7.0.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -62,6 +68,7 @@ jobs:
       # compiler transiently rather than require a pre-existing node_modules.
       - name: Install source checkout with production dependencies
         # Required here: prepare is the behavior under test. # NOSONAR
+        # zizmor: ignore[adhoc-packages] - ad-hoc install IS the test (#447)
         run: npm ci --omit=dev --no-audit --no-fund # NOSONAR
 
       # #447: @earendil-works/pi-coding-agent and @earendil-works/pi-tui are
@@ -86,7 +93,9 @@ jobs:
         # --ignore-scripts: this fixture only needs the package's files on
         # disk for import.meta.resolve; it never runs pi-coding-agent's own
         # lifecycle scripts, so skip them (SonarCloud S6505).
-        run: npm install --no-save --ignore-scripts @earendil-works/pi-coding-agent@0.84.2 --no-audit --no-fund
+        run: >-
+          npm install --no-save --ignore-scripts
+          @earendil-works/pi-coding-agent@0.84.2 --no-audit --no-fund
 
       - name: Smoke-load compiled entry through Pi's real loader
         run: node scripts/smoke-pi-loader.mjs ./dist/index.js
@@ -97,6 +106,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # zizmor: artipacked - CI never pushes; no credential needed
+        with:
+          persist-credentials: false
 
       # v7.0.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -120,6 +132,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # zizmor: artipacked - CI never pushes; no credential needed
+        with:
+          persist-credentials: false
 
       # v7.0.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -142,7 +157,7 @@ jobs:
         shell: bash
         run: |
           TARBALL=$(ls pi-free-*.tgz)
-          npm install -g "$TARBALL"
+          npm install -g "$TARBALL" # zizmor: ignore[adhoc-packages]
 
       - name: Install pi-free through Pi and verify RPC commands
         shell: bash
