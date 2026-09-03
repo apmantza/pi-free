@@ -18,6 +18,7 @@ import type {
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_FETCH_TIMEOUT_MS } from "../constants.ts";
+import { loadPiAiEntry } from "../lib/pi-ai-loader.ts";
 
 export const OPENCODE_DYNAMIC_API = "opencode-dynamic" as const;
 
@@ -299,12 +300,53 @@ async function importPiAiSubpathUncached<T>(specifier: string): Promise<T> {
 		if (rootFallback) return rootFallback;
 
 		const resolved = resolvePiAiSubpathFromPackage(specifier);
-		if (!resolved) throw directError;
+		if (!resolved) {
+			// Last resort for Bun-compiled pi binaries: no bare specifier
+			// resolves from external files there, so reach the vendored
+			// bundle's API factories through the shared loader (#502).
+			const vendored = await importPiAiVendoredApiStreams<T>(specifier);
+			if (vendored) return vendored;
+			throw directError;
+		}
 		try {
 			return (await import(pathToFileURL(resolved).href)) as T;
 		} catch {
 			throw directError;
 		}
+	}
+}
+
+/**
+ * Maps the api subpaths this module imports to the API-factory export names
+ * shared by pi-ai's real `compat` entry and pi-free's vendored bundle.
+ */
+const VENDORED_API_FACTORIES: Record<string, string> = {
+	"api/anthropic-messages": "anthropicMessagesApi",
+	"api/google-generative-ai": "googleGenerativeAIApi",
+	"api/openai-completions": "openAICompletionsApi",
+	"api/openai-responses": "openAIResponsesApi",
+};
+
+/**
+ * Builds a streamSimple-carrying module from the loader's compat entry when no
+ * importable pi-ai copy exists on disk. Works uniformly for the real compat
+ * module and the vendored bundle; the factories are pi-ai's lazy wrappers, so
+ * calling them does not load the provider implementation until first use.
+ */
+async function importPiAiVendoredApiStreams<T>(
+	specifier: string,
+): Promise<T | undefined> {
+	const subpath = specifier.replace("@earendil-works/pi-ai/", "");
+	const factoryName = VENDORED_API_FACTORIES[subpath];
+	if (!factoryName) return undefined;
+	try {
+		const compat = await loadPiAiEntry<Record<string, unknown>>("compat");
+		const factory = compat[factoryName];
+		if (typeof factory !== "function") return undefined;
+		const streams = (factory as () => unknown)();
+		return streams as T;
+	} catch {
+		return undefined;
 	}
 }
 
@@ -327,10 +369,12 @@ async function importPiAiRootFallback<T>(
 	if (!exportName) return undefined;
 
 	try {
-		const rootModule = (await import("@earendil-works/pi-ai")) as Record<
-			string,
-			unknown
-		>;
+		// Routed through the shared loader (disk fallback + vendored bundle);
+		// compat is a strict superset of the bare pi-ai root, including the
+		// legacy streamSimple* aliases. The vendored last-resort bundle does
+		// not carry the legacy aliases, so Bun-binary hosts return undefined
+		// here and the caller's normal path takes over.
+		const rootModule = await loadPiAiEntry<Record<string, unknown>>("compat");
 		return typeof rootModule[exportName] === "function"
 			? (rootModule as T)
 			: undefined;
@@ -340,7 +384,6 @@ async function importPiAiRootFallback<T>(
 }
 
 const PI_AI_DEPENDENCY_CANARY = "openai";
-
 function findPiAiPackageDir(requireBase: string): string | undefined {
 	try {
 		const require = createRequire(requireBase);
@@ -683,14 +726,22 @@ export function ensureOpenCodeApiProviderRegistered(
 
 	const streamFn = createOpenCodeStreamSimple(tracker);
 	const sourceId = `pi-free-opencode-${randomBytes(4).toString("hex")}`;
-	_apiProviderRegistrationPromise = import("@earendil-works/pi-ai/compat")
+	_apiProviderRegistrationPromise = loadPiAiEntry<{
+		registerApiProvider?: unknown;
+	}>("compat")
 		.then(({ registerApiProvider }) => {
+			// The vendored last-resort bundle does not carry registerApiProvider:
+			// the registry lives in the HOST's compat instance (provider-composer
+			// reads it), so a vendored registration would be a silent no-op.
+			// Primary dispatch does not need it — the provider config carries
+			// streamSimple, which provider-composer prefers over the registry.
+			if (typeof registerApiProvider !== "function") return;
 			// registerApiProvider expects { api, stream, streamSimple }. Both
 			// stream and streamSimple return async-iterable streams; using the
 			// same implementation for both is safe — the compat wrappers only
 			// validate model.api and forward the call.
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			registerApiProvider(
+			(registerApiProvider as any)(
 				{
 					api: OPENCODE_DYNAMIC_API,
 					stream: streamFn as any,

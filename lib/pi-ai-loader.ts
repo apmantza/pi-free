@@ -34,6 +34,15 @@
  *   5. The global npm root on Windows (%APPDATA%\npm\node_modules).
  *   6. Relative to the Node executable (covers custom installs on other
  *      drives and version-manager layouts like nvm).
+ *   7. The self-contained vendored bundle in dist/vendor (built by
+ *      scripts/build.mjs). Last resort for Bun-compiled pi binaries
+ *      (scoop/winget/standalone zip): Bun's compile mode disables bare-specifier
+ *      resolution from external files entirely, so NO on-disk pi-ai layout can
+ *      serve them — even a perfectly installed pi-ai fails on its own internal
+ *      bare imports (typebox, openai, ...). The vendored bundle inlines every
+ *      transitive dependency, keeping only node:* builtins external (#502).
+ *      It is tried last because its pi-ai version is frozen at pi-free's build
+ *      time, while any on-disk copy matches the running host.
  *
  * The fallback imports the resolved entry by absolute file path, so pi-ai's
  * own relative imports keep resolving against pi-ai's real location.
@@ -43,6 +52,7 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { createLogger } from "./logger.ts";
 
 /** The pi-ai entry points pi-free is allowed to load at runtime. */
 export type PiAiEntry = "compat" | "providers/all";
@@ -64,6 +74,17 @@ const PI_AI_ENTRY_FILES: Record<PiAiEntry, (root: string) => string> = {
 	compat: (root) => join(root, "dist", "compat.js"),
 	"providers/all": (root) => join(root, "dist", "providers", "all.js"),
 };
+
+/**
+ * Vendored bundle file names inside `dist/vendor`, per allow-listed entry.
+ * Built by scripts/build.mjs; absent in source checkouts and tests.
+ */
+const VENDORED_ENTRY_NAMES: Record<PiAiEntry, string> = {
+	compat: "pi-ai-compat.js",
+	"providers/all": "pi-ai-providers-all.js",
+};
+
+const vendoredLog = createLogger("pi-ai-loader");
 
 const THIS_FILE_DIR = dirname(fileURLToPath(import.meta.url));
 
@@ -360,6 +381,21 @@ export function resolvePiAiEntryFile(
 	return existsSync(fallback) ? fallback : undefined;
 }
 
+/**
+ * Resolves the vendored last-resort bundle for an entry, relative to this
+ * file's directory (dist/lib → dist/vendor in the shipped package). Returns
+ * undefined when the bundle was never built (source checkouts, tests), so
+ * callers can surface the original resolution error instead. `baseDir` is
+ * overridable for tests.
+ */
+export function resolveVendoredPiAiEntryFile(
+	entry: PiAiEntry,
+	baseDir: string = THIS_FILE_DIR,
+): string | undefined {
+	const file = join(baseDir, "..", "vendor", VENDORED_ENTRY_NAMES[entry]);
+	return existsSync(file) ? file : undefined;
+}
+
 let resolvedPiAiRoot: string | undefined;
 let resolvedPiAiRootAttempted = false;
 
@@ -402,9 +438,21 @@ export async function loadPiAiEntry<T = unknown>(entry: PiAiEntry): Promise<T> {
 			resolvedPiAiRootAttempted = resolvedPiAiRoot !== undefined;
 		}
 		const root = resolvedPiAiRoot;
-		if (!root) throw error; // keep the original "Cannot find package ..." error
-		const entryFile = resolvePiAiEntryFile(root, entry);
-		if (!entryFile) throw error;
-		return (await import(pathToFileURL(entryFile).href)) as T;
+		if (root) {
+			const entryFile = resolvePiAiEntryFile(root, entry);
+			if (entryFile) return (await import(pathToFileURL(entryFile).href)) as T;
+		}
+		// Last resort: the self-contained vendored bundle — the ONLY working
+		// source under Bun-compiled pi binaries, which resolve no bare
+		// specifiers from external files at all (#502).
+		const vendored = resolveVendoredPiAiEntryFile(entry);
+		if (vendored) {
+			vendoredLog.debug(
+				`no resolvable pi-ai package on disk; using vendored bundle for "${entry}"`,
+				{ vendored },
+			);
+			return (await import(pathToFileURL(vendored).href)) as T;
+		}
+		throw error; // keep the original "Cannot find package ..." error
 	}
 }

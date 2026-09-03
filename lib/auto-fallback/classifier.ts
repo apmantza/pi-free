@@ -35,6 +35,8 @@
  * Unknown: signal is ambiguous; treat as recoverable by default so quota
  * problems don't get hidden behind "we don't recognize this status".
  */
+import { loadPiAiEntry } from "../pi-ai-loader.ts";
+
 export type FailureKind = "recoverable" | "unrecoverable" | "unknown";
 
 const RECOVERABLE_HTTP_STATUSES = new Set<number>([
@@ -115,16 +117,15 @@ async function loadPiAiRetryClassifier(): Promise<PiAiRetryModule | undefined> {
 	if (piAiRetryLoadAttempted) return piAiRetryModule;
 	piAiRetryLoadAttempted = true;
 	try {
-		// SAFETY: the bare pi-ai root re-exports utils/retry (dist/index.js:
+		// SAFETY: pi-ai's `compat` entry (a strict superset of the bare root)
+		// re-exports utils/retry (`dist/index.js` does
 		// `export * from "./utils/retry.js"`), but its shape isn't in our
 		// type scope; the invariant is enforced right after the import by a
 		// `typeof fn === "function"` check — anything else leaves
 		// piAiRetryModule undefined and classification falls back to the
-		// local tables.
-		const mod = (await import("@earendil-works/pi-ai")) as unknown as Record<
-			string,
-			unknown
-		>;
+		// local tables. The vendored last-resort bundle does not carry this
+		// helper, so Bun-binary hosts take the local tables as well.
+		const mod = await loadPiAiEntry<Record<string, unknown>>("compat");
 		const fn = mod.isRetryableAssistantError;
 		if (typeof fn === "function") {
 			piAiRetryModule = {

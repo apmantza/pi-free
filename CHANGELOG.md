@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **pi-free now works with Bun-compiled pi binaries (scoop/winget/standalone zip)** — fixed `ResolveMessage: Cannot find module '@earendil-works/pi-ai/compat'` when pi is installed as a compiled binary (e.g. via scoop) and pi-free via `pi install npm:pi-free` (#502). Bun compile mode disables bare-specifier resolution from external files entirely, so no on-disk pi-ai layout can serve the extension — even a correctly installed pi-ai dies on its own internal bare imports (`typebox`, `openai`, …). `scripts/build.mjs` now emits self-contained esbuild bundles to `dist/vendor/` (`pi-ai-compat.js` with the four lazy API factories, `pi-ai-providers-all.js` with the builtin-catalog readers) with every transitive dependency inlined, and `lib/pi-ai-loader.ts` imports them by absolute file path as a last resort when no real pi-ai package resolves on disk. Startup stays untouched: the bundles load on first use, only when every other resolution path failed. The stray direct pi-ai imports in `providers/opencode-session.ts` and `lib/auto-fallback/classifier.ts` now route through the shared loader, and the OpenCode session stream (`importPiAiSubpath`) falls back to the vendored API factories, so `opencode-free`/`opencode-go` stream normally on Bun-binary hosts. The compat-registry safety net (`registerApiProvider`) is skipped there by design: the registry lives in the host's bundled pi-ai instance, where no compiled extension can reach it — primary dispatch goes through the provider config's own `streamSimple` and is unaffected.
+
 ## [2.7.0] - 2026-09-02
 
 ### Removed
