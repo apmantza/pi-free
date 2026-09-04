@@ -53,10 +53,21 @@ the extracted compiled entry with the local peer dependencies. CI also packs,
 installs, checks, and loads the entry from the installed package on Linux,
 macOS, and Windows. `npm publish --dry-run` runs the same build lifecycle.
 
-Dynamic imports remain unbundled. In particular, the OpenCode and
-`opencode-session` paths continue to use runtime specifier resolution, so the
-compiled output must be tested with the host Pi peer packages available. The
-build targets Node `>=20.0.0`; it does not bundle or install Pi peer packages.
+Dynamic imports remain unbundled, with one deliberate exception: the
+last-resort pi-ai fallback bundles in `dist/vendor/` (`pi-ai-compat.js`,
+`pi-ai-providers-all.js`). Bun-compiled pi binaries (scoop/winget/standalone
+zip) cannot resolve bare specifiers from external files at all, so no on-disk
+pi-ai layout can serve pi-free's runtime imports there (#502); the bundles
+inline every transitive dependency (only `node:*` builtins stay external) and
+are imported by absolute file path from `lib/pi-ai-loader.ts` only when no real
+pi-ai package resolves on disk. `scripts/build.mjs` builds them with the local
+esbuild during development and a pinned transient `npx` esbuild during
+`prepare` (same strategy as the compiler). The OpenCode and
+`opencode-session` paths otherwise continue to use runtime specifier
+resolution, so the compiled output must be tested with the host Pi peer
+packages available. The build targets Node `>=20.0.0`; except for the
+self-contained `dist/vendor/` fallback bundles, it does not bundle or install
+Pi peer packages.
 
 ## Startup comparison
 

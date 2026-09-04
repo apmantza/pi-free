@@ -249,6 +249,7 @@ async function fetchAuthorizeUrl(
 		// the compile-time BASE_URL_CLINE constant and its hostname is verified
 		// against ALLOWED_CLINE_AUTH_HOSTS immediately above; callbackUrl only
 		// feeds query parameters, never the request target.
+		// pi-lens-ignore: ts-ssrf
 		const res = await fetch(authUrl.toString(), {
 			method: "GET",
 			redirect: "manual",

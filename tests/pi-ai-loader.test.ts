@@ -7,6 +7,7 @@ import {
 	isPiAiNotFoundError,
 	resolvePiAiEntryFile,
 	resolvePiAiPackageRoot,
+	resolveVendoredPiAiEntryFile,
 } from "../lib/pi-ai-loader.ts";
 
 function makePackage(root: string, packageJson: object = { name: "pkg" }) {
@@ -333,5 +334,42 @@ describe("isPiAiNotFoundError", () => {
 	it("rejects non-resolution errors", () => {
 		expect(isPiAiNotFoundError(new SyntaxError("Unexpected token"))).toBe(false);
 		expect(isPiAiNotFoundError(undefined)).toBe(false);
+	});
+
+	it("matches Bun's ResolveMessage shape (Bun-compiled pi binaries, #502)", () => {
+		// Bun compile mode disables bare-specifier resolution from external
+		// files; its ResolveMessage carries Node's code but a "Cannot find
+		// module ... from ..." message.
+		expect(
+			isPiAiNotFoundError(
+				moduleNotFound(
+					"Cannot find module '@earendil-works/pi-ai/compat' from 'C:\\Users\\x\\.pi\\agent\\npm\\node_modules\\pi-free\\dist\\lib\\pi-ai-loader.js'",
+				),
+			),
+		).toBe(true);
+	});
+});
+
+describe("resolveVendoredPiAiEntryFile", () => {
+	it("returns the vendored bundle path when it exists next to the loader", () => {
+		// Shipped layout: dist/lib/pi-ai-loader.js → dist/vendor/<bundle>.
+		const base = mkdtempSync(join(tmpdir(), "pi-free-loader-"));
+		const libDir = join(base, "dist", "lib");
+		const vendorDir = join(base, "dist", "vendor");
+		mkdirSync(libDir, { recursive: true });
+		mkdirSync(vendorDir, { recursive: true });
+		const bundle = join(vendorDir, "pi-ai-compat.js");
+		writeFileSync(bundle, "export {};\n");
+		expect(resolveVendoredPiAiEntryFile("compat", libDir)).toBe(bundle);
+	});
+
+	it("returns undefined in source checkouts where the bundle was never built", () => {
+		const base = mkdtempSync(join(tmpdir(), "pi-free-loader-"));
+		const libDir = join(base, "lib");
+		mkdirSync(libDir, { recursive: true });
+		expect(resolveVendoredPiAiEntryFile("compat", libDir)).toBeUndefined();
+		expect(
+			resolveVendoredPiAiEntryFile("providers/all", libDir),
+		).toBeUndefined();
 	});
 });
