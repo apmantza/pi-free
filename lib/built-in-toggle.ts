@@ -122,6 +122,12 @@ const BUILT_IN_TOGGLE_PROVIDERS: BuiltInToggleConfig[] = [
 		showPaidConfigKey: "opencode_go_show_paid",
 		baseUrl: "https://opencode.ai/zen/go/v1",
 		api: OPENCODE_DYNAMIC_API,
+		// Pi's built-in Go catalog is a build-time snapshot overlaid by Pi's own
+		// pi.dev mirror (4h throttle), so models OpenCode ships between Pi
+		// releases never appear (#504). The Go tier exposes the same public,
+		// credential-free `GET /models` endpoint as Zen — already used by the
+		// /toggle-opencode-go discovery fallback — so refresh from it directly.
+		refreshEndpoint: true,
 	},
 	{
 		id: "openrouter",
@@ -542,15 +548,43 @@ function createProviderState(
 
 	const refreshModels = config.refreshEndpoint
 		? async (context: RefreshModelsContext): Promise<ProviderModelConfig[]> => {
+				const currentModels = () =>
+					stateForRefresh?.toggleState.getCurrentModels() ?? allModels;
 				if (!context.allowNetwork) {
-					return stateForRefresh?.toggleState.getCurrentModels() ?? allModels;
+					return currentModels();
 				}
 				const fetcher = config.fetchRefreshedModels ?? fetchRefreshedOpenCodeModels;
-				const refreshed = await fetcher(
-					config,
-					stateForRefresh?.stored.all ?? allModels,
-					context.signal,
-				);
+				let refreshed: ProviderModelConfig[];
+				try {
+					refreshed = await fetcher(
+						config,
+						stateForRefresh?.stored.all ?? allModels,
+						context.signal,
+					);
+				} catch (error) {
+					// Convention 15: Pi aborts a superseded refresh, so an abort is
+					// cancellation rather than a provider failure — retain silently.
+					if (context.signal.aborted) return currentModels();
+					// Retain the previous catalog instead of rethrowing. A thrown
+					// fetch error is what makes Pi warn "Could not refresh
+					// <provider>; showing cached models" — and cached models are
+					// exactly what we keep, matching every native provider's
+					// retain-on-failure path (lib/native-provider.ts). A transient
+					// stall (observed: the 10s fetch timeout during a network blip)
+					// therefore stays a log line, not a user-visible warning (#504).
+					_logger.warn(
+						`[built-in-toggle] ${config.id}: catalog refresh failed; retaining ${currentModels().length} cached models`,
+						{ error: error instanceof Error ? error.message : String(error) },
+					);
+					return currentModels();
+				}
+				// Poisoning guard: an empty live response must not wipe the catalog.
+				if (refreshed.length === 0) {
+					_logger.warn(
+						`[built-in-toggle] ${config.id}: catalog refresh returned no models; retaining ${currentModels().length} cached models`,
+					);
+					return currentModels();
+				}
 				if (context.signal.aborted || !stateForRefresh) {
 					return stateForRefresh?.toggleState.getCurrentModels() ?? refreshed;
 				}
@@ -730,6 +764,14 @@ function scheduleEndpointRefresh(
 		try {
 			const fetcher = config.fetchRefreshedModels ?? fetchRefreshedOpenCodeModels;
 			const refreshed = await fetcher(config, state.stored.all);
+			// Poisoning guard: an empty live response must not wipe the captured
+			// catalog (same retain-on-empty rule as refreshModels below).
+			if (refreshed.length === 0) {
+				_logger.warn(
+					`[built-in-toggle] ${config.id}: endpoint refresh returned no models; retaining ${state.stored.all.length} cached models`,
+				);
+				return;
+			}
 			state.updateModels(refreshed);
 			const applied = state.toggleState.applyCurrent(state.reRegister);
 			_logger.info(

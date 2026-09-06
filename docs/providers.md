@@ -224,10 +224,10 @@ pi-free adds the `/toggle-openrouter` filter but does not own OpenRouter's crede
 
 ### OpenCode and OpenCode Go
 
-These are Pi-built-in providers wrapped by pi-free for filtering. Pi owns their catalogs and credentials; pi-free does not perform startup discovery. Commands:
+These are Pi-built-in providers wrapped by pi-free for filtering; Pi owns their credentials (`OPENCODE_API_KEY`, or `/login opencode-free`). After session start each tier performs one **detached** refresh against OpenCode's public, credential-free model endpoint — `GET https://opencode.ai/zen/v1/models` for `opencode-free` and `GET https://opencode.ai/zen/go/v1/models` for `opencode-go` — so models OpenCode ships between Pi releases appear without waiting for Pi's own catalog mirror. IDs already in Pi's built-in catalog keep Pi's curated metadata and wire protocol; newer IDs are synthesized with the OpenCode protocol defaults. The refresh never blocks startup, is deduplicated per process, and retains the cached catalog when the endpoint fails or returns nothing — the failure lands in `~/.pi/free.log` rather than surfacing as Pi's `Could not refresh …; showing cached models` warning. Commands:
 
 ```text
-/toggle-opencode
+/toggle-opencode-free
 /toggle-opencode-go
 ```
 

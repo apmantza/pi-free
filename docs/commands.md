@@ -39,7 +39,7 @@ Run `/toggle-{provider}` to switch between a provider's free/basic view and its 
 | `/toggle-qoder` | Qoder | Legacy |
 | `/toggle-openrouter` | OpenRouter | Pi built-in |
 | `/toggle-opencode-free` | OpenCode Zen free wrapper | Pi built-in catalog + detached Zen refresh |
-| `/toggle-opencode-go` | OpenCode Go | Pi built-in |
+| `/toggle-opencode-go` | OpenCode Go | Pi built-in catalog + detached Go refresh |
 | `/toggle-fastrouter` | FastRouter | Native |
 | `/toggle-gmi` | GMI Cloud | Native |
 | `/toggle-agnes` | Agnes AI | Native |
