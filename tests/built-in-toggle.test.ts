@@ -533,6 +533,84 @@ describe("built-in provider toggles", () => {
 		).resolves.toEqual([expect.objectContaining({ id: "free-model" })]);
 	});
 
+	it("shares one live fetch between concurrent refreshes", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		let fetchCalls = 0;
+		let releaseFetch!: (value: Response) => void;
+		const fetchGate = new Promise<Response>((resolve) => {
+			releaseFetch = resolve;
+		});
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(() => {
+				fetchCalls += 1;
+				return fetchGate;
+			}),
+		);
+
+		const models = [
+			{
+				provider: "opencode",
+				id: "free-model",
+				name: "Free Model",
+				api: "openai-completions",
+				reasoning: false,
+				input: ["text"],
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 128000,
+				maxTokens: 4096,
+				baseUrl: "https://example.com",
+			},
+		];
+
+		await handlers.session_start(
+			{},
+			{ modelRegistry: { getAvailable: () => models } },
+		);
+		// Release the detached endpoint refresh's fetch only after both
+		// explicit refreshes have joined it, so all three share one request.
+		// Poll: the detached task needs a few ticks to reach the fetcher.
+		for (let i = 0; i < 50 && fetchCalls === 0; i += 1) {
+			await new Promise((resolve) => setTimeout(resolve, 0));
+		}
+		expect(fetchCalls).toBe(1);
+
+		const registered = mockRegisterProvider.mock.calls.at(-1)?.[1] as {
+			refreshModels?: (context: {
+				allowNetwork: boolean;
+				signal: AbortSignal;
+			}) => Promise<Array<{ id: string }>>;
+		};
+		const first = registered.refreshModels?.({
+			allowNetwork: true,
+			signal: new AbortController().signal,
+		});
+		const second = registered.refreshModels?.({
+			allowNetwork: true,
+			signal: new AbortController().signal,
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		// Both explicit refreshes joined the in-flight detached fetch —
+		// still exactly one request for the tier.
+		expect(fetchCalls).toBe(1);
+
+		releaseFetch(
+			new Response(JSON.stringify({ data: [{ id: "free-model" }] }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			}),
+		);
+		await expect(first).resolves.toEqual([
+			expect.objectContaining({ id: "free-model" }),
+		]);
+		await expect(second).resolves.toEqual([
+			expect.objectContaining({ id: "free-model" }),
+		]);
+		await settleDetachedCapture();
+		expect(fetchCalls).toBe(1);
+	});
+
 	it("retains the captured catalog when the live endpoint returns no models", async () => {
 		setupBuiltInProviderToggles(mockPi);
 
