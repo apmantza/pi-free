@@ -375,3 +375,34 @@ describe("isFreeModel - authoritative free flag", () => {
 		).toBe(false);
 	});
 });
+
+describe("isFreeModel - pricing-exposure memo", () => {
+	it("returns a stable verdict across repeated calls with the same catalog", () => {
+		const paid = createModel("Paid Model", { input: 5, output: 30 });
+		const free = createModel("Free Model", { input: 0, output: 0 });
+		const catalog = [paid, free];
+
+		const first = catalog.map((m) => isFreeModel(m, catalog));
+		const second = catalog.map((m) => isFreeModel(m, catalog));
+		expect(second).toEqual(first);
+		expect(first).toEqual([false, true]);
+	});
+
+	it("evaluates each catalog array independently", () => {
+		const priced = [
+			createModel("Paid Model", { input: 5, output: 30 }),
+			createModel("Free Model", { input: 0, output: 0 }),
+		];
+		const unpriced = [
+			createModel("Some Model", { input: 0, output: 0 }),
+			createModel("Other Model", { input: 0, output: 0 }),
+		];
+
+		// Priced catalog: zero-cost model is free (Route A).
+		expect(isFreeModel(priced[1], priced)).toBe(true);
+		// Unpriced catalog: name without "free" is not free (Route B).
+		expect(isFreeModel(unpriced[0], unpriced)).toBe(false);
+		// Revisit the first catalog: the cached verdict must still apply.
+		expect(isFreeModel(priced[1], priced)).toBe(true);
+	});
+});

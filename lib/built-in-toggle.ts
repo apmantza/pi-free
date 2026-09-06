@@ -205,6 +205,41 @@ interface PendingCapture {
 const pendingCaptures = new Map<string, PendingCapture>();
 /** One detached endpoint refresh per provider; duplicate session events reuse it. */
 const pendingEndpointRefreshes = new Map<string, Promise<void>>();
+/**
+ * One in-flight live-catalog fetch per provider, shared by the detached
+ * endpoint refresh and Pi-driven `refreshModels` (arch lifecycle review).
+ *
+ * Without this, every session_start issues two fetches per tier: the
+ * detached `scheduleEndpointRefresh` fires immediately, then Pi's global
+ * refresh nudge calls our `refreshModels`, which fetched the same endpoint
+ * again. Both paths now join the same promise, so the common case costs
+ * one request per tier per session; a lone manual refresh still fetches.
+ */
+const pendingCatalogFetches = new Map<string, Promise<ProviderModelConfig[]>>();
+
+/**
+ * Fetch the live catalog, joining an in-flight fetch for the same provider
+ * when one exists. Deliberately takes no external signal: the work is
+ * shared, so one consumer's abort must not cancel the other's request.
+ * Sockets stay bounded by each fetcher's internal DEFAULT_FETCH_TIMEOUT_MS;
+ * callers enforce abort semantics with pre/post checks that discard the
+ * result instead of cancelling shared work.
+ */
+function fetchSharedCatalog(
+	config: BuiltInToggleConfig,
+	fallbackModels: ProviderModelConfig[],
+): Promise<ProviderModelConfig[]> {
+	const inFlight = pendingCatalogFetches.get(config.id);
+	if (inFlight) return inFlight;
+	const fetcher = config.fetchRefreshedModels ?? fetchRefreshedOpenCodeModels;
+	const tracked = fetcher(config, fallbackModels).finally(() => {
+		if (pendingCatalogFetches.get(config.id) === tracked) {
+			pendingCatalogFetches.delete(config.id);
+		}
+	});
+	pendingCatalogFetches.set(config.id, tracked);
+	return tracked;
+}
 let commandsRegisteredFor: ExtensionAPI | undefined;
 let sessionStartRegisteredFor: ExtensionAPI | undefined;
 
@@ -567,13 +602,17 @@ function createProviderState(
 					recordNativeAbort(config.id);
 					return currentModels();
 				}
-				const fetcher = config.fetchRefreshedModels ?? fetchRefreshedOpenCodeModels;
 				let refreshed: ProviderModelConfig[];
 				try {
-					refreshed = await fetcher(
+					// Join the shared in-flight fetch when the detached endpoint
+					// refresh (or another refreshModels call) already started one;
+					// otherwise this call starts it. No signal is passed: shared
+					// work must not be cancellable by one consumer (see
+					// fetchSharedCatalog); abort semantics stay in the pre/post
+					// checks around this await.
+					refreshed = await fetchSharedCatalog(
 						config,
 						stateForRefresh?.stored.all ?? allModels,
-						context.signal,
 					);
 				} catch (error) {
 					// Convention 15: Pi aborts a superseded refresh, so an abort is
@@ -792,8 +831,10 @@ function scheduleEndpointRefresh(
 	let task: Promise<void> | undefined;
 	task = (async () => {
 		try {
-			const fetcher = config.fetchRefreshedModels ?? fetchRefreshedOpenCodeModels;
-			const refreshed = await fetcher(config, state.stored.all);
+			// Shared with refreshModels: when Pi's global refresh nudge fires
+			// on the same session_start, both paths join one request instead
+			// of fetching the tier endpoint twice.
+			const refreshed = await fetchSharedCatalog(config, state.stored.all);
 			// Poisoning guard: an empty live response must not wipe the captured
 			// catalog (same retain-on-empty rule as refreshModels above).
 			if (refreshed.length === 0) {

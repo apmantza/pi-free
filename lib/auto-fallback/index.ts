@@ -40,7 +40,6 @@ import type {
 import { getProviderRegistry } from "../registry.ts";
 import { fallbackState } from "../fallback-state.ts";
 import { createLogger } from "../logger.ts";
-import { classifyAssistantFailure, classifyAbort } from "./classifier.ts";
 import { createBlacklist, type Blacklist } from "./blacklist.ts";
 import { getAutoFallbackConfig } from "./config.ts";
 import {
@@ -50,6 +49,11 @@ import {
 	type FallbackScope,
 } from "./selection.ts";
 import { createNotifier, type Notifier } from "./notify.ts";
+import {
+	buildAutoContinueContent,
+	classifySettledFailure,
+	matchesScope,
+} from "./settled-decision.ts";
 import { registerAutoFallbackCommands, type HistoryEntry } from "./commands.ts";
 
 const _logger = createLogger("auto-fallback");
@@ -178,10 +182,9 @@ export function createAutoFallback(): AutoFallbackHandle {
 		const registry = getProviderRegistry();
 		const out: FallbackCandidate[] = [];
 		for (const [providerId, entry] of registry) {
-			if (scope === "provider" && providerId !== failingProvider) continue;
-			if (scope === "whitelist" && !cfg.whitelistProviders.includes(providerId)) {
+			if (!matchesScope(providerId, scope, failingProvider, cfg.whitelistProviders)) {
 				continue;
-			}
+		}
 			for (const m of entry.stored.free) {
 				out.push({
 					provider: providerId,
@@ -379,12 +382,13 @@ export function createAutoFallback(): AutoFallbackHandle {
 		const failingProvider = lastSeenCtx?.model?.provider;
 		let hasAny = false;
 		for (const [providerId, entry] of registry) {
-			if (cfg.scope === "provider" && providerId !== failingProvider) {
-				continue;
-			}
 			if (
-				cfg.scope === "whitelist" &&
-				!cfg.whitelistProviders.includes(providerId)
+				!matchesScope(
+					providerId,
+					cfg.scope,
+					failingProvider,
+					cfg.whitelistProviders,
+				)
 			) {
 				continue;
 			}
@@ -565,43 +569,20 @@ export function createAutoFallback(): AutoFallbackHandle {
 				// --- Failure handling: strike + switch FIRST, so an
 				// --- auto-continue (below) never replays the prompt onto a
 				// --- model this very settle just classified as failed.
-				const isFailure =
-					lastAssistant != null &&
-					(lastAssistant.stopReason === "error" ||
-						lastAssistant.stopReason === "aborted");
-				if (!isFailure || lastAssistant == null) {
-					return; // clean run — nothing to do
-				}
-				const failureAssistant: AssistantMessageLike = lastAssistant;
-
-				const failingProvider = failureAssistant.provider ?? ctx.model.provider;
-				const failingModelId = failureAssistant.model ?? ctx.model.id;
-				if (!failingProvider || !failingModelId) return;
-
-				let failureReason = failureAssistant.stopReason ?? "error";
-				const classified = classifyAssistantFailure(
-					failureAssistant.stopReason,
-					failureAssistant.errorMessage,
+				// The decision chain (shape gate → identity → error class →
+				// abort refinement) lives in settled-decision.ts; here we act
+				// on the verdict.
+				const failure = classifySettledFailure(
+					lastAssistant,
+					ctx.model.provider,
+					ctx.model.id,
+					(provider, modelId) =>
+						fallbackState.getLastStatus(provider, modelId),
 				);
-				if (!classified) return;
-				if (classified === "unrecoverable") return;
-
-				// Abort refinement (Q23 = B): combine with last HTTP
-				// status. A user-initiated abort (Esc on a slow stream
-				// with no 5xx) is NOT a failure — no strike, no switch
-				// (convention #15: aborts are expected, not failures).
-				if (failureAssistant.stopReason === "aborted") {
-					const lastStatus = fallbackState.getLastStatus(
-						failingProvider,
-						failingModelId,
-					);
-					const abortKind = classifyAbort(lastStatus);
-					if (!abortKind) return; // user-initiated
-					if (abortKind === "unrecoverable") return;
-					failureReason = `abort+http:${lastStatus ?? "?"}`;
+				if (!failure) {
+					return; // clean run, user abort, or unrecoverable — nothing to do
 				}
-
-				const failureKey = `${failingProvider}/${failingModelId}`;
+				const { reason: failureReason, key: failureKey } = failure;
 				// One strike per settled run, recorded in exactly one
 				// place (here — performSwitch does NOT strike). Pi's
 				// internal retries (which re-emit after_provider_response /
@@ -628,18 +609,9 @@ export function createAutoFallback(): AutoFallbackHandle {
 						autoContinueBudget = cfg.autoContinueMax;
 						budgetInitialized = true;
 					}
-					if (
-						cfg.autoContinue &&
-						autoContinueBudget > 0 &&
-						lastUserPrompt &&
-						lastUserPrompt.text
-					) {
+					const content = buildAutoContinueContent(lastUserPrompt);
+					if (cfg.autoContinue && autoContinueBudget > 0 && content) {
 						autoContinueBudget--;
-						const prompt = lastUserPrompt;
-						const content: string | unknown[] =
-							prompt.images && prompt.images.length > 0
-								? [{ type: "text", text: prompt.text }, ...prompt.images]
-								: prompt.text;
 						_logger.info(
 							`auto-fallback: auto-continuing on ${ctx.model.provider}/${ctx.model.id} (budget remaining: ${autoContinueBudget})`,
 						);

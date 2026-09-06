@@ -58,6 +58,24 @@ function detectPricingExposed(allModels: ProviderModelConfig[]): boolean {
 }
 
 /**
+ * Memoized pricing-exposure verdicts keyed by catalog array identity.
+ * WeakMap so replaced catalogs are collectable; safe because the verdict
+ * is a pure function of the array contents and update paths replace the
+ * catalog reference instead of mutating it in place.
+ */
+const pricingExposedCache = new WeakMap<ProviderModelConfig[], boolean>();
+
+function isPricingExposedCached(
+	allModels: ProviderModelConfig[],
+): boolean {
+	const cached = pricingExposedCache.get(allModels);
+	if (cached !== undefined) return cached;
+	const verdict = detectPricingExposed(allModels);
+	pricingExposedCache.set(allModels, verdict);
+	return verdict;
+}
+
+/**
  * Check if a model is free using adaptive Route A/B logic.
  *
  * **Automatic Detection:**
@@ -112,13 +130,18 @@ function isFreeModelInternal(
 		return model._isFree === true;
 	}
 
-	// Determine if pricing is exposed
+	// Determine if pricing is exposed. Every model in a catalog-filter pass
+	// shares the same `allModels` array reference, and the scan below is
+	// O(n) per call — so memoize the verdict per array identity (WeakMap:
+	// no retention after the catalog is replaced). Repeated calls with the
+	// same array (the common filter path) skip the rescan; behavior is
+	// identical, only the redundant O(n) scans disappear.
 	let pricingExposed: boolean;
 
 	if (allModels && allModels.length > 0) {
 		// Dynamic detection: check if ALL models have cost === 0
 		// If all costs are 0, assume pricing is NOT actually exposed
-		pricingExposed = detectPricingExposed(allModels);
+		pricingExposed = isPricingExposedCached(allModels);
 	} else {
 		// No allModels provided - default to cost-based detection
 		// This maintains backward compatibility
