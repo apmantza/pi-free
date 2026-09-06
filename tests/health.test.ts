@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-const tempHome = "C:/tmp/pi-free-health-test";
+// A literal "C:/tmp/..." HOME is a Windows path that POSIX hosts resolve
+// relative to the cwd, so every test run left a stray, untracked `C:/` tree in
+// the repository root. The real temp dir works on both.
+const tempHome = join(tmpdir(), "pi-free-health-test");
 
 beforeEach(async () => {
 	process.env.HOME = tempHome;
