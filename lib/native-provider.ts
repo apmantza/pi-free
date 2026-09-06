@@ -526,7 +526,10 @@ export function registerNativeProviderRefresh(
 
 	pi.on(
 		"session_start",
-		wrapSessionStartHandler(providerId, (_event, ctx) => {
+		// Stable label: this is a single global nudge registered once per runner
+		// (WeakSet guard above), not a per-provider handler — labeling it with
+		// whichever provider happened to register first was misleading in logs.
+		wrapSessionStartHandler("native-model-refresh", (_event, ctx) => {
 			try {
 				const registry = (
 					ctx as {
