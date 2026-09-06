@@ -74,9 +74,9 @@ export async function fetchOpenCodeModelIds(
 				.map((item) => item.id),
 		),
 	];
-	if (ids.length === 0) {
-		throw new Error("OpenCode model catalog returned an empty model list");
-	}
+	// Empty is not an error here: callers retain the cached catalog on an
+	// empty response (poisoning guard, same rule as refreshModels). Only a
+	// malformed payload throws.
 	return ids;
 }
 

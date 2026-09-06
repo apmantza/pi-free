@@ -441,6 +441,98 @@ describe("built-in provider toggles", () => {
 		).resolves.toEqual([expect.objectContaining({ id: "free-model" })]);
 	});
 
+	it("issues no fetch when the refresh signal is already aborted", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		const fetchMock = vi.fn(() =>
+			Promise.reject(new Error("must not be called")),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const models = [
+			{
+				provider: "opencode",
+				id: "free-model",
+				name: "Free Model",
+				api: "openai-completions",
+				reasoning: false,
+				input: ["text"],
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 128000,
+				maxTokens: 4096,
+				baseUrl: "https://example.com",
+			},
+		];
+
+		await handlers.session_start(
+			{},
+			{ modelRegistry: { getAvailable: () => models } },
+		);
+		await settleDetachedCapture();
+		fetchMock.mockClear();
+
+		const registered = mockRegisterProvider.mock.calls.at(-1)?.[1] as {
+			refreshModels?: (context: {
+				allowNetwork: boolean;
+				signal: AbortSignal;
+			}) => Promise<Array<{ id: string }>>;
+		};
+
+		// A superseded refresh must be dropped before any network I/O.
+		const controller = new AbortController();
+		controller.abort();
+		await expect(
+			registered.refreshModels?.({
+				allowNetwork: true,
+				signal: controller.signal,
+			}),
+		).resolves.toEqual([expect.objectContaining({ id: "free-model" })]);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("retains the cached catalog when Pi refreshes without a signal", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(() => Promise.reject(new Error("network stalled"))),
+		);
+
+		const models = [
+			{
+				provider: "opencode",
+				id: "free-model",
+				name: "Free Model",
+				api: "openai-completions",
+				reasoning: false,
+				input: ["text"],
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 128000,
+				maxTokens: 4096,
+				baseUrl: "https://example.com",
+			},
+		];
+
+		await handlers.session_start(
+			{},
+			{ modelRegistry: { getAvailable: () => models } },
+		);
+		await settleDetachedCapture();
+
+		const registered = mockRegisterProvider.mock.calls.at(-1)?.[1] as {
+			refreshModels?: (context: {
+				allowNetwork: boolean;
+				signal?: AbortSignal;
+			}) => Promise<Array<{ id: string }>>;
+		};
+
+		// Some Pi hosts invoke refreshModels without a signal: optional
+		// chaining must keep this a silent retain, not a TypeError rethrow.
+		await expect(
+			registered.refreshModels?.({ allowNetwork: true }),
+		).resolves.toEqual([expect.objectContaining({ id: "free-model" })]);
+	});
+
 	it("retains the captured catalog when the live endpoint returns no models", async () => {
 		setupBuiltInProviderToggles(mockPi);
 
@@ -1039,8 +1131,18 @@ describe("built-in provider toggles", () => {
 						model: { provider: "openai-codex", modelId: "gpt-5.5" },
 					}),
 					getEntries: () => [
-						{ type: "model_change", provider: "opencode-free", modelId: "free-model", timestamp: "2026-01-01T00:00:00.000Z" },
-						{ type: "model_change", provider: "openai-codex", modelId: "gpt-5.5", timestamp: now },
+						{
+							type: "model_change",
+							provider: "opencode-free",
+							modelId: "free-model",
+							timestamp: "2026-01-01T00:00:00.000Z",
+						},
+						{
+							type: "model_change",
+							provider: "openai-codex",
+							modelId: "gpt-5.5",
+							timestamp: now,
+						},
 					],
 				},
 				model: { provider: "openai-codex", id: "gpt-5.5" },
@@ -1136,8 +1238,18 @@ describe("built-in provider toggles", () => {
 						model: { provider: "kilo", modelId: "other-model" },
 					}),
 					getEntries: () => [
-						{ type: "model_change", provider: "opencode-free", modelId: "free-model", timestamp: "2026-01-01T00:00:00.000Z" },
-						{ type: "model_change", provider: "kilo", modelId: "other-model", timestamp: "2026-01-01T00:05:00.000Z" },
+						{
+							type: "model_change",
+							provider: "opencode-free",
+							modelId: "free-model",
+							timestamp: "2026-01-01T00:00:00.000Z",
+						},
+						{
+							type: "model_change",
+							provider: "kilo",
+							modelId: "other-model",
+							timestamp: "2026-01-01T00:05:00.000Z",
+						},
 					],
 				},
 				model: { provider: "kilo", id: "other-model" },

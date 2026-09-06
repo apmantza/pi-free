@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 // A literal "C:/tmp/..." HOME is a Windows path that POSIX hosts resolve
 // relative to the cwd, so every test run left a stray, untracked `C:/` tree in
-// the repository root. The real temp dir works on both.
-const tempHome = join(tmpdir(), "pi-free-health-test");
+// the repository root. A unique real temp dir works on both and avoids
+// collisions between parallel workers/runs sharing a fixed path.
+const tempHome = mkdtempSync(join(tmpdir(), "pi-free-health-test-"));
 
 beforeEach(async () => {
 	process.env.HOME = tempHome;
@@ -131,8 +133,7 @@ describe("health report", () => {
 	it("surfaces log write failures and flips status to WARN (#456)", async () => {
 		vi.resetModules();
 		vi.doMock("../lib/logger.ts", async (importOriginal) => {
-			const actual =
-				await importOriginal<typeof import("../lib/logger.ts")>();
+			const actual = await importOriginal<typeof import("../lib/logger.ts")>();
 			return {
 				...actual,
 				getLogWriteFailures: () => 2,
@@ -144,9 +145,7 @@ describe("health report", () => {
 		const report = formatHealthReport();
 
 		expect(report).toContain("Pi-Free health: WARN");
-		expect(report).toContain(
-			"Log write failures: 2 (sink:",
-		);
+		expect(report).toContain("Log write failures: 2 (sink:");
 		expect(report).toContain("last: ENOSPC: no space left on device");
 
 		vi.doUnmock("../lib/logger.ts");
