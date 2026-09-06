@@ -276,6 +276,322 @@ describe("built-in provider toggles", () => {
 		]);
 	});
 
+	it("refreshes opencode-go from the live Go endpoint after session_start", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+
+		// Pi's built-in Go snapshot: one curated model.
+		const models = [
+			{
+				provider: "opencode-go",
+				id: "minimax-m2.7",
+				name: "MiniMax M2.7",
+				api: "anthropic-messages",
+				reasoning: true,
+				input: ["text"],
+				cost: { input: 0.22, output: 0.66, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 200000,
+				maxTokens: 8192,
+				baseUrl: "https://opencode.ai/zen/go/v1",
+			},
+		];
+
+		fetchMock.mockImplementation((url: string) => {
+			if (url === "https://opencode.ai/zen/go/v1/models") {
+				return Promise.resolve(
+					new Response(
+						JSON.stringify({
+							data: [{ id: "minimax-m2.7" }, { id: "mimo-v2-pro" }],
+						}),
+						{ status: 200, headers: { "content-type": "application/json" } },
+					),
+				);
+			}
+			return Promise.reject(new Error(`unexpected fetch: ${url}`));
+		});
+
+		await handlers.session_start(
+			{},
+			{ modelRegistry: { getAvailable: () => models } },
+		);
+		await settleDetachedCapture();
+
+		// Pre-fix the Go tier had no refreshEndpoint, so models OpenCode shipped
+		// after Pi's snapshot never appeared (#504).
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://opencode.ai/zen/go/v1/models",
+			expect.objectContaining({ signal: expect.any(AbortSignal) }),
+		);
+
+		const goCalls = mockRegisterProvider.mock.calls.filter(
+			([id]) => id === "opencode-go",
+		);
+		const lastModels = goCalls.at(-1)?.[1].models as Array<{
+			id: string;
+			name: string;
+			api: string;
+			baseUrl: string;
+		}>;
+		expect(lastModels.map((model) => model.id)).toEqual([
+			"minimax-m2.7",
+			"mimo-v2-pro",
+		]);
+		// Known ID keeps Pi's curated metadata and wire protocol.
+		expect(lastModels[0].name).toBe("MiniMax M2.7");
+		expect(lastModels[0].api).toBe("anthropic-messages");
+		// Discovered ID gets the Go protocol defaults.
+		expect(lastModels[1].api).toBe("openai-completions");
+		expect(lastModels[1].baseUrl).toBe("https://opencode.ai/zen/go/v1");
+	});
+
+	it("retains the cached catalog when Pi's refresh fetch fails", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(() => Promise.reject(new Error("network stalled"))),
+		);
+
+		const models = [
+			{
+				provider: "opencode",
+				id: "free-model",
+				name: "Free Model",
+				api: "openai-completions",
+				reasoning: false,
+				input: ["text"],
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 128000,
+				maxTokens: 4096,
+				baseUrl: "https://example.com",
+			},
+		];
+
+		await handlers.session_start(
+			{},
+			{ modelRegistry: { getAvailable: () => models } },
+		);
+		await settleDetachedCapture();
+
+		const registered = mockRegisterProvider.mock.calls.at(-1)?.[1] as {
+			refreshModels?: (context: {
+				allowNetwork: boolean;
+				signal: AbortSignal;
+			}) => Promise<Array<{ id: string }>>;
+		};
+		expect(typeof registered.refreshModels).toBe("function");
+
+		// A thrown fetch error is what makes Pi warn "Could not refresh
+		// opencode-free; showing cached models" — cached models are exactly what
+		// we keep, so the failure must stay in ~/.pi/free.log (#504).
+		await expect(
+			registered.refreshModels?.({
+				allowNetwork: true,
+				signal: new AbortController().signal,
+			}),
+		).resolves.toEqual([expect.objectContaining({ id: "free-model" })]);
+	});
+
+	it("treats an aborted catalog refresh as cancellation, not failure", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(() => Promise.reject(new Error("This operation was aborted"))),
+		);
+
+		const models = [
+			{
+				provider: "opencode",
+				id: "free-model",
+				name: "Free Model",
+				api: "openai-completions",
+				reasoning: false,
+				input: ["text"],
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 128000,
+				maxTokens: 4096,
+				baseUrl: "https://example.com",
+			},
+		];
+
+		await handlers.session_start(
+			{},
+			{ modelRegistry: { getAvailable: () => models } },
+		);
+		await settleDetachedCapture();
+
+		const registered = mockRegisterProvider.mock.calls.at(-1)?.[1] as {
+			refreshModels?: (context: {
+				allowNetwork: boolean;
+				signal: AbortSignal;
+			}) => Promise<Array<{ id: string }>>;
+		};
+
+		// Convention 15: Pi aborts a superseded refresh; retain without a warning.
+		const controller = new AbortController();
+		controller.abort();
+		await expect(
+			registered.refreshModels?.({
+				allowNetwork: true,
+				signal: controller.signal,
+			}),
+		).resolves.toEqual([expect.objectContaining({ id: "free-model" })]);
+	});
+
+	it("issues no fetch when the refresh signal is already aborted", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		const fetchMock = vi.fn(() =>
+			Promise.reject(new Error("must not be called")),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const models = [
+			{
+				provider: "opencode",
+				id: "free-model",
+				name: "Free Model",
+				api: "openai-completions",
+				reasoning: false,
+				input: ["text"],
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 128000,
+				maxTokens: 4096,
+				baseUrl: "https://example.com",
+			},
+		];
+
+		await handlers.session_start(
+			{},
+			{ modelRegistry: { getAvailable: () => models } },
+		);
+		await settleDetachedCapture();
+		fetchMock.mockClear();
+
+		const registered = mockRegisterProvider.mock.calls.at(-1)?.[1] as {
+			refreshModels?: (context: {
+				allowNetwork: boolean;
+				signal: AbortSignal;
+			}) => Promise<Array<{ id: string }>>;
+		};
+
+		// A superseded refresh must be dropped before any network I/O.
+		const controller = new AbortController();
+		controller.abort();
+		await expect(
+			registered.refreshModels?.({
+				allowNetwork: true,
+				signal: controller.signal,
+			}),
+		).resolves.toEqual([expect.objectContaining({ id: "free-model" })]);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("retains the cached catalog when Pi refreshes without a signal", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(() => Promise.reject(new Error("network stalled"))),
+		);
+
+		const models = [
+			{
+				provider: "opencode",
+				id: "free-model",
+				name: "Free Model",
+				api: "openai-completions",
+				reasoning: false,
+				input: ["text"],
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 128000,
+				maxTokens: 4096,
+				baseUrl: "https://example.com",
+			},
+		];
+
+		await handlers.session_start(
+			{},
+			{ modelRegistry: { getAvailable: () => models } },
+		);
+		await settleDetachedCapture();
+
+		const registered = mockRegisterProvider.mock.calls.at(-1)?.[1] as {
+			refreshModels?: (context: {
+				allowNetwork: boolean;
+				signal?: AbortSignal;
+			}) => Promise<Array<{ id: string }>>;
+		};
+
+		// Some Pi hosts invoke refreshModels without a signal: optional
+		// chaining must keep this a silent retain, not a TypeError rethrow.
+		await expect(
+			registered.refreshModels?.({ allowNetwork: true }),
+		).resolves.toEqual([expect.objectContaining({ id: "free-model" })]);
+	});
+
+	it("retains the captured catalog when the live endpoint returns no models", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+
+		const models = [
+			{
+				provider: "openrouter",
+				id: "known/model",
+				name: "Known Model",
+				api: "openai-completions",
+				reasoning: false,
+				input: ["text"],
+				cost: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 128000,
+				maxTokens: 4096,
+				baseUrl: "https://openrouter.ai/api/v1",
+			},
+		];
+
+		fetchMock.mockImplementation((url: string) => {
+			if (url === "https://openrouter.ai/api/v1/models") {
+				return Promise.resolve(
+					new Response(JSON.stringify({ data: [] }), {
+						status: 200,
+						headers: { "content-type": "application/json" },
+					}),
+				);
+			}
+			return Promise.reject(new Error(`unexpected fetch: ${url}`));
+		});
+
+		await handlers.session_start(
+			{},
+			{ modelRegistry: { getAvailable: () => models } },
+		);
+		await settleDetachedCapture();
+
+		// The detached endpoint refresh must not publish an empty catalog over the
+		// captured one.
+		const lastModels = mockRegisterProvider.mock.calls.at(-1)?.[1]
+			.models as Array<{ id: string }>;
+		expect(lastModels.map((model) => model.id)).toEqual(["known/model"]);
+
+		const registered = mockRegisterProvider.mock.calls.at(-1)?.[1] as {
+			refreshModels?: (context: {
+				allowNetwork: boolean;
+				signal: AbortSignal;
+			}) => Promise<Array<{ id: string }>>;
+		};
+		await expect(
+			registered.refreshModels?.({
+				allowNetwork: true,
+				signal: new AbortController().signal,
+			}),
+		).resolves.toEqual([expect.objectContaining({ id: "known/model" })]);
+	});
+
 	it("refreshes the built-in openrouter catalog from the public endpoint", async () => {
 		setupBuiltInProviderToggles(mockPi);
 
@@ -815,8 +1131,18 @@ describe("built-in provider toggles", () => {
 						model: { provider: "openai-codex", modelId: "gpt-5.5" },
 					}),
 					getEntries: () => [
-						{ type: "model_change", provider: "opencode-free", modelId: "free-model", timestamp: "2026-01-01T00:00:00.000Z" },
-						{ type: "model_change", provider: "openai-codex", modelId: "gpt-5.5", timestamp: now },
+						{
+							type: "model_change",
+							provider: "opencode-free",
+							modelId: "free-model",
+							timestamp: "2026-01-01T00:00:00.000Z",
+						},
+						{
+							type: "model_change",
+							provider: "openai-codex",
+							modelId: "gpt-5.5",
+							timestamp: now,
+						},
 					],
 				},
 				model: { provider: "openai-codex", id: "gpt-5.5" },
@@ -912,8 +1238,18 @@ describe("built-in provider toggles", () => {
 						model: { provider: "kilo", modelId: "other-model" },
 					}),
 					getEntries: () => [
-						{ type: "model_change", provider: "opencode-free", modelId: "free-model", timestamp: "2026-01-01T00:00:00.000Z" },
-						{ type: "model_change", provider: "kilo", modelId: "other-model", timestamp: "2026-01-01T00:05:00.000Z" },
+						{
+							type: "model_change",
+							provider: "opencode-free",
+							modelId: "free-model",
+							timestamp: "2026-01-01T00:00:00.000Z",
+						},
+						{
+							type: "model_change",
+							provider: "kilo",
+							modelId: "other-model",
+							timestamp: "2026-01-01T00:05:00.000Z",
+						},
 					],
 				},
 				model: { provider: "kilo", id: "other-model" },

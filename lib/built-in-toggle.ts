@@ -36,6 +36,12 @@ import {
 	trackDetachedSessionStart,
 	wrapSessionStartHandler,
 } from "./session-start-metrics.ts";
+import {
+	recordNativeAbort,
+	recordNativeEmptyRetain,
+	recordNativeRefreshOk,
+	recordNetworkFetch,
+} from "./startup-timing.ts";
 import { createToggleState } from "./toggle-state.ts";
 import {
 	OPENCODE_DYNAMIC_API,
@@ -122,6 +128,12 @@ const BUILT_IN_TOGGLE_PROVIDERS: BuiltInToggleConfig[] = [
 		showPaidConfigKey: "opencode_go_show_paid",
 		baseUrl: "https://opencode.ai/zen/go/v1",
 		api: OPENCODE_DYNAMIC_API,
+		// Pi's built-in Go catalog is a build-time snapshot overlaid by Pi's own
+		// pi.dev mirror (4h throttle), so models OpenCode ships between Pi
+		// releases never appear (#504). The Go tier exposes the same public,
+		// credential-free `GET /models` endpoint as Zen — already used by the
+		// /toggle-opencode-go discovery fallback — so refresh from it directly.
+		refreshEndpoint: true,
 	},
 	{
 		id: "openrouter",
@@ -542,19 +554,71 @@ function createProviderState(
 
 	const refreshModels = config.refreshEndpoint
 		? async (context: RefreshModelsContext): Promise<ProviderModelConfig[]> => {
+				const currentModels = () =>
+					stateForRefresh?.toggleState.getCurrentModels() ?? allModels;
 				if (!context.allowNetwork) {
-					return stateForRefresh?.toggleState.getCurrentModels() ?? allModels;
+					return currentModels();
+				}
+				// Check cancellation BEFORE any network I/O: Pi aborts superseded
+				// refreshes (convention 15), and a pre-aborted refresh must not
+				// issue a request. `signal` is optional — some Pi hosts invoke
+				// refreshModels without one.
+				if (context.signal?.aborted) {
+					recordNativeAbort(config.id);
+					return currentModels();
 				}
 				const fetcher = config.fetchRefreshedModels ?? fetchRefreshedOpenCodeModels;
-				const refreshed = await fetcher(
-					config,
-					stateForRefresh?.stored.all ?? allModels,
-					context.signal,
-				);
-				if (context.signal.aborted || !stateForRefresh) {
-					return stateForRefresh?.toggleState.getCurrentModels() ?? refreshed;
+				let refreshed: ProviderModelConfig[];
+				try {
+					refreshed = await fetcher(
+						config,
+						stateForRefresh?.stored.all ?? allModels,
+						context.signal,
+					);
+				} catch (error) {
+					// Convention 15: Pi aborts a superseded refresh, so an abort is
+					// cancellation rather than a provider failure — retain silently.
+					if (context.signal?.aborted) {
+						recordNativeAbort(config.id);
+						return currentModels();
+					}
+					// Retain the previous catalog instead of rethrowing. A thrown
+					// fetch error is what makes Pi warn "Could not refresh
+					// <provider>; showing cached models" — and cached models are
+					// exactly what we keep, matching every native provider's
+					// retain-on-failure path (lib/native-provider.ts). A transient
+					// stall (observed: the 10s fetch timeout during a network blip)
+					// therefore stays a log line, not a user-visible warning (#504).
+					// Recorded in startup-timing so /free-health stays aware of
+					// the stale catalog (nativeRefreshFlags/emptyCatalogFlags read
+					// these counters); only the Pi warning is suppressed.
+					recordNetworkFetch(config.id, undefined, false);
+					_logger.warn(
+						`[built-in-toggle] ${config.id}: catalog refresh failed; retaining ${currentModels().length} cached models`,
+						{
+							error: error instanceof Error ? error.message : String(error),
+							stack: error instanceof Error ? error.stack : undefined,
+						},
+					);
+					return currentModels();
+				}
+				// Poisoning guard: an empty live response must not wipe the catalog.
+				// Reachable for every fetcher: fetchOpenCodeModelIds returns [] on
+				// empty (it only throws on malformed payloads) and the OpenRouter
+				// fetcher returns its filtered array as-is.
+				if (refreshed.length === 0) {
+					recordNativeEmptyRetain(config.id);
+					_logger.warn(
+						`[built-in-toggle] ${config.id}: catalog refresh returned no models; retaining ${currentModels().length} cached models`,
+					);
+					return currentModels();
+				}
+				if (context.signal?.aborted || !stateForRefresh) {
+					if (context.signal?.aborted) recordNativeAbort(config.id);
+					return currentModels();
 				}
 				stateForRefresh.updateModels(refreshed);
+				recordNativeRefreshOk(config.id, refreshed.length);
 				return stateForRefresh.toggleState.getCurrentModels();
 			}
 		: undefined;
@@ -730,16 +794,33 @@ function scheduleEndpointRefresh(
 		try {
 			const fetcher = config.fetchRefreshedModels ?? fetchRefreshedOpenCodeModels;
 			const refreshed = await fetcher(config, state.stored.all);
+			// Poisoning guard: an empty live response must not wipe the captured
+			// catalog (same retain-on-empty rule as refreshModels above).
+			if (refreshed.length === 0) {
+				recordNativeEmptyRetain(config.id);
+				_logger.warn(
+					`[built-in-toggle] ${config.id}: endpoint refresh returned no models; retaining ${state.stored.all.length} cached models`,
+				);
+				return;
+			}
 			state.updateModels(refreshed);
+			recordNativeRefreshOk(config.id, refreshed.length);
 			const applied = state.toggleState.applyCurrent(state.reRegister);
 			_logger.info(
 				`[built-in-toggle] ${config.id}: endpoint refresh ${applied.models.length}/${refreshed.length} ${applied.mode} models`,
 			);
 		} catch (error) {
+			// Retain silently: resolve (don't rethrow) so a transient stall
+			// stays a log line. The rejection previously propagated to anyone
+			// awaiting pendingEndpointRefreshes plus a second
+			// session-start-metrics "detached failed" warn per blip.
+			// Counters keep /free-health aware of the stale catalog.
+			recordNetworkFetch(config.id, undefined, false);
 			_logger.warn(`[built-in-toggle] ${config.id}: endpoint refresh failed`, {
 				error: error instanceof Error ? error.message : String(error),
+				stack: error instanceof Error ? error.stack : undefined,
 			});
-			throw error;
+			return;
 		} finally {
 			if (pendingEndpointRefreshes.get(config.id) === task) {
 				pendingEndpointRefreshes.delete(config.id);
