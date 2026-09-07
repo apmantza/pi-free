@@ -176,8 +176,14 @@ describe("createLlm7Provider shape", () => {
 		// Native auth: apiKey only — LLM7 has no OAuth flow.
 		expect(provider.auth.apiKey).toBeDefined();
 		expect(provider.auth.oauth).toBeUndefined();
-		// Empty before the first refresh (dynamic provider contract).
-		expect(provider.getModels()).toEqual([]);
+		// Seeded with the static selector catalog at assembly, so models are
+		// visible before the first refresh completes (fresh installs have an
+		// empty store and refresh publication can be superseded).
+		expect(provider.getModels().map((m: { id: string }) => m.id)).toEqual([
+			"default",
+			"fast",
+			"pro",
+		]);
 	});
 });
 
@@ -290,11 +296,17 @@ describe("refreshModels offline init", () => {
 		).toEqual(["default", "fast"]);
 	});
 
-	it("stays empty when the store is empty and network is disallowed", async () => {
+	it("retains the seeded static catalog when the store is empty and network is disallowed", async () => {
 		const { provider } = createLlm7Provider();
 		await provider.refreshModels?.(ctx({ allowNetwork: false }));
 		expect(mockFetch).not.toHaveBeenCalled();
-		expect(provider.getModels()).toEqual([]);
+		// An empty restore must not wipe the assembly seed (restore only
+		// applies non-empty restores).
+		expect(provider.getModels().map((m: { id: string }) => m.id)).toEqual([
+			"default",
+			"fast",
+			"pro",
+		]);
 	});
 
 	it("ignores stored models from other providers", async () => {
@@ -304,7 +316,12 @@ describe("refreshModels offline init", () => {
 		const { store } = makeStore(seeded);
 		const { provider } = createLlm7Provider();
 		await provider.refreshModels?.(ctx({ store, allowNetwork: false }));
-		expect(provider.getModels()).toEqual([]);
+		// Foreign models are filtered on restore; the assembly seed stands.
+		expect(provider.getModels().map((m: { id: string }) => m.id)).toEqual([
+			"default",
+			"fast",
+			"pro",
+		]);
 	});
 
 	it("survives a failing store read without throwing", async () => {
@@ -319,7 +336,12 @@ describe("refreshModels offline init", () => {
 		await expect(
 			provider.refreshModels?.(ctx({ store, allowNetwork: false })),
 		).resolves.toBeUndefined();
-		expect(provider.getModels()).toEqual([]);
+		// A failed read must not wipe the assembly seed either.
+		expect(provider.getModels().map((m: { id: string }) => m.id)).toEqual([
+			"default",
+			"fast",
+			"pro",
+		]);
 	});
 });
 
@@ -392,7 +414,12 @@ describe("refreshModels online", () => {
 			ctx({ store, allowNetwork: true, signal: controller.signal }),
 		);
 
-		expect(provider.getModels()).toEqual([]);
+		// Aborted before any phase ran: the seed stands, nothing persisted.
+		expect(provider.getModels().map((m: { id: string }) => m.id)).toEqual([
+			"default",
+			"fast",
+			"pro",
+		]);
 		expect(written).toHaveLength(0);
 	});
 

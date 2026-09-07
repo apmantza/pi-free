@@ -118,16 +118,22 @@ describe("LLM7 factory wiring", () => {
 		} as unknown as ExtensionAPI;
 	});
 
-	it("factory is network-free and registers the native provider empty — even with no API key", async () => {
+	it("factory is network-free and registers the native provider seeded — even with no API key", async () => {
 		await llm7Provider(mockPi);
 
-		// The factory never fetches: models load via refreshModels. Unlike the
-		// legacy registration, a missing LLM7_API_KEY does NOT skip the provider.
+		// The factory never fetches: the static selector catalog is seeded
+		// at assembly (models load via refreshModels after that). Unlike
+		// the legacy registration, a missing LLM7_API_KEY does NOT skip
+		// the provider.
 		expect(mockFetch).not.toHaveBeenCalled();
 		expect(mockRegisterProvider).toHaveBeenCalledTimes(1);
 		const provider = mockRegisterProvider.mock.calls[0][0];
 		expect(provider.id).toBe("llm7");
-		expect(provider.getModels()).toEqual([]);
+		expect(provider.getModels().map((m: { id: string }) => m.id)).toEqual([
+			"default",
+			"fast",
+			"pro",
+		]);
 		expect(provider.auth.apiKey).toBeDefined();
 
 		// Lifecycle handlers + toggle command registered.
@@ -283,7 +289,12 @@ describe("LLM7 factory wiring", () => {
 
 		const refresh = vi.fn().mockResolvedValue(undefined);
 		await handler({}, { modelRegistry: { refresh } });
-		expect(refresh).toHaveBeenCalledWith({ allowNetwork: true });
+		// Scoped to opted-in providers (never the whole registry), so
+		// foreign credential failures cannot fail our refresh.
+		expect(refresh).toHaveBeenCalledWith({
+			allowNetwork: true,
+			providers: expect.arrayContaining(["llm7"]),
+		});
 
 		// No modelRegistry on the context -> safe no-op.
 		await expect(handler({}, {})).resolves.toBeUndefined();

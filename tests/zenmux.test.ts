@@ -159,7 +159,12 @@ describe("ZenMux native factory", () => {
 		)?.[1];
 		const refresh = vi.fn().mockResolvedValue(undefined);
 		await sessionStart({}, { modelRegistry: { refresh } });
-		expect(refresh).toHaveBeenCalledWith({ allowNetwork: true });
+		// Scoped to opted-in providers (never the whole registry), so
+		// foreign credential failures cannot fail our refresh.
+		expect(refresh).toHaveBeenCalledWith({
+			allowNetwork: true,
+			providers: expect.arrayContaining(["zenmux"]),
+		});
 		await expect(sessionStart({}, {})).resolves.toBeUndefined();
 	});
 

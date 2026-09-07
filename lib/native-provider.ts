@@ -14,10 +14,12 @@ import type {
 } from "@earendil-works/pi-ai/compat";
 import type {
 	ExtensionAPI,
+	ExtensionContext,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
 import { applyHidden, setModelViewOverride } from "../config.ts";
 import { createLogger } from "./logger.ts";
+import { isStaleContextError } from "./stale-ctx.ts";
 import {
 	isFreeModel,
 	registerWithGlobalToggle,
@@ -500,13 +502,41 @@ export function registerNativeProviderToggle(
 	});
 }
 
+/** Delay before retrying a superseded refresh; captures (~1s) and endpoint
+ * refresh re-registrations (~2s) have settled by then. */
+const NUDGE_RETRY_DELAY_MS = 5000;
+
 /**
- * Nudge Pi's native model refresh once per extension session.
+ * Provider ids that asked for the session-start refresh nudge. The nudge
+ * refreshes exactly these (never the whole registry): tiers Pi owns
+ * outright (opencode-free/go, openrouter) never register here, so their
+ * credential failures (e.g. a missing OPENCODE_API_KEY) cannot fail a
+ * refresh that is none of their business. A Set (not the global
+ * registry) keeps the scope on providers that opted in, with no coupling
+ * to registration order.
+ */
+const nudgeProviderIds = new Set<string>();
+
+/**
+ * Nudge Pi's model refresh once per extension session, scoped to the
+ * opted-in providers.
  *
- * Pi 0.84 supersedes an in-flight refresh for each provider when a newer
- * refresh starts. Registering this handler once per provider while calling a
- * global refresh caused every handler to abort the previous providers' fetches
- * in a tight loop on session resume.
+ * Two hard-won constraints shape this:
+ *
+ * - Pi supersedes an in-flight refresh per provider when a newer refresh
+ *   begins — and every registerProvider/unregister fires a global offline
+ *   refresh. pi-free's own session-start captures re-register providers
+ *   ~40ms after this nudge fires, so an unscoped, unretried network
+ *   refresh is deterministically aborted before slow fetches land (empty
+ *   catalog on fresh installs). The nudge therefore retries once when
+ *   aborted, after the re-registration storm has settled.
+ * - Pi reports per-provider errors for the WHOLE registry, including
+ *   tiers pi-free does not refresh (missing OPENCODE_API_KEY). Only
+ *   errors for the scoped ids fail this nudge; anything else is noise.
+ *
+ * Registering this handler once per provider while calling a global
+ * refresh caused every handler to abort the previous providers' fetches
+ * in a tight loop on session resume (kept: the WeakSet guard below).
  */
 const nativeRefreshRegistrations = new WeakSet<object>();
 
@@ -516,46 +546,93 @@ export function registerNativeProviderRefresh(
 ): void {
 	if (nativeRefreshRegistrations.has(pi as object)) return;
 	nativeRefreshRegistrations.add(pi as object);
+	nudgeProviderIds.add(providerId);
 
 	pi.on(
 		"session_start",
-		// Stable label: this is a single global nudge registered once per runner
-		// (WeakSet guard above), not a per-provider handler — labeling it with
-		// whichever provider happened to register first was misleading in logs.
 		wrapSessionStartHandler("native-model-refresh", (_event, ctx) => {
-			try {
-				const registry = (
-					ctx as {
-						modelRegistry?: { refresh?: (opts?: unknown) => unknown };
-					}
-				).modelRegistry;
-				const result = registry?.refresh?.({ allowNetwork: true });
-				if (result && typeof (result as PromiseLike<unknown>).then === "function") {
-					const refreshTask = Promise.resolve(result).then((value) => {
-						const errors = (value as { errors?: { size?: number } } | undefined)
-							?.errors;
-						if (errors?.size && errors.size > 0) {
-							throw new Error(
-								`Pi model refresh reported ${errors.size} provider error(s)`,
-							);
-						}
-					});
-					trackDetachedSessionStart(
-						`${providerId}-model-refresh`,
-						refreshTask,
-						(err) => logRefreshFailure(providerId, err),
-					);
-				}
-			} catch (err) {
-				logRefreshFailure(providerId, err);
-			}
+			void runRefreshNudge(ctx, false);
 			return Promise.resolve();
 		}),
 	);
 }
 
-function logRefreshFailure(providerId: string, error: unknown): void {
-	_logger.warn(`Model refresh nudge failed for ${providerId}`, {
+async function runRefreshNudge(
+	ctx: ExtensionContext,
+	isRetry: boolean,
+): Promise<void> {
+	// No casts: ctx.modelRegistry is pi's typed ModelRegistry, whose
+	// refresh() takes ModelsRefreshOptions and returns ModelsRefreshResult
+	// ({aborted, errors: ReadonlyMap<string, Error>}).
+	try {
+		if (nudgeProviderIds.size === 0) {
+			_logger.debug(
+				"[native-model-refresh] no providers opted in; skipping nudge",
+			);
+			return;
+		}
+		const scopedIds = [...nudgeProviderIds];
+		const result = await ctx.modelRegistry?.refresh?.({
+			allowNetwork: true,
+			providers: scopedIds,
+		});
+		if (!result) {
+			_logger.debug(
+				"[native-model-refresh] registry refresh unavailable; skipping nudge",
+			);
+			return;
+		}
+		const ownErrors = [...result.errors].filter(([id]) =>
+			nudgeProviderIds.has(id),
+		);
+		if (ownErrors.length > 0) {
+			throw new Error(
+				`Pi model refresh reported ${ownErrors.length} pi-free provider error(s): ` +
+					ownErrors.map(([id, error]) => `${id} :: ${error.message}`).join(" | "),
+			);
+		}
+		if (result.aborted && !isRetry) {
+			_logger.info(
+				"[native-model-refresh] refresh superseded; retrying once after settle",
+			);
+			setTimeout(() => {
+				trackDetachedSessionStart(
+					"native-model-refresh-retry",
+					runRefreshNudge(ctx, true),
+					(err) => logRefreshFailure(err),
+				);
+			}, NUDGE_RETRY_DELAY_MS);
+			return;
+		}
+		if (result.aborted) {
+			_logger.warn(
+				"[native-model-refresh] retry superseded; catalogs stay as-is until the next refresh",
+			);
+			return;
+		}
+		trackDetachedSessionStart(
+			"native-model-refresh",
+			Promise.resolve(),
+			undefined,
+		);
+		_logger.debug(
+			`[native-model-refresh] refreshed ${scopedIds.length} provider(s) clean`,
+		);
+	} catch (err) {
+		// A replaced session invalidates the captured ctx mid-nudge (#509) —
+		// routine, not a warning.
+		if (isStaleContextError(err)) {
+			_logger.info("[native-model-refresh] session changed mid-nudge; dropping", {
+				error: err instanceof Error ? err.message : String(err),
+			});
+			return;
+		}
+		logRefreshFailure(err);
+	}
+}
+
+function logRefreshFailure(error: unknown): void {
+	_logger.warn("Model refresh nudge failed", {
 		error: error instanceof Error ? error.message : String(error),
 	});
 }
