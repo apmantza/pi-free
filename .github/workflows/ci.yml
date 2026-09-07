@@ -121,6 +121,11 @@ jobs:
       - name: Run tests
         run: npm run test:run
 
+      # Drives createAutoFallback() against a REAL pi-coding-agent
+      # ModelRuntime (auth gates, setModel semantics) instead of mocks.
+      - name: Smoke auto-fallback status surface
+        run: npm run smoke:auto-fallback
+
   install-test:
     name: Install test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -186,3 +191,20 @@ jobs:
           echo "Loading compiled entry: $INSTALL_DIR/$ENTRY"
           node scripts/smoke-compiled.mjs "$INSTALL_DIR/$ENTRY"
           node scripts/smoke-pi-loader.mjs "$INSTALL_DIR/$ENTRY"
+
+      # #510: pi-ai was present but its own transitive dep (typebox) was
+      # unresolvable in the installed tree — a layout every load-only smoke
+      # above passes, while first real pi-ai use crashes. These two steps
+      # close that hole: the closure check proves the deps resolve, the
+      # entries smoke proves they execute. Both run on every matrix OS.
+      - name: Verify pi-ai transitive closure in installed tree (#510)
+        shell: bash
+        run: |
+          INSTALL_DIR=$(npm root -g)/pi-free
+          node scripts/check-installed-closure.mjs "$INSTALL_DIR"
+
+      - name: Execute pi-ai entries from installed tree (#510)
+        shell: bash
+        run: |
+          INSTALL_DIR=$(npm root -g)/pi-free
+          node scripts/smoke-pi-ai-entries.mjs "$INSTALL_DIR"
