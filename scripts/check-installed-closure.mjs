@@ -189,7 +189,9 @@ function hasImportableEntry(depRoot) {
 }
 
 if (missing.length > 0) {
-	console.error(
+	// NOSONAR (jssecurity:S8689) -- false positive, see justification at the
+	// per-dependency log below: public package metadata for the operator only.
+	console.error( // NOSONAR
 		`[install-closure] FAIL: pi-ai@${piAiPkg.version ?? "?"} at ${redactHome(piAiRoot)} has ${missing.length} unresolvable runtime dependenc(ies):`,
 	);
 	for (const { name, want, error } of missing) {
@@ -209,6 +211,8 @@ if (missing.length > 0) {
 }
 
 const count = Object.keys(runtimeDeps).length;
-console.log(
+// NOSONAR (jssecurity:S8689) -- false positive: version string, dep count,
+// and home-redacted path, printed for the operator only (see above).
+console.log( // NOSONAR
 	`[install-closure] PASS: pi-ai@${piAiPkg.version ?? "?"} + ${count} runtime dep(s) resolve from ${redactHome(piAiRoot)}`,
 );
