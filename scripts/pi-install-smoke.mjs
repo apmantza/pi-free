@@ -10,7 +10,13 @@
  *   node scripts/pi-install-smoke.mjs ./pi-free-<version>.tgz
  */
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import {
+	existsSync,
+	mkdtempSync,
+	mkdirSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -85,8 +91,21 @@ const piModule = fileURLToPath(
 	import.meta.resolve("@earendil-works/pi-coding-agent"),
 );
 const piCli = join(dirname(piModule), "cli.js");
-const rpcDriver = join(dirname(fileURLToPath(import.meta.url)), "rpc-load-check.mjs");
+const rpcDriver = join(
+	dirname(fileURLToPath(import.meta.url)),
+	"rpc-load-check.mjs",
+);
 const piOptions = { cwd: project, env: environment, stdio: "inherit" };
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+const rpcSessionDriver = join(scriptDir, "rpc-session-check.mjs");
+
+// Seed an explicit free_only default so the session check's filter
+// assertions do not depend on template defaults (deterministic input).
+mkdirSync(join(home, ".pi"), { recursive: true });
+writeFileSync(
+	join(home, ".pi", "free.json"),
+	JSON.stringify({ free_only: true }, null, 2),
+);
 
 try {
 	// Pi treats a bare local path as a source extension, not an npm package.
@@ -97,6 +116,8 @@ try {
 	await run([piCli, "install", installSpec], piOptions);
 	console.log("Launching Pi RPC load check");
 	await run([rpcDriver], piOptions, 45_000);
+	console.log("Launching Pi RPC session + filter check");
+	await run([rpcSessionDriver], piOptions, 150_000);
 	console.log("Pi install smoke passed");
 } catch (error) {
 	console.error(`Pi install smoke failed: ${error.message}`);

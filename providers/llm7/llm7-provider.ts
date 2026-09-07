@@ -93,6 +93,18 @@ export function createLlm7Provider(): Llm7NativeProvider {
 		stored.free = next.free;
 	}
 
+	// Seed the static selector catalog at assembly so models are visible
+	// before the first refresh completes. Fresh installs have an empty
+	// store, and refresh publication can be superseded by a concurrent
+	// refresh (Pi aborts the older generation) — without this seed the
+	// catalog stays empty until an uncontested refresh lands. Refresh
+	// overwrites these on success and retains them on failure, exactly
+	// like the opengateway/qoder static seeds.
+	{
+		const seed = fetchLlm7Catalog();
+		ingest(seed.all, seed.free);
+	}
+
 	async function refreshModels(context: RefreshModelsContext): Promise<void> {
 		// Free split of the most recent build, kept beside the flat list the
 		// shared helper passes through (see the fetch callback below).

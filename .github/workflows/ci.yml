@@ -100,9 +100,21 @@ jobs:
       - name: Smoke-load compiled entry through Pi's real loader
         run: node scripts/smoke-pi-loader.mjs ./dist/index.js
 
+      # Same sick-tree detectors as install-test, run here against the
+      # --omit=dev tree so shape regressions surface one job earlier.
+      - name: Verify pi-ai transitive closure in production tree
+        run: node scripts/check-installed-closure.mjs .
+
+      - name: Execute pi-ai entries from production tree
+        run: node scripts/smoke-pi-ai-entries.mjs .
+
   test:
-    name: Unit tests
-    runs-on: ubuntu-latest
+    name: Unit tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -169,6 +181,14 @@ jobs:
         run: |
           TARBALL=$(ls pi-free-*.tgz)
           npm run smoke:pi-install -- "$PWD/$TARBALL"
+
+      # Upgrade over the latest published release (seeds a realistic
+      # long-lived tree), then re-verify load + session + filter checks.
+      - name: Upgrade published release through Pi and re-verify
+        shell: bash
+        run: |
+          TARBALL=$(ls pi-free-*.tgz)
+          npm run smoke:pi-upgrade -- "$PWD/$TARBALL"
 
       - name: Verify published relative imports resolve
         shell: bash

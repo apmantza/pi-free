@@ -322,7 +322,12 @@ describe("Cline factory wiring", () => {
 
 		const refresh = vi.fn().mockResolvedValue(undefined);
 		await handler({}, { modelRegistry: { refresh } });
-		expect(refresh).toHaveBeenCalledWith({ allowNetwork: true });
+		// Scoped to opted-in providers (never the whole registry), so
+		// foreign credential failures cannot fail our refresh.
+		expect(refresh).toHaveBeenCalledWith({
+			allowNetwork: true,
+			providers: expect.arrayContaining(["cline"]),
+		});
 
 		// No modelRegistry on the context -> safe no-op.
 		await expect(handler({}, {})).resolves.toBeUndefined();

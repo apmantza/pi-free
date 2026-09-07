@@ -61,7 +61,8 @@
 		"smoke:compiled": "node scripts/smoke-compiled.mjs",
 		"smoke:pi-loader": "node scripts/smoke-pi-loader.mjs",
 		"smoke:pi-ai-entries": "node scripts/smoke-pi-ai-entries.mjs",
-		"smoke:pi-install": "node scripts/pi-install-smoke.mjs"
+		"smoke:pi-install": "node scripts/pi-install-smoke.mjs",
+		"smoke:pi-upgrade": "node scripts/pi-upgrade-smoke.mjs"
 	},
 	"overrides": {
 		"brace-expansion": "^5.0.9",
