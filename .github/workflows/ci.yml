@@ -108,6 +108,9 @@ jobs:
       - name: Execute pi-ai entries from production tree
         run: node scripts/smoke-pi-ai-entries.mjs .
 
+      - name: Verify pi-ai deps hoist canonically in production tree
+        run: node scripts/check-hoisting.mjs .
+
   test:
     name: Unit tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -228,3 +231,20 @@ jobs:
         run: |
           INSTALL_DIR=$(npm root -g)/pi-free
           node scripts/smoke-pi-ai-entries.mjs "$INSTALL_DIR"
+
+      - name: Verify pi-ai deps hoist canonically in installed tree
+        shell: bash
+        run: |
+          INSTALL_DIR=$(npm root -g)/pi-free
+          node scripts/check-hoisting.mjs "$INSTALL_DIR"
+
+      # Failure forensics: the smoke scripts preserve free.log/free.json
+      # into .smoke-artifacts/ on failure (the temp HOME is deleted).
+      # Upload them so a red install-test is debuggable from the run.
+      - name: Upload smoke failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        with:
+          name: smoke-artifacts-${{ matrix.os }}
+          path: .smoke-artifacts/
+          if-no-files-found: ignore

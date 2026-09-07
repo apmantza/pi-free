@@ -42,6 +42,25 @@ describe("toggle-state helper", () => {
 		expect(save).toHaveBeenCalledWith({ opencode_free_show_paid: true });
 	});
 
+	it("never falls back to paid when the free view is empty", () => {
+		const applied: unknown[][] = [];
+		const state = createToggleState<{ id: string }>({
+			providerId: "opencode-go",
+			initialShowPaid: false,
+			save: vi.fn(),
+			initialModels: { free: [], all: [{ id: "paid" }] },
+		});
+
+		// A free-only choice with zero free models hides the provider —
+		// it must not leak the paid catalog (strict free-only contract).
+		const result = state.applyCurrent((models) => {
+			applied.push(models);
+		});
+		expect(result.mode).toBe("free");
+		expect(result.models).toEqual([]);
+		expect(applied).toEqual([[]]);
+	});
+
 	it("re-applies persisted show-paid mode after model refresh", () => {
 		const state = createToggleState({
 			providerId: "cline",

@@ -194,6 +194,7 @@ One resolution rule behind every filter decision (`resolveModelView` in `lib/reg
 - `/toggle-free` flips the global flag **and clears all per-provider choices** so the new default applies uniformly — a stale explicit choice must never fight it on the next session.
 - Toggle commands flip the *effective* view and persist it (never the stored pref, which no-ops under an opposing global).
 - Captures and filters resolve live at call time; registration-time values must never be frozen (see defect shape 2).
+- Strict free views: zero free models resolves to an *empty* free view (provider hides from the picker), never to the paid catalog. The old empty-to-all fallback leaked paid models under an explicit free-only choice; flipping to all stays available through an explicit toggle.
 - `lib/toggle-state.ts` provides the generic `createToggleState<T>()` mode machine (`"free"` | `"all"`, `{free, all}` storage, empty-`all` → `free` fallback). Its internal persist targets legacy keys; production toggle paths persist through the overrides map instead.
 
 ### Quota Monitoring

@@ -50,6 +50,7 @@
 		"check:tarball": "node scripts/check-tarball.mjs",
 		"check:prod-install-shape": "node scripts/check-prod-install-shape.mjs",
 		"check:closure": "node scripts/check-installed-closure.mjs",
+		"check:hoisting": "node scripts/check-hoisting.mjs",
 		"lint": "tsc --noEmit",
 		"prepare": "npm run build",
 		"test": "vitest",

@@ -11,6 +11,7 @@
  */
 import { spawn } from "node:child_process";
 import {
+	copyFileSync,
 	existsSync,
 	mkdtempSync,
 	mkdirSync,
@@ -35,6 +36,10 @@ function scrubSecrets(environment) {
 	}
 	// Pi needs a provider to initialize RPC, but this value is deliberately fake.
 	environment.ANTHROPIC_API_KEY = "sk-ant-dummy-pi-free-install-smoke";
+	// Presence-only dummy so Pi's built-in opencode catalog is *available*
+	// (availability gates on key presence, never validity). The toggle
+	// check needs opencode-free in the snapshot; no model is ever called.
+	environment.OPENCODE_API_KEY = "sk-opencode-dummy-pi-free-install-smoke";
 }
 
 function run(args, options, timeoutMs = 120_000) {
@@ -91,13 +96,11 @@ const piModule = fileURLToPath(
 	import.meta.resolve("@earendil-works/pi-coding-agent"),
 );
 const piCli = join(dirname(piModule), "cli.js");
-const rpcDriver = join(
-	dirname(fileURLToPath(import.meta.url)),
-	"rpc-load-check.mjs",
-);
-const piOptions = { cwd: project, env: environment, stdio: "inherit" };
 const scriptDir = dirname(fileURLToPath(import.meta.url));
+const rpcDriver = join(scriptDir, "rpc-load-check.mjs");
 const rpcSessionDriver = join(scriptDir, "rpc-session-check.mjs");
+const rpcToggleDriver = join(scriptDir, "rpc-toggle-check.mjs");
+const piOptions = { cwd: project, env: environment, stdio: "inherit" };
 
 // Seed an explicit free_only default so the session check's filter
 // assertions do not depend on template defaults (deterministic input).
@@ -118,10 +121,32 @@ try {
 	await run([rpcDriver], piOptions, 45_000);
 	console.log("Launching Pi RPC session + filter check");
 	await run([rpcSessionDriver], piOptions, 150_000);
+	console.log("Launching Pi RPC toggle check");
+	await run([rpcToggleDriver], piOptions, 150_000);
 	console.log("Pi install smoke passed");
 } catch (error) {
 	console.error(`Pi install smoke failed: ${error.message}`);
+	preserveArtifacts("install");
 	process.exitCode = 1;
 } finally {
 	rmSync(testRoot, { recursive: true, force: true });
+}
+
+/**
+ * Copy the isolated HOME's diagnostics out of the temp dir (which the
+ * finally block deletes) into the checkout, so CI can upload them as
+ * failure artifacts. Best-effort: never fail the smoke itself.
+ */
+function preserveArtifacts(label) {
+	try {
+		const dir = join(process.cwd(), ".smoke-artifacts", `${label}-${Date.now()}`);
+		mkdirSync(dir, { recursive: true });
+		for (const file of ["free.log", "free.json"]) {
+			const src = join(home, ".pi", file);
+			if (existsSync(src)) copyFileSync(src, join(dir, file));
+		}
+		console.log(`Preserved smoke artifacts in ${dir}`);
+	} catch {
+		// Artifact preservation must not mask the original failure.
+	}
 }

@@ -13,7 +13,13 @@
  *   node scripts/pi-upgrade-smoke.mjs ./pi-free-<version>.tgz
  */
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import {
+	copyFileSync,
+	existsSync,
+	mkdtempSync,
+	mkdirSync,
+	rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -100,6 +106,9 @@ for (const name of Object.keys(environment)) {
 	}
 }
 environment.ANTHROPIC_API_KEY = "sk-ant-dummy-pi-free-upgrade-smoke";
+// Presence-only dummy so Pi's built-in opencode catalog is *available*
+// (availability gates on key presence, never validity). No model is called.
+environment.OPENCODE_API_KEY = "sk-opencode-dummy-pi-free-upgrade-smoke";
 environment.HOME = home;
 environment.USERPROFILE = home;
 environment.NPM_CONFIG_USERCONFIG = join(testRoot, "npmrc");
@@ -135,12 +144,34 @@ try {
 	await run([join(scriptDir, "rpc-load-check.mjs")], piOptions, 45_000);
 	console.log("Launching Pi RPC session + filter check on the upgraded tree");
 	await run([join(scriptDir, "rpc-session-check.mjs")], piOptions, 150_000);
+	console.log("Launching Pi RPC toggle check on the upgraded tree");
+	await run([join(scriptDir, "rpc-toggle-check.mjs")], piOptions, 150_000);
 	console.log("Pi upgrade smoke passed");
 } catch (error) {
 	console.error(
 		`Pi upgrade smoke failed: ${error instanceof Error ? error.message : String(error)}`,
 	);
+	preserveArtifacts("upgrade");
 	process.exitCode = 1;
 } finally {
 	rmSync(testRoot, { recursive: true, force: true });
+}
+
+/**
+ * Copy the isolated HOME's diagnostics out of the temp dir (which the
+ * finally block deletes) into the checkout, so CI can upload them as
+ * failure artifacts. Best-effort: never fail the smoke itself.
+ */
+function preserveArtifacts(label) {
+	try {
+		const dir = join(process.cwd(), ".smoke-artifacts", `${label}-${Date.now()}`);
+		mkdirSync(dir, { recursive: true });
+		for (const file of ["free.log", "free.json"]) {
+			const src = join(home, ".pi", file);
+			if (existsSync(src)) copyFileSync(src, join(dir, file));
+		}
+		console.log(`Preserved smoke artifacts in ${dir}`);
+	} catch {
+		// Artifact preservation must not mask the original failure.
+	}
 }
