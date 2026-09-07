@@ -878,4 +878,132 @@ describe("auto-fallback integration", () => {
 		);
 		expect(pi.sendUserMessage).toHaveBeenCalledTimes(2);
 	});
+
+	// #509: Pi invalidates ctx/pi on session replacement or reload, and
+	// surfaces handler throws as a user-visible Extension error. A stale ctx
+	// mid-settle must drop the fallback work quietly, not alarm the user.
+	const STALE_CTX_MESSAGE =
+		"This extension ctx is stale after session replacement or reload. Do not use a captured pi or command ctx after ctx.newSession().";
+
+	/** Fresh ctx but with Pi-style lazy guarded `ui` that throws stale. */
+	function buildStaleUiCtx(
+		currentModel: { provider: string; id: string },
+		noAuthProviders: string[] = [],
+	) {
+		const ctx = buildMockCtx(currentModel, noAuthProviders);
+		return {
+			...ctx,
+			get ui(): { notify: () => void; setStatus: () => void } {
+				throw new Error(STALE_CTX_MESSAGE);
+			},
+		};
+	}
+
+	function emitFailureMessage(
+		pi: MockPi,
+		provider: string,
+		model: string,
+		ctx: unknown,
+	) {
+		return emit(
+			pi,
+			"message_end",
+			{
+				message: {
+					role: "assistant",
+					provider,
+					model,
+					stopReason: "error",
+					errorMessage: "rate limit exceeded",
+				},
+			},
+			ctx,
+		);
+	}
+
+	it("still switches without an Extension error when the settle ctx is stale (#509)", async () => {
+		mockGetAutoFallbackConfig.mockReturnValue({
+			enabled: true,
+			scope: "provider" as const,
+			whitelistProviders: [] as string[],
+			blacklistTtlMs: 60_000,
+			blacklistMaxStrikes: 3,
+			notifyLevel: "both" as const, // exercise the notifier's ctx.ui touches
+			restoreMode: "manual" as const,
+			autoContinue: true,
+			autoContinueMax: 3,
+		});
+		const pi = buildMockPi({ provider: "kilo", id: "gpt-4o" });
+		const handle = createAutoFallback();
+		handle.register(
+			pi as unknown as Parameters<
+				ReturnType<typeof createAutoFallback>["register"]
+			>[0],
+		);
+
+		await emit(
+			pi,
+			"after_provider_response",
+			{ status: 429, headers: {} },
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
+		await emitFailureMessage(
+			pi,
+			"kilo",
+			"gpt-4o",
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
+		// The session is replaced before agent_settled runs: every ctx.ui
+		// touch below throws stale. The handler must not propagate it (Pi
+		// would surface it as `Extension error (...)` for the current turn).
+		await emit(
+			pi,
+			"agent_settled",
+			{},
+			buildStaleUiCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
+
+		expect(pi.setModel).toHaveBeenCalledTimes(1);
+		const status = handle.getStatus();
+		expect(status.switchCount).toBe(1);
+		expect(status.lastSwitchReason).toBe("error");
+	});
+
+	it("notifies best-effort on the no-candidate path with a stale ctx (#509)", async () => {
+		// A single free model: the failed model is the only candidate, so
+		// the settle lands on the no-candidate notify branch.
+		mockProviderRegistry.clear();
+		const solo = [{ id: "solo", name: "solo" }];
+		mockProviderRegistry.set("kilo", {
+			stored: { free: solo, all: solo },
+			reRegister: vi.fn(),
+		});
+		const pi = buildMockPi({ provider: "kilo", id: "solo" });
+		createAutoFallback().register(
+			pi as unknown as Parameters<
+				ReturnType<typeof createAutoFallback>["register"]
+			>[0],
+		);
+
+		await emit(
+			pi,
+			"after_provider_response",
+			{ status: 429, headers: {} },
+			buildMockCtx({ provider: "kilo", id: "solo" }),
+		);
+		await emitFailureMessage(
+			pi,
+			"kilo",
+			"solo",
+			buildMockCtx({ provider: "kilo", id: "solo" }),
+		);
+		await emit(
+			pi,
+			"agent_settled",
+			{},
+			buildStaleUiCtx({ provider: "kilo", id: "solo" }),
+		);
+
+		expect(pi.setModel).not.toHaveBeenCalled();
+	});
 });

@@ -40,6 +40,7 @@ import type {
 import { getProviderRegistry } from "../registry.ts";
 import { fallbackState } from "../fallback-state.ts";
 import { createLogger } from "../logger.ts";
+import { isStaleContextError, safeNotify } from "../stale-ctx.ts";
 import { createBlacklist, type Blacklist } from "./blacklist.ts";
 import { getAutoFallbackConfig } from "./config.ts";
 import {
@@ -182,9 +183,11 @@ export function createAutoFallback(): AutoFallbackHandle {
 		const registry = getProviderRegistry();
 		const out: FallbackCandidate[] = [];
 		for (const [providerId, entry] of registry) {
-			if (!matchesScope(providerId, scope, failingProvider, cfg.whitelistProviders)) {
+			if (
+				!matchesScope(providerId, scope, failingProvider, cfg.whitelistProviders)
+			) {
 				continue;
-		}
+			}
 			for (const m of entry.stored.free) {
 				out.push({
 					provider: providerId,
@@ -243,7 +246,10 @@ export function createAutoFallback(): AutoFallbackHandle {
 
 		if (ranked.length === 0) {
 			const exhausted = noCandidatesAvailable();
-			ctx.ui.notify(
+			// Best-effort: the session may have been replaced while the
+			// candidate auth checks above were awaiting (#509).
+			safeNotify(
+				ctx,
 				exhausted
 					? `Auto-fallback: no other free model available (provider ${provider} exhausted) — staying on ${provider}/${modelId}.`
 					: `Auto-fallback: no alternative free model for ${provider}/${modelId}.`,
@@ -336,7 +342,10 @@ export function createAutoFallback(): AutoFallbackHandle {
 
 		// We had candidates but none were switchable (all lacked auth or
 		// rejected the switch).
-		ctx.ui.notify(
+		// Best-effort: the session may have been replaced during the switch
+		// attempts above (#509).
+		safeNotify(
+			ctx,
 			`Auto-fallback: no switchable free model available (tried ${tried} candidate${tried === 1 ? "" : "s"}; the rest need an API key or rejected the switch).`,
 			"warning",
 		);
@@ -411,6 +420,14 @@ export function createAutoFallback(): AutoFallbackHandle {
 		} catch (err) {
 			const name = err instanceof Error ? err.name : String(err);
 			if (name === "AbortError") return false;
+			// A stale pi/ctx just means the session moved on mid-switch
+			// (#509) — not a provider failure worth warning about.
+			if (isStaleContextError(err)) {
+				_logger.info("auto-fallback: setModel skipped, session changed", {
+					error: err instanceof Error ? err.message : String(err),
+				});
+				return false;
+			}
 			_logger.warn("auto-fallback: setModel threw", {
 				error: err instanceof Error ? err.message : String(err),
 			});
@@ -444,6 +461,14 @@ export function createAutoFallback(): AutoFallbackHandle {
 		try {
 			void sender(content, { expandPromptTemplates: false });
 		} catch (err) {
+			// A stale pi just means the session moved on before the replay
+			// could dispatch (#509) — not worth warning about.
+			if (isStaleContextError(err)) {
+				_logger.info("auto-fallback: auto-continue skipped, session changed", {
+					error: err instanceof Error ? err.message : String(err),
+				});
+				return;
+			}
 			_logger.warn("auto-fallback: sendUserMessage threw", {
 				error: err instanceof Error ? err.message : String(err),
 			});
@@ -532,6 +557,33 @@ export function createAutoFallback(): AutoFallbackHandle {
 			// switching, auto-continue) so each settled run is processed
 			// exactly once, in order.
 			extensionPi.on("agent_settled", async (_event, ctx) => {
+				try {
+					await handleAgentSettled(ctx);
+				} catch (error) {
+					// Pi surfaces handler throws as a user-visible Extension
+					// error for the current turn. A stale ctx just means the
+					// session was replaced/reloaded mid-settle (#509) — the
+					// fallback work belongs to the dead session, so drop it
+					// quietly instead of alarming the user.
+					if (isStaleContextError(error)) {
+						_logger.info(
+							"auto-fallback: session changed mid-settle; dropping fallback work",
+							{
+								error: error instanceof Error ? error.message : String(error),
+							},
+						);
+						return;
+					}
+					throw error;
+				}
+			});
+
+			/**
+			 * Settled-run orchestration: recovery, strike, switch, auto-continue.
+			 * Extracted so the `agent_settled` registration above can guard the
+			 * whole decision chain against Pi's stale-context throws (#509).
+			 */
+			async function handleAgentSettled(ctx: ExtensionContext): Promise<void> {
 				lastSeenCtx = ctx;
 				if (!isAutoFallbackLive()) return;
 				if (!ctx.model) return;
@@ -576,8 +628,7 @@ export function createAutoFallback(): AutoFallbackHandle {
 					lastAssistant,
 					ctx.model.provider,
 					ctx.model.id,
-					(provider, modelId) =>
-						fallbackState.getLastStatus(provider, modelId),
+					(provider, modelId) => fallbackState.getLastStatus(provider, modelId),
 				);
 				if (!failure) {
 					return; // clean run, user abort, or unrecoverable — nothing to do
@@ -621,7 +672,7 @@ export function createAutoFallback(): AutoFallbackHandle {
 						pendingAutoContinue = null;
 					}
 				}
-			});
+			}
 
 			extensionPi.on("model_select", (_event, ctx) => {
 				lastSeenCtx = ctx;

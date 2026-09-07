@@ -17,6 +17,7 @@
  */
 
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { safeNotify, safeSetStatus } from "../stale-ctx.ts";
 
 type NotifyLevel = "silent" | "toast" | "status_bar" | "both";
 
@@ -78,7 +79,8 @@ export function createNotifier(
 				: `Auto-fallback: tried ${triedKeys.size} free models in last ${formatWindowMs(windowMs)}, currently on ${last?.toKey ?? "?"}`;
 
 		if (options.level === "toast" || options.level === "both") {
-			ctx.ui.notify(message, "info");
+			// Best-effort: ctx may belong to a replaced session (#509).
+			safeNotify(ctx, message, "info");
 		}
 		// The status bar is updated by recordSwitch below — emitSummary()
 		// never clears it (clearStatus is called explicitly on success).
@@ -93,7 +95,8 @@ export function createNotifier(
 		const label = activeSince
 			? `🛟 Fallback active (since ${formatClock(activeSince)})`
 			: "🛟 Fallback active";
-		ctx.ui.setStatus(statusKey, label);
+		// Best-effort: ctx may belong to a replaced session (#509).
+		safeSetStatus(ctx, statusKey, label);
 	}
 
 	return {
@@ -113,7 +116,9 @@ export function createNotifier(
 			// outages. If the window closes, the next switch is a new "first".
 			if (buffer.length === 1) {
 				if (options.level === "toast" || options.level === "both") {
-					ctx.ui.notify(
+					// Best-effort: ctx may belong to a replaced session (#509).
+					safeNotify(
+						ctx,
 						`Auto-fallback: ${record.fromKey} → ${record.toKey} (${record.reason})`,
 						"info",
 					);
@@ -124,7 +129,8 @@ export function createNotifier(
 			const ctx = getCtx();
 			if (!ctx) return;
 			if (options.level !== "silent") {
-				ctx.ui.setStatus(statusKey, undefined);
+				// Best-effort: ctx may belong to a replaced session (#509).
+				safeSetStatus(ctx, statusKey, undefined);
 			}
 			activeSince = null;
 			buffer.length = 0;
