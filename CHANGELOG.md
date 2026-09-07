@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.1] - 2026-09-07
+
 ### Changed
 
 - **Lifecycle performance and complexity fixes (architectural review)** — five findings, all behavior-preserving with regression tests (807 tests green): (1) the detached built-in-tier endpoint refresh and Pi-driven `refreshModels` now share one in-flight live-catalog fetch per provider (`fetchSharedCatalog` in `lib/built-in-toggle.ts`), so every `session_start` costs one request per tier instead of two — shared work ignores individual abort signals (sockets stay bounded by the fetchers' internal timeouts) while callers keep their pre/post abort semantics; (2) `fetchWithRetry` backoff is now jittered exponential (`computeRetryBackoffMs`, full-jitter style, capped at 10s) so concurrent refreshes no longer retry in lockstep after a gateway blip; (3) `lib/util.ts` is split into `lib/fetch.ts` (network primitives) and `lib/model-map.ts` (mapping/filtering, with the 24-complexity inline catalog mapper decomposed into named per-field resolvers), re-exported via the untouched `lib/util.ts` shim so all 25+ importers keep working; auto-fallback's settled-run decisions (scope predicate, failure classification + abort refinement, auto-continue payload) moved to pure, unit-tested `lib/auto-fallback/settled-decision.ts` with `index.ts` keeping only orchestration; (4) `isFreeModel` memoizes its per-catalog pricing-exposure scan by array identity (`WeakMap`, no retention after catalog replacement), removing the redundant O(n) rescan per model with identical verdicts.
