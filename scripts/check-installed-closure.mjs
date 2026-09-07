@@ -157,8 +157,7 @@ function hasImportCondition(target) {
 	return (
 		!!target &&
 		typeof target === "object" &&
-		(typeof target.import === "string" ||
-			typeof target.default === "string")
+		(typeof target.import === "string" || typeof target.default === "string")
 	);
 }
 
@@ -188,20 +187,18 @@ function hasImportableEntry(depRoot) {
 	return false;
 }
 
+// NOSONAR justification (jssecurity:S8689, all log lines below): false
+// positives — the logged values are public npm metadata (package names,
+// version ranges, dep counts) plus home-redacted paths/errors, printed for
+// the operator only. No credentials, tokens, or file contents ever reach
+// the logs. Messages are built first so the marker sits on the sink line,
+// where the analyzer recognizes it (it does not survive line-breaking).
 if (missing.length > 0) {
-	// NOSONAR (jssecurity:S8689) -- false positive, see justification at the
-	// per-dependency log below: public package metadata for the operator only.
-	console.error( // NOSONAR
-		`[install-closure] FAIL: pi-ai@${piAiPkg.version ?? "?"} at ${redactHome(piAiRoot)} has ${missing.length} unresolvable runtime dependenc(ies):`,
-	);
+	const summary = `[install-closure] FAIL: pi-ai@${piAiPkg.version ?? "?"} at ${redactHome(piAiRoot)} has ${missing.length} unresolvable runtime dependenc(ies):`;
+	console.error(summary); // NOSONAR
 	for (const { name, want, error } of missing) {
-		// NOSONAR (jssecurity:S8689) -- false positive: the logged values are
-		// public npm metadata (dependency name + version range) plus a
-		// home-redacted resolution error, printed for the operator only.
-		// No credentials, tokens, or file contents ever reach the logs.
-		console.error( // NOSONAR
-			`  - ${name}@${redactHome(want)}: ${redactHome(error.split("\n")[0])}`,
-		);
+		const detail = `  - ${name}@${redactHome(want)}: ${redactHome(error.split("\n")[0])}`;
+		console.error(detail); // NOSONAR
 	}
 	console.error(
 		"[install-closure] The extension loads but crashes on first pi-ai use (#510). " +
@@ -211,8 +208,5 @@ if (missing.length > 0) {
 }
 
 const count = Object.keys(runtimeDeps).length;
-// NOSONAR (jssecurity:S8689) -- false positive: version string, dep count,
-// and home-redacted path, printed for the operator only (see above).
-console.log( // NOSONAR
-	`[install-closure] PASS: pi-ai@${piAiPkg.version ?? "?"} + ${count} runtime dep(s) resolve from ${redactHome(piAiRoot)}`,
-);
+const passLine = `[install-closure] PASS: pi-ai@${piAiPkg.version ?? "?"} + ${count} runtime dep(s) resolve from ${redactHome(piAiRoot)}`;
+console.log(passLine); // NOSONAR
