@@ -9,7 +9,7 @@ import type {
 	ExtensionCommandContext,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import { getOllamaApiKey, getOllamaShowPaid } from "../../config.ts";
+import { getOllamaApiKey } from "../../config.ts";
 import { BASE_URL_OLLAMA, PROVIDER_OLLAMA } from "../../constants.ts";
 import {
 	filterNativeModels,
@@ -151,7 +151,6 @@ export function createOllamaProvider(
 			(stored.all.length > 0 ? stored.all : stored.free) as OllamaModel[],
 		filterModels: (models) =>
 			filterNativeModels(PROVIDER_OLLAMA, models, {
-				showPaid: getOllamaShowPaid(),
 				freeModels: stored.free,
 			}),
 		refreshModels: refreshOllamaModels,
@@ -192,12 +191,7 @@ export function registerOllamaProvider(
 	registerNativeProviderToggle(pi, {
 		providerId: PROVIDER_OLLAMA,
 		stored,
-		getShowPaid: getOllamaShowPaid,
 		reRegister,
-		// PROVIDER_OLLAMA is "ollama-cloud", but getOllamaShowPaid reads
-		// `ollama_show_paid`. Persist under that key so /toggle-ollama-cloud
-		// survives a restart.
-		configKey: "ollama_show_paid",
 	});
 
 	// =========================================================================

@@ -5,7 +5,7 @@ import type {
 	RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
-import { getZenmuxApiKey, getZenmuxShowPaid } from "../../config.ts";
+import { getZenmuxApiKey } from "../../config.ts";
 import { BASE_URL_ZENMUX, PROVIDER_ZENMUX } from "../../constants.ts";
 import {
 	filterNativeModels,
@@ -99,7 +99,6 @@ export function createZenmuxProvider(): ZenmuxNativeProvider {
 			(stored.all.length > 0 ? stored.all : stored.free) as ZenmuxModel[],
 		filterModels: (models) =>
 			filterNativeModels(PROVIDER_ZENMUX, models, {
-				showPaid: getZenmuxShowPaid(),
 				freeModels: stored.free,
 			}),
 		refreshModels,

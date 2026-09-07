@@ -9,6 +9,10 @@ const mockGetZenmuxApiKey = vi.hoisted(() =>
 	vi.fn((): string | undefined => undefined),
 );
 const mockGetZenmuxShowPaid = vi.hoisted(() => vi.fn(() => false));
+const mockGetModelViewOverride = vi.hoisted(() =>
+	vi.fn((_providerId: string): "free" | "all" | undefined => undefined),
+);
+const mockSetModelViewOverride = vi.hoisted(() => vi.fn());
 const mockGetGlobalFreeOnly = vi.hoisted(() => vi.fn(() => true));
 const mockSaveConfig = vi.hoisted(() =>
 	vi.fn<(...args: unknown[]) => Promise<void>>(),
@@ -18,6 +22,10 @@ const mockRegisterWithGlobalToggle = vi.hoisted(() => vi.fn());
 vi.mock("../config.ts", () => ({
 	getZenmuxApiKey: () => mockGetZenmuxApiKey(),
 	getZenmuxShowPaid: () => mockGetZenmuxShowPaid(),
+	getModelViewOverride: (providerId: string) =>
+		mockGetModelViewOverride(providerId),
+	setModelViewOverride: (...args: unknown[]) =>
+		mockSetModelViewOverride(...args),
 	applyHidden: (models: { id: string }[]) => models,
 	saveConfig: (...args: unknown[]) => mockSaveConfig(...args),
 }));
@@ -26,7 +34,15 @@ vi.mock("../lib/registry.ts", () => ({
 	registerWithGlobalToggle: (...args: unknown[]) =>
 		mockRegisterWithGlobalToggle(...args),
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
-	getGlobalFreeOnlyForced: () => false,
+	// Mirrors the real resolveModelView over the mocked config getters (the
+	// real rule is unit-tested in registry-provider-overrides.test.ts).
+	resolveModelView: (providerId: string) =>
+		mockGetModelViewOverride(providerId) ??
+		(mockGetZenmuxShowPaid()
+			? "all"
+			: mockGetGlobalFreeOnly()
+				? "free"
+				: "all"),
 	isFreeModel: (model: { cost?: { input?: number; output?: number } }) =>
 		(model.cost?.input ?? 0) === 0 && (model.cost?.output ?? 0) === 0,
 }));
@@ -83,6 +99,7 @@ describe("ZenMux native factory", () => {
 		vi.clearAllMocks();
 		mockGetZenmuxApiKey.mockReturnValue(undefined);
 		mockGetZenmuxShowPaid.mockReturnValue(false);
+		mockGetModelViewOverride.mockReturnValue(undefined);
 		mockGetGlobalFreeOnly.mockReturnValue(true);
 		registerProvider = vi.fn();
 		registerCommand = vi.fn();
@@ -135,7 +152,7 @@ describe("ZenMux native factory", () => {
 		);
 		if (!toggle) throw new Error("toggle-zenmux was not registered");
 		await toggle[1].handler({}, { ui: { notify: vi.fn() } });
-		expect(mockSaveConfig).toHaveBeenCalledWith({ zenmux_show_paid: true });
+		expect(mockSetModelViewOverride).toHaveBeenCalledWith("zenmux", "all");
 
 		const sessionStart = on.mock.calls.find(
 			(call) => call[0] === "session_start",

@@ -6,7 +6,11 @@
  */
 
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
-import { getFreeOnly, getProviderShowPaid, saveConfig } from "../config.ts";
+import {
+	getFreeOnly,
+	getModelViewOverride,
+	saveConfig,
+} from "../config.ts";
 import { createLogger } from "./logger.ts";
 
 const _logger = createLogger("pi-free");
@@ -32,7 +36,6 @@ interface ProviderEntry {
 
 const providerRegistry = new Map<string, ProviderEntry>();
 let globalFreeOnly = getFreeOnly();
-let globalFreeOnlyForced = false;
 
 // =============================================================================
 // Free-model detection
@@ -200,9 +203,19 @@ export function getGlobalFreeOnly(): boolean {
 	return globalFreeOnly;
 }
 
-/** Whether the current global toggle explicitly overrides provider paid views. */
-export function getGlobalFreeOnlyForced(): boolean {
-	return globalFreeOnlyForced;
+/**
+ * Effective catalog view for a provider — the single rule behind every
+ * filter decision (global filter, native filtering, built-in capture):
+ * an explicit per-provider choice wins, otherwise the global default
+ * applies. No force flags, no preservation branches.
+ */
+export type ModelView = "free" | "all";
+
+export function resolveModelView(providerId: string): ModelView {
+	return (
+		getModelViewOverride(providerId) ??
+		(getGlobalFreeOnly() ? "free" : "all")
+	);
 }
 
 /** Access the raw registry (used by /free-providers command) */
@@ -228,9 +241,8 @@ function showAllForProvider(providerId: string, entry: ProviderEntry): void {
 function applyFilterToProvider(
 	providerId: string,
 	entry: ProviderEntry,
-	freeOnly: boolean,
-	force: boolean,
 ): void {
+	const view = resolveModelView(providerId);
 	if (entry.native) {
 		// Native providers expose their complete catalog through getModels().
 		// Re-register the same object only to invalidate Pi's availability
@@ -239,7 +251,7 @@ function applyFilterToProvider(
 			entry.invalidate();
 		} else {
 			entry.reRegister(
-				freeOnly
+				view === "free"
 					? entry.stored.free
 					: entry.stored.all.length > 0
 						? entry.stored.all
@@ -247,20 +259,12 @@ function applyFilterToProvider(
 			);
 		}
 		_logger.info(
-			`[pi-free] ${providerId}: invalidated native model filter (${freeOnly ? "free" : "all"}${force ? ", forced" : ""})`,
+			`[pi-free] ${providerId}: invalidated native model filter (${view})`,
 		);
 		return;
 	}
 
-	if (freeOnly) {
-		if (!force && getProviderShowPaid(providerId)) {
-			showAllForProvider(providerId, entry);
-			_logger.info(
-				`[pi-free] ${providerId}: preserved persisted all-models toggle`,
-			);
-			return;
-		}
-
+	if (view === "free") {
 		if (entry.stored.free.length > 0) {
 			entry.reRegister(entry.stored.free);
 			_logger.info(
@@ -274,22 +278,13 @@ function applyFilterToProvider(
 	}
 }
 
-export function applyGlobalFilter(
-	freeOnly: boolean,
-	options: { force?: boolean } = {},
-): void {
+export function applyGlobalFilter(freeOnly: boolean): void {
 	globalFreeOnly = freeOnly;
-	globalFreeOnlyForced = freeOnly && options.force === true;
 	void saveConfig({ free_only: freeOnly });
 
 	for (const [providerId, entry] of providerRegistry) {
 		try {
-			applyFilterToProvider(
-				providerId,
-				entry,
-				freeOnly,
-				options.force === true,
-			);
+			applyFilterToProvider(providerId, entry);
 		} catch (err) {
 			_logger.error(
 				`[pi-free] Failed to apply filter to ${providerId}`,

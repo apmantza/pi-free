@@ -17,6 +17,10 @@ const mockGetLlm7ApiKey = vi.hoisted(() =>
 	vi.fn((): string | undefined => undefined),
 );
 const mockGetLlm7ShowPaid = vi.hoisted(() => vi.fn(() => false));
+const mockGetModelViewOverride = vi.hoisted(() =>
+	vi.fn((_providerId: string): "free" | "all" | undefined => undefined),
+);
+const mockSetModelViewOverride = vi.hoisted(() => vi.fn());
 const mockGetGlobalFreeOnly = vi.hoisted(() => vi.fn(() => true));
 const mockSaveConfig = vi.hoisted(() =>
 	vi.fn<(...args: unknown[]) => Promise<void>>(),
@@ -37,6 +41,10 @@ let capturedToggleArgs: unknown[][] = [];
 vi.mock("../config.ts", () => ({
 	getLlm7ApiKey: () => mockGetLlm7ApiKey(),
 	getLlm7ShowPaid: () => mockGetLlm7ShowPaid(),
+	getModelViewOverride: (providerId: string) =>
+		mockGetModelViewOverride(providerId),
+	setModelViewOverride: (...args: unknown[]) =>
+		mockSetModelViewOverride(...args),
 	saveConfig: (...args: unknown[]) => mockSaveConfig(...args),
 	applyHidden: (models: { id: string }[]) => models,
 }));
@@ -47,7 +55,15 @@ vi.mock("../lib/registry.ts", () => ({
 		mockRegisterWithGlobalToggle(...args);
 	},
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
-	getGlobalFreeOnlyForced: () => false,
+	// Mirrors the real resolveModelView over the mocked config getters (the
+	// real rule is unit-tested in registry-provider-overrides.test.ts).
+	resolveModelView: (providerId: string) =>
+		mockGetModelViewOverride(providerId) ??
+		(mockGetLlm7ShowPaid()
+			? "all"
+			: mockGetGlobalFreeOnly()
+				? "free"
+				: "all"),
 	isFreeModel: (m: { cost?: { input?: number } }) => (m.cost?.input ?? 0) === 0,
 }));
 
@@ -88,6 +104,7 @@ describe("LLM7 factory wiring", () => {
 		capturedToggleArgs = [];
 		mockGetLlm7ApiKey.mockReturnValue(undefined);
 		mockGetLlm7ShowPaid.mockReturnValue(false);
+		mockGetModelViewOverride.mockReturnValue(undefined);
 		mockGetGlobalFreeOnly.mockReturnValue(true);
 		vi.stubGlobal("fetch", mockFetch);
 
@@ -191,7 +208,7 @@ describe("LLM7 factory wiring", () => {
 
 		// First toggle: free -> all.
 		await call[1].handler({}, { ui: { notify } });
-		expect(mockSaveConfig).toHaveBeenCalledWith({ llm7_show_paid: true });
+		expect(mockSetModelViewOverride).toHaveBeenCalledWith("llm7", "all");
 		expect(provider.getModels().map((m: { id: string }) => m.id)).toEqual([
 			"default",
 			"fast",
@@ -207,7 +224,7 @@ describe("LLM7 factory wiring", () => {
 		mockGetLlm7ShowPaid.mockReturnValue(true);
 		notify.mockClear();
 		await call[1].handler({}, { ui: { notify } });
-		expect(mockSaveConfig).toHaveBeenCalledWith({ llm7_show_paid: false });
+		expect(mockSetModelViewOverride).toHaveBeenCalledWith("llm7", "free");
 		expect(provider.getModels().map((m: { id: string }) => m.id)).toEqual([
 			"default",
 			"fast",

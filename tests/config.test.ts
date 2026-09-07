@@ -491,3 +491,116 @@ describe("config re-exports", () => {
 		}
 	});
 });
+
+// =============================================================================
+// Per-provider view overrides (explicit choice vs follow-global)
+// =============================================================================
+
+describe("model view overrides", () => {
+	it("getModelViewOverride is undefined with no explicit choice", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(configPath(), JSON.stringify({ free_only: true }));
+
+		const { getModelViewOverride } = await import("../config.ts");
+		expect(getModelViewOverride("kilo")).toBeUndefined();
+		expect(getModelViewOverride("no-such-provider")).toBeUndefined();
+	});
+
+	it("getModelViewOverride returns the sparse-map choice", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(
+			configPath(),
+			JSON.stringify({ model_view_overrides: { kilo: "all" } }),
+		);
+
+		const { getModelViewOverride } = await import("../config.ts");
+		expect(getModelViewOverride("kilo")).toBe("all");
+		expect(getModelViewOverride("cline")).toBeUndefined();
+	});
+
+	it("getModelViewOverride honors a legacy explicit true", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		// Template-materialized `false` keys must NOT count (they cannot be
+		// told apart from "never touched"); only legacy `true` upgrades.
+		__mockData.set(
+			configPath(),
+			JSON.stringify({ kilo_show_paid: true, cline_show_paid: false }),
+		);
+
+		const { getModelViewOverride } = await import("../config.ts");
+		expect(getModelViewOverride("kilo")).toBe("all");
+		expect(getModelViewOverride("cline")).toBeUndefined();
+	});
+
+	it("getModelViewOverride counts a set env var as explicit", async () => {
+		vi.stubEnv("KILO_SHOW_PAID", "false");
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(configPath(), JSON.stringify({ free_only: true }));
+
+		const { getModelViewOverride } = await import("../config.ts");
+		expect(getModelViewOverride("kilo")).toBe("free");
+	});
+
+	it("setModelViewOverride merges the map and drops the legacy key", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData, writeFileSync } = fs as any;
+		__mockData.set(
+			configPath(),
+			JSON.stringify({
+				free_only: true,
+				kilo_show_paid: true,
+				model_view_overrides: { cline: "free" },
+			}),
+		);
+
+		const { setModelViewOverride } = await import("../config.ts");
+		await setModelViewOverride("kilo", "all");
+
+		const lastCall =
+			writeFileSync.mock.calls[writeFileSync.mock.calls.length - 1];
+		const written = parseMockJson(lastCall[1]);
+		expect(written.free_only).toBe(true);
+		expect(written.model_view_overrides).toEqual({
+			cline: "free",
+			kilo: "all",
+		});
+		expect("kilo_show_paid" in written).toBe(false);
+	});
+
+	it("clearModelViewOverrides removes the map and every legacy key", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData, writeFileSync } = fs as any;
+		__mockData.set(
+			configPath(),
+			JSON.stringify({
+				free_only: true,
+				kilo_show_paid: true,
+				opencode_free_show_paid: false,
+				model_view_overrides: { cline: "all" },
+				nvidia_api_key: "keep-me",
+			}),
+		);
+
+		const { clearModelViewOverrides } = await import("../config.ts");
+		await clearModelViewOverrides();
+
+		const lastCall =
+			writeFileSync.mock.calls[writeFileSync.mock.calls.length - 1];
+		const written = parseMockJson(lastCall[1]);
+		expect(written.free_only).toBe(true);
+		expect(written.nvidia_api_key).toBe("keep-me");
+		expect("model_view_overrides" in written).toBe(false);
+		expect("kilo_show_paid" in written).toBe(false);
+		expect("opencode_free_show_paid" in written).toBe(false);
+	});
+});

@@ -10,6 +10,10 @@ const mockGetZenmuxApiKey = vi.hoisted(() =>
 	vi.fn((): string | undefined => undefined),
 );
 const mockGetZenmuxShowPaid = vi.hoisted(() => vi.fn(() => false));
+const mockGetModelViewOverride = vi.hoisted(() =>
+	vi.fn((_providerId: string): "free" | "all" | undefined => undefined),
+);
+const mockSetModelViewOverride = vi.hoisted(() => vi.fn());
 const mockGetGlobalFreeOnly = vi.hoisted(() => vi.fn(() => true));
 const mockApplyHidden = vi.hoisted(() =>
 	vi.fn((models: { id: string }[], _providerId?: string) => models),
@@ -19,6 +23,10 @@ const mockFetchWithRetry = vi.hoisted(() => vi.fn());
 vi.mock("../config.ts", () => ({
 	getZenmuxApiKey: () => mockGetZenmuxApiKey(),
 	getZenmuxShowPaid: () => mockGetZenmuxShowPaid(),
+	getModelViewOverride: (providerId: string) =>
+		mockGetModelViewOverride(providerId),
+	setModelViewOverride: (...args: unknown[]) =>
+		mockSetModelViewOverride(...args),
 	applyHidden: (models: { id: string }[], providerId?: string) =>
 		mockApplyHidden(models, providerId),
 	saveConfig: vi.fn(),
@@ -26,7 +34,15 @@ vi.mock("../config.ts", () => ({
 
 vi.mock("../lib/registry.ts", () => ({
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
-	getGlobalFreeOnlyForced: () => false,
+	// Mirrors the real resolveModelView over the mocked config getters (the
+	// real rule is unit-tested in registry-provider-overrides.test.ts).
+	resolveModelView: (providerId: string) =>
+		mockGetModelViewOverride(providerId) ??
+		(mockGetZenmuxShowPaid()
+			? "all"
+			: mockGetGlobalFreeOnly()
+				? "free"
+				: "all"),
 	isFreeModel: (model: { cost?: { input?: number; output?: number } }) =>
 		(model.cost?.input ?? 0) === 0 && (model.cost?.output ?? 0) === 0,
 }));
@@ -126,6 +142,7 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	mockGetZenmuxApiKey.mockReturnValue(undefined);
 	mockGetZenmuxShowPaid.mockReturnValue(false);
+	mockGetModelViewOverride.mockReturnValue(undefined);
 	mockGetGlobalFreeOnly.mockReturnValue(true);
 	mockApplyHidden.mockImplementation((models) => models);
 });

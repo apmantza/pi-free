@@ -153,19 +153,14 @@ describe("Qoder native provider", () => {
 		const models = provider.getModels();
 
 		provider.filterModels(models, undefined);
-		expect(mocks.filterNativeModels).toHaveBeenLastCalledWith(
-			"qoder",
-			models,
-			expect.objectContaining({ showPaid: false }),
-		);
-
-		mocks.getQoderShowPaid.mockReturnValue(true);
-		provider.filterModels(models, undefined);
-		expect(mocks.filterNativeModels).toHaveBeenLastCalledWith(
-			"qoder",
-			models,
-			expect.objectContaining({ showPaid: true }),
-		);
+		// The view now resolves inside filterNativeModels (explicit choice,
+		// else the global default) — no registration-time showPaid travels
+		// with the call, so it can never go stale across sessions (#510).
+		const call = mocks.filterNativeModels.mock.lastCall as unknown[];
+		expect(call[0]).toBe("qoder");
+		expect(call[1]).toBe(models);
+		expect(call[2]).toMatchObject({ freeModels: expect.any(Array) });
+		expect(call[2]).not.toHaveProperty("showPaid");
 	});
 
 	it("registers the native per-provider toggle and refresh hook", async () => {
@@ -176,10 +171,14 @@ describe("Qoder native provider", () => {
 			expect.objectContaining({
 				providerId: "qoder",
 				stored: expect.any(Object),
-				getShowPaid: expect.any(Function),
 				reRegister: expect.any(Function),
 			}),
 		);
+		// The toggle flips the effective view (no getShowPaid travels with
+		// the registration, so there is nothing to go stale, #510).
+		const toggleOptions = mocks.registerNativeProviderToggle.mock
+			.calls[0][1] as Record<string, unknown>;
+		expect(toggleOptions).not.toHaveProperty("getShowPaid");
 		const provider = getRegisteredProvider();
 		const reRegister = mocks.registerNativeProviderToggle.mock.calls[0][1]
 			.reRegister as () => void;

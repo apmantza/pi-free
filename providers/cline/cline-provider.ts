@@ -52,7 +52,6 @@ import type {
 	RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
-import { getClineShowPaid } from "../../config.ts";
 import { BASE_URL_CLINE, PROVIDER_CLINE } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { isFreeModel } from "../../lib/registry.ts";
@@ -223,7 +222,6 @@ export function createClineProvider(): ClineNativeProvider {
 			(stored.all.length > 0 ? stored.all : stored.free) as ClineModel[],
 		filterModels: (models) =>
 			filterNativeModels(PROVIDER_CLINE, models, {
-				showPaid: getClineShowPaid(),
 				freeModels: stored.free,
 			}),
 		refreshModels,

@@ -243,7 +243,7 @@ describe("applyGlobalFilter", () => {
 			invalidate,
 		});
 
-		applyGlobalFilter(true, { force: true });
+		applyGlobalFilter(true);
 
 		expect(invalidate).toHaveBeenCalledTimes(1);
 		expect(reRegister).not.toHaveBeenCalled();

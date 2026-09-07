@@ -21,6 +21,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockFetchClineCatalog = vi.hoisted(() => vi.fn());
 const mockGetClineShowPaid = vi.hoisted(() => vi.fn(() => false));
+const mockGetModelViewOverride = vi.hoisted(() =>
+	vi.fn((_providerId: string): "free" | "all" | undefined => undefined),
+);
+const mockSetModelViewOverride = vi.hoisted(() => vi.fn());
 const mockGetClineApiKey = vi.hoisted(() =>
 	vi.fn((): string | undefined => undefined),
 );
@@ -29,13 +33,25 @@ const mockGetGlobalFreeOnly = vi.hoisted(() => vi.fn(() => true));
 vi.mock("../config.ts", () => ({
 	getClineApiKey: () => mockGetClineApiKey(),
 	getClineShowPaid: () => mockGetClineShowPaid(),
+	getModelViewOverride: (providerId: string) =>
+		mockGetModelViewOverride(providerId),
+	setModelViewOverride: (...args: unknown[]) =>
+		mockSetModelViewOverride(...args),
 	applyHidden: (models: unknown[]) => models,
 	PROVIDER_CLINE: "cline",
 }));
 
 vi.mock("../lib/registry.ts", () => ({
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
-	getGlobalFreeOnlyForced: () => false,
+	// Mirrors the real resolveModelView over the mocked config getters (the
+	// real rule is unit-tested in registry-provider-overrides.test.ts).
+	resolveModelView: (providerId: string) =>
+		mockGetModelViewOverride(providerId) ??
+		(mockGetClineShowPaid()
+			? "all"
+			: mockGetGlobalFreeOnly()
+				? "free"
+				: "all"),
 	isFreeModel: (m: { cost?: { input?: number } }) => (m.cost?.input ?? 0) === 0,
 }));
 
@@ -143,6 +159,7 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	mockFetchClineCatalog.mockReset();
 	mockGetClineShowPaid.mockReturnValue(false);
+	mockGetModelViewOverride.mockReturnValue(undefined);
 	mockGetClineApiKey.mockReturnValue(undefined);
 	mockGetGlobalFreeOnly.mockReturnValue(true);
 	__setCompatLoaderForTests(undefined);
@@ -606,6 +623,8 @@ describe("toggle interop", () => {
 	});
 
 	it("decideView shows all when global free-only is off", async () => {
+		// No explicit override recorded: the view follows the global default.
+		mockGetModelViewOverride.mockReturnValue(undefined);
 		mockGetGlobalFreeOnly.mockReturnValue(false);
 		const { provider } = await seededProvider();
 		expect(

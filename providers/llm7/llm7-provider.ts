@@ -38,7 +38,6 @@ import type {
 	RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
-import { getLlm7ShowPaid } from "../../config.ts";
 import { BASE_URL_LLM7, PROVIDER_LLM7 } from "../../constants.ts";
 import { isFreeModel } from "../../lib/registry.ts";
 import {
@@ -136,7 +135,6 @@ export function createLlm7Provider(): Llm7NativeProvider {
 			(stored.all.length > 0 ? stored.all : stored.free) as Llm7Model[],
 		filterModels: (models) =>
 			filterNativeModels(PROVIDER_LLM7, models, {
-				showPaid: getLlm7ShowPaid(),
 				freeModels: stored.free,
 			}),
 		refreshModels,
