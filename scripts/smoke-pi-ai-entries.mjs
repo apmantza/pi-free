@@ -24,9 +24,12 @@ const packageDir = resolve(process.argv[2] ?? ".");
 
 // Validate the CLI-supplied directory before touching the filesystem
 // beneath it (same shape as check-installed-closure.mjs).
+// NOSONAR (jssecurity:S8707): local read-only smoke test over an
+// operator-supplied tree — no writes, no exec, no network, no privilege
+// boundary; output goes to the operator's own terminal.
 let packageStat;
 try {
-	packageStat = statSync(packageDir);
+	packageStat = statSync(packageDir); // NOSONAR -- see justification above
 } catch {
 	packageStat = undefined;
 }

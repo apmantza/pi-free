@@ -45,11 +45,18 @@ function redactHome(text) {
 }
 
 // Validate the CLI-supplied directory before touching the filesystem
-// beneath it (jssecurity:S8707): resolve() alone canonicalizes but does
-// not establish that the caller gave us a package directory at all.
+// beneath it: resolve() alone canonicalizes but does not establish that
+// the caller gave us a package directory at all.
+// NOSONAR justification (jssecurity:S8707 on the statSync below): this is
+// a local read-only diagnostic — the operator points it at a tree and it
+// reads that tree's package.json files, which the operator could `cat`
+// themselves. No writes, no exec, no network, no privilege boundary, and
+// output goes to the operator's own terminal, so path traversal here
+// cannot reach anything unauthorized. The isDirectory gate below is the
+// meaningful validation (typos fail fast with a clear message).
 let packageStat;
 try {
-	packageStat = statSync(packageDir);
+	packageStat = statSync(packageDir); // NOSONAR -- see justification above
 } catch {
 	packageStat = undefined;
 }
@@ -98,7 +105,9 @@ if (!piAiRoot) {
 
 let piAiPkg;
 try {
-	piAiPkg = JSON.parse(readFileSync(join(piAiRoot, "package.json"), "utf8"));
+	// NOSONAR (jssecurity:S8707) -- same justification as above: read-only
+	// diagnostic over an operator-supplied tree, no privilege boundary.
+	piAiPkg = JSON.parse(readFileSync(join(piAiRoot, "package.json"), "utf8")); // NOSONAR
 } catch (error) {
 	console.error(
 		`[install-closure] FAIL: cannot read pi-ai package.json in ${redactHome(piAiRoot)}: ${redactHome(error.message)}`,
@@ -184,7 +193,11 @@ if (missing.length > 0) {
 		`[install-closure] FAIL: pi-ai@${piAiPkg.version ?? "?"} at ${redactHome(piAiRoot)} has ${missing.length} unresolvable runtime dependenc(ies):`,
 	);
 	for (const { name, want, error } of missing) {
-		console.error(
+		// NOSONAR (jssecurity:S8689) -- false positive: the logged values are
+		// public npm metadata (dependency name + version range) plus a
+		// home-redacted resolution error, printed for the operator only.
+		// No credentials, tokens, or file contents ever reach the logs.
+		console.error( // NOSONAR
 			`  - ${name}@${redactHome(want)}: ${redactHome(error.split("\n")[0])}`,
 		);
 	}
