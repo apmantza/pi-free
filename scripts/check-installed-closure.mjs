@@ -24,11 +24,41 @@
  * pi-free install and it names the missing package.
  */
 import { createRequire } from "node:module";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const packageDir = resolve(process.argv[2] ?? ".");
+
+/**
+ * Strip the user's home directory from logged paths (they carry the login
+ * name, and this output is routinely pasted into public issue reports).
+ * Best-effort exact-prefix match — anything else passes through untouched.
+ */
+function redactHome(text) {
+	const home = homedir();
+	if (typeof text !== "string" || !home || !text.startsWith(home)) {
+		return text;
+	}
+	return `~${text.slice(home.length)}`;
+}
+
+// Validate the CLI-supplied directory before touching the filesystem
+// beneath it (jssecurity:S8707): resolve() alone canonicalizes but does
+// not establish that the caller gave us a package directory at all.
+let packageStat;
+try {
+	packageStat = statSync(packageDir);
+} catch {
+	packageStat = undefined;
+}
+if (!packageStat?.isDirectory()) {
+	console.error(
+		`[install-closure] FAIL: not a package directory: ${redactHome(packageDir)}`,
+	);
+	process.exit(1);
+}
 
 const entry = join(packageDir, "dist", "index.js");
 if (!existsSync(entry)) {
@@ -61,7 +91,7 @@ const piAiRoot = findPackageUp(join(packageDir, "dist"), [
 if (!piAiRoot) {
 	console.error(
 		"[install-closure] FAIL: @earendil-works/pi-ai is not resolvable from the installed tree " +
-			`(${entry}). A missing pi-ai breaks every provider stream.`,
+			`(${redactHome(entry)}). A missing pi-ai breaks every provider stream.`,
 	);
 	process.exit(1);
 }
@@ -71,7 +101,7 @@ try {
 	piAiPkg = JSON.parse(readFileSync(join(piAiRoot, "package.json"), "utf8"));
 } catch (error) {
 	console.error(
-		`[install-closure] FAIL: cannot read pi-ai package.json in ${piAiRoot}: ${error.message}`,
+		`[install-closure] FAIL: cannot read pi-ai package.json in ${redactHome(piAiRoot)}: ${redactHome(error.message)}`,
 	);
 	process.exit(1);
 }
@@ -110,10 +140,24 @@ for (const name of Object.keys(runtimeDeps)) {
 }
 
 /**
- * True when the package at `depRoot` offers an ESM-importable `.` entry:
- * a string export, an `import`/`default` condition (shallow-nested maps
- * included), or — with no exports map at all — a legacy main/index.js.
- * Covers import-only packages whose require() fails while import() works.
+ * True for an exports target Node can ESM-import: a plain path string or
+ * a conditions object offering an `import`/`default` entry.
+ */
+function hasImportCondition(target) {
+	if (typeof target === "string") return true;
+	return (
+		!!target &&
+		typeof target === "object" &&
+		(typeof target.import === "string" ||
+			typeof target.default === "string")
+	);
+}
+
+/**
+ * True when the package at `depRoot` offers an ESM-importable `.` entry
+ * (shallow-nested condition maps included), or — with no exports map at
+ * all — a legacy main/index.js. Covers import-only packages whose
+ * require() fails while import() works.
  */
 function hasImportableEntry(depRoot) {
 	let pkg;
@@ -128,34 +172,21 @@ function hasImportableEntry(depRoot) {
 	}
 	const rootEntry =
 		typeof exportsField === "string" ? exportsField : exportsField["."];
-	if (typeof rootEntry === "string") return true;
+	if (hasImportCondition(rootEntry)) return true;
 	if (rootEntry && typeof rootEntry === "object") {
-		if (
-			typeof rootEntry.import === "string" ||
-			typeof rootEntry.default === "string"
-		) {
-			return true;
-		}
-		for (const value of Object.values(rootEntry)) {
-			if (typeof value === "string") return true;
-			if (
-				value &&
-				typeof value === "object" &&
-				(typeof value.import === "string" || typeof value.default === "string")
-			) {
-				return true;
-			}
-		}
+		return Object.values(rootEntry).some(hasImportCondition);
 	}
 	return false;
 }
 
 if (missing.length > 0) {
 	console.error(
-		`[install-closure] FAIL: pi-ai@${piAiPkg.version ?? "?"} at ${piAiRoot} has ${missing.length} unresolvable runtime dependenc(ies):`,
+		`[install-closure] FAIL: pi-ai@${piAiPkg.version ?? "?"} at ${redactHome(piAiRoot)} has ${missing.length} unresolvable runtime dependenc(ies):`,
 	);
 	for (const { name, want, error } of missing) {
-		console.error(`  - ${name}@${want}: ${error.split("\n")[0]}`);
+		console.error(
+			`  - ${name}@${redactHome(want)}: ${redactHome(error.split("\n")[0])}`,
+		);
 	}
 	console.error(
 		"[install-closure] The extension loads but crashes on first pi-ai use (#510). " +
@@ -166,5 +197,5 @@ if (missing.length > 0) {
 
 const count = Object.keys(runtimeDeps).length;
 console.log(
-	`[install-closure] PASS: pi-ai@${piAiPkg.version ?? "?"} + ${count} runtime dep(s) resolve from ${piAiRoot}`,
+	`[install-closure] PASS: pi-ai@${piAiPkg.version ?? "?"} + ${count} runtime dep(s) resolve from ${redactHome(piAiRoot)}`,
 );

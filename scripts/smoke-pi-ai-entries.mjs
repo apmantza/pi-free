@@ -16,11 +16,24 @@
  *   node scripts/smoke-pi-ai-entries.mjs [pi-free-package-dir]
  *     (default: the current directory — the repo root after `npm run build`)
  */
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const packageDir = resolve(process.argv[2] ?? ".");
+
+// Validate the CLI-supplied directory before touching the filesystem
+// beneath it (same shape as check-installed-closure.mjs).
+let packageStat;
+try {
+	packageStat = statSync(packageDir);
+} catch {
+	packageStat = undefined;
+}
+if (!packageStat?.isDirectory()) {
+	console.error(`[pi-ai-entries] FAIL: not a package directory: ${packageDir}`);
+	process.exit(1);
+}
 const loaderFile = join(packageDir, "dist", "lib", "pi-ai-loader.js");
 if (!existsSync(loaderFile)) {
 	console.error(
