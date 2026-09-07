@@ -27,6 +27,7 @@ import {
 	getOpenrouterShowPaid,
 } from "../config.ts";
 import { createLogger } from "./logger.ts";
+import { isStaleContextError } from "./stale-ctx.ts";
 import {
 	getProviderRegistry,
 	isFreeModel,
@@ -333,6 +334,21 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 						// restore's not-found retry waits for this refresh to land.
 						scheduleEndpointRefresh(config, state);
 						await maybeRestoreSavedModel(pi, config, entry.snapshot);
+					} catch (error) {
+						// The session may have been replaced/reloaded while the
+						// capture was awaiting credentials (#509). That work belongs
+						// to the dead session: drop it quietly (a live session's
+						// session_start starts a fresh capture) instead of rejecting,
+						// which trackDetachedSessionStart would report as
+						// "detached failed". Real errors still reject.
+						if (!isStaleContextError(error)) throw error;
+						_logger.info(
+							`[built-in-toggle] ${config.id}: session changed during capture; dropping detached capture`,
+							{
+								error: error instanceof Error ? error.message : String(error),
+							},
+						);
+						return;
 					} finally {
 						pendingCaptures.delete(config.id);
 					}
@@ -533,6 +549,17 @@ async function maybeRestoreSavedModel(
 			);
 		}
 	} catch (error) {
+		// A stale pi/ctx just means the session moved on before the restore
+		// could run (#509) — routine, not a warning.
+		if (isStaleContextError(error)) {
+			_logger.info(
+				`[built-in-toggle] ${config.id}: session changed before saved-model restore; skipping`,
+				{
+					error: error instanceof Error ? error.message : String(error),
+				},
+			);
+			return;
+		}
 		_logger.warn(
 			`[built-in-toggle] ${config.id}: saved-model restore failed: ${error instanceof Error ? error.message : String(error)}`,
 		);
@@ -857,6 +884,17 @@ function scheduleEndpointRefresh(
 			// session-start-metrics "detached failed" warn per blip.
 			// Counters keep /free-health aware of the stale catalog.
 			recordNetworkFetch(config.id, undefined, false);
+			// A stale ctx just means the session moved on mid-refresh (#509)
+			// — routine, not a warning.
+			if (isStaleContextError(error)) {
+				_logger.info(
+					`[built-in-toggle] ${config.id}: session changed during endpoint refresh; keeping cached catalog`,
+					{
+						error: error instanceof Error ? error.message : String(error),
+					},
+				);
+				return;
+			}
 			_logger.warn(`[built-in-toggle] ${config.id}: endpoint refresh failed`, {
 				error: error instanceof Error ? error.message : String(error),
 				stack: error instanceof Error ? error.stack : undefined,
@@ -890,42 +928,69 @@ function registerToggleCommand(
 	pi.registerCommand(commandName, {
 		description: `Toggle free/paid ${config.id} models`,
 		handler: async (_args, ctx) => {
-			// A detached session-start capture may still be in flight; wait for
-			// it instead of racing a second capture (which would overwrite
-			// provider state and could clobber the view the user is toggling).
-			await pendingCaptures.get(config.id)?.task;
-			let state = providerStates.get(config.id);
-			if (!state) {
-				// Models may have loaded after session_start — try capture again.
-				state = await tryCaptureProvider(pi, config, ctx);
-			} else if (ctx.modelRegistry) {
-				// Commands run with the current session context; refresh the
-				// registry even when the catalog was captured in an older session.
-				state.setModelRegistry(ctx.modelRegistry);
-			}
-			if (!state) {
-				ctx.ui.notify(
-					`${config.id}: models not loaded yet. Start a session first, then try again.`,
-					"warning",
-				);
-				return;
-			}
-
-			const applied = state.toggleState.toggle(state.reRegister);
-
-			if (applied.mode === "all") {
-				ctx.ui.notify(
-					`${config.id}: showing all ${state.stored.all.length} models`,
-					"info",
-				);
-			} else {
-				ctx.ui.notify(
-					`${config.id}: showing ${state.stored.free.length} free models`,
-					"info",
+			try {
+				await runToggleCommand(ctx);
+			} catch (error) {
+				// The command ctx may belong to a replaced session (#509).
+				// There is no live UI left to explain that on — drop it
+				// quietly. Real errors still propagate as Extension errors.
+				if (!isStaleContextError(error)) throw error;
+				_logger.info(
+					`[built-in-toggle] ${config.id}: session changed during toggle; ignoring`,
+					{
+						error: error instanceof Error ? error.message : String(error),
+					},
 				);
 			}
 		},
 	});
+
+	/**
+	 * Toggle-command body, extracted so the registration can guard it
+	 * against Pi's stale-context throws (#509). The ctx type is structural:
+	 * both event and command contexts expose this surface.
+	 */
+	async function runToggleCommand(ctx: {
+		modelRegistry: CurrentModelRegistry;
+		ui: {
+			notify(message: string, type?: "info" | "warning" | "error"): void;
+		};
+	}): Promise<void> {
+		// A detached session-start capture may still be in flight; wait for
+		// it instead of racing a second capture (which would overwrite
+		// provider state and could clobber the view the user is toggling).
+		await pendingCaptures.get(config.id)?.task;
+		let state = providerStates.get(config.id);
+		if (!state) {
+			// Models may have loaded after session_start — try capture again.
+			state = await tryCaptureProvider(pi, config, ctx);
+		} else if (ctx.modelRegistry) {
+			// Commands run with the current session context; refresh the
+			// registry even when the catalog was captured in an older session.
+			state.setModelRegistry(ctx.modelRegistry);
+		}
+		if (!state) {
+			ctx.ui.notify(
+				`${config.id}: models not loaded yet. Start a session first, then try again.`,
+				"warning",
+			);
+			return;
+		}
+
+		const applied = state.toggleState.toggle(state.reRegister);
+
+		if (applied.mode === "all") {
+			ctx.ui.notify(
+				`${config.id}: showing all ${state.stored.all.length} models`,
+				"info",
+			);
+		} else {
+			ctx.ui.notify(
+				`${config.id}: showing ${state.stored.free.length} free models`,
+				"info",
+			);
+		}
+	}
 }
 
 // =============================================================================
