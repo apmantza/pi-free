@@ -2,6 +2,15 @@
 
 > This file helps AI agents understand the codebase quickly. Read it before making changes.
 
+## Maintaining This File (do this on every commit)
+
+This file is the durable context for every agent working on pi-free. **Update it in the same commit that changes the world it describes** — never as a follow-up:
+
+- **Kill staleness.** A stale claim is worse than none — agents act on it as fact. If a commit changes behavior, structure, commands, or conventions documented here, fix the affected lines now.
+- **Capture decisions.** When a commit establishes a non-obvious decision or gotcha the next agent would relearn the hard way, add it with the *why* (recent examples: the stale-ctx guard, the override-map presence rule, the refresh-supersede race).
+- **Placement.** New invariants go inside the matching section below, never prepended at the top or appended at the tail. Defect shapes append as numbered entries.
+- **Timeless wording.** No "new", "recently", "currently" in durable text — they rot. Point-in-time records (PRs, issues) use absolute dates.
+
 ## What is pi-free?
 
 A **Pi extension** (`@earendil-works/pi-coding-agent`) that registers free and paid AI model providers with Pi's model picker. It shows free models by default and lets users toggle per-provider between free-only and all-models view via `/toggle-{provider}` commands.
@@ -16,9 +25,11 @@ A **Pi extension** (`@earendil-works/pi-coding-agent`) that registers free and p
 
 ## Architecture at a Glance
 
-```
+```text
 index.ts                          ← Extension entry point (piFreeEntry)
-  ├─ lib/registry.ts              ← Global provider registry + isFreeModel detection
+  ├─ lib/registry.ts              ← Global provider registry + isFreeModel detection + resolveModelView (explicit choice wins, else global)
+  ├─ lib/stale-ctx.ts             ← Shared stale extension-context guard (isStaleContextError/safeNotify/safeSetStatus)
+  ├─ lib/native-provider.ts       ← Native Provider factory/bridge (filterNativeModels, scoped session-start refresh nudge with retry, native toggles)
   ├─ lib/toggle-state.ts          ← Generic toggle state machine (free ↔ all)
   ├─ lib/built-in-toggle.ts       ← Toggles for Pi's built-in providers (opencode-free, opencode-go, openrouter)
   ├─ lib/quota-monitor.ts         ← Rate-limit header extraction → status bar
@@ -118,7 +129,7 @@ Kilo, Cline, LLM7, ZenMux, TokenRouter, Ollama Cloud, B.AI, AnyAPI, CrofAI, Samb
 
 Kilo, Cline, LLM7, ZenMux, TokenRouter, Ollama Cloud, B.AI, AnyAPI, CrofAI, SambaNova, Novita, DeepInfra, Routeway, OpenGateway, FastRouter, StepFun, GMI Cloud, Agnes AI, Venice AI, Merge Gateway, and Qoder use Pi's modern provider API (Pi `>=0.81.0`). Instead of the legacy `registerProvider(id, { baseUrl, apiKey, models, oauth })` form, each builds a native pi-ai `Provider` object and registers it via the single-argument `registerProvider(provider)`. Pi then owns credential refresh, background model refresh (4h throttle, abortable), and offline initialization — so these extension factories perform no catalog network I/O on startup.
 
-```
+```text
 providers/kilo/kilo-provider.ts   ← createKiloProvider(): assembles the Provider
 providers/kilo/kilo-auth.ts       ← native ProviderAuth (apiKey + OAuth device flow)
 providers/kilo/kilo-models.ts     ← fetchKiloCatalog + toKiloModel(s) + compat shaping
@@ -177,12 +188,13 @@ Debug logging writes to `~/.pi/free.log` under the `benchmark-lookup` namespace:
 
 ### Toggle State
 
-`lib/toggle-state.ts` provides a generic `createToggleState<T>()` factory that manages:
+One resolution rule behind every filter decision (`resolveModelView` in `lib/registry.ts`): **an explicit per-provider choice wins, otherwise the global `free_only` default applies**. No force flags, no preservation branches.
 
-- Mode: `"free"` | `"all"`
-- Model storage: `{ free: T[], all: T[] }`
-- Persistence: auto-saves to `~/.pi/free.json` on toggle
-- Resolution: handles edge cases (empty `all` → fall back to `free`, etc.)
+- Explicit choices live in the sparse `model_view_overrides` map in `~/.pi/free.json` (written only by `/toggle-<id>`; absent = follow global). A legacy `{id}_show_paid: true` still counts as explicit-"all"; template-materialized `false` keys never count (see defect shape 5).
+- `/toggle-free` flips the global flag **and clears all per-provider choices** so the new default applies uniformly — a stale explicit choice must never fight it on the next session.
+- Toggle commands flip the *effective* view and persist it (never the stored pref, which no-ops under an opposing global).
+- Captures and filters resolve live at call time; registration-time values must never be frozen (see defect shape 2).
+- `lib/toggle-state.ts` provides the generic `createToggleState<T>()` mode machine (`"free"` | `"all"`, `{free, all}` storage, empty-`all` → `free` fallback). Its internal persist targets legacy keys; production toggle paths persist through the overrides map instead.
 
 ### Quota Monitoring
 
@@ -273,6 +285,35 @@ Debug logging writes to `~/.pi/free.log` under the `benchmark-lookup` namespace:
 16. **pi-ai compat must never load at startup** — `@earendil-works/pi-ai/compat` (and `@earendil-works/pi-ai/providers/all`) cost ~1.3–1.7s of module-load time and are only allowed as *dynamic* imports in runtime code. Provider `stream`/`streamSimple` get their pi-ai implementations through the lazy bridge in `lib/lazy-compat.ts` (`lazyOpenAICompletionsApi()`/`lazyAnthropicMessagesApi()`), which returns the local compat-free shell from `lib/assistant-message-event-stream.ts` synchronously and pipes the real stream in once the single-flight compat import resolves. Runtime pi-ai imports go through `lib/pi-ai-loader.ts` (`loadPiAiEntry`), which tries the bare specifier first and only on a genuine pi-ai-not-found error falls back to locating the package on disk (walk-up from this package, nested under pi-coding-agent, the running pi host's realpath-resolved entry script — covers pnpm virtual-store layouts, #448 — plus `~/.pi/agent/npm`, `%APPDATA%\npm`, and executable-relative roots). Never add a static value-import of compat (type-only imports are fine), and keep `scripts/check-runtime-imports.mjs` green. **Bun-compiled pi binaries (scoop/winget/standalone zip) break every one of those resolution paths**: Bun compile mode disables bare-specifier resolution from external files entirely, so no on-disk pi-ai layout can serve pi-free there — even a correctly installed pi-ai dies on its own internal bare imports (#502). For that case `scripts/build.mjs` emits self-contained esbuild bundles to `dist/vendor/` (`pi-ai-compat.js`: the four lazy API factories pi-free can stream through — OpenAI completions, Anthropic messages, OpenAI responses, Google generative AI; `pi-ai-providers-all.js`: the builtin-catalog readers), with every transitive dependency inlined and only `node:*` builtins external. `loadPiAiEntry` imports them by absolute file path as the LAST resort (their pi-ai version is frozen at pi-free's build time; any on-disk copy matches the running host). The bundles stay out of the startup path — they load on first use, only when nothing else resolved. The OpenCode session stream's `importPiAiSubpath` falls back to these factories, so `opencode-free`/`opencode-go` keep working on Bun-binary hosts. Two things the vendored bundle deliberately does not carry: `registerApiProvider` (the compat API registry lives in the HOST's pi-ai instance — provider-composer reads it — so registering into a vendored copy would be a silent no-op; primary dispatch uses the provider config's `streamSimple` instead) and `isRetryableAssistantError` (the auto-fallback classifier degrades to its local regex tables, as designed).
 17. **Wire-signature logs are header NAMES only — never values** — the `before_agent_start` wire-signature log (`lib/wire-signature.ts`, namespace `wire-signature`, debug level) records the request contract (`provider`, `model`, `api`, `baseUrl`, `headerNames`) to diagnose headers that fail to reach the wire. `headerNames` must contain only header KEYS; an Authorization/apiKey/token/cookie VALUE in this line would leak credentials into the shared plain-text `~/.pi/free.log`. The same rule applies to any new observability that touches headers, and `/pi-free-health` output stays credential-free (counts, ages, status codes — never bodies, keys, tokens, or log tails) (#437).
 18. **Live catalog audits are mandatory before each release and when adding a new provider** — fetch every registered provider's real `/models` endpoint (stored credential from `~/.pi/agent/auth.json` where available; anonymous where the catalog is public) and verify its free/paid classification against pi-free's actual detection semantics (Route A cost detection, Route B name fallback, promotional windows, authoritative `_freeKnown`/`_isFree` stamps) before writing release notes or README claims. Record the audit date next to any published counts and present them as a point-in-time snapshot, never a guarantee. Providers whose credentials are unavailable are listed as "not audited" rather than guessed. Never print or commit API keys during an audit. **`docs/free_models.md` is a hard release gate**: the dated free-model catalog must be regenerated from the same live audit (model lists + usage conditions per provider) before release notes are written — a stale `free_models.md` blocks the release.
+
+## Recurring Defect Shapes
+
+Screen against these BEFORE writing code — each one cost a real incident:
+
+1. **Stale extension context across awaits.** Pi invalidates `pi`/`ctx` on session replacement or reload; any guarded access afterwards throws. Snapshot what you need synchronously at handler entry; a stale throw after an `await` means "session moved on" — log at debug/info and stop work for the dead session. Never let it surface as a user-visible Extension error or a detached-failed warn (`lib/stale-ctx.ts`: `isStaleContextError`/`safeNotify`/`safeSetStatus`; #393/#394/#509).
+2. **Registration-time values going stale.** Never freeze a per-provider pref, view, or registry handle at registration/capture and trust it later — later global flips never reach it. Resolve live at call time (`resolveModelView`, `filterNativeModels` internals). The `#510` filter saga (capture froze `show_paid`, native registration froze it again) is the textbook case.
+3. **Detached session-start work must resolve, never reject, on expected races.** Session replacement, reload, superseded refreshes, and missing credentials are routine, not failures — resolve quietly (info/debug at most). A rejection becomes a user-visible `detached failed` warn. Real errors still reject.
+4. **Refresh supersede races.** Pi aborts an in-flight per-provider refresh when a newer refresh begins, and every `registerProvider` fires a global offline refresh. Our own captures re-register ~40ms after the session-start nudge fires, so an unscoped unretried network refresh is deterministically aborted (empty catalog on fresh installs — caught live by the RPC session check). Mitigations in order: scope refreshes to owned providers, retry once when aborted, seed static catalogs at registration.
+5. **Template-materialized defaults destroy presence info.** `ensureConfigFile` writes every template key into `free.json`, so "key present" can never mean "user chose this". Presence-based semantics must use a sparse map written only on explicit choice (`model_view_overrides`), with legacy-`true`-only fallback.
+6. **Load-only smokes miss lazy paths.** Bare entry import, loader load, and RPC `get_commands` all pass a tree whose pi-ai transitive imports are broken — the crash fires on first real use. Anything lazy (`loadPiAiEntry`, compat streams) needs an executing smoke (`smoke-pi-ai-entries`, `check-installed-closure`), not just a loading one (#510).
+7. **`import.meta.resolve` parent argument is ignored on some Node builds** — it silently scopes to the calling module's tree instead. Tree-scoped resolution must use `createRequire` (verified: honors parent paths), with a physical present-and-importable fallback for import-only packages.
+8. **NOSONAR markers must sit on sink lines.** The formatter breaks `console.error( // NOSONAR` across lines, which silently un-suppresses the marker. Build log messages into consts first so the marker trails a short, unsplittable sink call.
+
+## Standing Invariants
+
+- **Notifications are best-effort and never throw.** There is no UI left on a dead session; notify/status helpers swallow stale-context throws by design.
+- **Abort is cancellation, not failure** (convention 15 extends everywhere: refresh supersedes, signal aborts, user Esc — none of these are strikes, errors, or warnings).
+- **Health and log output stay credential-free** — counts, ages, status codes; never keys, tokens, bodies, header values, or log tails.
+- **pi-ai compat never loads at startup** — dynamic imports only, via `loadPiAiEntry`; `check-runtime-imports` stays green.
+- **All `free.json` writes go through the locked RMW paths** (`saveConfig`/`updateConfig`) — never raw writes; concurrent toggles/probes must not clobber each other.
+- **Every new `free.json` key or env flag needs a forcing function.** A knob shipped "for flexibility" is permanent public API plus test/doc/support burden. Name the consumer in the PR body.
+- **Toggle flips the effective view.** Persisted choices live under provider ids in `model_view_overrides`; divergent snake_case keys are legacy-read-only.
+
+## PR Test Proof
+
+- Regression fixes show **fail-before evidence**: the new test fails on pre-fix code (stash the fix, run, restore) and passes after. State this in the PR body.
+- Name every new/edited test with one line on what it pins and why it exists. A reviewer who cannot see what changed about the tests cannot review the change.
+- Prefer live verification where mocks would encode the assumption under test: RPC session/filter checks over mocked registries, real `ModelRuntime` over stubbed auth gates, fixture trees over hand-rolled module doubles. Mocks are legitimate only at true process boundaries (spawned Pi CLI, network fetches) and for pure-logic units.
 
 ---
 
@@ -369,7 +410,7 @@ node scripts/backfill-github-releases.mjs --apply --full
 
 # only specific releases
 node scripts/backfill-github-releases.mjs --apply --only v2.2.4,v2.1.1
-```
+```bash
 
 Requires the `gh` CLI authenticated.
 
