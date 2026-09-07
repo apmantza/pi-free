@@ -20,18 +20,14 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import {
-	getOpencodeApiKey,
-	getOpencodeFreeShowPaid,
-	getOpencodeGoShowPaid,
-	getOpenrouterShowPaid,
-} from "../config.ts";
+import { getOpencodeApiKey, setModelViewOverride } from "../config.ts";
 import { createLogger } from "./logger.ts";
 import { isStaleContextError } from "./stale-ctx.ts";
 import {
 	getProviderRegistry,
 	isFreeModel,
 	registerWithGlobalToggle,
+	resolveModelView,
 } from "./registry.ts";
 import {
 	trackDetachedSessionStart,
@@ -83,11 +79,12 @@ interface BuiltInToggleConfig {
 	 * re-registers them under the distinct id so OUR stream wrapper is used.
 	 */
 	captureFrom?: string;
-	getShowPaid: () => boolean;
 	/**
-	 * Config key the toggle persists under; defaults to `{id}_show_paid`.
-	 * The OpenCode tiers register under dashed ids (`opencode-free`) but
-	 * persist under snake_case keys, so they must pass this explicitly.
+	 * Config key the toggle state persists under; defaults to
+	 * `{id}_show_paid`. The OpenCode tiers register under dashed ids
+	 * (`opencode-free`) but persist under snake_case keys, so they must
+	 * pass this explicitly. (Only used by toggle-state's internal persist;
+	 * the toggle command records explicit choices in model_view_overrides.)
 	 */
 	showPaidConfigKey?: string;
 	baseUrl: string;
@@ -117,7 +114,6 @@ const BUILT_IN_TOGGLE_PROVIDERS: BuiltInToggleConfig[] = [
 		// free tier gets the real opencode identity.
 		id: "opencode-free",
 		captureFrom: "opencode",
-		getShowPaid: getOpencodeFreeShowPaid,
 		showPaidConfigKey: "opencode_free_show_paid",
 		baseUrl: "https://opencode.ai/zen/v1",
 		api: OPENCODE_DYNAMIC_API,
@@ -125,7 +121,6 @@ const BUILT_IN_TOGGLE_PROVIDERS: BuiltInToggleConfig[] = [
 	},
 	{
 		id: "opencode-go",
-		getShowPaid: getOpencodeGoShowPaid,
 		showPaidConfigKey: "opencode_go_show_paid",
 		baseUrl: "https://opencode.ai/zen/go/v1",
 		api: OPENCODE_DYNAMIC_API,
@@ -138,7 +133,6 @@ const BUILT_IN_TOGGLE_PROVIDERS: BuiltInToggleConfig[] = [
 	},
 	{
 		id: "openrouter",
-		getShowPaid: getOpenrouterShowPaid,
 		baseUrl: "https://openrouter.ai/api/v1",
 		api: "openai-completions",
 		// Pi's built-in openrouter provider is also a static generated catalog
@@ -726,7 +720,12 @@ function createProviderState(
 	const stored = { free: freeModels, all: allModels };
 	const toggleState = createToggleState<ProviderModelConfig>({
 		providerId: config.id,
-		initialShowPaid: config.getShowPaid(),
+		// Resolve the EFFECTIVE view (explicit choice, else the global
+		// default) so the capture matches what the user sees — a stale
+		// per-provider pref must not resurrect paid models after
+		// /toggle-free cleared it, and a global-off session must not be
+		// clamped to the free view (#510).
+		initialShowPaid: resolveModelView(config.id) === "all",
 		// undefined falls through to the `{id}_show_paid` default (openrouter).
 		configKey: config.showPaidConfigKey,
 		initialModels: stored,
@@ -759,7 +758,22 @@ function createProviderState(
 	providerStates.set(config.id, state);
 	stateForRefresh = state;
 
-	registerWithGlobalToggle(config.id, stored, reRegister, true);
+	// Register a view-syncing wrapper, not the raw reRegister: the global
+	// filter passes exactly stored.free / stored.all, and the wrapper keeps
+	// the in-memory mode on the same view. Without this, a later
+	// session_start applyCurrent would resurrect the pre-filter view — the
+	// "toggle-free every session" shape (#510).
+	registerWithGlobalToggle(
+		config.id,
+		stored,
+		(models) => {
+			state.toggleState.applyMode(
+				models === state.stored.all ? "all" : "free",
+				state.reRegister,
+			);
+		},
+		true,
+	);
 
 	_logger.info(
 		`[built-in-toggle] ${config.id}: ${source} ${allModels.length} models (${freeModels.length} free)`,
@@ -977,7 +991,14 @@ function registerToggleCommand(
 			return;
 		}
 
-		const applied = state.toggleState.toggle(state.reRegister);
+		// Flip the EFFECTIVE view (explicit choice wins, else the global
+		// default) and persist it as the explicit choice — flipping the
+		// stored mode alone would no-op under an opposing global (#510).
+		// applyMode (unlike toggle) does not persist, so persist here under
+		// the provider id; a legacy explicit `true` still counts as "all".
+		const next = resolveModelView(config.id) === "free" ? "all" : "free";
+		const applied = state.toggleState.applyMode(next, state.reRegister);
+		await setModelViewOverride(config.id, applied.mode);
 
 		if (applied.mode === "all") {
 			ctx.ui.notify(

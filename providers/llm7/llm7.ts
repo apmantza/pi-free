@@ -48,7 +48,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { getLlm7ApiKey, getLlm7ShowPaid } from "../../config.ts";
+import { getLlm7ApiKey } from "../../config.ts";
 import { PROVIDER_LLM7 } from "../../constants.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import {
@@ -89,7 +89,6 @@ export default async function llm7Provider(pi: ExtensionAPI) {
 	registerNativeProviderToggle(pi, {
 		providerId: PROVIDER_LLM7,
 		stored,
-		getShowPaid: getLlm7ShowPaid,
 		reRegister,
 	});
 

@@ -9,6 +9,10 @@ const mockGetOllamaApiKey = vi.hoisted(() =>
 	vi.fn((): string | undefined => undefined),
 );
 const mockGetOllamaShowPaid = vi.hoisted(() => vi.fn(() => false));
+const mockGetModelViewOverride = vi.hoisted(() =>
+	vi.fn((_providerId: string): "free" | "all" | undefined => undefined),
+);
+const mockSetModelViewOverride = vi.hoisted(() => vi.fn());
 const mockGetGlobalFreeOnly = vi.hoisted(() => vi.fn(() => true));
 const mockFetchWithRetry = vi.hoisted(() => vi.fn());
 const mockFetchWithTimeout = vi.hoisted(() => vi.fn());
@@ -20,6 +24,10 @@ const mockSaveConfig = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock("../config.ts", () => ({
 	getOllamaApiKey: () => mockGetOllamaApiKey(),
 	getOllamaShowPaid: () => mockGetOllamaShowPaid(),
+	getModelViewOverride: (providerId: string) =>
+		mockGetModelViewOverride(providerId),
+	setModelViewOverride: (...args: unknown[]) =>
+		mockSetModelViewOverride(...args),
 	applyHidden: (models: unknown[]) => models,
 	updateConfig: vi.fn(),
 	saveConfig: mockSaveConfig,
@@ -27,7 +35,15 @@ vi.mock("../config.ts", () => ({
 
 vi.mock("../lib/registry.ts", () => ({
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
-	getGlobalFreeOnlyForced: () => false,
+	// Mirrors the real resolveModelView over the mocked config getters (the
+	// real rule is unit-tested in registry-provider-overrides.test.ts).
+	resolveModelView: (providerId: string) =>
+		mockGetModelViewOverride(providerId) ??
+		(mockGetOllamaShowPaid()
+			? "all"
+			: mockGetGlobalFreeOnly()
+				? "free"
+				: "all"),
 	registerWithGlobalToggle: vi.fn(),
 	// Free=all matches what these tests were written against; the provider
 	// now reclassifies via this fn on restore/fetch instead of trusting it.
@@ -121,6 +137,7 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	mockGetOllamaApiKey.mockReturnValue(undefined);
 	mockGetOllamaShowPaid.mockReturnValue(false);
+	mockGetModelViewOverride.mockReturnValue(undefined);
 	mockGetGlobalFreeOnly.mockReturnValue(true);
 });
 
@@ -243,7 +260,7 @@ describe("Ollama native factory", () => {
 		expect(mockFetchWithRetry).not.toHaveBeenCalled();
 	});
 
-	it("persists the toggle under ollama_show_paid so it survives a restart", async () => {
+	it("persists the toggle under the provider id so it survives a restart", async () => {
 		const registerProvider = vi.fn();
 		const registerCommand = vi.fn();
 		const on = vi.fn();
@@ -264,11 +281,12 @@ describe("Ollama native factory", () => {
 		const notify = vi.fn();
 		await toggleCommand.handler("", { ui: { notify } } as never);
 
-		// providerId is "ollama-cloud", but the config getter reads
-		// `ollama_show_paid` — the persisted key must match or the toggle is
-		// lost on restart.
-		expect(mockSaveConfig).toHaveBeenCalledWith({
-			ollama_show_paid: true,
-		});
+		// The choice is recorded under the provider id in the overrides map —
+		// no divergent snake_case key to map (or mismatch), and a legacy
+		// explicit `ollama_show_paid: true` still counts as "all".
+		expect(mockSetModelViewOverride).toHaveBeenCalledWith(
+			"ollama-cloud",
+			"all",
+		);
 	});
 });

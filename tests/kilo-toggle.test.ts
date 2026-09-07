@@ -18,6 +18,10 @@ const mockGetKiloApiKey = vi.hoisted(() =>
 	vi.fn((): string | undefined => undefined),
 );
 const mockGetKiloShowPaid = vi.hoisted(() => vi.fn(() => false));
+const mockGetModelViewOverride = vi.hoisted(() =>
+	vi.fn((_providerId: string): "free" | "all" | undefined => undefined),
+);
+const mockSetModelViewOverride = vi.hoisted(() => vi.fn());
 const mockGetKiloFreeOnly = vi.hoisted(() => vi.fn(() => false));
 const mockGetGlobalFreeOnly = vi.hoisted(() => vi.fn(() => true));
 const mockSaveConfig = vi.hoisted(() =>
@@ -32,6 +36,10 @@ let capturedToggleArgs: unknown[][] = [];
 vi.mock("../config.ts", () => ({
 	getKiloApiKey: () => mockGetKiloApiKey(),
 	getKiloShowPaid: () => mockGetKiloShowPaid(),
+	getModelViewOverride: (providerId: string) =>
+		mockGetModelViewOverride(providerId),
+	setModelViewOverride: (...args: unknown[]) =>
+		mockSetModelViewOverride(...args),
 	getKiloFreeOnly: () => mockGetKiloFreeOnly(),
 	saveConfig: (...args: unknown[]) => mockSaveConfig(...args),
 	PROVIDER_KILO: "kilo",
@@ -43,7 +51,15 @@ vi.mock("../lib/registry.ts", () => ({
 		mockRegisterWithGlobalToggle(...args);
 	},
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
-	getGlobalFreeOnlyForced: () => false,
+	// Mirrors the real resolveModelView over the mocked config getters (the
+	// real rule is unit-tested in registry-provider-overrides.test.ts).
+	resolveModelView: (providerId: string) =>
+		mockGetModelViewOverride(providerId) ??
+		(mockGetKiloShowPaid()
+			? "all"
+			: mockGetGlobalFreeOnly()
+				? "free"
+				: "all"),
 	isFreeModel: (m: { cost?: { input?: number } }) => (m.cost?.input ?? 0) === 0,
 }));
 
@@ -111,6 +127,7 @@ describe("Kilo toggle interop", () => {
 		capturedToggleArgs = [];
 		mockGetKiloApiKey.mockReturnValue(undefined);
 		mockGetKiloShowPaid.mockReturnValue(false);
+		mockGetModelViewOverride.mockReturnValue(undefined);
 		mockGetKiloFreeOnly.mockReturnValue(false);
 		mockGetGlobalFreeOnly.mockReturnValue(true);
 		mockFetchKiloCatalog.mockResolvedValue({
@@ -192,7 +209,9 @@ describe("Kilo toggle interop", () => {
 		const notify = vi.fn();
 		await call[1].handler({}, { ui: { notify } });
 
-		expect(mockSaveConfig).toHaveBeenCalledWith({ kilo_show_paid: true });
+		// Persisted under the provider id in the overrides map (no divergent
+		// snake_case key, no registration-time value to go stale).
+		expect(mockSetModelViewOverride).toHaveBeenCalledWith("kilo", "all");
 		expect(
 			provider
 				.getModels()

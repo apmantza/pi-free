@@ -34,7 +34,6 @@ import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import {
 	getKiloApiKey,
 	getKiloFreeOnly,
-	getKiloShowPaid,
 } from "../../config.ts";
 import { PROVIDER_KILO } from "../../constants.ts";
 import { isFreeModel } from "../../lib/registry.ts";
@@ -154,7 +153,6 @@ export function createKiloProvider(): KiloNativeProvider {
 			(stored.all.length > 0 ? stored.all : stored.free) as KiloModel[],
 		filterModels: (models) =>
 			filterNativeModels(PROVIDER_KILO, models, {
-				showPaid: getKiloShowPaid(),
 				freeModels: stored.free,
 				forceFree: getKiloFreeOnly(),
 			}),

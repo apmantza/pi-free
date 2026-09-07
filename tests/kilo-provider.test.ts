@@ -22,12 +22,20 @@ const mockGetKiloApiKey = vi.hoisted(() =>
 	vi.fn((): string | undefined => undefined),
 );
 const mockGetKiloShowPaid = vi.hoisted(() => vi.fn(() => false));
+const mockGetModelViewOverride = vi.hoisted(() =>
+	vi.fn((_providerId: string): "free" | "all" | undefined => undefined),
+);
+const mockSetModelViewOverride = vi.hoisted(() => vi.fn());
 const mockGetKiloFreeOnly = vi.hoisted(() => vi.fn(() => false));
 const mockGetGlobalFreeOnly = vi.hoisted(() => vi.fn(() => true));
 
 vi.mock("../config.ts", () => ({
 	getKiloApiKey: () => mockGetKiloApiKey(),
 	getKiloShowPaid: () => mockGetKiloShowPaid(),
+	getModelViewOverride: (providerId: string) =>
+		mockGetModelViewOverride(providerId),
+	setModelViewOverride: (...args: unknown[]) =>
+		mockSetModelViewOverride(...args),
 	getKiloFreeOnly: () => mockGetKiloFreeOnly(),
 	applyHidden: (models: unknown[]) => models,
 	PROVIDER_KILO: "kilo",
@@ -35,7 +43,15 @@ vi.mock("../config.ts", () => ({
 
 vi.mock("../lib/registry.ts", () => ({
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
-	getGlobalFreeOnlyForced: () => false,
+	// Mirrors the real resolveModelView over the mocked config getters (the
+	// real rule is unit-tested in registry-provider-overrides.test.ts).
+	resolveModelView: (providerId: string) =>
+		mockGetModelViewOverride(providerId) ??
+		(mockGetKiloShowPaid()
+			? "all"
+			: mockGetGlobalFreeOnly()
+				? "free"
+				: "all"),
 	isFreeModel: (m: { cost?: { input?: number } }) => (m.cost?.input ?? 0) === 0,
 }));
 
@@ -132,6 +148,7 @@ beforeEach(() => {
 	mockFetchKiloCatalog.mockReset();
 	mockGetKiloApiKey.mockReturnValue(undefined);
 	mockGetKiloShowPaid.mockReturnValue(false);
+	mockGetModelViewOverride.mockReturnValue(undefined);
 	mockGetKiloFreeOnly.mockReturnValue(false);
 	mockGetGlobalFreeOnly.mockReturnValue(true);
 });
@@ -413,6 +430,8 @@ describe("toggle interop", () => {
 	});
 
 	it("filterModels shows all when global free-only is off", async () => {
+		// No explicit override recorded: the view follows the global default.
+		mockGetModelViewOverride.mockReturnValue(undefined);
 		mockGetGlobalFreeOnly.mockReturnValue(false);
 		const { provider } = await seededProvider();
 		expect(

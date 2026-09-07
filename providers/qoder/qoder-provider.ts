@@ -14,7 +14,6 @@ import type {
 	RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
-import { getProviderShowPaid } from "../../config.ts";
 import { BASE_URL_QODER, PROVIDER_QODER } from "../../constants.ts";
 import {
 	filterNativeModels,
@@ -98,7 +97,6 @@ export function createQoderProvider(): QoderNativeProvider {
 			(stored.all.length > 0 ? stored.all : stored.free) as QoderModel[],
 		filterModels: (models) =>
 			filterNativeModels(PROVIDER_QODER, models, {
-				showPaid: getProviderShowPaid(PROVIDER_QODER),
 				freeModels: stored.free,
 			}),
 		refreshModels,

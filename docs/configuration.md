@@ -64,13 +64,12 @@ NVIDIA, Together, Mistral, Groq, Cerebras, xAI, and Hugging Face are Pi-built-in
 ```json
 {
   "free_only": true,
-  "kilo_show_paid": true,
-  "stepfun_show_paid": true,
-  "qoder_show_paid": false
+  "model_view_overrides": { "kilo": "all" },
+  "stepfun_show_paid": true
 }
 ```
 
-`free_only` controls the global filter. Each provider's `<provider>_show_paid` value controls its provider toggle. StepFun defaults to showing its paid catalog because the Step Plan catalog has no free models; set `stepfun_show_paid` or `STEPFUN_SHOW_PAID=false` to hide it. Environment flags use the uppercase form, for example `PI_FREE_ONLY`, `KILO_SHOW_PAID`, and `QODER_SHOW_PAID`. The legacy `kilo_free_only` setting is also supported as `PI_FREE_KILO_FREE_ONLY`.
+`free_only` controls the global filter. An explicit per-provider choice wins over the global default, otherwise the provider follows it; `/toggle-free` flips the global flag and clears all per-provider choices so the new default applies uniformly. Explicit choices live in `model_view_overrides` (written by `/toggle-<provider>`, never by hand) — a legacy `<provider>_show_paid: true` still counts as an explicit "show all" for upgrades, but `false` values are template defaults and no longer meaningful on their own. StepFun defaults to showing its paid catalog because the Step Plan catalog has no free models; hide it with `/toggle-stepfun`, `"model_view_overrides": {"stepfun": "free"}`, or `STEPFUN_SHOW_PAID=false`. Environment flags use the uppercase form, for example `PI_FREE_ONLY`, `KILO_SHOW_PAID`, and `QODER_SHOW_PAID`. The legacy `kilo_free_only` setting is also supported as `PI_FREE_KILO_FREE_ONLY`.
 
 ### Hidden models
 

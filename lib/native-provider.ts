@@ -16,13 +16,12 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import { applyHidden, saveConfig } from "../config.ts";
+import { applyHidden, setModelViewOverride } from "../config.ts";
 import { createLogger } from "./logger.ts";
 import {
-	getGlobalFreeOnly,
-	getGlobalFreeOnlyForced,
 	isFreeModel,
 	registerWithGlobalToggle,
+	resolveModelView,
 } from "./registry.ts";
 import {
 	trackDetachedSessionStart,
@@ -198,20 +197,23 @@ function toNativeOpenAIModel(
 	} as unknown as Model<Api>);
 }
 
-/** Apply the shared global/provider free-model policy to a complete native catalog. */
+/**
+ * Apply the effective catalog view to a complete native catalog. The view
+ * resolves live (explicit per-provider choice, else the global default),
+ * so registration-time values can never go stale across sessions (#510).
+ * `forceFree` survives as the single escape hatch for provider-level
+ * free-only flags (e.g. kilo's own `kilo_free_only`).
+ */
 export function filterNativeModels<T extends Model<Api>>(
 	providerId: string,
 	models: readonly T[],
 	options: {
-		showPaid: boolean;
 		freeModels: readonly ProviderModelConfig[];
 		forceFree?: boolean;
 	},
 ): readonly T[] {
-	const forceFree =
-		options.forceFree === true ||
-		(typeof getGlobalFreeOnlyForced === "function" && getGlobalFreeOnlyForced());
-	const freeOnly = getGlobalFreeOnly() && (forceFree || !options.showPaid);
+	const freeOnly =
+		options.forceFree === true || resolveModelView(providerId) === "free";
 	const freeIds = new Set(options.freeModels.map((model) => model.id));
 	const visible = freeOnly
 		? models.filter((model) => freeIds.has(model.id))
@@ -336,7 +338,6 @@ export function createNativeOpenAIProvider(
 				: stored.free) as Model<"openai-completions">[],
 		filterModels: (models) =>
 			filterNativeModels(options.providerId, models, {
-				showPaid: getShowPaid(),
 				freeModels: stored.free,
 			}),
 		refreshModels,
@@ -375,7 +376,6 @@ export function registerNativeOpenAIProvider(
 	registerNativeProviderToggle(pi, {
 		providerId: options.providerId,
 		stored: handle.stored,
-		getShowPaid: handle.getShowPaid,
 		setShowPaid: handle.setShowPaid,
 		reRegister,
 	});
@@ -456,16 +456,8 @@ interface NativeToggleOptions {
 		free: ProviderModelConfig[];
 		all: ProviderModelConfig[];
 	};
-	getShowPaid: () => boolean;
 	setShowPaid?: (showPaid: boolean) => void;
 	reRegister: () => void;
-	/**
-	 * Config key to persist the toggle under. Defaults to
-	 * `{providerId}_show_paid`; providers whose config key diverges from their
-	 * provider id (e.g. Ollama registers as `ollama-cloud` but reads
-	 * `ollama_show_paid`) must pass it so the toggle survives a restart.
-	 */
-	configKey?: string;
 }
 
 /** Register the standard free/all toggle used by native providers. */
@@ -473,19 +465,20 @@ export function registerNativeProviderToggle(
 	pi: ExtensionAPI,
 	options: NativeToggleOptions,
 ): void {
-	const {
-		providerId,
-		stored,
-		getShowPaid,
-		reRegister,
-		configKey = `${providerId}_show_paid`,
-	} = options;
+	const { providerId, stored, reRegister } = options;
 
 	pi.registerCommand(`toggle-${providerId}`, {
 		description: `Toggle between free and all ${providerId} models`,
 		handler: async (_args, ctx) => {
-			const showPaid = !getShowPaid();
-			await saveConfig({ [configKey]: showPaid });
+			// Flip the EFFECTIVE view (explicit choice wins, else the global
+			// default) and persist it as the explicit choice — flipping a
+			// stored pref alone would no-op under an opposing global (#510).
+			// Persisted under the provider id, so the old divergent
+			// snake_case keys (e.g. ollama-cloud → ollama_show_paid) are
+			// gone; a legacy explicit `true` still counts as "all".
+			const next = resolveModelView(providerId) === "free" ? "all" : "free";
+			const showPaid = next === "all";
+			await setModelViewOverride(providerId, next);
 			options.setShowPaid?.(showPaid);
 
 			reRegister();

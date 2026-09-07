@@ -17,7 +17,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { getKiloApiKey, getKiloShowPaid, PROVIDER_KILO } from "../../config.ts";
+import { getKiloApiKey, PROVIDER_KILO } from "../../config.ts";
 import { URL_KILO_TOS } from "../../constants.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import {
@@ -161,7 +161,6 @@ export default async function kiloProvider(pi: ExtensionAPI) {
 	registerNativeProviderToggle(pi, {
 		providerId: PROVIDER_KILO,
 		stored,
-		getShowPaid: getKiloShowPaid,
 		reRegister,
 	});
 

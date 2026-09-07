@@ -148,6 +148,12 @@ interface PiFreeConfig {
 	opencode_go_show_paid?: boolean;
 	qoder_show_paid?: boolean;
 
+	// Explicit per-provider catalog views, keyed by provider id. Sparse: only
+	// choices made through /toggle-<id> are recorded; absence means "follow
+	// the global free-only default". Legacy `{id}_show_paid` keys stay
+	// readable (an explicit `true` still counts) but are no longer written.
+	model_view_overrides?: { [providerId: string]: "free" | "all" };
+
 	// Auto-fallback configuration (see lib/auto-fallback/config.ts for
 	// resolution + defaults).
 	auto_fallback?: boolean;
@@ -533,6 +539,71 @@ function resolveShowPaidForProvider(providerId: string): boolean {
 	const cfg = loadConfigFile();
 	const fileVal = cfg[meta.showPaidKey];
 	return resolveBool(`${meta.prefix}_SHOW_PAID`, fileVal as boolean | undefined);
+}
+
+/**
+ * Explicit per-provider catalog view, or undefined to follow the global
+ * free-only default. Resolution order:
+ *
+ *   1. `model_view_overrides[providerId]` — written only by /toggle-<id>,
+ *      so presence alone proves an explicit choice (no template pollution).
+ *   2. Legacy `{id}_show_paid === true` — honors pre-existing explicit-all
+ *      choices across the upgrade. Only `true` counts: ensureConfigFile
+ *      materializes every key as `false` in existing files, so `false`
+ *      cannot distinguish "user chose free" from "never touched".
+ *   3. `<PREFIX>_SHOW_PAID` env var — a set var is always explicit.
+ */
+export type ModelViewChoice = "free" | "all";
+
+export function getModelViewOverride(
+	providerId: string,
+): ModelViewChoice | undefined {
+	const explicit = loadConfigFile().model_view_overrides?.[providerId];
+	if (explicit === "free" || explicit === "all") return explicit;
+	const meta = PROVIDER_META_BY_ID.get(providerId);
+	if (!meta) return undefined;
+	const envVal = process.env[`${meta.prefix}_SHOW_PAID`];
+	if (envVal === "true") return "all";
+	if (envVal === "false") return "free";
+	if (loadConfigFile()[meta.showPaidKey] === true) return "all";
+	return undefined;
+}
+
+/**
+ * Record an explicit per-provider view choice. Merges into the sparse
+ * `model_view_overrides` map (never clobbers other providers' choices —
+ * saveConfig's shallow merge would) and drops the provider's legacy
+ * `{id}_show_paid` key so two sources can never disagree afterwards.
+ * Serialised through updateConfig's lock like every other RMW write.
+ */
+export async function setModelViewOverride(
+	providerId: string,
+	view: ModelViewChoice,
+): Promise<void> {
+	const meta = PROVIDER_META_BY_ID.get(providerId);
+	await updateConfig((current) => ({
+		model_view_overrides: {
+			...current.model_view_overrides,
+			[providerId]: view,
+		},
+		...(meta ? { [meta.showPaidKey]: undefined } : {}),
+	}));
+}
+
+/**
+ * Delete every per-provider view choice — the sparse map plus all legacy
+ * `{id}_show_paid` keys — so every provider follows the global free-only
+ * default again. Used by /toggle-free: without this, a stale explicit
+ * choice keeps fighting the global flag on every new session (#510).
+ * JSON.stringify drops undefined values, so the merged write removes the
+ * keys from free.json; the mtime bump invalidates the memoized parse.
+ */
+export async function clearModelViewOverrides(): Promise<void> {
+	const cleared: Partial<PiFreeConfig> = { model_view_overrides: undefined };
+	for (const meta of PROVIDER_META_BY_ID.values()) {
+		cleared[meta.showPaidKey] = undefined;
+	}
+	await saveConfig(cleared);
 }
 
 // =============================================================================

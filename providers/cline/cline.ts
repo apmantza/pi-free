@@ -22,11 +22,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import {
-	getClineApiKey,
-	getClineShowPaid,
-	PROVIDER_CLINE,
-} from "../../config.ts";
+import { getClineApiKey, PROVIDER_CLINE } from "../../config.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import {
 	registerNativeProvider,
@@ -63,7 +59,6 @@ export default async function clineProvider(pi: ExtensionAPI) {
 	registerNativeProviderToggle(pi, {
 		providerId: PROVIDER_CLINE,
 		stored,
-		getShowPaid: getClineShowPaid,
 		reRegister,
 	});
 

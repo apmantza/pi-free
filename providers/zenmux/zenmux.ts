@@ -12,7 +12,7 @@
 
 import type { Provider } from "@earendil-works/pi-ai/compat";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { getZenmuxApiKey, getZenmuxShowPaid } from "../../config.ts";
+import { getZenmuxApiKey } from "../../config.ts";
 import { PROVIDER_ZENMUX } from "../../constants.ts";
 import {
 	registerNativeProvider,
@@ -40,7 +40,6 @@ export default async function zenmuxProvider(pi: ExtensionAPI) {
 	registerNativeProviderToggle(pi, {
 		providerId: PROVIDER_ZENMUX,
 		stored,
-		getShowPaid: getZenmuxShowPaid,
 		reRegister,
 	});
 	registerNativeProviderRefresh(pi, PROVIDER_ZENMUX);

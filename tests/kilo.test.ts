@@ -17,6 +17,11 @@ const mockGetKiloApiKey = vi.hoisted(() =>
 	vi.fn((): string | undefined => undefined),
 );
 const mockGetKiloShowPaid = vi.hoisted(() => vi.fn(() => false));
+const mockGetGlobalFreeOnly = vi.hoisted(() => vi.fn(() => true));
+const mockGetModelViewOverride = vi.hoisted(() =>
+	vi.fn((_providerId: string): "free" | "all" | undefined => undefined),
+);
+const mockSetModelViewOverride = vi.hoisted(() => vi.fn());
 const mockSaveConfig = vi.hoisted(() =>
 	vi.fn<(...args: unknown[]) => Promise<void>>(),
 );
@@ -43,6 +48,10 @@ const mockLogger = vi.hoisted(() => ({
 vi.mock("../config.ts", () => ({
 	getKiloApiKey: () => mockGetKiloApiKey(),
 	getKiloShowPaid: () => mockGetKiloShowPaid(),
+	getModelViewOverride: (providerId: string) =>
+		mockGetModelViewOverride(providerId),
+	setModelViewOverride: (...args: unknown[]) =>
+		mockSetModelViewOverride(...args),
 	saveConfig: (...args: unknown[]) => mockSaveConfig(...args),
 	PROVIDER_KILO: "kilo",
 }));
@@ -50,6 +59,16 @@ vi.mock("../config.ts", () => ({
 vi.mock("../lib/registry.ts", () => ({
 	registerWithGlobalToggle: (...args: unknown[]) =>
 		mockRegisterWithGlobalToggle(...args),
+	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
+	// Mirrors the real resolveModelView over the mocked config getters (the
+	// real rule is unit-tested in registry-provider-overrides.test.ts).
+	resolveModelView: (providerId: string) =>
+		mockGetModelViewOverride(providerId) ??
+		(mockGetKiloShowPaid()
+			? "all"
+			: mockGetGlobalFreeOnly()
+				? "free"
+				: "all"),
 }));
 
 vi.mock("../providers/kilo/kilo-provider.ts", () => ({
@@ -76,6 +95,8 @@ describe("Kilo extension wiring", () => {
 		vi.clearAllMocks();
 		mockGetKiloApiKey.mockReturnValue(undefined);
 		mockGetKiloShowPaid.mockReturnValue(false);
+		mockGetModelViewOverride.mockReturnValue(undefined);
+		mockGetGlobalFreeOnly.mockReturnValue(true);
 		mockStored.free = [{ id: "free-1" }];
 		mockStored.all = [{ id: "free-1" }, { id: "paid-1" }];
 
@@ -149,7 +170,7 @@ describe("Kilo extension wiring", () => {
 
 			await call[1].handler({}, { ui: { notify } });
 
-			expect(mockSaveConfig).toHaveBeenCalledWith({ kilo_show_paid: true });
+			expect(mockSetModelViewOverride).toHaveBeenCalledWith("kilo", "all");
 			expect(mockRegisterProvider).toHaveBeenCalledWith(mockProvider);
 			expect(notify).toHaveBeenCalledWith(
 				expect.stringContaining("showing all 2 models"),

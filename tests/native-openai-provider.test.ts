@@ -12,7 +12,13 @@ import type {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetGlobalFreeOnly = vi.hoisted(() => vi.fn(() => true));
-const mockGetGlobalFreeOnlyForced = vi.hoisted(() => vi.fn(() => false));
+// Effective-view seam: mirrors the real resolveModelView default (follow the
+// global when no test pins a view); individual tests pin "free"/"all".
+const mockResolveModelView = vi.hoisted(() =>
+	vi.fn((_providerId: string): "free" | "all" =>
+		mockGetGlobalFreeOnly() ? "free" : "all",
+	),
+);
 const mockSaveConfig = vi.hoisted(() => vi.fn(async () => undefined));
 
 vi.mock("../config.ts", () => ({
@@ -21,7 +27,7 @@ vi.mock("../config.ts", () => ({
 }));
 vi.mock("../lib/registry.ts", () => ({
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
-	getGlobalFreeOnlyForced: () => mockGetGlobalFreeOnlyForced(),
+	resolveModelView: (...args: [string]) => mockResolveModelView(...args),
 	isFreeModel: (model: { name: string }) => /free/i.test(model.name),
 	registerWithGlobalToggle: vi.fn(),
 }));
@@ -111,7 +117,9 @@ const options = {
 beforeEach(() => {
 	vi.clearAllMocks();
 	mockGetGlobalFreeOnly.mockReturnValue(true);
-	mockGetGlobalFreeOnlyForced.mockReturnValue(false);
+	mockResolveModelView.mockImplementation(() =>
+		mockGetGlobalFreeOnly() ? "free" : "all",
+	);
 });
 
 describe("gateway compat (developer role)", () => {
@@ -237,7 +245,7 @@ describe("createNativeOpenAIProvider", () => {
 		).toEqual(["free", "paid"]);
 
 		mockGetGlobalFreeOnly.mockReturnValue(true);
-		mockGetGlobalFreeOnlyForced.mockReturnValue(true);
+		mockResolveModelView.mockReturnValue("free");
 		expect(
 			handle.provider.filterModels!(handle.provider.getModels(), undefined).map(
 				(item) => item.id,
@@ -245,23 +253,36 @@ describe("createNativeOpenAIProvider", () => {
 		).toEqual(["free"]);
 	});
 
-	it("honors the persisted config getter on startup and lets toggling override in-session", async () => {
-		// The config getter stands in for ~/.pi/free.json: it is authoritative
+	it("filters by the resolved view, not registration-time values", () => {
+		const handle = createNativeOpenAIProvider(options);
+		const ids = () =>
+			handle.provider
+				.filterModels!(handle.provider.getModels(), undefined)
+				.map((item) => item.id);
+
+		// Registration happened under the free view; a later explicit-all
+		// choice applies without re-registering (no stale pref, #510).
+		mockResolveModelView.mockReturnValue("all");
+		expect(ids()).toEqual(["free", "paid"]);
+		mockResolveModelView.mockReturnValue("free");
+		expect(ids()).toEqual(["free"]);
+	});
+
+	it("honors the resolved view on startup and lets toggling override in-session", async () => {
+		// The resolved view stands in for the effective choice (explicit
+		// per-provider override, else the global default): it is authoritative
 		// when the provider first boots, so a persisted free/all choice is not
 		// clobbered (DeepInfra regression: the old initialShowPaid override
 		// forced `showPaid=true` on every boot, so a persisted free toggle was
 		// lost on restart).
-		//
-		// Global free-only stays ON (beforeEach) so the free/paid view is
-		// driven purely by the showPaid getter: paid view shows all, free view
-		// filters to free models.
 		const persistedShowPaid = vi.fn(() => true);
 		const handle = createNativeOpenAIProvider({
 			...options,
 			getShowPaid: persistedShowPaid,
 		});
 
-		// Boot state follows the config getter (paid view shown → all models).
+		// Boot state follows the resolved view (explicit all → all models).
+		mockResolveModelView.mockReturnValue("all");
 		expect(handle.getShowPaid()).toBe(true);
 		expect(
 			handle.provider.filterModels!(handle.provider.getModels(), undefined).map(
@@ -273,9 +294,10 @@ describe("createNativeOpenAIProvider", () => {
 		handle.setShowPaid(false);
 		expect(handle.getShowPaid()).toBe(false);
 
-		// A fresh provider (simulating a restart) obeys the persisted getter
+		// A fresh provider (simulating a restart) obeys the resolved view
 		// again; the in-session override does not leak across instances.
 		persistedShowPaid.mockReturnValue(false);
+		mockResolveModelView.mockReturnValue("free");
 		const restarted = createNativeOpenAIProvider({
 			...options,
 			getShowPaid: persistedShowPaid,

@@ -24,10 +24,21 @@ interface DetachedOutcome {
 }
 const detachedOutcomes: DetachedOutcome[] = [];
 
+const mockGetGlobalFreeOnly = vi.fn();
+const mockGetModelViewOverride = vi.fn();
+const mockSetModelViewOverride = vi.fn();
 const mockGetOpencodeFreeShowPaid = vi.fn();
 const mockGetOpencodeGoShowPaid = vi.fn();
 const mockGetOpenrouterShowPaid = vi.fn();
 const mockGetOpencodeApiKey = vi.fn();
+
+/** Per-provider stored pref backing the resolveModelView mock below. */
+function mockShowPaidFor(providerId: string): boolean {
+	if (providerId === "opencode-free") return mockGetOpencodeFreeShowPaid();
+	if (providerId === "opencode-go") return mockGetOpencodeGoShowPaid();
+	if (providerId === "openrouter") return mockGetOpenrouterShowPaid();
+	return false;
+}
 const mockSaveConfig = vi.fn();
 const mockRegisterWithGlobalToggle = vi.fn();
 const mockProviderRegistry = new Map<string, unknown>();
@@ -70,10 +81,22 @@ vi.mock("../config.ts", () => ({
 	getOpencodeFreeShowPaid: () => mockGetOpencodeFreeShowPaid(),
 	getOpencodeGoShowPaid: () => mockGetOpencodeGoShowPaid(),
 	getOpenrouterShowPaid: () => mockGetOpenrouterShowPaid(),
+	setModelViewOverride: (...args: unknown[]) =>
+		mockSetModelViewOverride(...args),
 	saveConfig: (...args: unknown[]) => mockSaveConfig(...args),
 }));
 
 vi.mock("../lib/registry.ts", () => ({
+	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
+	// Mirrors the real resolveModelView over the mocked config getters (the
+	// real rule is unit-tested in registry-provider-overrides.test.ts).
+	resolveModelView: (providerId: string) =>
+		mockGetModelViewOverride(providerId) ??
+		(mockShowPaidFor(providerId)
+			? "all"
+			: mockGetGlobalFreeOnly()
+				? "free"
+				: "all"),
 	getProviderRegistry: () => mockProviderRegistry,
 	isFreeModel: () => true,
 	registerWithGlobalToggle: (...args: unknown[]) =>
@@ -103,7 +126,8 @@ describe("built-in-toggle stale context (#509)", () => {
 		handlers = {};
 		commands = {};
 		mockProviderRegistry.clear();
-		mockGetOpencodeFreeShowPaid.mockReturnValue(false);
+		mockGetGlobalFreeOnly.mockReturnValue(true);
+		mockGetModelViewOverride.mockReturnValue(undefined);
 		mockGetOpencodeGoShowPaid.mockReturnValue(false);
 		mockGetOpenrouterShowPaid.mockReturnValue(false);
 		mockGetOpencodeApiKey.mockReturnValue(undefined);

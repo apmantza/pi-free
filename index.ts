@@ -23,6 +23,7 @@ import {
 	timeProvider,
 } from "./lib/startup-timing.ts";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { clearModelViewOverrides } from "./config.ts";
 import { setupBuiltInProviderToggles } from "./lib/built-in-toggle.ts";
 import { createLogger, flushLogsSync } from "./lib/logger.ts";
 import {
@@ -140,7 +141,11 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 		handler: async (_args, ctx) => {
 			const current = getGlobalFreeOnly();
 			const next = !current;
-			applyGlobalFilter(next, { force: true });
+			// Clear per-provider choices first so every provider follows
+			// the new global default — a stale explicit choice must not keep
+			// fighting the global flag on every new session (#510).
+			await clearModelViewOverrides();
+			applyGlobalFilter(next);
 
 			const registry = getProviderRegistry();
 			const providerCount = registry.size;

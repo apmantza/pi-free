@@ -7,7 +7,6 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { getProviderShowPaid } from "../../config.ts";
 import { PROVIDER_QODER } from "../../constants.ts";
 import { registerWithGlobalToggle } from "../../lib/registry.ts";
 import {
@@ -33,7 +32,6 @@ export default async function qoderProvider(pi: ExtensionAPI): Promise<void> {
 	registerNativeProviderToggle(pi, {
 		providerId: PROVIDER_QODER,
 		stored,
-		getShowPaid: () => getProviderShowPaid(PROVIDER_QODER),
 		reRegister,
 	});
 	registerNativeProviderRefresh(pi, PROVIDER_QODER);

@@ -2,6 +2,8 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetGlobalFreeOnly = vi.fn();
+const mockGetModelViewOverride = vi.fn();
+const mockSetModelViewOverride = vi.fn();
 const mockGetOpencodeShowPaid = vi.fn();
 const mockGetOpencodeFreeShowPaid = vi.fn();
 const mockGetOpencodeGoShowPaid = vi.fn();
@@ -29,11 +31,30 @@ vi.mock("../config.ts", () => ({
 	getOpencodeGoShowPaid: () => mockGetOpencodeGoShowPaid(),
 	getOpenrouterApiKey: () => mockGetOpenrouterApiKey(),
 	getOpenrouterShowPaid: () => mockGetOpenrouterShowPaid(),
+	setModelViewOverride: (...args: unknown[]) =>
+		mockSetModelViewOverride(...args),
 	saveConfig: (...args: unknown[]) => mockSaveConfig(...args),
 }));
 
+/** Legacy explicit-true pref backing the resolveModelView mock below. */
+function mockLegacyShowPaid(providerId: string): boolean {
+	if (providerId === "opencode-free") return mockGetOpencodeFreeShowPaid();
+	if (providerId === "opencode-go") return mockGetOpencodeGoShowPaid();
+	if (providerId === "openrouter") return mockGetOpenrouterShowPaid();
+	return mockGetOpencodeShowPaid();
+}
+
 vi.mock("../lib/registry.ts", () => ({
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
+	// Mirrors the real resolveModelView over the mocked config getters (the
+	// real rule is unit-tested in registry-provider-overrides.test.ts).
+	resolveModelView: (providerId: string) =>
+		mockGetModelViewOverride(providerId) ??
+		(mockLegacyShowPaid(providerId)
+			? "all"
+			: mockGetGlobalFreeOnly()
+				? "free"
+				: "all"),
 	getProviderRegistry: () => mockProviderRegistry,
 	isFreeModel: (
 		model: {
@@ -93,6 +114,9 @@ describe("built-in provider toggles", () => {
 		mockRegisterProvider = vi.fn();
 		mockProviderRegistry.clear();
 		mockGetGlobalFreeOnly.mockReturnValue(true);
+		// Default: no explicit choice recorded, so captures resolve like the
+		// legacy per-provider getter behavior (explicit `true` still counts).
+		mockGetModelViewOverride.mockReturnValue(undefined);
 		mockGetOpencodeShowPaid.mockReturnValue(false);
 		mockGetOpencodeFreeShowPaid.mockReturnValue(false);
 		mockGetOpencodeGoShowPaid.mockReturnValue(false);
@@ -1079,9 +1103,10 @@ describe("built-in provider toggles", () => {
 		const notify = vi.fn();
 		await commands["toggle-opencode-free"]({}, { ui: { notify } });
 
-		expect(mockSaveConfig).toHaveBeenCalledWith({
-			opencode_free_show_paid: false,
-		});
+		expect(mockSetModelViewOverride).toHaveBeenCalledWith(
+			"opencode-free",
+			"free",
+		);
 		expect(mockRegisterProvider).toHaveBeenLastCalledWith(
 			"opencode-free",
 			expect.objectContaining({
@@ -1094,7 +1119,7 @@ describe("built-in provider toggles", () => {
 		);
 	});
 
-	it("persists the opencode-go toggle under its own snake_case key", async () => {
+	it("persists the toggle under the provider id in the overrides map", async () => {
 		setupBuiltInProviderToggles(mockPi);
 
 		const allModels = [
@@ -1121,11 +1146,12 @@ describe("built-in provider toggles", () => {
 		const notify = vi.fn();
 		await commands["toggle-opencode-go"]({}, { ui: { notify } });
 
-		// Pre-fix this wrote the dead dashed key `opencode-go_show_paid`,
-		// which no getter ever read, so the toggle was lost on restart.
-		expect(mockSaveConfig).toHaveBeenCalledWith({
-			opencode_go_show_paid: true,
-		});
+		// Persisted under the provider id (not a divergent snake_case key),
+		// so the choice survives restarts and needs no key mapping.
+		expect(mockSetModelViewOverride).toHaveBeenCalledWith(
+			"opencode-go",
+			"all",
+		);
 		expect(notify).toHaveBeenCalledWith(
 			"opencode-go: showing all 1 models",
 			"info",
@@ -1484,5 +1510,88 @@ describe("built-in provider toggles", () => {
 				apiKey: configKey,
 			}),
 		);
+	});
+
+	function openCodeCatalog() {
+		const base = {
+			provider: "opencode",
+			api: "openai-completions",
+			reasoning: false,
+			input: ["text"],
+			contextWindow: 128000,
+			maxTokens: 4096,
+			baseUrl: "https://example.com",
+		};
+		return [
+			{
+				...base,
+				id: "free-model",
+				name: "Free Model",
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			},
+			{
+				...base,
+				id: "paid-model",
+				name: "Paid Model",
+				cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
+			},
+		];
+	}
+
+	it("capture follows the global default when no choice is recorded", async () => {
+		mockGetModelViewOverride.mockReturnValue(undefined);
+		mockGetGlobalFreeOnly.mockReturnValue(true);
+		setupBuiltInProviderToggles(mockPi);
+
+		await handlers.session_start(
+			{},
+			{ modelRegistry: { getAvailable: () => openCodeCatalog() } },
+		);
+		await settleDetachedCapture();
+
+		const registered = mockRegisterProvider.mock.calls[0][1].models as Array<{
+			id: string;
+		}>;
+		expect(registered.map((m) => m.id)).toEqual(["free-model"]);
+	});
+
+	it("capture shows all when the global default is off and nothing is recorded", async () => {
+		mockGetModelViewOverride.mockReturnValue(undefined);
+		mockGetGlobalFreeOnly.mockReturnValue(false);
+		setupBuiltInProviderToggles(mockPi);
+
+		await handlers.session_start(
+			{},
+			{ modelRegistry: { getAvailable: () => openCodeCatalog() } },
+		);
+		await settleDetachedCapture();
+
+		const registered = mockRegisterProvider.mock.calls[0][1].models as Array<{
+			id: string;
+		}>;
+		expect(registered.map((m) => m.id).sort()).toEqual([
+			"free-model",
+			"paid-model",
+		]);
+	});
+
+	it("capture honors a recorded explicit choice over the global", async () => {
+		mockGetModelViewOverride.mockReturnValue("all");
+		mockGetGlobalFreeOnly.mockReturnValue(true);
+		setupBuiltInProviderToggles(mockPi);
+
+		await handlers.session_start(
+			{},
+			{ modelRegistry: { getAvailable: () => openCodeCatalog() } },
+		);
+		await settleDetachedCapture();
+
+		const registered = mockRegisterProvider.mock.calls[0][1].models as Array<{
+			id: string;
+		}>;
+		expect(registered.map((m) => m.id).sort()).toEqual([
+			"free-model",
+			"paid-model",
+		]);
 	});
 });

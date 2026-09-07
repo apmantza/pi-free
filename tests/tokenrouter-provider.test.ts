@@ -9,19 +9,35 @@ const mockGetTokenrouterApiKey = vi.hoisted(() =>
 	vi.fn((): string | undefined => undefined),
 );
 const mockGetTokenrouterShowPaid = vi.hoisted(() => vi.fn(() => false));
+const mockGetModelViewOverride = vi.hoisted(() =>
+	vi.fn((_providerId: string): "free" | "all" | undefined => undefined),
+);
+const mockSetModelViewOverride = vi.hoisted(() => vi.fn());
 const mockGetGlobalFreeOnly = vi.hoisted(() => vi.fn(() => true));
 const mockFetchWithRetry = vi.hoisted(() => vi.fn());
 
 vi.mock("../config.ts", () => ({
 	getTokenrouterApiKey: () => mockGetTokenrouterApiKey(),
 	getTokenrouterShowPaid: () => mockGetTokenrouterShowPaid(),
+	getModelViewOverride: (providerId: string) =>
+		mockGetModelViewOverride(providerId),
+	setModelViewOverride: (...args: unknown[]) =>
+		mockSetModelViewOverride(...args),
 	applyHidden: (models: unknown[]) => models,
 	saveConfig: vi.fn(),
 }));
 
 vi.mock("../lib/registry.ts", () => ({
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
-	getGlobalFreeOnlyForced: () => false,
+	// Mirrors the real resolveModelView over the mocked config getters (the
+	// real rule is unit-tested in registry-provider-overrides.test.ts).
+	resolveModelView: (providerId: string) =>
+		mockGetModelViewOverride(providerId) ??
+		(mockGetTokenrouterShowPaid()
+			? "all"
+			: mockGetGlobalFreeOnly()
+				? "free"
+				: "all"),
 	isFreeModel: (model: { id: string }) => model.id.endsWith(":free"),
 	registerWithGlobalToggle: vi.fn(),
 }));
@@ -129,6 +145,7 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	mockGetTokenrouterApiKey.mockReturnValue(undefined);
 	mockGetTokenrouterShowPaid.mockReturnValue(false);
+	mockGetModelViewOverride.mockReturnValue(undefined);
 	mockGetGlobalFreeOnly.mockReturnValue(true);
 });
 
