@@ -64,7 +64,9 @@ if (!piAiRoot) {
 
 let piAiPkg;
 try {
-	piAiPkg = JSON.parse(readFileSync(join(piAiRoot, "package.json"), "utf8"));
+	// NOSONAR (jssecurity:S8707) -- same justification as the CLI gate
+	// above: local read-only diagnostic over an operator-supplied tree.
+	piAiPkg = JSON.parse(readFileSync(join(piAiRoot, "package.json"), "utf8")); // NOSONAR
 } catch (error) {
 	console.error(
 		`[hoisting] FAIL: cannot read pi-ai package.json: ${error.message}`,
