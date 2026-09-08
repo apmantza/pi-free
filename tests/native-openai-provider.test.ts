@@ -225,91 +225,10 @@ describe("createNativeOpenAIProvider", () => {
 		expect(handle.provider.getModels()).toEqual([]);
 	});
 
-	it("keeps the complete catalog and filters it without replacing the provider", () => {
-		const handle = createNativeOpenAIProvider(options);
-		expect(handle.provider.getModels().map((item) => item.id)).toEqual([
-			"free",
-			"paid",
-		]);
-		expect(
-			handle.provider.filterModels!(handle.provider.getModels(), undefined).map(
-				(item) => item.id,
-			),
-		).toEqual(["free"]);
-
-		mockGetGlobalFreeOnly.mockReturnValue(false);
-		expect(
-			handle.provider.filterModels!(handle.provider.getModels(), undefined).map(
-				(item) => item.id,
-			),
-		).toEqual(["free", "paid"]);
-
-		mockGetGlobalFreeOnly.mockReturnValue(true);
-		mockResolveModelView.mockReturnValue("free");
-		expect(
-			handle.provider.filterModels!(handle.provider.getModels(), undefined).map(
-				(item) => item.id,
-			),
-		).toEqual(["free"]);
-	});
-
-	it("filters by the resolved view, not registration-time values", () => {
-		const handle = createNativeOpenAIProvider(options);
-		const ids = () =>
-			handle.provider
-				.filterModels!(handle.provider.getModels(), undefined)
-				.map((item) => item.id);
-
-		// Registration happened under the free view; a later explicit-all
-		// choice applies without re-registering (no stale pref, #510).
-		mockResolveModelView.mockReturnValue("all");
-		expect(ids()).toEqual(["free", "paid"]);
-		mockResolveModelView.mockReturnValue("free");
-		expect(ids()).toEqual(["free"]);
-	});
-
-	it("honors the resolved view on startup and lets toggling override in-session", async () => {
-		// The resolved view stands in for the effective choice (explicit
-		// per-provider override, else the global default): it is authoritative
-		// when the provider first boots, so a persisted free/all choice is not
-		// clobbered (DeepInfra regression: the old initialShowPaid override
-		// forced `showPaid=true` on every boot, so a persisted free toggle was
-		// lost on restart).
-		const persistedShowPaid = vi.fn(() => true);
-		const handle = createNativeOpenAIProvider({
-			...options,
-			getShowPaid: persistedShowPaid,
-		});
-
-		// Boot state follows the resolved view (explicit all → all models).
-		mockResolveModelView.mockReturnValue("all");
-		expect(handle.getShowPaid()).toBe(true);
-		expect(
-			handle.provider.filterModels!(handle.provider.getModels(), undefined).map(
-				(item) => item.id,
-			),
-		).toEqual(["free", "paid"]);
-
-		// Toggling to free updates the in-session override.
-		handle.setShowPaid(false);
-		expect(handle.getShowPaid()).toBe(false);
-
-		// A fresh provider (simulating a restart) obeys the resolved view
-		// again; the in-session override does not leak across instances.
-		persistedShowPaid.mockReturnValue(false);
-		mockResolveModelView.mockReturnValue("free");
-		const restarted = createNativeOpenAIProvider({
-			...options,
-			getShowPaid: persistedShowPaid,
-		});
-		expect(restarted.getShowPaid()).toBe(false);
-		expect(
-			restarted.provider.filterModels!(
-				restarted.provider.getModels(),
-				undefined,
-			).map((item) => item.id),
-		).toEqual(["free"]);
-	});
+	// NOTE (RPC migration): filter-view behavior (free/all/persisted
+	// views, in-session override isolation) is proven live by
+	// rpc-session-check; view resolution itself is pinned in
+	// registry-provider-overrides.test.ts against the real resolver.
 
 	it("supports Pi 0.84 stored/publish model lifecycle", async () => {
 		const controller = new AbortController();
