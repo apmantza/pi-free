@@ -6,10 +6,6 @@
  * notice, and the session_start refresh nudge.
  */
 
-import type {
-	ModelsStoreEntry,
-	ProviderModelsStore,
-} from "@earendil-works/pi-ai/compat";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -79,19 +75,6 @@ vi.mock("../lib/logger.ts", () => ({
 }));
 
 import llm7Provider from "../providers/llm7/llm7.ts";
-
-function makeStore(): ProviderModelsStore {
-	let entry: ModelsStoreEntry | undefined;
-	return {
-		read: async () => entry,
-		write: async (e: ModelsStoreEntry) => {
-			entry = e;
-		},
-		delete: async () => {
-			entry = undefined;
-		},
-	};
-}
 
 describe("LLM7 factory wiring", () => {
 	let mockPi: ExtensionAPI;
@@ -164,42 +147,23 @@ describe("LLM7 factory wiring", () => {
 		).toBe(true);
 	});
 
-	it("refreshModels populates; global /toggle-free reRegister republishes the same provider", async () => {
+	// Population + views are proven live by rpc-session-check (llm7 anchor
+	// with free-only, all-view, and persistence phases); this pins the
+	// re-registration wiring (same object, auth preserved) that RPC
+	// cannot see per provider.
+	it("global /toggle-free reRegister republishes the same provider object", async () => {
 		await llm7Provider(mockPi);
 		const provider = mockRegisterProvider.mock.calls[0][0];
 
 		expect(capturedToggleArgs).toHaveLength(1);
-		const [, stored, reRegister] = capturedToggleArgs[0] as [
-			string,
-			{ free: unknown[]; all: unknown[] },
-			() => void,
-		];
+		const reRegister = capturedToggleArgs[0][2] as () => void;
 
-		// Pi refreshes (online) -> static catalogs populate.
-		await provider.refreshModels({ store: makeStore(), allowNetwork: true });
-		expect(stored.all).toHaveLength(3);
-		expect(stored.free).toHaveLength(2);
-
-		// Global /toggle-free showing all -> re-register the same provider.
 		mockRegisterProvider.mockClear();
 		reRegister();
-		expect(provider.getModels().map((m: { id: string }) => m.id)).toEqual([
-			"default",
-			"fast",
-			"pro",
-		]);
 		// Re-registration reused the SAME native provider object (auth preserved).
 		expect(mockRegisterProvider).toHaveBeenCalledWith(provider);
-
-		// Global /toggle-free showing free invalidates the same provider object;
-		// Pi's filterModels applies the free view to the complete catalog.
-		reRegister();
-		expect(provider.getModels().map((m: { id: string }) => m.id)).toEqual([
-			"default",
-			"fast",
-			"pro",
-		]);
 	});
+
 
 	// Flip/persist/view behavior is proven live by rpc-session-check
 	// (/toggle-llm7 through prompt dispatch, incl. persistence across
