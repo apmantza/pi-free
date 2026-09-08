@@ -58,39 +58,38 @@ function run(args, options, timeoutMs = 180_000) {
 	});
 }
 
-/** Run npm in isolation and return trimmed stdout. */
-function npm(args, options, timeoutMs = 180_000) {
-	return new Promise((resolveRun, rejectRun) => {
-		const child = spawn(
-			process.platform === "win32" ? "npm.cmd" : "npm",
-			args,
-			options,
+/**
+ * Resolve the latest published pi-free version through the registry API.
+ * Deliberately not `spawn npm view` (Windows EINVAL class — spawning npm
+ * from an isolated env is unreliable there) and not `npm view` output
+ * parsing. Honors a configured mirror via npm_config_registry.
+ */
+async function publishedVersion() {
+	const registry = (
+		process.env.npm_config_registry || "https://registry.npmjs.org/"
+	).replace(/\/$/, "");
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), 30_000);
+	try {
+		const response = await fetch(`${registry}/pi-free/latest`, {
+			signal: controller.signal,
+			headers: { Accept: "application/json" },
+		});
+		if (!response.ok) {
+			throw new Error(`registry responded ${response.status}`);
+		}
+		const body = await response.json();
+		if (typeof body?.version !== "string" || body.version.length === 0) {
+			throw new Error("registry response has no version");
+		}
+		return body.version;
+	} catch (error) {
+		throw new Error(
+			`cannot resolve published pi-free version: ${error instanceof Error ? error.message : String(error)}`,
 		);
-		let stdout = "";
-		const timer = setTimeout(() => {
-			try {
-				child.kill("SIGKILL");
-			} catch {
-				// The process may already have exited.
-			}
-			rejectRun(new Error(`npm timed out after ${timeoutMs}ms`));
-		}, timeoutMs);
-		child.stdout?.on("data", (data) => {
-			stdout += data.toString();
-		});
-		child.once("error", (error) => {
-			clearTimeout(timer);
-			rejectRun(error);
-		});
-		child.once("close", (code) => {
-			clearTimeout(timer);
-			if (code === 0) {
-				resolveRun(stdout.trim());
-			} else {
-				rejectRun(new Error(`npm exited with code ${code ?? "unknown"}`));
-			}
-		});
-	});
+	} finally {
+		clearTimeout(timer);
+	}
 }
 
 const testRoot = mkdtempSync(join(tmpdir(), "pi-free-upgrade-smoke-"));
@@ -129,10 +128,7 @@ try {
 	// Seed reality: the latest published release, installed exactly the way
 	// Pi installs it. A failure here means no published baseline to upgrade
 	// from (offline mirror, registry outage) — fail loudly, not silently.
-	const published = await npm(["view", "pi-free", "version"], {
-		cwd: project,
-		env: environment,
-	});
+	const published = await publishedVersion();
 	console.log(`Seeding previous release pi-free@${published} through Pi`);
 	await run([piCli, "install", `npm:pi-free@${published}`], piOptions);
 

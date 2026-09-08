@@ -38,7 +38,8 @@
 		"banner.svg",
 		"scripts/check-extensions.mjs",
 		"scripts/pi-install-smoke.mjs",
-		"scripts/rpc-load-check.mjs"
+		"scripts/rpc-load-check.mjs",
+		"scripts/lib/rpc-driver.mjs"
 	],
 	"scripts": {
 		"audit:prod": "npm audit --omit=dev --omit=peer --audit-level=high",

@@ -18,12 +18,27 @@
  *     (default: the current directory)
  */
 import { createRequire } from "node:module";
-import { existsSync } from "node:fs";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const packageDir = resolve(process.argv[2] ?? ".");
+
+// Validate the CLI-supplied directory before touching the filesystem
+// beneath it (same shape as check-installed-closure.mjs).
+// NOSONAR (jssecurity:S8707): local read-only diagnostic over an
+// operator-supplied tree — no writes, no exec, no network, no privilege
+// boundary; output goes to the operator's own terminal.
+let packageStat;
+try {
+	packageStat = statSync(packageDir); // NOSONAR -- see justification above
+} catch {
+	packageStat = undefined;
+}
+if (!packageStat?.isDirectory()) {
+	console.error(`[hoisting] FAIL: not a package directory: ${packageDir}`);
+	process.exit(1);
+}
 
 function findPackageUp(startDir, segments) {
 	let dir = startDir;
