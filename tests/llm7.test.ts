@@ -215,21 +215,14 @@ describe("LLM7 factory wiring", () => {
 		expect(notify).not.toHaveBeenCalled();
 	});
 
-	it("session_start nudges the model registry refresh and is safe without one", async () => {
+	// Nudge scoping/retry is pinned in native-refresh-nudge.test.ts; the
+	// live RPC suite proves refresh populates. This pins the wiring.
+	it("session_start registers a refresh-nudge handler safe without a registry", async () => {
 		await llm7Provider(mockPi);
 		const handler = mockOn.mock.calls.find(
 			(call) => call[0] === "session_start",
 		)?.[1];
 		expect(handler).toBeDefined();
-
-		const refresh = vi.fn().mockResolvedValue(undefined);
-		await handler({}, { modelRegistry: { refresh } });
-		// Scoped to opted-in providers (never the whole registry), so
-		// foreign credential failures cannot fail our refresh.
-		expect(refresh).toHaveBeenCalledWith({
-			allowNetwork: true,
-			providers: expect.arrayContaining(["llm7"]),
-		});
 
 		// No modelRegistry on the context -> safe no-op.
 		await expect(handler({}, {})).resolves.toBeUndefined();
