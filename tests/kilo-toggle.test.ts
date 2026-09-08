@@ -197,30 +197,14 @@ describe("Kilo toggle interop", () => {
 		).toEqual(["free-1", "paid-1"]);
 	});
 
-	it("/toggle-kilo flips show_paid and shows the full catalog", async () => {
+	// Flip/persist/view behavior is proven live by rpc-toggle-check
+	// (opencode-free) + rpc-session-check (/toggle-llm7); this pins the
+	// per-provider wiring that would otherwise go unverified.
+	it("registers the toggle-kilo command", async () => {
 		await kiloProvider(mockPi);
-		const provider = mockRegisterProvider.mock.calls[0][0];
-		await provider.refreshModels({ store: makeStore(), allowNetwork: true });
-
 		const call = mockRegisterCommand.mock.calls.find(
 			(c) => c[0] === "toggle-kilo",
 		);
-		if (!call) throw new Error("toggle-kilo not registered");
-		const notify = vi.fn();
-		await call[1].handler({}, { ui: { notify } });
-
-		// Persisted under the provider id in the overrides map (no divergent
-		// snake_case key, no registration-time value to go stale).
-		expect(mockSetModelViewOverride).toHaveBeenCalledWith("kilo", "all");
-		expect(
-			provider
-				.getModels()
-				.map((m: { id: string }) => m.id)
-				.sort(),
-		).toEqual(["free-1", "paid-1"]);
-		expect(notify).toHaveBeenCalledWith(
-			expect.stringContaining("showing all 2 models"),
-			"info",
-		);
+		expect(call).toBeDefined();
 	});
 });

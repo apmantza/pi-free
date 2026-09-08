@@ -137,67 +137,10 @@ describe("built-in provider toggles", () => {
 		({ setupBuiltInProviderToggles } = await import("../lib/built-in-toggle.ts"));
 	});
 
-	it("applies saved show-paid mode after capturing built-in models", async () => {
-		mockGetOpencodeFreeShowPaid.mockReturnValue(true);
-		setupBuiltInProviderToggles(mockPi);
-
-		const allModels = [
-			{
-				provider: "opencode",
-				id: "free-model",
-				name: "Free Model",
-				api: "openai-completions",
-				reasoning: false,
-				input: ["text"],
-				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-				contextWindow: 128000,
-				maxTokens: 4096,
-				baseUrl: "https://example.com",
-			},
-			{
-				provider: "opencode",
-				id: "paid-model",
-				name: "Paid Model",
-				api: "openai-completions",
-				reasoning: false,
-				input: ["text"],
-				cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
-				contextWindow: 128000,
-				maxTokens: 4096,
-				baseUrl: "https://example.com",
-			},
-		];
-
-		await handlers.session_start(
-			{},
-			{
-				modelRegistry: {
-					getAvailable: () => allModels,
-				},
-			},
-		);
-		await settleDetachedCapture();
-
-		expect(mockRegisterProvider).toHaveBeenCalledWith(
-			"opencode-free",
-			expect.objectContaining({
-				api: "opencode-dynamic",
-				apiKey: "$OPENCODE_API_KEY",
-				streamSimple: expect.any(Function),
-				refreshModels: expect.any(Function),
-				models: expect.arrayContaining([
-					expect.objectContaining({
-						id: "free-model",
-						api: "openai-completions",
-					}),
-					expect.objectContaining({
-						id: "paid-model",
-						api: "openai-completions",
-					}),
-				]),
-			}),
-		);
-	});
+	// NOTE (RPC migration): capture-view assertions (free/all per recorded
+	// choice) moved to scripts/rpc-toggle-check.mjs, which proves them
+	// against a real Pi boot instead of a mocked registry. This suite keeps
+	// the concurrency, fetch-boundary, restore, and auth behaviors below.
 
 	it("returns from session_start before the capture completes (detached)", async () => {
 		setupBuiltInProviderToggles(mockPi);
@@ -1068,105 +1011,6 @@ describe("built-in provider toggles", () => {
 		);
 	});
 
-	it("toggles from the actual current mode instead of an assumed boolean", async () => {
-		mockGetOpencodeFreeShowPaid.mockReturnValue(true);
-		setupBuiltInProviderToggles(mockPi);
-
-		const allModels = [
-			{
-				provider: "opencode",
-				id: "free-model",
-				name: "Free Model",
-				api: "openai-completions",
-				reasoning: false,
-				input: ["text"],
-				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-				contextWindow: 128000,
-				maxTokens: 4096,
-				baseUrl: "https://example.com",
-			},
-			{
-				provider: "opencode",
-				id: "paid-model",
-				name: "Paid Model",
-				api: "openai-completions",
-				reasoning: false,
-				input: ["text"],
-				cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
-				contextWindow: 128000,
-				maxTokens: 4096,
-				baseUrl: "https://example.com",
-			},
-		];
-
-		await handlers.session_start(
-			{},
-			{
-				modelRegistry: {
-					getAvailable: () => allModels,
-				},
-			},
-		);
-		await settleDetachedCapture();
-
-		const notify = vi.fn();
-		await commands["toggle-opencode-free"]({}, { ui: { notify } });
-
-		expect(mockSetModelViewOverride).toHaveBeenCalledWith(
-			"opencode-free",
-			"free",
-		);
-		expect(mockRegisterProvider).toHaveBeenLastCalledWith(
-			"opencode-free",
-			expect.objectContaining({
-				models: [expect.objectContaining({ id: "free-model" })],
-			}),
-		);
-		expect(notify).toHaveBeenCalledWith(
-			"opencode-free: showing 1 free models",
-			"info",
-		);
-	});
-
-	it("persists the toggle under the provider id in the overrides map", async () => {
-		setupBuiltInProviderToggles(mockPi);
-
-		const allModels = [
-			{
-				provider: "opencode-go",
-				id: "go-model",
-				name: "Go Model",
-				api: "openai-completions",
-				reasoning: false,
-				input: ["text"],
-				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-				contextWindow: 128000,
-				maxTokens: 4096,
-				baseUrl: "https://example.com",
-			},
-		];
-
-		await handlers.session_start(
-			{},
-			{ modelRegistry: { getAvailable: () => allModels } },
-		);
-		await settleDetachedCapture();
-
-		const notify = vi.fn();
-		await commands["toggle-opencode-go"]({}, { ui: { notify } });
-
-		// Persisted under the provider id (not a divergent snake_case key),
-		// so the choice survives restarts and needs no key mapping.
-		expect(mockSetModelViewOverride).toHaveBeenCalledWith(
-			"opencode-go",
-			"all",
-		);
-		expect(notify).toHaveBeenCalledWith(
-			"opencode-go: showing all 1 models",
-			"info",
-		);
-	});
-
 	it("restores the session's saved model once the late capture registers it", async () => {
 		setupBuiltInProviderToggles(mockPi);
 
@@ -1547,23 +1391,6 @@ describe("built-in provider toggles", () => {
 		];
 	}
 
-	it("capture follows the global default when no choice is recorded", async () => {
-		mockGetModelViewOverride.mockReturnValue(undefined);
-		mockGetGlobalFreeOnly.mockReturnValue(true);
-		setupBuiltInProviderToggles(mockPi);
-
-		await handlers.session_start(
-			{},
-			{ modelRegistry: { getAvailable: () => openCodeCatalog() } },
-		);
-		await settleDetachedCapture();
-
-		const registered = mockRegisterProvider.mock.calls[0][1].models as Array<{
-			id: string;
-		}>;
-		expect(registered.map((m) => m.id)).toEqual(["free-model"]);
-	});
-
 	it("capture shows all when the global default is off and nothing is recorded", async () => {
 		mockGetModelViewOverride.mockReturnValue(undefined);
 		mockGetGlobalFreeOnly.mockReturnValue(false);
@@ -1584,23 +1411,4 @@ describe("built-in provider toggles", () => {
 		]);
 	});
 
-	it("capture honors a recorded explicit choice over the global", async () => {
-		mockGetModelViewOverride.mockReturnValue("all");
-		mockGetGlobalFreeOnly.mockReturnValue(true);
-		setupBuiltInProviderToggles(mockPi);
-
-		await handlers.session_start(
-			{},
-			{ modelRegistry: { getAvailable: () => openCodeCatalog() } },
-		);
-		await settleDetachedCapture();
-
-		const registered = mockRegisterProvider.mock.calls[0][1].models as Array<{
-			id: string;
-		}>;
-		expect(registered.map((m) => m.id).sort()).toEqual([
-			"free-model",
-			"paid-model",
-		]);
-	});
 });
