@@ -243,6 +243,9 @@ describe("refreshModels offline init", () => {
 
 describe("refreshModels online", () => {
 	it("fetches, persists to the store, and publishes models", async () => {
+	// All-view: pins persist mechanics, not view filtering.
+		mockGetModelViewOverride.mockReturnValue("all");
+
 		mockFetchKiloCatalog.mockResolvedValue({
 			all: [freeCfg("a"), paidCfg("b")],
 			free: [freeCfg("a")],
@@ -260,7 +263,9 @@ describe("refreshModels online", () => {
 		// Catalogs populated for the toggle.
 		expect(stored.all).toHaveLength(2);
 		expect(stored.free).toHaveLength(1);
-		// getModels exposes the complete catalog; Pi applies filterModels.
+		// getModels exposes the complete catalog; Pi applies filterModels
+		// under the free view resolved live below.
+		mockGetModelViewOverride.mockReturnValue(undefined);
 		expect(
 			provider
 				.getModels()
