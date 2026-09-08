@@ -3,6 +3,7 @@ node_modules/
 .pisessionsummaries/
 .pi-lens/
 *.log
+.smoke-artifacts/
 .pi/greedysearch-sources/
 .DS_Store
 dist/

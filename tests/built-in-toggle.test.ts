@@ -301,6 +301,9 @@ describe("built-in provider toggles", () => {
 	});
 
 	it("refreshes opencode-go from the live Go endpoint after session_start", async () => {
+		// Explicit all-view: this pins refresh mechanics (fetch, merge,
+		// metadata), not view resolution (pinned separately).
+		mockGetModelViewOverride.mockReturnValue("all");
 		setupBuiltInProviderToggles(mockPi);
 
 		const fetchMock = vi.fn();
@@ -636,6 +639,9 @@ describe("built-in provider toggles", () => {
 	});
 
 	it("retains the captured catalog when the live endpoint returns no models", async () => {
+		// Explicit all-view: this pins the retain-on-empty rule, not view
+		// resolution (pinned separately).
+		mockGetModelViewOverride.mockReturnValue("all");
 		setupBuiltInProviderToggles(mockPi);
 
 		const fetchMock = vi.fn();
@@ -695,6 +701,9 @@ describe("built-in provider toggles", () => {
 	});
 
 	it("refreshes the built-in openrouter catalog from the public endpoint", async () => {
+		// Explicit all-view: this pins refresh mechanics (fetch, merge,
+		// metadata), not view resolution (pinned separately).
+		mockGetModelViewOverride.mockReturnValue("all");
 		setupBuiltInProviderToggles(mockPi);
 
 		const fetchMock = vi.fn();

@@ -44,10 +44,13 @@ export function createToggleState<T>({
 			return { mode: "free", models: stored.free };
 		}
 
-		if (stored.free.length > 0) {
-			return { mode: "free", models: stored.free };
-		}
-		return { mode: "all", models: stored.all };
+		// Strict: a free view with no free models resolves to an EMPTY free
+		// view, never to the paid catalog. Falling back to "all" here
+		// silently violated an explicit free-only choice (global or
+		// per-provider): a provider with zero free models hides from the
+		// picker instead of leaking paid models. Flipping to "all" stays
+		// available through an explicit toggle.
+		return { mode: "free", models: stored.free };
 	}
 
 	function persist(mode: ToggleMode): void {

@@ -89,6 +89,7 @@ const required = [
 	"package/scripts/check-extensions.mjs",
 	"package/scripts/pi-install-smoke.mjs",
 	"package/scripts/rpc-load-check.mjs",
+	"package/scripts/lib/rpc-driver.mjs",
 ];
 
 for (const file of required) {
@@ -103,7 +104,7 @@ const forbiddenPatterns = [
 	/^package\/.+\.tgz$/,
 	/^package\/.+\.env(?:\..*)?$/,
 	/^package\/(?:\.env(?:\..*)?|npm-debug\.log|yarn-error\.log)$/,
-	/^package\/scripts\/(?!check-extensions\.mjs$|pi-install-smoke\.mjs$|rpc-load-check\.mjs$).+/,
+	/^package\/scripts\/(?!check-extensions\.mjs$|pi-install-smoke\.mjs$|rpc-load-check\.mjs$|lib\/rpc-driver\.mjs$).+/,
 ];
 
 const forbidden = entries.filter((entry) =>
