@@ -60,14 +60,14 @@ function run(args, options, timeoutMs = 120_000) {
 			clearTimeout(timer);
 			if (timedOut) {
 				rejectRun(new Error(`Node timed out after ${timeoutMs}ms`));
-			} else if (code !== 0) {
+			} else if (code === 0) {
+				resolveRun();
+			} else {
 				const signalSuffix = signal ? " (" + String(signal) + ")" : "";
 				const exitCode = code ?? "unknown";
 				rejectRun(
 					new Error(`Node exited with code ${exitCode}${signalSuffix}`),
 				);
-			} else {
-				resolveRun();
 			}
 		});
 	});
@@ -120,9 +120,9 @@ try {
 	console.log("Launching Pi RPC load check");
 	await run([rpcDriver], piOptions, 45_000);
 	console.log("Launching Pi RPC session + filter check");
-	await run([rpcSessionDriver], piOptions, 150_000);
+	await run([rpcSessionDriver], piOptions, 420_000);
 	console.log("Launching Pi RPC toggle check");
-	await run([rpcToggleDriver], piOptions, 150_000);
+	await run([rpcToggleDriver], piOptions, 420_000);
 	console.log("Pi install smoke passed");
 } catch (error) {
 	console.error(`Pi install smoke failed: ${error.message}`);

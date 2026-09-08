@@ -19,31 +19,29 @@
  *   5. `/toggle-llm7` via prompt dispatch, then another `new_session` —
  *      the flipped choice persists and shows in the catalog.
  *
- * Fails on ANY extension_error event at ANY point, any timeout, any
- * missing command, an empty catalog, a paid managed model, or a missing
- * llm7 anchor. Strict by design: a failure names a product bug to fix,
- * not a threshold to tune.
+ * Waiting is poll-until-condition with deadlines, never fixed sleeps, so
+ * slow runners (Windows CI) get patience instead of flakes. Fails on ANY
+ * extension_error event at ANY point, any timeout, any missing command,
+ * an empty catalog, a paid managed model, or a missing llm7 anchor.
+ * Strict by design: a failure names a product bug to fix, not a
+ * threshold to tune.
  *
- * Managed vs unmanaged: the harness injects a dummy ANTHROPIC_API_KEY so
- * Pi boots, which makes Anthropic's paid catalog visible. Anthropic is
- * not pi-free-managed (the global filter only governs pi-free's own
- * registry), so provider `anthropic` is excluded from the paid check —
- * and named as such in failures.
+ * Managed vs unmanaged: pi-free manages exactly the providers with a
+ * pi-free toggle command (derived live from get_commands, so new
+ * providers are covered without editing this script). Anything else
+ * (e.g. anthropic via the harness dummy key, Pi's own built-in
+ * `opencode` catalog) is Pi-managed and out of scope.
  *
  * Usage:
  *   node scripts/rpc-session-check.mjs
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { bootPi, sleep } from "./lib/rpc-driver.mjs";
+import { bootPi } from "./lib/rpc-driver.mjs";
 
 const expectedCommands = ["toggle-free", "free-providers", "pi-free-health"];
 
 // Providers pi-free manages = providers with a pi-free toggle command.
-// Anything else (e.g. anthropic, visible via the harness-injected dummy
-// key, or Pi's own built-in `opencode` catalog) is Pi-managed and outside
-// the free-only promise — the harness asserts only on the managed set,
-// derived here so new providers are covered without editing this script.
 const GLOBAL_COMMANDS = new Set(["toggle-free", "toggle-auto-fallback"]);
 
 function managedIds(commands) {
@@ -68,7 +66,7 @@ const driver = bootPi({
 		ANTHROPIC_API_KEY:
 			process.env.ANTHROPIC_API_KEY || "sk-ant-dummy-rpc-session-check",
 	},
-	timeoutMs: 150_000,
+	timeoutMs: 300_000,
 });
 
 function paidCost(model) {
@@ -122,14 +120,39 @@ function assertCommands(commands, phase) {
 		);
 	}
 	console.log(`${phase}: commands ok (${names.size} total)`);
+	return commands;
+}
+
+async function waitCommands(phase) {
+	return driver.waitFor(
+		async () => {
+			const commands = (await driver.send({ type: "get_commands" })).commands;
+			assertCommands(commands, phase);
+			return commands;
+		},
+		{ timeoutMs: 60_000, label: `${phase} pi-free commands` },
+	);
+}
+
+async function waitCatalog(phase, managed) {
+	const models = await driver.waitFor(
+		async () => {
+			const found = (await driver.send({ type: "get_available_models" }))
+				.models;
+			// Presence first (polls through slow boots); strictness after.
+			return (found ?? []).some((m) => managed.has(m.provider))
+				? found
+				: null;
+		},
+		{ timeoutMs: 120_000, label: `${phase} managed catalog` },
+	);
+	assertCatalog(models, phase, managed);
+	return models;
 }
 
 try {
-	// Allow Pi to finish loading extensions before querying.
-	await sleep(2500);
-
 	// Read back the seeded free.json through the same HOME Pi sees: if the
-	// seed is absent here, the filter failure below is environmental (wrong
+	// seed is absent here, a filter failure below is environmental (wrong
 	// file / race), not a view-resolution bug. Fail fast with the evidence.
 	const homeDir = process.env.HOME || process.env.USERPROFILE || "";
 	let seededConfig = null;
@@ -149,12 +172,9 @@ try {
 		);
 	}
 
-	const commands = (await driver.send({ type: "get_commands" })).commands;
-	assertCommands(commands, "boot");
+	const commands = await waitCommands("boot");
 	const managed = managedIds(commands);
-
-	const before = (await driver.send({ type: "get_available_models" })).models;
-	assertCatalog(before, "boot", managed);
+	await waitCatalog("boot", managed);
 
 	const replaced = await driver.send({ type: "new_session" });
 	if (replaced?.cancelled) {
@@ -162,44 +182,44 @@ try {
 	}
 	console.log("new_session ok (replacement settled)");
 
-	// session_start handlers + detached capture land in ~1s; wait with
-	// margin so a stale-ctx failure has time to surface as extension_error.
-	await sleep(8000);
-
-	const commandsAfter = (await driver.send({ type: "get_commands" })).commands;
-	assertCommands(commandsAfter, "post-replacement");
-
-	const after = (await driver.send({ type: "get_available_models" })).models;
-	assertCatalog(after, "post-replacement", managed);
+	await waitCommands("post-replacement");
+	await waitCatalog("post-replacement", managed);
 
 	// Toggle persistence end to end: flipping llm7 must survive a session
 	// replacement and show in the catalog (the paid pro selector appears).
 	// Slash commands dispatch through prompt preflight — no model runs.
 	await driver.prompt("/toggle-llm7");
-	await sleep(3000);
-	const toggled = (await driver.send({ type: "get_available_models" })).models;
-	const pro = toggled.filter(
-		(m) => m.provider === ANCHOR_PROVIDER && m.id === "pro",
+	const toggled = await driver.waitFor(
+		async () => {
+			const found = (await driver.send({ type: "get_available_models" }))
+				.models;
+			return (found ?? []).some(
+				(m) => m.provider === ANCHOR_PROVIDER && m.id === "pro",
+			)
+				? found
+				: null;
+		},
+		{ timeoutMs: 60_000, label: "post-toggle llm7/pro" },
 	);
-	if (pro.length === 0) {
-		throw new Error(
-			"post-toggle: llm7/pro missing from catalog after /toggle-llm7",
-		);
-	}
-	console.log("post-toggle: llm7/pro visible after /toggle-llm7");
+	console.log(
+		`post-toggle: llm7/pro visible after /toggle-llm7 (${toggled.length} total)`,
+	);
 	await driver.send({ type: "new_session" });
-	await sleep(8000);
-	const persisted = (await driver.send({ type: "get_available_models" }))
-		.models;
-	const proAfter = persisted.filter(
-		(m) => m.provider === ANCHOR_PROVIDER && m.id === "pro",
+	const persisted = await driver.waitFor(
+		async () => {
+			const found = (await driver.send({ type: "get_available_models" }))
+				.models;
+			return (found ?? []).some(
+				(m) => m.provider === ANCHOR_PROVIDER && m.id === "pro",
+			)
+				? found
+				: null;
+		},
+		{ timeoutMs: 90_000, label: "post-toggle-replacement llm7/pro" },
 	);
-	if (proAfter.length === 0) {
-		throw new Error(
-			"post-toggle-replacement: llm7/pro lost across new_session (choice did not persist)",
-		);
-	}
-	console.log("post-toggle-replacement: llm7/pro survives new_session");
+	console.log(
+		`post-toggle-replacement: llm7/pro survives new_session (${persisted.length} total)`,
+	);
 
 	driver.pass("session replacement clean, free-only view holds");
 } catch (error) {

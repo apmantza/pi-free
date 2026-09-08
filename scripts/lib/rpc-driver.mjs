@@ -152,6 +152,29 @@ export function bootPi({ cwd, env, timeoutMs = 120_000, noSession = true }) {
 		prompt(text) {
 			return this.send({ type: "prompt", message: text });
 		},
+		/**
+		 * Poll an async condition until it returns non-null, or throw on
+		 * deadline. Replaces fixed sleeps: slow runners need wall-clock
+		 * patience, fast ones should not wait out arbitrary delays.
+		 */
+		async waitFor(fn, { timeoutMs, intervalMs = 2000, label }) {
+			const deadline = Date.now() + timeoutMs;
+			let lastError;
+			for (;;) {
+				try {
+					const value = await fn();
+					if (value) return value;
+				} catch (error) {
+					lastError = error;
+				}
+				if (Date.now() >= deadline) {
+					throw new Error(
+						`timed out waiting for ${label} after ${timeoutMs}ms${lastError ? `: ${lastError.message}` : ""}`,
+					);
+				}
+				await sleep(intervalMs);
+			}
+		},
 		extensionErrors: state.extensionErrors,
 		/** Fail with message (plus any observed extension errors). */
 		fail(message) {
