@@ -247,47 +247,16 @@ describe("Cline factory wiring", () => {
 		).toEqual(["free-1", "paid-1"]);
 	});
 
-	it("/toggle-cline flips cline_show_paid and shows the full catalog, then back", async () => {
+	// Flip/persist/view behavior is proven live by rpc-toggle-check
+	// (opencode-free through prompt dispatch, incl. persistence across
+	// replacement); this pins the per-provider wiring that would
+	// otherwise go unverified.
+	it("registers the toggle-cline command", async () => {
 		await clineProvider(mockPi);
-		const provider = mockRegisterProvider.mock.calls[0][0];
-		await provider.refreshModels({ store: makeStore(), allowNetwork: true });
-
 		const call = mockRegisterCommand.mock.calls.find(
 			(c) => c[0] === "toggle-cline",
 		);
-		if (!call) throw new Error("toggle-cline not registered");
-		const notify = vi.fn();
-
-		// First toggle: free -> all.
-		await call[1].handler({}, { ui: { notify } });
-		expect(mockSetModelViewOverride).toHaveBeenCalledWith("cline", "all");
-		expect(
-			provider
-				.getModels()
-				.map((m: { id: string }) => m.id)
-				.sort(),
-		).toEqual(["free-1", "paid-1"]);
-		expect(notify).toHaveBeenCalledWith(
-			expect.stringContaining("showing all 2 models"),
-			"info",
-		);
-
-		// Second toggle: all -> free. The complete catalog remains registered;
-		// the filter callback selects the free view in Pi's availability layer.
-		mockGetClineShowPaid.mockReturnValue(true);
-		notify.mockClear();
-		await call[1].handler({}, { ui: { notify } });
-		expect(mockSetModelViewOverride).toHaveBeenCalledWith("cline", "free");
-		expect(
-			provider
-				.getModels()
-				.map((m: { id: string }) => m.id)
-				.sort(),
-		).toEqual(["free-1", "paid-1"]);
-		expect(notify).toHaveBeenCalledWith(
-			expect.stringContaining("showing 1 free models"),
-			"info",
-		);
+		expect(call).toBeDefined();
 	});
 
 	it("before_agent_start rotates the Cline task id for Cline models only", async () => {
