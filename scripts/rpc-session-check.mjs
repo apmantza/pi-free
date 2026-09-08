@@ -48,9 +48,7 @@ function managedIds(commands) {
 	return new Set(
 		(commands ?? [])
 			.map((command) => command.name)
-			.filter(
-				(name) => name.startsWith("toggle-") && !GLOBAL_COMMANDS.has(name),
-			)
+			.filter((name) => name.startsWith("toggle-") && !GLOBAL_COMMANDS.has(name))
 			.map((name) => name.slice("toggle-".length)),
 	);
 }
@@ -135,36 +133,36 @@ async function waitCommands(phase) {
 }
 
 async function waitCatalog(phase, managed) {
-	const models = await driver.waitFor(
-		async () => {
-			const found = (await driver.send({ type: "get_available_models" }))
-				.models;
-			// Presence first (polls through slow boots); strictness after.
-			return (found ?? []).some((m) => managed.has(m.provider))
-				? found
-				: null;
-		},
-		{ timeoutMs: 120_000, label: `${phase} managed catalog` },
+	// Settled strictness (not first sight): the snapshot rebuilds
+	// unfiltered on every re-registration until the availability refresh
+	// lands, so presence alone would assert a transient.
+	return driver.waitSettled(
+		async () =>
+			(await driver.send({ type: "get_available_models" })).models,
+		(models) => assertCatalog(models, phase, managed),
+		{ timeoutMs: 180_000, label: `${phase} managed catalog` },
 	);
-	assertCatalog(models, phase, managed);
-	return models;
+}
+
+/**
+ * Read the smoke HOME's free.json (same file the extension reads).
+ * Total: returns null when the file is missing or unparsable, so polling
+ * callers keep waiting and one-shot callers fail fast with context.
+ */
+function readSeededConfig() {
+	try {
+		const homeDir = process.env.HOME || process.env.USERPROFILE || "";
+		return JSON.parse(readFileSync(join(homeDir, ".pi", "free.json"), "utf8"));
+	} catch {
+		return null;
+	}
 }
 
 try {
 	// Read back the seeded free.json through the same HOME Pi sees: if the
 	// seed is absent here, a filter failure below is environmental (wrong
 	// file / race), not a view-resolution bug. Fail fast with the evidence.
-	const homeDir = process.env.HOME || process.env.USERPROFILE || "";
-	let seededConfig = null;
-	try {
-		seededConfig = JSON.parse(
-			readFileSync(join(homeDir, ".pi", "free.json"), "utf8"),
-		);
-	} catch (error) {
-		throw new Error(
-			`boot: cannot read seeded free.json in ${homeDir}: ${error instanceof Error ? error.message : String(error)}`,
-		);
-	}
+	const seededConfig = readSeededConfig();
 	console.log(`boot: free.json is ${JSON.stringify(seededConfig)}`);
 	if (seededConfig?.free_only !== true) {
 		throw new Error(
@@ -188,11 +186,19 @@ try {
 	// Toggle persistence end to end: flipping llm7 must survive a session
 	// replacement and show in the catalog (the paid pro selector appears).
 	// Slash commands dispatch through prompt preflight — no model runs.
+	// The persisted override (not just catalog presence, which a transient
+	// unfiltered snapshot could fake) proves the command did its write.
 	await driver.prompt("/toggle-llm7");
+	await driver.waitFor(
+		async () =>
+			readSeededConfig()?.model_view_overrides?.llm7 === "all"
+				? true
+				: null,
+		{ timeoutMs: 60_000, label: "post-toggle llm7 override" },
+	);
 	const toggled = await driver.waitFor(
 		async () => {
-			const found = (await driver.send({ type: "get_available_models" }))
-				.models;
+			const found = (await driver.send({ type: "get_available_models" })).models;
 			return (found ?? []).some(
 				(m) => m.provider === ANCHOR_PROVIDER && m.id === "pro",
 			)
@@ -207,8 +213,7 @@ try {
 	await driver.send({ type: "new_session" });
 	const persisted = await driver.waitFor(
 		async () => {
-			const found = (await driver.send({ type: "get_available_models" }))
-				.models;
+			const found = (await driver.send({ type: "get_available_models" })).models;
 			return (found ?? []).some(
 				(m) => m.provider === ANCHOR_PROVIDER && m.id === "pro",
 			)

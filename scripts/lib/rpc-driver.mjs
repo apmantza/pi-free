@@ -123,8 +123,7 @@ export function bootPi({ cwd, env, timeoutMs = 120_000, noSession = true }) {
 		send(command, stepTimeoutMs = 20_000) {
 			return new Promise((resolveSend, rejectSend) => {
 				const stepTimer = setTimeout(
-					() =>
-						rejectSend(new Error(`timed out waiting for ${command.type}`)),
+					() => rejectSend(new Error(`timed out waiting for ${command.type}`)),
 					stepTimeoutMs,
 				);
 				if (stepTimer.unref) stepTimer.unref();
@@ -151,6 +150,37 @@ export function bootPi({ cwd, env, timeoutMs = 120_000, noSession = true }) {
 		/** Prompt Pi (slash commands dispatch through preflight — no model runs). */
 		prompt(text) {
 			return this.send({ type: "prompt", message: text });
+		},
+		/**
+		 * Fetch until assert() passes twice in a row, then return the
+		 * last fetch. Pi rebuilds its model snapshot unfiltered on every
+		 * (re-)registration and re-applies the filtered view when the
+		 * availability refresh lands — so the first sight of a provider
+		 * can transiently show paid models for seconds on slow/fresh
+		 * boots. Asserting that transient as final is a flake factory;
+		 * a twice-consecutive pass is the settled-state contract.
+		 */
+		async waitSettled(fetch, assert, { timeoutMs, steadyMs = 3000, intervalMs = 2000, label }) {
+			const deadline = Date.now() + timeoutMs;
+			let lastError;
+			for (;;) {
+				try {
+					const value = await fetch();
+					assert(value);
+					await sleep(steadyMs);
+					const again = await fetch();
+					assert(again);
+					return again;
+				} catch (error) {
+					lastError = error;
+				}
+				if (Date.now() >= deadline) {
+					throw new Error(
+						`timed out waiting for settled ${label} after ${timeoutMs}ms${lastError ? `: ${lastError.message}` : ""}`,
+					);
+				}
+				await sleep(intervalMs);
+			}
 		},
 		/**
 		 * Poll an async condition until it returns non-null, or throw on

@@ -25,6 +25,8 @@
  * Usage:
  *   node scripts/rpc-toggle-check.mjs [providerId]
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { bootPi } from "./lib/rpc-driver.mjs";
 
 const providerId = process.argv[2] ?? "opencode-free";
@@ -48,22 +50,40 @@ function forProvider(models) {
 	return (models ?? []).filter((m) => m.provider === providerId);
 }
 
-async function waitProviderView(phase, wantPaid) {
-	return driver.waitFor(
-		async () => {
-			const models = (await driver.send({ type: "get_available_models" }))
-				.models;
-			const view = forProvider(models);
-			if (view.length === 0) return null;
-			const hasPaid = view.some(paidCost);
-			if (wantPaid && !hasPaid) return null;
-			return view;
+/**
+ * Fetch until assert() passes twice in a row, then return the view.
+ * Pi rebuilds its model snapshot unfiltered on every re-registration
+ * until the availability refresh lands — asserting first sight as final
+ * flakes on slow/fresh boots (settled-state contract instead).
+ */
+async function settledView(phase, assert) {
+	const models = await driver.waitSettled(
+		async () => (await driver.send({ type: "get_available_models" })).models,
+		(all) => {
+			const view = forProvider(all);
+			if (view.length === 0) {
+				throw new Error(
+					`${phase}: provider ${providerId} missing from catalog`,
+				);
+			}
+			assert(view, phase);
 		},
-		{
-			timeoutMs: 120_000,
-			label: `${phase} ${providerId} ${wantPaid ? "all" : "free-only"} view`,
-		},
+		{ timeoutMs: 180_000, label: `${phase} ${providerId} view` },
 	);
+	return forProvider(models);
+}
+
+/** Persisted override from the smoke HOME's free.json (same file Pi reads). */
+function readOverride() {
+	try {
+		const homeDir = process.env.HOME || process.env.USERPROFILE || "";
+		const cfg = JSON.parse(
+			readFileSync(join(homeDir, ".pi", "free.json"), "utf8"),
+		);
+		return cfg?.model_view_overrides?.[providerId];
+	} catch {
+		return undefined;
+	}
 }
 
 function assertFreeOnly(view, phase) {
@@ -94,16 +114,19 @@ function assertAll(view, phase) {
 }
 
 try {
-	const bootView = await waitProviderView("boot", false);
-	assertFreeOnly(bootView, "boot");
+	await settledView("boot", assertFreeOnly);
 
 	await driver.prompt(toggleCommand);
-	const toggledView = await waitProviderView("post-toggle", true);
-	assertAll(toggledView, "post-toggle");
+	// The persisted override (not just catalog presence, which a transient
+	// unfiltered snapshot could fake) proves the command did its write.
+	await driver.waitFor(
+		async () => (readOverride() === "all" ? true : null),
+		{ timeoutMs: 60_000, label: `post-toggle ${providerId} override` },
+	);
+	await settledView("post-toggle", assertAll);
 
 	await driver.send({ type: "new_session" });
-	const persistedView = await waitProviderView("post-replacement", true);
-	assertAll(persistedView, "post-replacement");
+	await settledView("post-replacement", assertAll);
 
 	driver.pass(`${providerId} capture, toggle, and persistence hold`);
 } catch (error) {
