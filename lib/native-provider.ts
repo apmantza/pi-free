@@ -752,14 +752,35 @@ export async function refreshNativeProviderModels<T extends Model<Api>>(
 			recordNativeEmptyRetain(providerId);
 			return;
 		}
+		// Persist the EFFECTIVE view, not the complete fetch: under a free
+		// view the store keeps only free models, so Pi's per-refresh
+		// structuredClone + store write (the ~59% startup-CPU sink from
+		// #519) scale with visible models, not the full paid catalog.
+		// In-memory state still takes the complete list via onFetched, so
+		// toggling to all works offline until the next network refresh.
+		const persistModels =
+			resolveModelView(providerId) === "free"
+				? models.filter((model) =>
+						isFreeModel(
+							{ ...model, provider: providerId },
+							models as ProviderModelConfig[],
+						),
+					)
+				: models;
+		_logger.debug(
+				`[${providerId}] persisting ${persistModels.length}/${models.length} models (${resolveModelView(providerId)} view)`,
+			);
 		// Only count as "ok" if persistence actually published: a superseded
 		// generation (publish() returns false — update never ran) or a store
 		// write failure must not inflate the success counter.
 		if (
-			await persistNativeProviderModels(providerId, context, models, () =>
+			await persistNativeProviderModels(providerId, context, persistModels, () =>
 				onFetched(models),
 			)
 		) {
+			// Telemetry counts the fetched catalog (refresh productivity),
+			// not the persisted view — the view filter above only shrinks
+			// what hits the disk/network-clone path.
 			recordNativeRefreshOk(providerId, models.length);
 		}
 	} catch (err) {

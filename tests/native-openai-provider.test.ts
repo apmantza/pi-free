@@ -311,7 +311,68 @@ describe("createNativeOpenAIProvider", () => {
 		).toEqual(["free"]);
 	});
 
+	// NOTE (RPC migration): filter-view behavior is proven live by
+	// rpc-session-check (managed zero-paid + toggle phases incl.
+	// persistence). View resolution itself is pinned in
+	// registry-provider-overrides.test.ts against the real resolver.
+	describe("persist filtered views (#519)", () => {
+		const freeOnly = { id: "f", name: "free stuff" };
+		const paidOnly = { id: "p", name: "paid stuff" };
+
+		async function runPersist(view: "free" | "all") {
+			mockResolveModelView.mockReturnValue(view);
+			const persisted: Array<{
+				persist?: { models: readonly unknown[] };
+			}> = [];
+			const published: unknown[][] = [];
+			const publish = vi.fn(
+				async (publication: {
+					persist?: { models: readonly unknown[] };
+					update?: () => void;
+				}) => {
+					persisted.push(publication);
+					publication.update?.();
+					return true;
+				},
+			);
+			await refreshNativeProviderModels(
+				"test-native",
+				{
+					allowNetwork: true,
+					credential: { type: "api_key", key: "stored-key" },
+					publish,
+					signal: new AbortController().signal,
+				} as unknown as RefreshModelsContext,
+				() => {},
+				async () => [freeOnly, paidOnly] as never[],
+				(models: unknown[]) => {
+					published.push(models);
+				},
+			);
+			return { persisted, published };
+		}
+
+		it("persists only free models under a free view", async () => {
+			const { persisted, published } = await runPersist("free");
+			// Disk stays small (the #519 structuredClone sink scales with
+			// this list); memory still takes the complete catalog.
+			expect(persisted).toHaveLength(1);
+			expect(persisted[0].persist?.models).toEqual([freeOnly]);
+			expect(published).toEqual([[freeOnly, paidOnly]]);
+		});
+
+		it("persists the complete catalog under an all view", async () => {
+			const { persisted, published } = await runPersist("all");
+			expect(persisted).toHaveLength(1);
+			expect(persisted[0].persist?.models).toEqual([freeOnly, paidOnly]);
+			expect(published).toEqual([[freeOnly, paidOnly]]);
+		});
+	});
+
 	it("supports Pi 0.84 stored/publish model lifecycle", async () => {
+		// All-view: this pins publish mechanics, not view filtering (pinned
+		// in the persist-filtered-views block above).
+		mockResolveModelView.mockReturnValue("all");
 		const controller = new AbortController();
 		const publish = vi.fn(
 			async (publication: {

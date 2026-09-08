@@ -351,6 +351,9 @@ describe("refreshModels offline init", () => {
 
 describe("refreshModels online", () => {
 	it("publishes the static selector catalog and persists it, with zero network", async () => {
+	// All-view: pins persist mechanics, not view filtering.
+		mockGetModelViewOverride.mockReturnValue("all");
+
 		const { store, written } = makeStore();
 		const { provider, stored } = createLlm7Provider();
 
@@ -377,7 +380,9 @@ describe("refreshModels online", () => {
 		// Catalogs populated for the toggle.
 		expect(stored.all.map((m) => m.id)).toEqual(["default", "fast", "pro"]);
 		expect(stored.free.map((m) => m.id)).toEqual(["default", "fast"]);
-		// getModels exposes the complete catalog; Pi applies filterModels.
+		// getModels exposes the complete catalog; Pi applies filterModels
+		// under the free view resolved live below.
+		mockGetModelViewOverride.mockReturnValue(undefined);
 		expect(provider.getModels().map((m) => m.id)).toEqual([
 			"default",
 			"fast",
