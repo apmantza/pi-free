@@ -226,9 +226,9 @@ describe("createNativeOpenAIProvider", () => {
 	});
 
 	// NOTE (RPC migration): filter-view behavior (free/all/persisted
-	// views, in-session override isolation) is proven live by
-	// rpc-session-check; view resolution itself is pinned in
-	// registry-provider-overrides.test.ts against the real resolver.
+	// views is proven live by rpc-session-check; restart isolation needs
+	// no test (per-instance closure variable). View resolution itself is
+	// pinned in registry-provider-overrides.test.ts.
 
 	it("supports Pi 0.84 stored/publish model lifecycle", async () => {
 		const controller = new AbortController();
