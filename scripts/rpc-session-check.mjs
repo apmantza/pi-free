@@ -33,6 +33,8 @@
  * Usage:
  *   node scripts/rpc-session-check.mjs
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { bootPi, sleep } from "./lib/rpc-driver.mjs";
 
 const expectedCommands = ["toggle-free", "free-providers", "pi-free-health"];
@@ -125,6 +127,27 @@ function assertCommands(commands, phase) {
 try {
 	// Allow Pi to finish loading extensions before querying.
 	await sleep(2500);
+
+	// Read back the seeded free.json through the same HOME Pi sees: if the
+	// seed is absent here, the filter failure below is environmental (wrong
+	// file / race), not a view-resolution bug. Fail fast with the evidence.
+	const homeDir = process.env.HOME || process.env.USERPROFILE || "";
+	let seededConfig = null;
+	try {
+		seededConfig = JSON.parse(
+			readFileSync(join(homeDir, ".pi", "free.json"), "utf8"),
+		);
+	} catch (error) {
+		throw new Error(
+			`boot: cannot read seeded free.json in ${homeDir}: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
+	console.log(`boot: free.json is ${JSON.stringify(seededConfig)}`);
+	if (seededConfig?.free_only !== true) {
+		throw new Error(
+			`boot: seeded free.json does not enable free_only: ${JSON.stringify(seededConfig)}`,
+		);
+	}
 
 	const commands = (await driver.send({ type: "get_commands" })).commands;
 	assertCommands(commands, "boot");
