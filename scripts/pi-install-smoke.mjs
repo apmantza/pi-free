@@ -100,6 +100,7 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const rpcDriver = join(scriptDir, "rpc-load-check.mjs");
 const rpcSessionDriver = join(scriptDir, "rpc-session-check.mjs");
 const rpcToggleDriver = join(scriptDir, "rpc-toggle-check.mjs");
+const rpcRestoreDriver = join(scriptDir, "rpc-restore-check.mjs");
 const piOptions = { cwd: project, env: environment, stdio: "inherit" };
 
 // Seed an explicit free_only default so the session check's filter
@@ -123,6 +124,8 @@ try {
 	await run([rpcSessionDriver], piOptions, 420_000);
 	console.log("Launching Pi RPC toggle check");
 	await run([rpcToggleDriver], piOptions, 420_000);
+	console.log("Launching Pi RPC restore check");
+	await run([rpcRestoreDriver], piOptions, 420_000);
 	console.log("Pi install smoke passed");
 } catch (error) {
 	console.error(`Pi install smoke failed: ${error.message}`);
