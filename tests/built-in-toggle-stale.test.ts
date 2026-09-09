@@ -176,7 +176,7 @@ describe("built-in-toggle stale context (#509)", () => {
 
 		// The session is replaced while the detached capture awaits: every
 		// lazy ctx.modelRegistry access now throws Pi's stale guard.
-		await handlers.session_start({}, { modelRegistry: staleRegistry() });
+		await handlers.session_start!({}, { modelRegistry: staleRegistry() });
 		await settleDetachedCapture();
 
 		const captures = detachedOutcomes.filter((o) =>
@@ -196,13 +196,13 @@ describe("built-in-toggle stale context (#509)", () => {
 	it("captures cleanly on the next session_start after a stale capture", async () => {
 		setupBuiltInProviderToggles(mockPi);
 
-		await handlers.session_start({}, { modelRegistry: staleRegistry() });
+		await handlers.session_start!({}, { modelRegistry: staleRegistry() });
 		await settleDetachedCapture();
 
 		// The live session retries: pending state was cleared, so a fresh
 		// capture registers into the current session's registry.
 		const registerProvider = vi.fn();
-		await handlers.session_start(
+		await handlers.session_start!(
 			{},
 			{
 				modelRegistry: {
@@ -227,7 +227,7 @@ describe("built-in-toggle stale context (#509)", () => {
 
 		// No capture has run, so the command goes straight to tryCaptureProvider
 		// with the dead session's registry — must resolve, not reject.
-		await commands["toggle-opencode-free"](
+		await commands["toggle-opencode-free"]!(
 			{},
 			{ modelRegistry: staleRegistry() },
 		);

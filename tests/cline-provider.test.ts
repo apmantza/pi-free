@@ -293,8 +293,8 @@ describe("refreshModels offline init", () => {
 
 		const models = provider.getModels();
 		expect(models).toHaveLength(1);
-		expect(models[0].api).toBe("openai-completions");
-		expect(models[0].baseUrl).toBe(BASE_URL_CLINE);
+		expect(models[0]!.api).toBe("openai-completions");
+		expect(models[0]!.baseUrl).toBe(BASE_URL_CLINE);
 	});
 
 	it("normalizes legacy XML-api models restored from the Pi 0.84+ stored snapshot", async () => {
@@ -496,14 +496,14 @@ describe("refreshModels online", () => {
 		);
 		// Store persisted exactly once with the full catalog.
 		expect(written).toHaveLength(1);
-		expect(written[0].models.map((m) => m.id).sort()).toEqual(["a", "b"]);
-		expect(typeof written[0].checkedAt).toBe("number");
+		expect(written[0]!.models.map((m) => m.id).sort()).toEqual(["a", "b"]);
+		expect(typeof written[0]!.checkedAt).toBe("number");
 		// Persisted models carry the standard OpenAI wire api + provider + baseUrl.
-		expect(written[0].models.every((m) => m.api === "openai-completions")).toBe(
-			true,
-		);
-		expect(written[0].models.every((m) => m.provider === "cline")).toBe(true);
-		expect(written[0].models.every((m) => m.baseUrl === BASE_URL_CLINE)).toBe(
+		expect(
+			written[0]!.models.every((m) => m.api === "openai-completions"),
+		).toBe(true);
+		expect(written[0]!.models.every((m) => m.provider === "cline")).toBe(true);
+		expect(written[0]!.models.every((m) => m.baseUrl === BASE_URL_CLINE)).toBe(
 			true,
 		);
 		// Catalogs populated for the toggle.
@@ -725,8 +725,8 @@ describe("stream wiring", () => {
 			}
 
 			expect(captured).toHaveLength(1);
-			expect(captured[0].url).toBe(`${BASE_URL_CLINE}/chat/completions`);
-			const sent = captured[0].headers;
+			expect(captured[0]!.url).toBe(`${BASE_URL_CLINE}/chat/completions`);
+			const sent = captured[0]!.headers;
 			expect(sent["authorization"]).toBe("Bearer workos:test-token");
 			expect(sent["user-agent"]).toBe("Cline/4.1.10");
 			expect(sent["x-client-version"]).toBe("4.1.10");

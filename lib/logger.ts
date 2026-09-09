@@ -30,7 +30,7 @@ interface LogEntry {
 	level: LogLevel;
 	namespace: string;
 	message: string;
-	data?: Record<string, unknown>;
+	data?: Record<string, unknown> | undefined;
 }
 
 const LOG_LEVELS: Record<LogLevel, number> = {
@@ -272,7 +272,8 @@ function attachLogStream(stream: WriteStream, existingBytes: number): void {
 	logBytes = existingBytes;
 	const pending = queuedLines.splice(0);
 	for (let index = 0; index < pending.length; index++) {
-		const line = pending[index];
+		// Loop bounds prove defined.
+		const line = pending[index]!;
 		const bytes = Buffer.byteLength(line, "utf8");
 		if (logBytes > 0 && logBytes + bytes > MAX_LOG_BYTES) {
 			queuedLines.push(...pending.slice(index));

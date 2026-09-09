@@ -10,7 +10,7 @@ import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import { withGatewayCompat } from "../../lib/native-provider.ts";
 import { getProxyModelCompat } from "../../lib/provider-compat.ts";
 import { isFreeModel } from "../../lib/registry.ts";
-import { fetchWithRetry } from "../../lib/util.ts";
+import { fetchWithRetry, withSignal } from "../../lib/util.ts";
 import { createLogger } from "../../lib/logger.ts";
 
 const _logger = createLogger("zenmux-models");
@@ -38,7 +38,8 @@ function extractZenmuxPrice(
 ): number {
 	const entries = pricings?.[key];
 	if (!entries || entries.length === 0) return 0;
-	return (entries[0].value ?? 0) / 1_000_000;
+	// Length check above proves defined.
+	return (entries[0]!.value ?? 0) / 1_000_000;
 }
 
 /**
@@ -47,7 +48,7 @@ function extractZenmuxPrice(
  * token is sent when present.
  */
 export async function fetchZenmuxCatalog(options: {
-	token?: string;
+	token?: string | undefined;
 	signal?: AbortSignal;
 }): Promise<{ all: ProviderModelConfig[]; free: ProviderModelConfig[] }> {
 	if (options.signal?.aborted) {
@@ -57,15 +58,17 @@ export async function fetchZenmuxCatalog(options: {
 	try {
 		const response = await fetchWithRetry(
 			`${BASE_URL_ZENMUX}/models`,
-			{
-				headers: {
-					...(options.token && {
-						Authorization: `Bearer ${options.token}`,
-					}),
-					"Content-Type": "application/json",
+			withSignal(
+				{
+					headers: {
+						...(options.token && {
+							Authorization: `Bearer ${options.token}`,
+						}),
+						"Content-Type": "application/json",
+					},
 				},
-				signal: options.signal,
-			},
+				options.signal,
+			),
 			3,
 			1000,
 			DEFAULT_FETCH_TIMEOUT_MS,

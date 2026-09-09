@@ -42,7 +42,7 @@ import {
 	registerNativeAvailabilityProbe,
 	registerNativeOpenAIProvider,
 } from "../../lib/native-provider.ts";
-import { fetchWithRetry } from "../../lib/util.ts";
+import { fetchWithRetry, withSignal } from "../../lib/util.ts";
 import { novitaAuth } from "./novita-auth.ts";
 
 const _logger = createLogger("novita");
@@ -87,13 +87,15 @@ export async function fetchNovitaModels(
 	try {
 		const response = await fetchWithRetry(
 			`${BASE_URL_NOVITA}/models`,
-			{
-				headers: {
-					...(apiKey && { Authorization: `Bearer ${apiKey}` }),
-					"Content-Type": "application/json",
+			withSignal(
+				{
+					headers: {
+						...(apiKey && { Authorization: `Bearer ${apiKey}` }),
+						"Content-Type": "application/json",
+					},
 				},
 				signal,
-			},
+			),
 			3,
 			1000,
 			DEFAULT_FETCH_TIMEOUT_MS,

@@ -111,7 +111,7 @@ export interface NativeOpenAIProviderOptions {
 	auth: ProviderAuth;
 	getApiKey: () => string | undefined;
 	getShowPaid: () => boolean;
-	initialModels?: ProviderModelConfig[];
+	initialModels?: ProviderModelConfig[] | undefined;
 	fetchModels: (
 		apiKey: string,
 		signal?: AbortSignal,
@@ -661,7 +661,7 @@ type NativeRefreshContext = {
 	/** Pi 0.84+ generation-checked publication API. */
 	publish?: (publication: {
 		persist?: NativeModelsStoreEntry | null;
-		update?: () => void;
+		update?: (() => void) | undefined;
 	}) => Promise<boolean>;
 	/** Pi <=0.83 legacy provider store. */
 	store?: {

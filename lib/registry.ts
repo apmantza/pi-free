@@ -21,9 +21,9 @@ interface ProviderEntry {
 	reRegister: (models: ProviderModelConfig[]) => void;
 	hasKey: boolean;
 	/** Native providers keep the complete catalog and filter it in Pi. */
-	native?: boolean;
+	native?: boolean | undefined;
 	/** Re-register the native provider without rebuilding a model array. */
-	invalidate?: () => void;
+	invalidate?: (() => void) | undefined;
 }
 
 // =============================================================================
@@ -100,10 +100,12 @@ function isPricingExposedCached(allModels: ProviderModelConfig[]): boolean {
  */
 export function isFreeModel(
 	model: ProviderModelConfig & {
-		provider?: string;
-		_pricingKnown?: boolean;
-		_freeKnown?: boolean;
-		_isFree?: boolean;
+		// Explicit undefined is tolerated (and pinned by tests): absent
+		// and undefined behave identically in the Route A/B checks below.
+		provider?: string | undefined;
+		_pricingKnown?: boolean | undefined;
+		_freeKnown?: boolean | undefined;
+		_isFree?: boolean | undefined;
 	},
 	allModels?: ProviderModelConfig[],
 ): boolean {
@@ -113,10 +115,10 @@ export function isFreeModel(
 // Internal implementation to work around TypeScript filter callback issues
 function isFreeModelInternal(
 	model: ProviderModelConfig & {
-		provider?: string;
-		_pricingKnown?: boolean;
-		_freeKnown?: boolean;
-		_isFree?: boolean;
+		provider?: string | undefined;
+		_pricingKnown?: boolean | undefined;
+		_freeKnown?: boolean | undefined;
+		_isFree?: boolean | undefined;
 	},
 	allModels: ProviderModelConfig[] | undefined,
 ): boolean {

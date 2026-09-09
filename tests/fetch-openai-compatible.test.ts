@@ -35,11 +35,11 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 		);
 
 		expect(models).toHaveLength(1);
-		expect(models[0].id).toBe("meta/llama-3-70b");
-		expect(models[0].contextWindow).toBe(64_000); // from defaults
-		expect(models[0].maxTokens).toBe(8_192); // from defaults
-		expect(models[0].cost.input).toBe(0); // default when no pricing
-		expect(models[0].input).toEqual(["text"]);
+		expect(models[0]!.id).toBe("meta/llama-3-70b");
+		expect(models[0]!.contextWindow).toBe(64_000); // from defaults
+		expect(models[0]!.maxTokens).toBe(8_192); // from defaults
+		expect(models[0]!.cost.input).toBe(0); // default when no pricing
+		expect(models[0]!.input).toEqual(["text"]);
 	});
 
 	// ── Per-model context_length ───────────────────────────────
@@ -60,7 +60,7 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 			"sk-test",
 		);
 
-		expect(models[0].contextWindow).toBe(1_000_000);
+		expect(models[0]!.contextWindow).toBe(1_000_000);
 	});
 
 	// ── Alternate field name: max_context_length ───────────────
@@ -80,7 +80,7 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 			"sk-test",
 		);
 
-		expect(models[0].contextWindow).toBe(200_000);
+		expect(models[0]!.contextWindow).toBe(200_000);
 	});
 
 	// ── Alternate field name: context_window (snake_case) ──────
@@ -100,7 +100,7 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 			"sk-test",
 		);
 
-		expect(models[0].contextWindow).toBe(131_072);
+		expect(models[0]!.contextWindow).toBe(131_072);
 	});
 
 	// ── Priority: context_length > max_context_length > context_window > default
@@ -123,7 +123,7 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 			{ contextWindow: 99_999 },
 		);
 
-		expect(models[0].contextWindow).toBe(100_000);
+		expect(models[0]!.contextWindow).toBe(100_000);
 	});
 
 	// ── Per-model max_completion_tokens ────────────────────────
@@ -143,7 +143,7 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 			"sk-test",
 		);
 
-		expect(models[0].maxTokens).toBe(131_072);
+		expect(models[0]!.maxTokens).toBe(131_072);
 	});
 
 	// ── Alternate field name: max_tokens ───────────────────────
@@ -163,7 +163,7 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 			"sk-test",
 		);
 
-		expect(models[0].maxTokens).toBe(65_536);
+		expect(models[0]!.maxTokens).toBe(65_536);
 	});
 
 	// ── Per-model pricing ──────────────────────────────────────
@@ -183,8 +183,8 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 			"sk-test",
 		);
 
-		expect(models[0].cost.input).toBe(0.000003);
-		expect(models[0].cost.output).toBe(0.000015);
+		expect(models[0]!.cost.input).toBe(0.000003);
+		expect(models[0]!.cost.output).toBe(0.000015);
 	});
 
 	it("reads per-model pricing from API (string)", async () => {
@@ -203,8 +203,8 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 			"sk-test",
 		);
 
-		expect(models[0].cost.input).toBe(0.0000045);
-		expect(models[0].cost.output).toBe(0.000009);
+		expect(models[0]!.cost.input).toBe(0.0000045);
+		expect(models[0]!.cost.output).toBe(0.000009);
 	});
 
 	it("per-model pricing overrides defaults", async () => {
@@ -224,8 +224,8 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 			{ cost: { input: 0.1, output: 0.2 } },
 		);
 
-		expect(models[0].cost.input).toBe(1.5); // API wins over defaults
-		expect(models[0].cost.output).toBe(4);
+		expect(models[0]!.cost.input).toBe(1.5); // API wins over defaults
+		expect(models[0]!.cost.output).toBe(4);
 	});
 
 	// ── Per-model reasoning ────────────────────────────────────
@@ -245,7 +245,7 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 			"sk-test",
 		);
 
-		expect(models[0].reasoning).toBe(true);
+		expect(models[0]!.reasoning).toBe(true);
 	});
 
 	it("falls back to name heuristic when reasoning not in API", async () => {
@@ -259,7 +259,7 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 			"sk-test",
 		);
 
-		expect(models[0].reasoning).toBe(true); // "r1" in name
+		expect(models[0]!.reasoning).toBe(true); // "r1" in name
 	});
 
 	// ── Per-model input_modalities ─────────────────────────────
@@ -279,7 +279,7 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 			"sk-test",
 		);
 
-		expect(models[0].input).toEqual(["text", "image"]);
+		expect(models[0]!.input).toEqual(["text", "image"]);
 	});
 
 	it("defaults to text-only when no input_modalities", async () => {
@@ -293,7 +293,7 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 			"sk-test",
 		);
 
-		expect(models[0].input).toEqual(["text"]);
+		expect(models[0]!.input).toEqual(["text"]);
 	});
 
 	it("respects explicit defaults.input even without vision", async () => {
@@ -309,7 +309,7 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 		);
 
 		// Explicit default.input takes priority over no-vision fallback
-		expect(models[0].input).toEqual(["text", "image"]);
+		expect(models[0]!.input).toEqual(["text", "image"]);
 	});
 
 	// ── Plain array response (Together AI format) ──────────────
@@ -323,7 +323,7 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 		);
 
 		expect(models).toHaveLength(2);
-		expect(models[0].id).toBe("together/model-1");
+		expect(models[0]!.id).toBe("together/model-1");
 	});
 
 	// ── Empty responses ────────────────────────────────────────
@@ -351,7 +351,7 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 
 		expect(models).toHaveLength(1);
 		const init = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
-			.calls[0][1] as { headers: Record<string, string> };
+			.calls[0]![1] as { headers: Record<string, string> };
 		expect(init.headers).not.toHaveProperty("Authorization");
 	});
 
@@ -365,7 +365,7 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 		);
 
 		const init = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
-			.calls[0][1] as { headers: Record<string, string> };
+			.calls[0]![1] as { headers: Record<string, string> };
 		expect(init.headers.Authorization).toBe("Bearer sk-test");
 	});
 

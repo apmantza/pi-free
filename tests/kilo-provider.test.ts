@@ -254,8 +254,8 @@ describe("refreshModels online", () => {
 		expect(mockFetchKiloCatalog).toHaveBeenCalledTimes(1);
 		// Store persisted exactly once with the full catalog.
 		expect(written).toHaveLength(1);
-		expect(written[0].models.map((m) => m.id).sort()).toEqual(["a", "b"]);
-		expect(typeof written[0].checkedAt).toBe("number");
+		expect(written[0]!.models.map((m) => m.id).sort()).toEqual(["a", "b"]);
+		expect(typeof written[0]!.checkedAt).toBe("number");
 		// Catalogs populated for the toggle.
 		expect(stored.all).toHaveLength(2);
 		expect(stored.free).toHaveLength(1);

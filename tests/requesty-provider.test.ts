@@ -104,7 +104,7 @@ describe("fetchRequestyModels", () => {
 
 		const models = await fetchRequestyModels("");
 		expect(models).toHaveLength(1);
-		expect(models[0].id).toBe("nvidia/nemotron-3-super-120b-a12b");
+		expect(models[0]!.id).toBe("nvidia/nemotron-3-super-120b-a12b");
 		const [url, init] = fetchMock.mock.calls[0] as unknown as [
 			string,
 			RequestInit,

@@ -81,14 +81,14 @@ let debugEnabled = process.env.PI_FREE_BENCHMARK_DEBUG === "1";
  * "benchmark-lookup" namespace, using the buffered stream (no sync I/O).
  */
 function logDebug(entry: {
-	provider?: string;
+	provider?: string | undefined;
 	modelId: string;
 	modelName: string;
 	action: "attempt" | "match" | "miss" | "normalized";
 	strategy?: string;
 	normalizedId?: string;
 	matchKey?: string;
-	codingIndex?: number;
+	codingIndex?: number | undefined;
 	details?: string;
 }): void {
 	if (!debugEnabled) return;
@@ -355,12 +355,17 @@ function normalizeSizeTokenOrder(id: string): string {
 	const suffixes = new Set(["instruct", "chat"]);
 	const parts = id.split("-");
 	for (let i = 0; i < parts.length - 1; i++) {
-		const lower = parts[i].toLowerCase();
-		if (lower.endsWith("b") && suffixes.has(parts[i + 1].toLowerCase())) {
+		// Loop bounds prove both defined; the guard keeps it honest
+		// instead of asserting.
+		const current = parts[i];
+		const next = parts[i + 1];
+		if (current === undefined || next === undefined) continue;
+		const lower = current.toLowerCase();
+		if (lower.endsWith("b") && suffixes.has(next.toLowerCase())) {
 			// Validate the part before 'b' is a number
 			const num = lower.slice(0, -1);
 			if (num.length > 0 && !Number.isNaN(Number.parseFloat(num))) {
-				[parts[i], parts[i + 1]] = [parts[i + 1], parts[i]];
+				[parts[i], parts[i + 1]] = [next, current];
 				break;
 			}
 		}

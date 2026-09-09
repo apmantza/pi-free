@@ -63,9 +63,10 @@ function resolveExe(name: string, absolutePath: string): string {
 	try {
 		const which = process.platform === "win32" ? "where" : "which";
 		// Use execFileSync with separate args — no shell injection vector
-		return execFileSync(which, [name], { encoding: "utf8" })
-			.trim()
-			.split("\n")[0];
+		return (
+			execFileSync(which, [name], { encoding: "utf8" }).trim().split("\n")[0] ??
+			name
+		);
 	} catch {
 		return name; // Last-resort fallback
 	}

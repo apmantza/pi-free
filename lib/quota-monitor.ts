@@ -90,8 +90,11 @@ function extractQuota(
 	}
 
 	for (const [remainingKey, limitKey] of HEADER_PAIRS) {
-		const remaining = Number.parseFloat(normalized[remainingKey]);
-		const limit = Number.parseFloat(normalized[limitKey]);
+		const remainingRaw = normalized[remainingKey];
+		const limitRaw = normalized[limitKey];
+		if (remainingRaw === undefined || limitRaw === undefined) continue;
+		const remaining = Number.parseFloat(remainingRaw);
+		const limit = Number.parseFloat(limitRaw);
 		if (Number.isFinite(remaining) && Number.isFinite(limit) && limit > 0) {
 			return { remaining, limit, source: remainingKey };
 		}

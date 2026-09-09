@@ -33,7 +33,9 @@ function extractRelativeSpecifiers(content: string): string[] {
 	IMPORT_SPECIFIER_RE.lastIndex = 0;
 	let match = IMPORT_SPECIFIER_RE.exec(content);
 	while (match) {
-		if (match[1].startsWith(".")) specifiers.push(match[1]);
+		// Group 1 is mandatory when the overall pattern matches.
+		const specifier = match[1]!;
+		if (specifier.startsWith(".")) specifiers.push(specifier);
 		match = IMPORT_SPECIFIER_RE.exec(content);
 	}
 	return specifiers;

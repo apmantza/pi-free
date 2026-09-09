@@ -39,7 +39,7 @@ import {
 	registerNativeAvailabilityProbe,
 	registerNativeOpenAIProvider,
 } from "../../lib/native-provider.ts";
-import { cleanModelName, fetchWithRetry } from "../../lib/util.ts";
+import { cleanModelName, fetchWithRetry, withSignal } from "../../lib/util.ts";
 import { routewayAuth } from "./routeway-auth.ts";
 
 const _logger = createLogger("routeway");
@@ -135,14 +135,16 @@ async function fetchRoutewayModels(
 	try {
 		const response = await fetchWithRetry(
 			`${BASE_URL_ROUTEWAY}/models`,
-			{
-				headers: {
-					...(apiKey && { Authorization: `Bearer ${apiKey}` }),
-					Accept: "application/json",
-					"Content-Type": "application/json",
+			withSignal(
+				{
+					headers: {
+						...(apiKey && { Authorization: `Bearer ${apiKey}` }),
+						Accept: "application/json",
+						"Content-Type": "application/json",
+					},
 				},
 				signal,
-			},
+			),
 			3,
 			1000,
 			DEFAULT_FETCH_TIMEOUT_MS,

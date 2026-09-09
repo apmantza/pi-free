@@ -34,7 +34,9 @@ export function recordAction(kind: ActionKind, summary: string): void {
 /** Newest-first copy of the ring (empty when nothing recorded yet). */
 export function getRecentActions(): ActionRecord[] {
 	const out: ActionRecord[] = [];
-	for (let i = ring.length - 1; i >= 0; i--) out.push(ring[i]);
+	// Loop bounds prove defined; the assertion documents it (no guard
+	// that could never fire).
+	for (let i = ring.length - 1; i >= 0; i--) out.push(ring[i]!);
 	return out;
 }
 

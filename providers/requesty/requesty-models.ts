@@ -16,7 +16,7 @@ import {
 	PROVIDER_REQUESTY,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
-import { fetchWithRetry } from "../../lib/util.ts";
+import { fetchWithRetry, withSignal } from "../../lib/util.ts";
 
 const _logger = createLogger("requesty-models");
 
@@ -94,10 +94,12 @@ export async function fetchRequestyModels(
 	}
 	const response = await fetchWithRetry(
 		`${BASE_URL_REQUESTY}/models`,
-		{
-			headers,
+		withSignal(
+			{
+				headers,
+			},
 			signal,
-		},
+		),
 		1,
 		1_000,
 		DEFAULT_FETCH_TIMEOUT_MS,

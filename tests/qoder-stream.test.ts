@@ -326,7 +326,7 @@ describe("Qoder stream parsing", () => {
 
 		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
 
-		const bodyRaw = fetchMock.mock.calls[0][1].body;
+		const bodyRaw = fetchMock.mock.calls[0]![1].body;
 		let body: Record<string, unknown>;
 		try {
 			body = JSON.parse(bodyRaw.toString());

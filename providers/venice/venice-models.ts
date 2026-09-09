@@ -28,7 +28,7 @@ import {
 	PROVIDER_VENICE,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
-import { fetchWithRetry } from "../../lib/util.ts";
+import { fetchWithRetry, withSignal } from "../../lib/util.ts";
 
 const _logger = createLogger("venice-models");
 
@@ -143,10 +143,12 @@ export async function fetchVeniceModels(
 	}
 	const response = await fetchWithRetry(
 		`${BASE_URL_VENICE}/models?type=text`,
-		{
-			headers,
+		withSignal(
+			{
+				headers,
+			},
 			signal,
-		},
+		),
 		1,
 		1_000,
 		DEFAULT_FETCH_TIMEOUT_MS,

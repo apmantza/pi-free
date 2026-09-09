@@ -67,7 +67,7 @@ import {
 	getProxyModelCompat,
 	isLikelyReasoningModel,
 } from "../../lib/provider-compat.ts";
-import { cleanModelName, fetchWithRetry } from "../../lib/util.ts";
+import { cleanModelName, fetchWithRetry, withSignal } from "../../lib/util.ts";
 import { tokenRouterAuth } from "./tokenrouter-auth.ts";
 
 const _logger = createLogger("tokenrouter");
@@ -427,14 +427,16 @@ async function fetchTokenRouterModels(
 	try {
 		const response = await fetchWithRetry(
 			`${BASE_URL_TOKENROUTER}/models`,
-			{
-				headers: {
-					Authorization: `Bearer ${apiKey}`,
-					Accept: "application/json",
-					"Content-Type": "application/json",
+			withSignal(
+				{
+					headers: {
+						Authorization: `Bearer ${apiKey}`,
+						Accept: "application/json",
+						"Content-Type": "application/json",
+					},
 				},
 				signal,
-			},
+			),
 			3,
 			1000,
 			DEFAULT_FETCH_TIMEOUT_MS,

@@ -49,6 +49,11 @@ vi.mock("../lib/registry.ts", () => ({
 
 vi.mock("../lib/util.ts", () => ({
 	fetchWithRetry: (...args: unknown[]) => mockFetchWithRetry(...args),
+	// Mirror semantics: omit an undefined signal (RequestInit is lib.dom).
+	withSignal: (init: RequestInit, signal?: AbortSignal) => {
+		if (signal) init.signal = signal;
+		return init;
+	},
 }));
 
 vi.mock("../lib/model-metadata.ts", () => ({
@@ -243,7 +248,7 @@ describe("createZenmuxProvider", () => {
 		expect(stored.all).toHaveLength(2);
 		expect(stored.free).toHaveLength(1);
 		expect(written).toHaveLength(1);
-		expect(written[0].models.map((model) => model.id)).toEqual([
+		expect(written[0]!.models.map((model) => model.id)).toEqual([
 			"free-model",
 			"paid-model",
 		]);

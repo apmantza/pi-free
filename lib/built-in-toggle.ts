@@ -172,13 +172,15 @@ const providerStates = new Map<string, BuiltInProviderState>();
  */
 interface SavedModelSnapshot {
 	modelRegistry: CurrentModelRegistry;
-	sessionManager?: {
-		buildSessionContext?: () => {
-			model: { provider: string; modelId: string } | null;
-		};
-		getEntries?: () => unknown[];
-	};
-	model?: { provider: string; id: string };
+	sessionManager?:
+		| {
+				buildSessionContext?: () => {
+					model: { provider: string; modelId: string } | null;
+				};
+				getEntries?: () => unknown[];
+		  }
+		| undefined;
+	model?: { provider: string; id: string } | undefined;
 }
 
 interface PendingCapture {
@@ -390,7 +392,7 @@ const CLOCK_SKEW_MS = 5_000;
 interface ModelChangeEntry {
 	provider: string;
 	modelId: string;
-	timestamp?: string;
+	timestamp?: string | undefined;
 }
 
 function readModelChanges(
@@ -451,7 +453,8 @@ function resolveSavedModelChoice(
 	const changes = readModelChanges(session);
 	if (!changes || changes.length === 0) return undefined;
 	for (let i = changes.length - 1; i >= 0; i--) {
-		const change = changes[i];
+		// Loop bounds prove defined.
+		const change = changes[i]!;
 		const at = change.timestamp ? Date.parse(change.timestamp) : Number.NaN;
 		if (Number.isNaN(at) || at < RUN_STARTED_AT - CLOCK_SKEW_MS) {
 			// Last user choice (or undatable): restore iff ours, else
@@ -608,11 +611,15 @@ async function tryCaptureProvider(
 	const allModels = providerModels.map((m: Model<Api>) =>
 		modelToProviderConfig(m),
 	);
+	// Real guard (not an assertion): the length check above doesn't
+	// narrow [0] for the compiler.
+	const [first] = providerModels;
+	if (!first) return undefined;
 
 	return createProviderState(pi, config, {
 		allModels,
-		baseUrl: providerModels[0].baseUrl,
-		api: providerModels[0].api,
+		baseUrl: first.baseUrl,
+		api: first.api,
 		apiKey: await resolveApiKey(config.id, ctx.modelRegistry),
 		source: "captured",
 		modelRegistry: ctx.modelRegistry,
@@ -626,7 +633,7 @@ function createProviderState(
 		allModels: ProviderModelConfig[];
 		baseUrl: string;
 		api: Api;
-		apiKey?: string;
+		apiKey?: string | undefined;
 		source: "captured";
 		modelRegistry: CurrentModelRegistry;
 	},
@@ -638,8 +645,11 @@ function createProviderState(
 		isFreeModel({ ...m, provider: config.id }, allModels),
 	);
 
+	// No return-type annotation: Babel 8 (Stryker's instrumenter parser)
+	// rejects typed arrows in ternary position (UnexpectedTypeAnnotation).
+	// tsc still checks the inferred return at the assignment below.
 	const refreshModels = config.refreshEndpoint
-		? async (context: RefreshModelsContext): Promise<ProviderModelConfig[]> => {
+		? async (context: RefreshModelsContext) => {
 				const currentModels = () =>
 					stateForRefresh?.toggleState.getCurrentModels() ?? allModels;
 				if (!context.allowNetwork) {
@@ -1081,9 +1091,12 @@ function modelToProviderConfig(m: Model<Api>): ProviderModelConfig {
 		cost: m.cost,
 		contextWindow: m.contextWindow,
 		maxTokens: m.maxTokens,
-		headers: openCodeHeaders ?? m.headers,
 		compat: (m as any).compat,
 	};
+	// ProviderModelConfig is Pi-owned (no undefined members): omit headers
+	// when neither source produced any, instead of assigning undefined.
+	const resolvedHeaders = openCodeHeaders ?? m.headers;
+	if (resolvedHeaders) base.headers = resolvedHeaders;
 
 	// The provider-level OpenCode wrapper still regenerates headers, while the
 	// model-level API is preserved so Anthropic/Responses/Google routes remain

@@ -321,14 +321,18 @@ async function runDeviceFlow(
 		await abortableDelay(pollInterval, getSignal());
 
 		try {
-			const response = await fetch(pollURL, {
+			// RequestInit is lib.dom (no undefined members): getSignal()
+			// may return undefined — omit instead of assigning it.
+			const pollInit: RequestInit = {
 				method: "GET",
 				headers: {
 					Accept: "application/json",
 					"User-Agent": UA,
 				},
-				signal: getSignal(),
-			});
+			};
+			const pollSignal = getSignal();
+			if (pollSignal) pollInit.signal = pollSignal;
+			const response = await fetch(pollURL, pollInit);
 
 			if (response.status === 202 || response.status === 404) {
 				continue;
@@ -517,12 +521,16 @@ export async function refreshQoderToken(
 export async function loginQoderNative(
 	interaction: AuthInteraction,
 ): Promise<OAuthCredential> {
-	const credentials = await loginQoder({
+	// OAuthLoginCallbacks is Pi-owned (no undefined members): omit
+	// signal/instructions/placeholder instead of assigning undefined.
+	const callbacks: OAuthLoginCallbacks = {
 		onAuth: (info: { url: string; instructions?: string }) =>
 			interaction.notify({
 				type: "auth_url",
 				url: info.url,
-				instructions: info.instructions,
+				...(info.instructions !== undefined
+					? { instructions: info.instructions }
+					: {}),
 			}),
 		onProgress: (message: string) =>
 			interaction.notify({ type: "progress", message }),
@@ -530,9 +538,10 @@ export async function loginQoderNative(
 			interaction.prompt({
 				type: "text",
 				message: prompt.message,
-				placeholder: prompt.placeholder,
+				...(prompt.placeholder !== undefined
+					? { placeholder: prompt.placeholder }
+					: {}),
 			}),
-		signal: interaction.signal,
 		// The device/PAT flow exercised by this adapter only invokes
 		// onAuth/onProgress/onPrompt/signal. The interface's remaining required
 		// hooks are implemented explicitly (not cast away) so the object is a
@@ -546,7 +555,9 @@ export async function loginQoderNative(
 				verificationUri: info.verificationUri,
 			}),
 		onSelect: () => Promise.resolve(undefined),
-	});
+	};
+	if (interaction.signal) callbacks.signal = interaction.signal;
+	const credentials = await loginQoder(callbacks);
 	return { ...credentials, type: "oauth" };
 }
 

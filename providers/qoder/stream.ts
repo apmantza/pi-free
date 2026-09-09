@@ -25,6 +25,7 @@ import type {
 import { AssistantMessageEventStream as LocalAssistantMessageEventStream } from "../../lib/assistant-message-event-stream.ts";
 import { BASE_URL_QODER } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
+import { withSignal } from "../../lib/util.ts";
 import { getCachedModelConfig, staticModels } from "./models.ts";
 import { ThinkingTagParser } from "./thinking-parser.ts";
 import { transformMessagesForQoder, transformTools } from "./transform.ts";
@@ -410,12 +411,17 @@ async function fetchQoderStream(
 		"User-Agent": "pi-free-providers",
 	};
 
-	const response = await fetch(QODER_CHAT_URL, {
-		method: "POST",
-		headers,
-		body: Buffer.from(JSON.stringify(reqBody)),
-		signal,
-	});
+	const response = await fetch(
+		QODER_CHAT_URL,
+		withSignal(
+			{
+				method: "POST",
+				headers,
+				body: Buffer.from(JSON.stringify(reqBody)),
+			},
+			signal,
+		),
+	);
 
 	if (!response.ok) {
 		const errText = await response.text();

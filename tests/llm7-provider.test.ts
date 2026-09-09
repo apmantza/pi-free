@@ -359,19 +359,19 @@ describe("refreshModels online", () => {
 		expect(mockFetch).not.toHaveBeenCalled();
 		// Store persisted exactly once with the full catalog.
 		expect(written).toHaveLength(1);
-		expect(written[0].models.map((m) => m.id)).toEqual([
+		expect(written[0]!.models.map((m) => m.id)).toEqual([
 			"default",
 			"fast",
 			"pro",
 		]);
-		expect(typeof written[0].checkedAt).toBe("number");
+		expect(typeof written[0]!.checkedAt).toBe("number");
 		// Persisted models carry the native wire api + provider + baseUrl.
-		expect(written[0].models.every((m) => m.api === "openai-completions")).toBe(
-			true,
-		);
-		expect(written[0].models.every((m) => m.provider === "llm7")).toBe(true);
 		expect(
-			written[0].models.every((m) => m.baseUrl === "https://api.llm7.io/v1"),
+			written[0]!.models.every((m) => m.api === "openai-completions"),
+		).toBe(true);
+		expect(written[0]!.models.every((m) => m.provider === "llm7")).toBe(true);
+		expect(
+			written[0]!.models.every((m) => m.baseUrl === "https://api.llm7.io/v1"),
 		).toBe(true);
 		// Catalogs populated for the toggle.
 		expect(stored.all.map((m) => m.id)).toEqual(["default", "fast", "pro"]);

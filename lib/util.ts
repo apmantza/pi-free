@@ -15,6 +15,7 @@ export {
 	MAX_RETRY_BACKOFF_MS,
 	parseModelResponse,
 	withFetchDeadline,
+	withSignal,
 } from "./fetch.ts";
 export {
 	cleanModelName,

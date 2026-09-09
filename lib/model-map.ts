@@ -138,7 +138,9 @@ function parseMoeSize(lower: string): MoeSize | null {
 	while (true) {
 		const xIdx = lower.indexOf("x", searchPos);
 		if (xIdx <= 0) break;
-		const beforeChar = lower[xIdx - 1];
+		// charAt (not []) — out-of-range yields "" which fails the digit
+		// checks below, matching the guards' intent under indexed access.
+		const beforeChar = lower.charAt(xIdx - 1);
 		if (!(beforeChar >= "0" && beforeChar <= "9")) {
 			searchPos = xIdx + 1;
 			continue;
@@ -151,8 +153,8 @@ function parseMoeSize(lower: string): MoeSize | null {
 		let countStart = xIdx - 1;
 		while (
 			countStart > 0 &&
-			lower[countStart - 1] >= "0" &&
-			lower[countStart - 1] <= "9"
+			lower.charAt(countStart - 1) >= "0" &&
+			lower.charAt(countStart - 1) <= "9"
 		) {
 			countStart--;
 		}
@@ -167,7 +169,8 @@ function parseMoeSize(lower: string): MoeSize | null {
 			const afterB = lower.slice(bIdx + 1);
 			if (
 				afterB.length === 0 ||
-				((afterB[0] < "0" || afterB[0] > "9") && afterB[0] !== ".")
+				((afterB.charAt(0) < "0" || afterB.charAt(0) > "9") &&
+					afterB.charAt(0) !== ".")
 			) {
 				return { type: "moe", experts, sizePerExpert: size };
 			}
@@ -182,19 +185,20 @@ function parseMoeSize(lower: string): MoeSize | null {
  */
 function parseStandardSize(lower: string): StandardSize | null {
 	for (let i = 0; i < lower.length; i++) {
-		if (lower[i] !== "b") continue;
+		if (lower.charAt(i) !== "b") continue;
 		const afterB = lower.slice(i + 1);
 		if (
 			afterB.length > 0 &&
-			((afterB[0] >= "0" && afterB[0] <= "9") || afterB[0] === ".")
+			((afterB.charAt(0) >= "0" && afterB.charAt(0) <= "9") ||
+				afterB.charAt(0) === ".")
 		) {
 			continue; // b followed by digit or dot — not our match
 		}
 		let start = i;
 		while (
 			start > 0 &&
-			((lower[start - 1] >= "0" && lower[start - 1] <= "9") ||
-				lower[start - 1] === ".")
+			((lower.charAt(start - 1) >= "0" && lower.charAt(start - 1) <= "9") ||
+				lower.charAt(start - 1) === ".")
 		) {
 			start--;
 		}
@@ -263,12 +267,14 @@ export function mapOpenRouterModel(m: {
 		context_length?: number | null;
 		max_completion_tokens?: number | null;
 	};
-	pricing?: {
-		prompt?: string | null;
-		completion?: string | null;
-		input_cache_read?: string | null;
-		input_cache_write?: string | null;
-	};
+	pricing?:
+		| {
+				prompt?: string | null;
+				completion?: string | null;
+				input_cache_read?: string | null;
+				input_cache_write?: string | null;
+		  }
+		| undefined;
 	architecture?: {
 		input_modalities?: string[] | null;
 		output_modalities?: string[] | null;
@@ -495,18 +501,21 @@ export async function fetchOpenAICompatibleModels(
 	logger.info(`[${providerId}] Fetching models...`);
 
 	try {
+		// RequestInit is lib.dom (no undefined members): omit signal
+		// instead of assigning undefined.
+		const modelsInit: RequestInit = {
+			headers: {
+				// Public catalogs accept anonymous requests; an empty `Bearer `
+				// header can be rejected by gateways that would otherwise
+				// serve the endpoint anonymously.
+				...(apiKey && { Authorization: `Bearer ${apiKey}` }),
+				"Content-Type": "application/json",
+			},
+		};
+		if (signal) modelsInit.signal = signal;
 		const response = await fetchWithRetry(
 			`${baseUrl}/models`,
-			{
-				headers: {
-					// Public catalogs accept anonymous requests; an empty `Bearer `
-					// header can be rejected by gateways that would otherwise
-					// serve the endpoint anonymously.
-					...(apiKey && { Authorization: `Bearer ${apiKey}` }),
-					"Content-Type": "application/json",
-				},
-				signal,
-			},
+			modelsInit,
 			3,
 			1000,
 			30000,

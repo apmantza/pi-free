@@ -42,7 +42,8 @@ describe("mapRelatedTests", () => {
 		(files: Record<string, string>) =>
 		(file: string): string => {
 			if (!(file in files)) throw new Error(`no fixture: ${file}`);
-			return files[file];
+			// Throw-guard above proves defined.
+			return files[file]!;
 		};
 
 	it("maps siblings and one-hop importers", () => {

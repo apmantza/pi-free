@@ -264,7 +264,7 @@ function mergeCompat(
 
 export interface ModelsDevEnrichmentOptions {
 	/** Provider id to scope models.dev lookup. Omit to search all providers. */
-	providerId?: string;
+	providerId?: string | undefined;
 	/** Values treated as provider defaults and safe to replace from models.dev. */
 	fallbackContextWindows?: number[];
 	fallbackMaxTokens?: number[];

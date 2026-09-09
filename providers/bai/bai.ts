@@ -39,7 +39,7 @@ import {
 	isLikelyReasoningModel,
 } from "../../lib/provider-compat.ts";
 import { registerNativeOpenAIProvider } from "../../lib/native-provider.ts";
-import { cleanModelName, fetchWithRetry } from "../../lib/util.ts";
+import { cleanModelName, fetchWithRetry, withSignal } from "../../lib/util.ts";
 import { baiAuth } from "./bai-auth.ts";
 
 const _logger = createLogger("bai");
@@ -153,14 +153,16 @@ async function fetchBaiModels(
 	try {
 		const response = await fetchWithRetry(
 			`${BASE_URL_BAI}/models`,
-			{
-				headers: {
-					Authorization: `Bearer ${apiKey}`,
-					Accept: "application/json",
-					"Content-Type": "application/json",
+			withSignal(
+				{
+					headers: {
+						Authorization: `Bearer ${apiKey}`,
+						Accept: "application/json",
+						"Content-Type": "application/json",
+					},
 				},
 				signal,
-			},
+			),
 			3,
 			1000,
 			DEFAULT_FETCH_TIMEOUT_MS,

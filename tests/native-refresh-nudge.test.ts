@@ -46,7 +46,7 @@ afterEach(() => {
 });
 
 async function fireSessionStart(pi: ReturnType<typeof mockPi>, ctx: unknown) {
-	await pi.handlers["session_start"]({}, ctx);
+	await pi.handlers["session_start"]!({}, ctx);
 	// Flush the detached chain (refresh await + result handling).
 	await vi.advanceTimersByTimeAsync(0);
 }

@@ -97,8 +97,8 @@ describe("startup-timing", () => {
 		expect(order[0]).toBe("slow");
 		// Durations are monotonically non-increasing (slowest-first invariant).
 		for (let i = 1; i < summary.providers.length; i++) {
-			expect(summary.providers[i - 1].durationMs).toBeGreaterThanOrEqual(
-				summary.providers[i].durationMs,
+			expect(summary.providers[i - 1]!.durationMs).toBeGreaterThanOrEqual(
+				summary.providers[i]!.durationMs,
 			);
 		}
 	});

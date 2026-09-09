@@ -31,7 +31,7 @@ describe("wire-signature logging (M3, #437)", () => {
 		});
 
 		expect(mockDebug).toHaveBeenCalledTimes(1);
-		const [message, data] = mockDebug.mock.calls[0];
+		const [message, data] = mockDebug.mock.calls[0]!;
 		expect(message).toContain("agent request contract");
 		expect(data.provider).toBe("cline");
 		expect(data.model).toBe("nvidia/nemotron-3.5-lightning:free");
@@ -61,7 +61,7 @@ describe("wire-signature logging (M3, #437)", () => {
 			() => ({ headers: { "User-Agent": "pi-free-providers" } }),
 		);
 
-		const data = mockDebug.mock.calls[0][1];
+		const data = mockDebug.mock.calls[0]![1];
 		expect(data.headerNames).toEqual(
 			expect.arrayContaining(["User-Agent", "X-Task-ID"]),
 		);
@@ -79,6 +79,6 @@ describe("wire-signature logging (M3, #437)", () => {
 			}),
 		).not.toThrow();
 		expect(mockDebug).toHaveBeenCalledTimes(1);
-		expect(mockDebug.mock.calls[0][1].headerNames).toEqual([]);
+		expect(mockDebug.mock.calls[0]![1].headerNames).toEqual([]);
 	});
 });

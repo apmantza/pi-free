@@ -34,7 +34,7 @@ import {
 	isLikelyReasoningModel,
 } from "../../lib/provider-compat.ts";
 import { registerNativeOpenAIProvider } from "../../lib/native-provider.ts";
-import { fetchWithRetry } from "../../lib/util.ts";
+import { fetchWithRetry, withSignal } from "../../lib/util.ts";
 import { crofaiAuth } from "./crofai-auth.ts";
 
 const _logger = createLogger("crofai");
@@ -75,13 +75,15 @@ async function fetchCrofaiModels(
 ): Promise<ProviderModelConfig[]> {
 	const response = await fetchWithRetry(
 		`${BASE_URL_CROFAI}/models`,
-		{
-			headers: {
-				...(apiKey && { Authorization: `Bearer ${apiKey}` }),
-				"Content-Type": "application/json",
+		withSignal(
+			{
+				headers: {
+					...(apiKey && { Authorization: `Bearer ${apiKey}` }),
+					"Content-Type": "application/json",
+				},
 			},
 			signal,
-		},
+		),
 		3,
 		1000,
 		DEFAULT_FETCH_TIMEOUT_MS,

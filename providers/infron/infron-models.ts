@@ -26,7 +26,7 @@ import {
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { isLikelyReasoningModel } from "../../lib/provider-compat.ts";
-import { fetchWithRetry } from "../../lib/util.ts";
+import { fetchWithRetry, withSignal } from "../../lib/util.ts";
 
 const _logger = createLogger("infron-models");
 
@@ -142,10 +142,12 @@ export async function fetchInfronModels(
 	}
 	const response = await fetchWithRetry(
 		`${BASE_URL_INFRON}/models`,
-		{
-			headers,
+		withSignal(
+			{
+				headers,
+			},
 			signal,
-		},
+		),
 		1,
 		1_000,
 		DEFAULT_FETCH_TIMEOUT_MS,

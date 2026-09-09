@@ -36,7 +36,11 @@ import {
 	getModelsDueForProbe,
 	recordModelProbeResults,
 } from "../../lib/probe-cache.ts";
-import { fetchWithRetry, fetchWithTimeout } from "../../lib/util.ts";
+import {
+	fetchWithRetry,
+	fetchWithTimeout,
+	withSignal,
+} from "../../lib/util.ts";
 import { resolveThinkingMap } from "./thinking-levels.ts";
 import {
 	createOllamaProvider as createNativeOllamaProvider,
@@ -356,7 +360,8 @@ async function concurrentMap<T, R>(
 				try {
 					results[index] = {
 						status: "fulfilled",
-						value: await fn(items[index]),
+						// Pool guard (`next < items.length`) proves defined.
+						value: await fn(items[index]!),
 					};
 				} catch (reason) {
 					results[index] = { status: "rejected", reason };
@@ -378,13 +383,15 @@ async function fetchModelIds(
 ): Promise<string[]> {
 	const response = await fetchWithRetry(
 		`${BASE_URL_OLLAMA}/models`,
-		{
-			headers: {
-				Authorization: `Bearer ${apiKey}`,
-				"Content-Type": "application/json",
+		withSignal(
+			{
+				headers: {
+					Authorization: `Bearer ${apiKey}`,
+					"Content-Type": "application/json",
+				},
 			},
 			signal,
-		},
+		),
 		3,
 		1000,
 		DEFAULT_FETCH_TIMEOUT_MS,
@@ -413,15 +420,17 @@ async function fetchModelDetails(
 ): Promise<OllamaShowResponse> {
 	const response = await fetchWithTimeout(
 		`${OLLAMA_API_BASE}/api/show`,
-		{
-			method: "POST",
-			headers: {
-				Authorization: `Bearer ${apiKey}`,
-				"Content-Type": "application/json",
+		withSignal(
+			{
+				method: "POST",
+				headers: {
+					Authorization: `Bearer ${apiKey}`,
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ model: modelId }),
 			},
-			body: JSON.stringify({ model: modelId }),
 			signal,
-		},
+		),
 		DETAIL_FETCH_TIMEOUT_MS,
 	);
 

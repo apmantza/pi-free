@@ -33,7 +33,8 @@ export function getMachineId(): string {
 	}
 	const newId = crypto.randomUUID();
 	try {
-		const savePath = paths[1];
+		// Literal has exactly two entries (proven three lines up).
+		const savePath = paths[1]!;
 		mkdirSync(dirname(savePath), { recursive: true });
 		writeFileSync(savePath, newId, "utf8");
 	} catch {

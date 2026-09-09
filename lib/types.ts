@@ -16,9 +16,9 @@ export interface CostConfig {
 
 export interface ModelIdentity {
 	id: string;
-	name?: string;
-	family?: string;
-	provider?: string;
+	name?: string | undefined;
+	family?: string | undefined;
+	provider?: string | undefined;
 }
 
 export type ModelMatchHints = Partial<ModelIdentity>;

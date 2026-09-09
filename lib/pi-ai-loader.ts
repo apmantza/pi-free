@@ -158,10 +158,19 @@ function isUsablePiAiRoot(root: string): boolean {
 		const version = typeof pkg.version === "string" ? pkg.version : "";
 		const match = /^(\d+)\.(\d+)\.(\d+)/.exec(version);
 		if (!match) return false;
-		const candidate = [Number(match[1]), Number(match[2]), Number(match[3])];
+		// Destructure with safe defaults: match success proves all three
+		// groups participated, but the default keeps garbage fail-safe
+		// (NaN compares false below, rejecting the root).
+		const [, major = "", minor = "", patch = ""] = match;
+		const candidate = [Number(major), Number(minor), Number(patch)];
 		for (let i = 0; i < MIN_PI_AI_VERSION.length; i++) {
-			if (candidate[i] !== MIN_PI_AI_VERSION[i]) {
-				return candidate[i] > MIN_PI_AI_VERSION[i];
+			// NaN (unparseable) compares false below, rejecting the root —
+			// the safe direction. Want-default only satisfies the compiler
+			// (MIN_PI_AI_VERSION is a complete triple in practice).
+			const have = candidate[i] ?? Number.NaN;
+			const want = MIN_PI_AI_VERSION[i] ?? 0;
+			if (have !== want) {
+				return have > want;
 			}
 		}
 		return true;

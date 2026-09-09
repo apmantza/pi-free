@@ -26,7 +26,11 @@ import {
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
-import { fetchWithRetry, mapOpenRouterModel } from "../../lib/util.ts";
+import {
+	fetchWithRetry,
+	mapOpenRouterModel,
+	withSignal,
+} from "../../lib/util.ts";
 import { registerNativeOpenAIProvider } from "../../lib/native-provider.ts";
 import { anyapiAuth } from "./anyapi-auth.ts";
 
@@ -160,14 +164,16 @@ async function fetchAnyApiModels(
 ): Promise<AnyApiProviderModel[]> {
 	const response = await fetchWithRetry(
 		`${BASE_URL_ANYAPI}/models`,
-		{
-			headers: {
-				Authorization: `Bearer ${apiKey}`,
-				Accept: "application/json",
-				"Content-Type": "application/json",
+		withSignal(
+			{
+				headers: {
+					Authorization: `Bearer ${apiKey}`,
+					Accept: "application/json",
+					"Content-Type": "application/json",
+				},
 			},
 			signal,
-		},
+		),
 		3,
 		1000,
 		DEFAULT_FETCH_TIMEOUT_MS,
