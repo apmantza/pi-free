@@ -312,6 +312,7 @@ Screen against these BEFORE writing code — each one cost a real incident:
 - **All `free.json` writes go through the locked RMW paths** (`saveConfig`/`updateConfig`) — never raw writes; concurrent toggles/probes must not clobber each other.
 - **Every new `free.json` key or env flag needs a forcing function.** A knob shipped "for flexibility" is permanent public API plus test/doc/support burden. Name the consumer in the PR body.
 - **Toggle flips the effective view.** Persisted choices live under provider ids in `model_view_overrides`; divergent snake_case keys are legacy-read-only.
+- **Logged-out providers stay hidden.** Auth that doesn't resolve keeps the provider out of `/model`; only the keyless allowlist (cline, fastrouter, llm7) resolves without a credential. Never re-add an anonymous opt-in for a catalog whose chat needs a key (#530).
 
 ## PR Test Proof
 
