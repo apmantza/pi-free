@@ -53,9 +53,10 @@ describe("models.dev metadata enrichment", () => {
 			},
 		});
 
-		const [model] = await enrichModelsWithModelsDev([baseModel], {
+		const enriched0 = await enrichModelsWithModelsDev([baseModel], {
 			providerId: "deepinfra",
 		});
+		const model = enriched0[0]!;
 
 		expect(model.contextWindow).toBe(262_144);
 		expect(model.maxTokens).toBe(32_768);
@@ -109,9 +110,10 @@ describe("models.dev metadata enrichment", () => {
 			compat: { supportsDeveloperRole: true },
 		};
 
-		const [model] = await enrichModelsWithModelsDev([explicit], {
+		const enriched1 = await enrichModelsWithModelsDev([explicit], {
 			providerId: "openrouter",
 		});
+		const model = enriched1[0]!;
 
 		expect(model.contextWindow).toBe(131_072);
 		expect(model.maxTokens).toBe(8_192);
@@ -141,10 +143,11 @@ describe("models.dev metadata enrichment", () => {
 			},
 		});
 
-		const [model] = await enrichModelsWithModelsDev([baseModel], {
+		const enriched2 = await enrichModelsWithModelsDev([baseModel], {
 			providerId: "openrouter",
 			enrichCost: "fallback-only",
 		});
+		const model = enriched2[0]!;
 
 		expect(model.cost).toEqual({
 			input: 0.000002,
@@ -172,10 +175,11 @@ describe("models.dev metadata enrichment", () => {
 		expect(
 			(await fetchModelsDevMeta("together"))["Qwen/Qwen3.6-Plus"],
 		).toBeDefined();
-		const [model] = await enrichModelsWithModelsDev(
+		const enriched3 = await enrichModelsWithModelsDev(
 			[{ ...baseModel, id: "Qwen/Qwen3.6-Plus" }],
 			{ providerId: "gateway-not-in-catalog" },
 		);
+		const model = enriched3[0]!;
 		expect(model.contextWindow).toBe(131_072);
 	});
 
@@ -215,7 +219,7 @@ describe("models.dev metadata enrichment", () => {
 	});
 
 	it("preserves native OpenCode protocol metadata during discovery", async () => {
-		const [model] = await applyNativeProtocolMetadata(
+		const enriched4 = await applyNativeProtocolMetadata(
 			[
 				{
 					...baseModel,
@@ -225,6 +229,7 @@ describe("models.dev metadata enrichment", () => {
 			],
 			"opencode",
 		);
+		const model = enriched4[0]!;
 
 		expect(model.api).toBe("openai-responses");
 		expect(model.baseUrl).toBe("https://opencode.ai/zen/v1");

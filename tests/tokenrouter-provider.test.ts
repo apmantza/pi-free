@@ -45,6 +45,11 @@ vi.mock("../lib/registry.ts", () => ({
 vi.mock("../lib/util.ts", () => ({
 	cleanModelName: (id: string) => id,
 	fetchWithRetry: (...args: unknown[]) => mockFetchWithRetry(...args),
+	// Mirror semantics: omit an undefined signal (RequestInit is lib.dom).
+	withSignal: (init: RequestInit, signal?: AbortSignal) => {
+		if (signal) init.signal = signal;
+		return init;
+	},
 }));
 
 vi.mock("../lib/model-metadata.ts", () => ({
@@ -285,7 +290,7 @@ describe("TokenRouter native factory", () => {
 		await tokenRouterEntry(pi);
 
 		expect(registerProvider).toHaveBeenCalledTimes(1);
-		expect(registerProvider.mock.calls[0][0].id).toBe("tokenrouter");
+		expect(registerProvider.mock.calls[0]![0].id).toBe("tokenrouter");
 		expect(registerCommand).toHaveBeenCalledWith(
 			"toggle-tokenrouter",
 			expect.any(Object),
@@ -312,7 +317,7 @@ describe("TokenRouter native factory", () => {
 			.map(([event, handler]) => [event, handler] as const)
 			.filter(([event]) => event === "before_provider_request");
 		expect(requestHandlers).toHaveLength(1);
-		const [, handler] = requestHandlers[0];
+		const [, handler] = requestHandlers[0]!;
 
 		const patched = await handler(
 			{ payload: { model: "MiniMax-M3", thinking: { type: "enabled" } } },

@@ -115,7 +115,7 @@ describe("ZenMux native factory", () => {
 		await zenmuxProvider(mockPi);
 
 		expect(registerProvider).toHaveBeenCalledTimes(1);
-		const provider = registerProvider.mock.calls[0][0];
+		const provider = registerProvider.mock.calls[0]![0];
 		expect(provider.id).toBe("zenmux");
 		expect(provider.auth.apiKey).toBeDefined();
 		expect(provider.getModels()).toEqual([]);
@@ -129,15 +129,15 @@ describe("ZenMux native factory", () => {
 	it("passes keyed-provider state to the global toggle registry", async () => {
 		mockGetZenmuxApiKey.mockReturnValue("sk-zenmux");
 		await zenmuxProvider(mockPi);
-		const args = mockRegisterWithGlobalToggle.mock.calls[0];
+		const args = mockRegisterWithGlobalToggle.mock.calls[0]!;
 		expect(args[0]).toBe("zenmux");
 		expect(args[3]).toBe(true);
 	});
 
 	it("re-registers the same native provider object on the global toggle", async () => {
 		await zenmuxProvider(mockPi);
-		const provider = registerProvider.mock.calls[0][0];
-		const reRegister = mockRegisterWithGlobalToggle.mock.calls[0][2] as (
+		const provider = registerProvider.mock.calls[0]![0];
+		const reRegister = mockRegisterWithGlobalToggle.mock.calls[0]![2] as (
 			models: unknown[],
 		) => void;
 
@@ -168,7 +168,7 @@ describe("ZenMux native factory", () => {
 
 	it("does not perform model refresh work during factory registration", async () => {
 		await zenmuxProvider(mockPi);
-		const provider = registerProvider.mock.calls[0][0];
+		const provider = registerProvider.mock.calls[0]![0];
 		await provider.refreshModels?.({
 			store: makeStore(),
 			allowNetwork: false,

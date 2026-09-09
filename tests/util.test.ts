@@ -10,6 +10,7 @@ import {
 	MAX_RETRY_BACKOFF_MS,
 	parseModelResponse,
 	withFetchDeadline,
+	withSignal,
 } from "../lib/util.ts";
 
 describe("Utility Functions", () => {
@@ -270,7 +271,7 @@ describe("Utility Functions", () => {
 			);
 
 			expect(result.data).toHaveLength(2);
-			expect(result.data[0].id).toBe("model-1");
+			expect(result.data[0]!.id).toBe("model-1");
 		});
 
 		it("should throw on non-ok response", async () => {
@@ -526,6 +527,22 @@ describe("Utility Functions", () => {
 			await expect(withFetchDeadline(p, -1, "test")).resolves.toBe(
 				"passthrough",
 			);
+		});
+	});
+
+	describe("withSignal", () => {
+		// Pins the exactOptional contract: RequestInit is lib.dom (no
+		// undefined members), so a missing signal is omitted, not assigned.
+		it("omits the signal key when undefined", () => {
+			const init = withSignal({ method: "GET" }, undefined);
+			expect("signal" in init).toBe(false);
+		});
+
+		it("attaches a defined signal and returns the same object", () => {
+			const controller = new AbortController();
+			const init: RequestInit = { method: "GET" };
+			expect(withSignal(init, controller.signal)).toBe(init);
+			expect(init.signal).toBe(controller.signal);
 		});
 	});
 });

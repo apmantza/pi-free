@@ -180,10 +180,10 @@ describe("Qoder native provider", () => {
 		// The toggle flips the effective view (no getShowPaid travels with
 		// the registration, so there is nothing to go stale, #510).
 		const toggleOptions = mocks.registerNativeProviderToggle.mock
-			.calls[0][1] as Record<string, unknown>;
+			.calls[0]![1] as Record<string, unknown>;
 		expect(toggleOptions).not.toHaveProperty("getShowPaid");
 		const provider = getRegisteredProvider();
-		const reRegister = mocks.registerNativeProviderToggle.mock.calls[0][1]
+		const reRegister = mocks.registerNativeProviderToggle.mock.calls[0]![1]
 			.reRegister as () => void;
 		mocks.registerNativeProvider.mockClear();
 		reRegister();

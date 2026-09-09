@@ -136,7 +136,7 @@ describe("TokenRouter compat", () => {
 				},
 			},
 		]);
-		expect(enriched[0].compat).toEqual({
+		expect(enriched[0]!.compat).toEqual({
 			supportsReasoningEffort: false,
 			requiresReasoningContentOnAssistantMessages: true,
 		});
@@ -234,8 +234,8 @@ describe("TokenRouter MiniMax handling", () => {
 			],
 		}) as { messages: Array<{ role: string }> };
 
-		expect(result.messages[0].role).toBe("system");
-		expect(result.messages[1].role).toBe("user");
+		expect(result.messages[0]!.role).toBe("system");
+		expect(result.messages[1]!.role).toBe("user");
 	});
 
 	it("leaves messages untouched when no developer role is present", () => {

@@ -146,7 +146,7 @@ describe("Kilo extension wiring", () => {
 	it("global-toggle reRegister republishes the same provider object", async () => {
 		await kiloProvider(mockPi);
 		const reRegister = mockRegisterWithGlobalToggle.mock
-			.calls[0][2] as () => void;
+			.calls[0]![2] as () => void;
 		mockRegisterProvider.mockClear();
 
 		reRegister();

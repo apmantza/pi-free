@@ -523,7 +523,10 @@ export function createAutoFallback(): AutoFallbackHandle {
 				pendingAutoContinue = null;
 				const e = event as { prompt?: string; images?: unknown[] };
 				if (e && typeof e.prompt === "string") {
-					lastUserPrompt = { text: e.prompt, images: e.images };
+					// CapturedPrompt stays Pi-compatible (no undefined
+					// members): omit images instead of assigning undefined.
+					lastUserPrompt = { text: e.prompt };
+					if (e.images !== undefined) lastUserPrompt.images = e.images;
 				}
 			});
 

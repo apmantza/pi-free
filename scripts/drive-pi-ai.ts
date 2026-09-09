@@ -72,7 +72,8 @@ function homeFile(...segments: string[]): string {
 function parseArgs(argv: string[]): Record<string, string | boolean> {
 	const args: Record<string, string | boolean> = {};
 	for (let i = 0; i < argv.length; i++) {
-		const arg = argv[i];
+		// Loop bounds prove defined.
+		const arg = argv[i]!;
 		if (!arg.startsWith("--")) continue;
 		const key = arg.slice(2);
 		if (key === "list" || key === "simple" || key === "anonymous") {

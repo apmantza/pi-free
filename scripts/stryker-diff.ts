@@ -11,7 +11,10 @@ import {
 function argumentValue(name: string, fallback: string): string {
 	let value = fallback;
 	for (let index = 0; index < process.argv.length - 1; index += 1) {
-		if (process.argv[index] === name) value = process.argv[index + 1];
+		// A flag without a following value keeps the default instead of
+		// assigning undefined (the loop bound only proves index defined).
+		if (process.argv[index] === name)
+			value = process.argv[index + 1] ?? fallback;
 	}
 	return value;
 }

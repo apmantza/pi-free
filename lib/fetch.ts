@@ -22,6 +22,20 @@ export function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Attach an optional abort signal to a RequestInit. RequestInit is
+ * lib.dom (no undefined members), so call sites must omit a missing
+ * signal instead of assigning undefined — this one seam owns that
+ * pattern so ~20 fetch sites don't repeat it.
+ */
+export function withSignal(
+	init: RequestInit,
+	signal?: AbortSignal | undefined,
+): RequestInit {
+	if (signal) init.signal = signal;
+	return init;
+}
+
+/**
  * Log a warning message for provider operations
  */
 export function logWarning(

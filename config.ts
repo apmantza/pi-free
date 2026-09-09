@@ -91,6 +91,17 @@ function safeJsonReviver(
 
 const _logger = createLogger("config");
 
+/**
+ * Write-patch for free.json. Unlike Partial, members explicitly accept
+ * undefined: assigning undefined ERASES the key (saveConfig's
+ * JSON.stringify drop removes it). This is clearModelViewOverrides'
+ * mechanism — never widen a presence-sensitive READ type to match;
+ * omit the key instead.
+ */
+export type ConfigPatch = {
+	[K in keyof PiFreeConfig]?: PiFreeConfig[K] | undefined;
+};
+
 interface PiFreeConfig {
 	nvidia_api_key?: string;
 	ollama_api_key?: string;
@@ -590,13 +601,19 @@ export async function setModelViewOverride(
 	view: ModelViewChoice,
 ): Promise<void> {
 	const meta = PROVIDER_META_BY_ID.get(providerId);
-	await updateConfig((current) => ({
-		model_view_overrides: {
-			...current.model_view_overrides,
-			[providerId]: view,
-		},
-		...(meta ? { [meta.showPaidKey]: undefined } : {}),
-	}));
+	await updateConfig((current) => {
+		const patch: ConfigPatch = {
+			model_view_overrides: {
+				...current.model_view_overrides,
+				[providerId]: view,
+			},
+		};
+		// Erase the legacy snake_case key alongside the sparse-map write
+		// so the two representations can never disagree (explicit branch
+		// instead of a conditional spread).
+		if (meta) patch[meta.showPaidKey] = undefined;
+		return patch;
+	});
 }
 
 /**
@@ -608,7 +625,7 @@ export async function setModelViewOverride(
  * keys from free.json; the mtime bump invalidates the memoized parse.
  */
 export async function clearModelViewOverrides(): Promise<void> {
-	const cleared: Partial<PiFreeConfig> = { model_view_overrides: undefined };
+	const cleared: ConfigPatch = { model_view_overrides: undefined };
 	for (const meta of PROVIDER_META_BY_ID.values()) {
 		cleared[meta.showPaidKey] = undefined;
 	}
@@ -958,9 +975,7 @@ export function applyHidden<T extends { id: string }>(
 // Persistence
 // =============================================================================
 
-export async function saveConfig(
-	updates: Partial<PiFreeConfig>,
-): Promise<void> {
+export async function saveConfig(updates: ConfigPatch): Promise<void> {
 	const release = await _configLock.acquire();
 	try {
 		// Read the raw file content — never use loadConfigFile() here because
@@ -1050,7 +1065,7 @@ const _configLock = new ConfigLock();
  * recovery).
  */
 export async function updateConfig(
-	updater: (current: PiFreeConfig) => Partial<PiFreeConfig>,
+	updater: (current: PiFreeConfig) => ConfigPatch,
 ): Promise<void> {
 	const release = await _configLock.acquire();
 	try {

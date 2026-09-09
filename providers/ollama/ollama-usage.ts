@@ -9,7 +9,7 @@
 
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { BASE_URL_OLLAMA, DEFAULT_FETCH_TIMEOUT_MS } from "../../constants.ts";
-import { fetchWithRetry } from "../../lib/util.ts";
+import { fetchWithRetry, withSignal } from "../../lib/util.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -91,10 +91,12 @@ export async function fetchUsage(
 ): Promise<UsageData> {
 	const response = await fetchWithRetry(
 		`${BASE_URL_OLLAMA}/api/usage`,
-		{
-			headers: { Authorization: `Bearer ${apiKey}` },
+		withSignal(
+			{
+				headers: { Authorization: `Bearer ${apiKey}` },
+			},
 			signal,
-		},
+		),
 		1,
 		1_000,
 		DEFAULT_FETCH_TIMEOUT_MS,

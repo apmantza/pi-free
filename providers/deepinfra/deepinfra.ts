@@ -50,7 +50,7 @@ import {
 	registerNativeAvailabilityProbe,
 	registerNativeOpenAIProvider,
 } from "../../lib/native-provider.ts";
-import { fetchWithRetry } from "../../lib/util.ts";
+import { fetchWithRetry, withSignal } from "../../lib/util.ts";
 import { deepinfraAuth } from "./deepinfra-auth.ts";
 
 const _logger = createLogger("deepinfra");
@@ -96,13 +96,15 @@ export async function fetchDeepinfraModels(
 ): Promise<ProviderModelConfig[]> {
 	const response = await fetchWithRetry(
 		`${BASE_URL_DEEPINFRA}/models`,
-		{
-			headers: {
-				...(apiKey && { Authorization: `Bearer ${apiKey}` }),
-				"Content-Type": "application/json",
+		withSignal(
+			{
+				headers: {
+					...(apiKey && { Authorization: `Bearer ${apiKey}` }),
+					"Content-Type": "application/json",
+				},
 			},
 			signal,
-		},
+		),
 		3,
 		1000,
 		DEFAULT_FETCH_TIMEOUT_MS,

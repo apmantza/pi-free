@@ -138,7 +138,7 @@ describe("Cline factory wiring", () => {
 
 		// Native provider object registered (single arg).
 		expect(mockRegisterProvider).toHaveBeenCalledTimes(1);
-		const provider = mockRegisterProvider.mock.calls[0][0];
+		const provider = mockRegisterProvider.mock.calls[0]![0];
 		expect(provider.id).toBe("cline");
 		expect(provider.getModels()).toEqual([]);
 		expect(provider.auth.apiKey).toBeDefined();
@@ -192,10 +192,10 @@ describe("Cline factory wiring", () => {
 	// object, auth preserved) that RPC cannot see per provider.
 	it("global /toggle-free reRegister republishes the same provider object", async () => {
 		await clineProvider(mockPi);
-		const provider = mockRegisterProvider.mock.calls[0][0];
+		const provider = mockRegisterProvider.mock.calls[0]![0];
 
 		expect(capturedToggleArgs).toHaveLength(1);
-		const reRegister = capturedToggleArgs[0][2] as () => void;
+		const reRegister = capturedToggleArgs[0]![2] as () => void;
 
 		mockRegisterProvider.mockClear();
 		reRegister();

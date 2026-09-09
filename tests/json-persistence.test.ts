@@ -141,8 +141,8 @@ describe("JSON Persistence", () => {
 
 			const data = store.load();
 			expect(data).toHaveLength(2);
-			expect(data[0].event).toBe("first");
-			expect(data[1].event).toBe("second");
+			expect(data[0]!.event).toBe("first");
+			expect(data[1]!.event).toBe("second");
 		});
 
 		it("should clear entries", () => {
@@ -164,8 +164,8 @@ describe("JSON Persistence", () => {
 
 			const data = store.load();
 			expect(data).toHaveLength(2);
-			expect(data[0].event).toBe("first");
-			expect(data[1].event).toBe("third");
+			expect(data[0]!.event).toBe("first");
+			expect(data[1]!.event).toBe("third");
 		});
 	});
 });

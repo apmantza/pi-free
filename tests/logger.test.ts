@@ -172,7 +172,7 @@ describe("logger file rotation", () => {
 					expect(size).toBeLessThanOrEqual(MAX_BYTES);
 				}
 			}
-			expect(await readFile(join(logDir, files[0]), "utf8")).toContain(
+			expect(await readFile(join(logDir, files[0]!), "utf8")).toContain(
 				"rotation-test",
 			);
 		} finally {

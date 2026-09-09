@@ -71,7 +71,7 @@ export interface ProviderProbe {
 		models: ProviderModelConfig[],
 		options?: {
 			useCache?: boolean;
-			onBroken?: (brokenIds: string[]) => void;
+			onBroken?: ((brokenIds: string[]) => void) | undefined;
 		},
 	) => Promise<string[]>;
 

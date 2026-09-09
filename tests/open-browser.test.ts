@@ -21,7 +21,7 @@ describe("openBrowser", () => {
 		try {
 			openBrowser("https://example.com/$(calc)");
 			expect(spawn).toHaveBeenCalledOnce();
-			const [cmd, args, opts] = vi.mocked(spawn).mock.calls[0];
+			const [cmd, args, opts] = vi.mocked(spawn).mock.calls[0]!;
 			// rundll32 is the launcher — bypasses cmd's command parser
 			expect(cmd).toMatch(/rundll32/i);
 			// URL is a single, separate argument — never interpolated
@@ -41,7 +41,7 @@ describe("openBrowser", () => {
 		Object.defineProperty(process, "platform", { value: "win32" });
 		try {
 			openBrowser("https://example.com/");
-			const [cmd, args] = vi.mocked(spawn).mock.calls[0];
+			const [cmd, args] = vi.mocked(spawn).mock.calls[0]!;
 			// The launcher must be rundll32, NOT cmd.exe
 			expect(cmd).not.toMatch(/cmd/i);
 			// And there must be no /c start "" in the args
@@ -58,8 +58,8 @@ describe("openBrowser", () => {
 		try {
 			openBrowser("https://example.com/it'cool&echo pwned");
 			expect(spawn).toHaveBeenCalledOnce();
-			const args = vi.mocked(spawn).mock.calls[0][1] as string[];
-			expect(args[args.length - 1]).toBe(
+			const args = vi.mocked(spawn).mock.calls[0]![1] as string[];
+			expect(args[args.length - 1]!).toBe(
 				"https://example.com/it'cool&echo pwned",
 			);
 		} finally {

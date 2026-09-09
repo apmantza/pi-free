@@ -151,7 +151,7 @@ describe("built-in provider toggles", () => {
 			resolveKey = resolve;
 		});
 
-		await handlers.session_start(
+		await handlers.session_start!(
 			{},
 			{
 				modelRegistry: {
@@ -213,7 +213,7 @@ describe("built-in provider toggles", () => {
 			},
 		];
 
-		await handlers.session_start(
+		await handlers.session_start!(
 			{},
 			{ modelRegistry: { getAvailable: () => models } },
 		);
@@ -283,7 +283,7 @@ describe("built-in provider toggles", () => {
 			return Promise.reject(new Error(`unexpected fetch: ${url}`));
 		});
 
-		await handlers.session_start(
+		await handlers.session_start!(
 			{},
 			{ modelRegistry: { getAvailable: () => models } },
 		);
@@ -310,11 +310,11 @@ describe("built-in provider toggles", () => {
 			"mimo-v2-pro",
 		]);
 		// Known ID keeps Pi's curated metadata and wire protocol.
-		expect(lastModels[0].name).toBe("MiniMax M2.7");
-		expect(lastModels[0].api).toBe("anthropic-messages");
+		expect(lastModels[0]!.name).toBe("MiniMax M2.7");
+		expect(lastModels[0]!.api).toBe("anthropic-messages");
 		// Discovered ID gets the Go protocol defaults.
-		expect(lastModels[1].api).toBe("openai-completions");
-		expect(lastModels[1].baseUrl).toBe("https://opencode.ai/zen/go/v1");
+		expect(lastModels[1]!.api).toBe("openai-completions");
+		expect(lastModels[1]!.baseUrl).toBe("https://opencode.ai/zen/go/v1");
 	});
 
 	it("retains the cached catalog when Pi's refresh fetch fails", async () => {
@@ -340,7 +340,7 @@ describe("built-in provider toggles", () => {
 			},
 		];
 
-		await handlers.session_start(
+		await handlers.session_start!(
 			{},
 			{ modelRegistry: { getAvailable: () => models } },
 		);
@@ -388,7 +388,7 @@ describe("built-in provider toggles", () => {
 			},
 		];
 
-		await handlers.session_start(
+		await handlers.session_start!(
 			{},
 			{ modelRegistry: { getAvailable: () => models } },
 		);
@@ -435,7 +435,7 @@ describe("built-in provider toggles", () => {
 			},
 		];
 
-		await handlers.session_start(
+		await handlers.session_start!(
 			{},
 			{ modelRegistry: { getAvailable: () => models } },
 		);
@@ -484,7 +484,7 @@ describe("built-in provider toggles", () => {
 			},
 		];
 
-		await handlers.session_start(
+		await handlers.session_start!(
 			{},
 			{ modelRegistry: { getAvailable: () => models } },
 		);
@@ -535,7 +535,7 @@ describe("built-in provider toggles", () => {
 			},
 		];
 
-		await handlers.session_start(
+		await handlers.session_start!(
 			{},
 			{ modelRegistry: { getAvailable: () => models } },
 		);
@@ -619,7 +619,7 @@ describe("built-in provider toggles", () => {
 			return Promise.reject(new Error(`unexpected fetch: ${url}`));
 		});
 
-		await handlers.session_start(
+		await handlers.session_start!(
 			{},
 			{ modelRegistry: { getAvailable: () => models } },
 		);
@@ -696,7 +696,7 @@ describe("built-in provider toggles", () => {
 			return Promise.reject(new Error(`unexpected fetch: ${url}`));
 		});
 
-		await handlers.session_start(
+		await handlers.session_start!(
 			{},
 			{ modelRegistry: { getAvailable: () => models } },
 		);
@@ -719,11 +719,11 @@ describe("built-in provider toggles", () => {
 			"vendor/new-model",
 		]);
 		// Known ID keeps Pi's curated metadata (name + cost untouched).
-		expect(lastModels[0].name).toBe("Known Model");
-		expect(lastModels[0].cost?.input).toBe(3);
+		expect(lastModels[0]!.name).toBe("Known Model");
+		expect(lastModels[0]!.cost?.input).toBe(3);
 		// New ID is synthesized from live endpoint data.
-		expect(lastModels[1].name).toBe("Vendor New Model");
-		expect(lastModels[1].contextWindow).toBe(200000);
+		expect(lastModels[1]!.name).toBe("Vendor New Model");
+		expect(lastModels[1]!.contextWindow).toBe(200000);
 	});
 
 	it("registers into the latest registry when session_start fires again mid-capture", async () => {
@@ -758,10 +758,10 @@ describe("built-in provider toggles", () => {
 			registerProvider: vi.fn(),
 		};
 
-		await handlers.session_start({}, { modelRegistry: firstRegistry });
+		await handlers.session_start!({}, { modelRegistry: firstRegistry });
 		// Pi fires session_start again while the capture is still resolving
 		// credentials; the fresh registry must win.
-		await handlers.session_start({}, { modelRegistry: secondRegistry });
+		await handlers.session_start!({}, { modelRegistry: secondRegistry });
 
 		resolveKey?.(undefined);
 		await settleDetachedCapture();
@@ -807,7 +807,7 @@ describe("built-in provider toggles", () => {
 			},
 		];
 
-		await handlers.session_start(
+		await handlers.session_start!(
 			{},
 			{
 				modelRegistry: {
@@ -821,7 +821,10 @@ describe("built-in provider toggles", () => {
 		// Toggle while the capture is still pending: it must await the
 		// in-flight capture, not start its own.
 		const notify = vi.fn();
-		const toggleDone = commands["toggle-opencode-free"]({}, { ui: { notify } });
+		const toggleDone = commands["toggle-opencode-free"]!(
+			{},
+			{ ui: { notify } },
+		);
 		resolveKey?.(undefined);
 		await toggleDone;
 
@@ -864,7 +867,7 @@ describe("built-in provider toggles", () => {
 				baseUrl: "https://example.com",
 			},
 		];
-		await handlers.session_start(
+		await handlers.session_start!(
 			{},
 			{
 				modelRegistry: {
@@ -892,7 +895,7 @@ describe("built-in provider toggles", () => {
 			getAvailable: () => models,
 			registerProvider: vi.fn(),
 		};
-		await handlers.session_start({}, { modelRegistry: freshRegistry });
+		await handlers.session_start!({}, { modelRegistry: freshRegistry });
 		await settleDetachedCapture();
 
 		expect(freshRegistry.registerProvider).toHaveBeenCalledWith(
@@ -918,7 +921,7 @@ describe("built-in provider toggles", () => {
 		};
 		const registerProvider = vi.fn();
 
-		await handlers.session_start(
+		await handlers.session_start!(
 			{},
 			{
 				modelRegistry: {
@@ -971,12 +974,12 @@ describe("built-in provider toggles", () => {
 			},
 		];
 
-		await handlers.session_start(
+		await handlers.session_start!(
 			{},
 			{ modelRegistry: { getAvailable: () => models } },
 		);
 		await settleDetachedCapture();
-		await commands["toggle-openrouter"]({}, { ui: { notify: vi.fn() } });
+		await commands["toggle-openrouter"]!({}, { ui: { notify: vi.fn() } });
 
 		expect(mockRegisterProvider).toHaveBeenLastCalledWith(
 			"openrouter",
@@ -999,7 +1002,7 @@ describe("built-in provider toggles", () => {
 		setupBuiltInProviderToggles(mockPi);
 
 		const notify = vi.fn();
-		await commands["toggle-opencode-free"](
+		await commands["toggle-opencode-free"]!(
 			{},
 			{
 				ui: { notify },
@@ -1052,7 +1055,7 @@ describe("built-in provider toggles", () => {
 			}),
 		);
 
-		await handlers.session_start(
+		await handlers.session_start!(
 			{},
 			{
 				modelRegistry: {
@@ -1090,7 +1093,7 @@ describe("built-in provider toggles", () => {
 			baseUrl: "https://example.com",
 		};
 
-		await handlers.session_start(
+		await handlers.session_start!(
 			{},
 			{
 				modelRegistry: { getAvailable: () => [capturedModel] },
@@ -1123,7 +1126,7 @@ describe("built-in provider toggles", () => {
 			baseUrl: "https://example.com",
 		};
 
-		await handlers.session_start(
+		await handlers.session_start!(
 			{},
 			{
 				modelRegistry: { getAvailable: () => [capturedModel] },
@@ -1159,7 +1162,7 @@ describe("built-in provider toggles", () => {
 			},
 		];
 
-		await handlers.session_start(
+		await handlers.session_start!(
 			{},
 			{
 				modelRegistry: {
@@ -1201,7 +1204,7 @@ describe("built-in provider toggles", () => {
 			},
 		];
 
-		await handlers.session_start(
+		await handlers.session_start!(
 			{},
 			{
 				modelRegistry: {
@@ -1253,13 +1256,13 @@ describe("built-in provider toggles", () => {
 		mockGetGlobalFreeOnly.mockReturnValue(false);
 		setupBuiltInProviderToggles(mockPi);
 
-		await handlers.session_start(
+		await handlers.session_start!(
 			{},
 			{ modelRegistry: { getAvailable: () => openCodeCatalog() } },
 		);
 		await settleDetachedCapture();
 
-		const registered = mockRegisterProvider.mock.calls[0][1].models as Array<{
+		const registered = mockRegisterProvider.mock.calls[0]![1].models as Array<{
 			id: string;
 		}>;
 		expect(registered.map((m) => m.id).sort()).toEqual([

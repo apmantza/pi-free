@@ -370,12 +370,15 @@ async function exchangeCodeForTokens(
 		};
 		if (candidate) payload.provider = candidate;
 
-		const res = await fetch(`${BASE_URL_CLINE}/auth/token`, {
+		// RequestInit is lib.dom (no undefined members): omit signal
+		// instead of assigning undefined.
+		const tokenInit: RequestInit = {
 			method: "POST",
 			headers: buildClineHeaders(),
 			body: JSON.stringify(payload),
-			signal,
-		});
+		};
+		if (signal) tokenInit.signal = signal;
+		const res = await fetch(`${BASE_URL_CLINE}/auth/token`, tokenInit);
 
 		if (!res.ok) {
 			lastError = `${res.status}: ${(await res.text().catch(() => "")).slice(0, 120)}`;
@@ -553,12 +556,16 @@ export function toApiKey(credentials: OAuthCredentials): string {
 export async function loginClineNative(
 	interaction: AuthInteraction,
 ): Promise<OAuthCredential> {
-	const credential = await loginCline({
+	// OAuthLoginCallbacks is Pi-owned (no undefined members): omit
+	// signal/instructions/placeholder instead of assigning undefined.
+	const callbacks: OAuthLoginCallbacks = {
 		onAuth: (info) =>
 			interaction.notify({
 				type: "auth_url",
 				url: info.url,
-				instructions: info.instructions,
+				...(info.instructions !== undefined
+					? { instructions: info.instructions }
+					: {}),
 			}),
 		onDeviceCode: (info) =>
 			interaction.notify({ type: "device_code", ...info }),
@@ -566,7 +573,9 @@ export async function loginClineNative(
 			interaction.prompt({
 				type: "text",
 				message: prompt.message,
-				placeholder: prompt.placeholder,
+				...(prompt.placeholder !== undefined
+					? { placeholder: prompt.placeholder }
+					: {}),
 			}),
 		onProgress: (message) => interaction.notify({ type: "progress", message }),
 		onManualCodeInput: () =>
@@ -580,8 +589,9 @@ export async function loginClineNative(
 				message: prompt.message,
 				options: prompt.options,
 			}),
-		signal: interaction.signal,
-	});
+	};
+	if (interaction.signal) callbacks.signal = interaction.signal;
+	const credential = await loginCline(callbacks);
 	return { ...credential, type: "oauth" };
 }
 

@@ -33,13 +33,13 @@ interface OpenRouterCompatibleModel {
 
 interface FetchModelsOptions {
 	/** Provider id for scoped models.dev enrichment (e.g., openrouter, kilo). */
-	providerId?: string;
+	providerId?: string | undefined;
 	/** Base URL for the API (e.g., https://api.openrouter.ai/api/v1) */
 	baseUrl: string;
 	/** API key for authentication (optional) */
-	apiKey?: string;
+	apiKey?: string | undefined;
 	/** Only return free models (pricing === 0) */
-	freeOnly?: boolean;
+	freeOnly?: boolean | undefined;
 	/**
 	 * Drop models whose `architecture.output_modalities` include ANY of these
 	 * modalities, even when "text" is also present (e.g. image-generation
@@ -50,7 +50,7 @@ interface FetchModelsOptions {
 	/** Additional headers to include */
 	extraHeaders?: Record<string, string>;
 	/** Abort signal owned by the native provider refresh lifecycle. */
-	signal?: AbortSignal;
+	signal?: AbortSignal | undefined;
 	/** Number of retries for failed requests */
 	retries?: number;
 	/** Delay between retries in ms */

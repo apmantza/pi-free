@@ -130,7 +130,7 @@ describe("gateway compat (developer role)", () => {
 		const handle = createNativeOpenAIProvider(options);
 		handle.ingest([model("m1", "M1")], [model("m1", "M1")]);
 
-		expect(compatOf(handle.stored.all[0]).supportsDeveloperRole).toBe(false);
+		expect(compatOf(handle.stored.all[0]!).supportsDeveloperRole).toBe(false);
 	});
 
 	it("preserves existing compat while forcing the role flag off", () => {
@@ -141,8 +141,8 @@ describe("gateway compat (developer role)", () => {
 		} as ProviderModelConfig;
 		handle.ingest([withCompat], [withCompat]);
 
-		expect(compatOf(handle.stored.all[0]).supportsStore).toBe(false);
-		expect(compatOf(handle.stored.all[0]).supportsDeveloperRole).toBe(false);
+		expect(compatOf(handle.stored.all[0]!).supportsStore).toBe(false);
+		expect(compatOf(handle.stored.all[0]!).supportsDeveloperRole).toBe(false);
 	});
 
 	it("re-stamps models restored from a pre-fix store entry", async () => {
@@ -161,9 +161,9 @@ describe("gateway compat (developer role)", () => {
 
 		await handle.provider.refreshModels?.(context(store));
 
-		expect(compatOf(handle.provider.getModels()[0]).supportsDeveloperRole).toBe(
-			false,
-		);
+		expect(
+			compatOf(handle.provider.getModels()[0]!).supportsDeveloperRole,
+		).toBe(false);
 	});
 });
 
@@ -213,7 +213,7 @@ describe("createNativeOpenAIProvider", () => {
 		expect(handle.provider.getModels().map((item) => item.id)).toEqual([
 			"stored-free",
 		]);
-		expect(handle.provider.getModels()[0].provider).toBe("test-native");
+		expect(handle.provider.getModels()[0]!.provider).toBe("test-native");
 	});
 
 	it("supports native-store-only initialization without a legacy cache", () => {
@@ -276,14 +276,14 @@ describe("createNativeOpenAIProvider", () => {
 			// Disk stays small (the #519 structuredClone sink scales with
 			// this list); memory still takes the complete catalog.
 			expect(persisted).toHaveLength(1);
-			expect(persisted[0].persist?.models).toEqual([freeOnly]);
+			expect(persisted[0]!.persist?.models).toEqual([freeOnly]);
 			expect(published).toEqual([[freeOnly, paidOnly]]);
 		});
 
 		it("persists the complete catalog under an all view", async () => {
 			const { persisted, published } = await runPersist("all");
 			expect(persisted).toHaveLength(1);
-			expect(persisted[0].persist?.models).toEqual([freeOnly, paidOnly]);
+			expect(persisted[0]!.persist?.models).toEqual([freeOnly, paidOnly]);
 			expect(published).toEqual([[freeOnly, paidOnly]]);
 		});
 	});
@@ -316,10 +316,10 @@ describe("createNativeOpenAIProvider", () => {
 		} as unknown as RefreshModelsContext);
 
 		expect(publish).toHaveBeenCalledOnce();
-		expect(publish.mock.calls[0][0].persist?.models[0]).toMatchObject({
+		expect(publish.mock.calls[0]![0].persist?.models[0]).toMatchObject({
 			id: "modern",
 		});
-		expect(handle.provider.getModels()[0].id).toBe("modern");
+		expect(handle.provider.getModels()[0]!.id).toBe("modern");
 	});
 
 	it("does not apply a stale Pi 0.84 publication", async () => {
@@ -367,7 +367,7 @@ describe("createNativeOpenAIProvider", () => {
 
 		expect(fetchModels).toHaveBeenCalledOnce();
 		expect(written).toHaveLength(1);
-		expect(written[0].models[0]).toMatchObject({
+		expect(written[0]!.models[0]!).toMatchObject({
 			id: "fresh-free",
 			provider: "test-native",
 			api: "openai-completions",
@@ -392,7 +392,7 @@ describe("createNativeOpenAIProvider", () => {
 		);
 
 		expect(fetchModels).toHaveBeenCalledOnce();
-		expect(written[0].models[0]).toMatchObject({ id: "public" });
+		expect(written[0]!.models[0]!).toMatchObject({ id: "public" });
 	});
 
 	it("registers one stable provider object and shared lifecycle hooks", async () => {
@@ -409,7 +409,7 @@ describe("createNativeOpenAIProvider", () => {
 		registerNativeOpenAIProvider(pi, options);
 
 		expect(registerProvider).toHaveBeenCalledTimes(2);
-		expect(registerProvider.mock.calls[0][0].id).toBe("test-native");
+		expect(registerProvider.mock.calls[0]![0].id).toBe("test-native");
 		expect(registerCommand).toHaveBeenCalledWith(
 			"toggle-test-native",
 			expect.any(Object),
@@ -418,7 +418,7 @@ describe("createNativeOpenAIProvider", () => {
 		expect(on).toHaveBeenCalledWith("session_start", expect.any(Function));
 
 		const refresh = vi.fn(async () => ({ errors: new Map() }));
-		const sessionHandler = on.mock.calls[0][1] as (
+		const sessionHandler = on.mock.calls[0]![1] as (
 			event: unknown,
 			context: { modelRegistry: { refresh: typeof refresh } },
 		) => Promise<void>;

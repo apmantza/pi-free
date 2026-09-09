@@ -135,10 +135,10 @@ describe("Kilo toggle interop", () => {
 	// cannot see per provider.
 	it("global /toggle-free reRegister republishes the same provider object", async () => {
 		await kiloProvider(mockPi);
-		const provider = mockRegisterProvider.mock.calls[0][0];
+		const provider = mockRegisterProvider.mock.calls[0]![0];
 
 		expect(capturedToggleArgs).toHaveLength(1);
-		const reRegister = capturedToggleArgs[0][2] as () => void;
+		const reRegister = capturedToggleArgs[0]![2] as () => void;
 
 		mockRegisterProvider.mockClear();
 		reRegister();

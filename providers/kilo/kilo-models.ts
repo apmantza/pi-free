@@ -59,7 +59,7 @@ export function applyKiloCompat<
 // =============================================================================
 
 async function fetchKiloModels(options?: {
-	token?: string;
+	token?: string | undefined;
 	freeOnly?: boolean;
 }): Promise<ProviderModelConfig[]> {
 	const models = await fetchOpenRouterCompatibleModels({
@@ -81,7 +81,7 @@ async function fetchKiloModels(options?: {
  * an empty (dynamic) provider and recover on a later refresh.
  */
 export async function fetchKiloCatalog(options?: {
-	token?: string;
+	token?: string | undefined;
 	signal?: AbortSignal;
 }): Promise<{ all: ProviderModelConfig[]; free: ProviderModelConfig[] }> {
 	let all: ProviderModelConfig[];

@@ -16,7 +16,7 @@ interface CreateToggleStateOptions<T> {
 	 * `opencode-free` → `opencode_free_show_paid`) must pass it so the
 	 * toggle survives a restart.
 	 */
-	configKey?: string;
+	configKey?: string | undefined;
 	save?: typeof saveConfig;
 	initialModels?: ToggleModelStore<T>;
 }

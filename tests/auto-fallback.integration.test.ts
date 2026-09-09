@@ -334,7 +334,7 @@ describe("auto-fallback integration", () => {
 		);
 
 		const ctx = buildMockCtx({ provider: "kilo", id: "gpt-4o" });
-		await pi.commands["toggle-auto-fallback"].handler([], ctx);
+		await pi.commands["toggle-auto-fallback"]!.handler([], ctx);
 		expect(mockSaveConfig).toHaveBeenCalledWith({ auto_fallback: false });
 	});
 
@@ -377,7 +377,7 @@ describe("auto-fallback integration", () => {
 		expect(statusBefore.blacklistSize).toBeGreaterThanOrEqual(1);
 
 		const ctx = buildMockCtx({ provider: "kilo", id: "gpt-4o" });
-		await pi.commands["reset-fallback-blacklist"].handler([], ctx);
+		await pi.commands["reset-fallback-blacklist"]!.handler([], ctx);
 
 		const statusAfter = handle.getStatus();
 		expect(statusAfter.blacklistSize).toBe(0);
@@ -440,7 +440,7 @@ describe("auto-fallback integration", () => {
 		);
 
 		expect(pi.setModel).toHaveBeenCalledTimes(1);
-		const switchedTo = pi.setModel.mock.calls[0][0] as {
+		const switchedTo = pi.setModel.mock.calls[0]![0] as {
 			provider: string;
 			id: string;
 		};
@@ -511,7 +511,7 @@ describe("auto-fallback integration", () => {
 		);
 
 		expect(pi.setModel).toHaveBeenCalledTimes(1);
-		const switchedTo = pi.setModel.mock.calls[0][0] as {
+		const switchedTo = pi.setModel.mock.calls[0]![0] as {
 			provider: string;
 			id: string;
 		};

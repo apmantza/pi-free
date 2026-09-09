@@ -26,7 +26,9 @@ function generateUlid(): string {
 	const rand = new Uint8Array(16);
 	crypto.getRandomValues(rand);
 	let r = "";
-	for (let i = 0; i < 16; i++) r += CHARS[rand[i] % 32];
+	// CHARS is a 32-symbol alphabet, so `% 32` never indexes out of range.
+	// Iterating bytes directly leaves only the alphabet index asserted.
+	for (const byte of rand) r += CHARS[byte % 32]!;
 	return ts + r;
 }
 

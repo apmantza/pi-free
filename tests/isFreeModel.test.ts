@@ -220,7 +220,7 @@ describe("isFreeModel - freemium providers behavior", () => {
 			isFreeModel({ ...m, provider: "nvidia" }, models),
 		);
 		expect(freeModels).toHaveLength(1);
-		expect(freeModels[0].name).toBe("llama3.2-free");
+		expect(freeModels[0]!.name).toBe("llama3.2-free");
 	});
 });
 
@@ -408,10 +408,10 @@ describe("isFreeModel - pricing-exposure memo", () => {
 		];
 
 		// Priced catalog: zero-cost model is free (Route A).
-		expect(isFreeModel(priced[1], priced)).toBe(true);
+		expect(isFreeModel(priced[1]!, priced)).toBe(true);
 		// Unpriced catalog: name without "free" is not free (Route B).
-		expect(isFreeModel(unpriced[0], unpriced)).toBe(false);
+		expect(isFreeModel(unpriced[0]!, unpriced)).toBe(false);
 		// Revisit the first catalog: the cached verdict must still apply.
-		expect(isFreeModel(priced[1], priced)).toBe(true);
+		expect(isFreeModel(priced[1]!, priced)).toBe(true);
 	});
 });

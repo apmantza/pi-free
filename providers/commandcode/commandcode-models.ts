@@ -28,7 +28,7 @@ import {
 	PROVIDER_COMMANDCODE,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
-import { fetchWithRetry } from "../../lib/util.ts";
+import { fetchWithRetry, withSignal } from "../../lib/util.ts";
 import {
 	MODEL_COSTS,
 	MODEL_INPUT_MODALITIES,
@@ -125,10 +125,12 @@ export async function fetchCommandCodeModels(
 	}
 	const response = await fetchWithRetry(
 		`${BASE_URL_COMMANDCODE}/models`,
-		{
-			headers,
+		withSignal(
+			{
+				headers,
+			},
 			signal,
-		},
+		),
 		1,
 		1_000,
 		DEFAULT_FETCH_TIMEOUT_MS,

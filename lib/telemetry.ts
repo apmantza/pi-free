@@ -31,7 +31,7 @@ interface TelemetryEntry {
 	totalTokens: number;
 	tokensPerSecond: number;
 	cost: number;
-	stopReason?: string;
+	stopReason?: string | undefined;
 	error?: string;
 	/** HTTP status code when the failure came from a provider response. */
 	statusCode?: number;
@@ -261,8 +261,8 @@ export function startModelCall(provider: string, model: string): string {
 /** Options for {@link recordModelCall} */
 export interface RecordModelCallOptions {
 	success: boolean;
-	stopReason?: string;
-	errorMessage?: string;
+	stopReason?: string | undefined;
+	errorMessage?: string | undefined;
 	/** HTTP status code observed on the provider response. */
 	statusCode?: number;
 	/** Structured failure class; derived from the message when omitted. */

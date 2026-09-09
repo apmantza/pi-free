@@ -69,6 +69,11 @@ vi.mock("../lib/session-start-metrics.ts", () => ({
 vi.mock("../lib/util.ts", () => ({
 	fetchWithRetry: (...args: unknown[]) => mockFetchWithRetry(...args),
 	fetchWithTimeout: (...args: unknown[]) => mockFetchWithTimeout(...args),
+	// Mirror semantics: omit an undefined signal (RequestInit is lib.dom).
+	withSignal: (init: RequestInit, signal?: AbortSignal) => {
+		if (signal) init.signal = signal;
+		return init;
+	},
 }));
 
 vi.mock("../provider-helper.ts", () => ({
@@ -254,7 +259,7 @@ describe("Ollama native factory", () => {
 		await ollamaEntry(pi);
 
 		expect(registerProvider).toHaveBeenCalledTimes(1);
-		expect(registerProvider.mock.calls[0][0].id).toBe("ollama-cloud");
+		expect(registerProvider.mock.calls[0]![0].id).toBe("ollama-cloud");
 		expect(registerCommand).toHaveBeenCalledWith(
 			"toggle-ollama-cloud",
 			expect.any(Object),

@@ -16,8 +16,8 @@ describe("action ring", () => {
 		for (let i = 0; i < 25; i++) recordAction("toggle", `action-${i}`);
 		const recent = getRecentActions();
 		expect(recent).toHaveLength(20);
-		expect(recent[0].summary).toBe("action-24");
-		expect(recent[19].summary).toBe("action-5");
+		expect(recent[0]!.summary).toBe("action-24");
+		expect(recent[19]!.summary).toBe("action-5");
 	});
 
 	it("truncates long summaries for health rendering", async () => {
@@ -26,7 +26,7 @@ describe("action ring", () => {
 			await import("../lib/action-log.ts");
 		clearActions();
 		recordAction("restore", "x".repeat(300));
-		expect(getRecentActions()[0].summary).toHaveLength(160);
+		expect(getRecentActions()[0]!.summary).toHaveLength(160);
 	});
 
 	it("attaches the ambient run id, null outside a run", async () => {
@@ -43,10 +43,10 @@ describe("action ring", () => {
 		}, "deadbeef");
 		expect(getActiveRunId()).toBeNull();
 		const recent = getRecentActions();
-		expect(recent[0].summary).toBe("inside");
-		expect(recent[0].run).toBe("deadbeef");
-		expect(recent[1].summary).toBe("outside");
-		expect(recent[1].run).toBeNull();
+		expect(recent[0]!.summary).toBe("inside");
+		expect(recent[0]!.run).toBe("deadbeef");
+		expect(recent[1]!.summary).toBe("outside");
+		expect(recent[1]!.run).toBeNull();
 	});
 
 	it("tags file-log lines with the ambient run id", async () => {

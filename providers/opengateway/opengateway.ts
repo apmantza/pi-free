@@ -30,7 +30,7 @@ import {
 	getProxyModelCompat,
 	isLikelyReasoningModel,
 } from "../../lib/provider-compat.ts";
-import { fetchWithRetry } from "../../lib/util.ts";
+import { fetchWithRetry, withSignal } from "../../lib/util.ts";
 import { opengatewayAuth } from "./opengateway-auth.ts";
 
 const _logger = createLogger("opengateway");
@@ -254,15 +254,17 @@ export async function fetchOpenGatewayModels(
 ): Promise<ProviderModelConfig[]> {
 	const response = await fetchWithRetry(
 		`${BASE_URL_OPENGATEWAY}/models`,
-		{
-			headers: {
-				Authorization: `Bearer ${apiKey}`,
-				Accept: "application/json",
-				"Content-Type": "application/json",
-				"User-Agent": "pi-free-providers",
+		withSignal(
+			{
+				headers: {
+					Authorization: `Bearer ${apiKey}`,
+					Accept: "application/json",
+					"Content-Type": "application/json",
+					"User-Agent": "pi-free-providers",
+				},
 			},
 			signal,
-		},
+		),
 		3,
 		1000,
 		DEFAULT_FETCH_TIMEOUT_MS,

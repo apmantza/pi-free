@@ -135,7 +135,7 @@ describe("fetchOpenRouterCompatibleModels", () => {
 		});
 
 		const headers = (
-			fetchMock.mock.calls[0][1] as unknown as {
+			fetchMock.mock.calls[0]![1] as unknown as {
 				headers: Record<string, string>;
 			}
 		).headers;
