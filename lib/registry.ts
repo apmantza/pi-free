@@ -265,14 +265,15 @@ function applyFilterToProvider(
 	}
 
 	if (view === "free") {
-		if (entry.stored.free.length > 0) {
-			entry.reRegister(entry.stored.free);
-			_logger.info(
-				`[pi-free] ${providerId}: filtered to ${entry.stored.free.length} free models`,
-			);
-		} else {
-			_logger.warn(`[pi-free] ${providerId}: no free models available`);
-		}
+		// Strict: register the free list even when it is empty (the provider
+		// then hides from the picker) — retaining the previous registration
+		// would leak the paid catalog it was meant to hide. An empty free
+		// list under free-only is routine for paid-only catalogs, not a
+		// warning.
+		entry.reRegister(entry.stored.free);
+		_logger.info(
+			`[pi-free] ${providerId}: filtered to ${entry.stored.free.length} free models`,
+		);
 	} else {
 		showAllForProvider(providerId, entry);
 	}

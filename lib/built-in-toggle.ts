@@ -424,15 +424,20 @@ function readModelChanges(
 /**
  * Resolve the model choice to restore for a built-in-toggle provider.
  *
- * Pi's startup fallback ("Could not restore model … Using …") APPENDS a
- * `model_change` entry for the fallback model, so by the time the captured
- * catalog registers, `buildSessionContext().model` reports the fallback —
- * not the session's persisted choice — and a naive read would silently skip
- * the restore. The raw entry trail disambiguates: a trailing model_change
- * naming ANOTHER provider only counts as the user's deliberate choice if it
- * predates this run. A trailing change stamped during this run can only be
- * Pi's own fallback (the TUI is not interactive yet), so the last pre-run
- * change for this provider is the choice to restore.
+ * Pi's startup/switch fallback ("Could not restore model … Using …")
+ * APPENDS a `model_change` entry for the fallback model, so by the time
+ * the captured catalog registers, `buildSessionContext().model` reports
+ * the fallback — not the session's persisted choice — and a naive read
+ * would silently skip the restore. The raw entry trail disambiguates, but
+ * only if every during-run entry is treated as Pi speaking: the fallback
+ * append lands AFTER the user's persisted trail, so "trailing change
+ * names another provider, look back" restores over a deliberate
+ * departure whenever Pi's append is newest (verified live: a pre-run
+ * trail ending in another provider still restored the older choice).
+ * Walk back past all during-run entries instead: the last PRE-RUN entry
+ * is the user's persisted choice — restore it iff it names this
+ * provider, and honor a departure to another provider by doing nothing.
+ * Undated entries cannot be proven pre-run and count as a departure.
  */
 function resolveSavedModelChoice(
 	providerId: string,
@@ -442,17 +447,15 @@ function resolveSavedModelChoice(
 	if (contextModel?.provider === providerId) return contextModel;
 	const changes = readModelChanges(session);
 	if (!changes || changes.length === 0) return undefined;
-	const last = changes.at(-1);
-	if (!last) return undefined;
-	if (last.provider === providerId) return last;
-	// Trailing change names another provider. If it was not written during
-	// this run, it is a deliberate choice from a previous run — honor it.
-	const lastAt = last.timestamp ? Date.parse(last.timestamp) : Number.NaN;
-	if (Number.isNaN(lastAt) || lastAt < RUN_STARTED_AT - CLOCK_SKEW_MS) {
-		return undefined;
-	}
-	for (let i = changes.length - 2; i >= 0; i--) {
-		if (changes[i].provider === providerId) return changes[i];
+	for (let i = changes.length - 1; i >= 0; i--) {
+		const change = changes[i];
+		const at = change.timestamp ? Date.parse(change.timestamp) : Number.NaN;
+		if (Number.isNaN(at) || at < RUN_STARTED_AT - CLOCK_SKEW_MS) {
+			// Last user choice (or undatable): restore iff ours, else
+			// honor the departure to another provider.
+			return change.provider === providerId ? change : undefined;
+		}
+		// During-run entry: Pi's fallback artifact — skip.
 	}
 	return undefined;
 }
