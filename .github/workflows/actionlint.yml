@@ -1,0 +1,38 @@
+name: Actionlint
+
+# Workflow syntax gate. pi-free's ci.yml keeps growing (format, lint,
+# knip, publint, smokes); a typo in a `run:` block or a bad expression
+# fails late and cryptically. actionlint fails fast and points at the line.
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  actionlint:
+    name: Lint workflows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download and verify actionlint v1.7.12 (linux_amd64)
+        run: |
+          set -eu
+          curl -sLO --proto '=https' --tlsv1.2 https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  actionlint_1.7.12_linux_amd64.tar.gz" | sha256sum -c -
+          tar -xzf actionlint_1.7.12_linux_amd64.tar.gz actionlint
+
+      # Bare invocation (no *.yml glob): actionlint auto-discovers every
+      # workflow under .github/workflows/, including a future .yaml
+      # extension a glob would silently miss.
+      - name: Lint workflows
+        run: ./actionlint -color

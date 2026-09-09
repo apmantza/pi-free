@@ -1,0 +1,44 @@
+name: Mutation diff
+
+# Advisory incremental mutation over the PR's changed lib files (capped).
+# Mutation is slow and occasionally flaky, so this lane never gates:
+# continue-on-error keeps it green while the score and the survivors stay
+# visible in the run and in the uploaded report. A human decides whether
+# a survivor is a missing test or an unkillable mutant.
+
+on:
+  pull_request:
+    branches: [master]
+
+permissions: {}
+
+jobs:
+  mutation:
+    name: mutation (advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+      # --ignore-scripts blocks lifecycle execution during install
+      # (S6505 posture): esbuild's binary arrives via optional deps, not
+      # scripts, so the explicit build step below is unaffected.
+      - run: npm ci --no-audit --no-fund --ignore-scripts
+      - run: npm run build
+      # The six-file cap bounds the advisory lane; the diff script maps
+      # each changed lib file to its covering tests and no-ops entirely
+      # when nothing mutable changed.
+      - run: npm run mutation:diff
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: mutation-report
+          path: reports/mutation/mutation.json
+          if-no-files-found: ignore

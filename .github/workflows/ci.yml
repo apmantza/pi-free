@@ -201,6 +201,16 @@ jobs:
           TARBALL=$(ls pi-free-*.tgz)
           node scripts/check-tarball.mjs "$TARBALL"
 
+      # Gating: publint's findings are packaging errors (wrong `files`,
+      # unresolvable `main`/exports), not style. check-tarball.mjs pins
+      # the repo's own manifest rules; publint checks the tarball is
+      # consumable by a real installer. Exit code read directly, no pipe.
+      - name: Validate the packed tarball with publint
+        shell: bash
+        run: |
+          TARBALL=$(ls pi-free-*.tgz)
+          npx --no-install publint "$TARBALL"
+
       - name: Install from tarball (simulates pi install npm:pi-free)
         shell: bash
         run: |
