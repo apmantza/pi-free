@@ -154,40 +154,40 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 			notify(message: string, type?: "info" | "warning" | "error"): void;
 		};
 	}): Promise<void> {
-			const current = getGlobalFreeOnly();
-			const next = !current;
-			// Clear per-provider choices first so every provider follows
-			// the new global default — a stale explicit choice must not keep
-			// fighting the global flag on every new session (#510).
-			await clearModelViewOverrides();
-			applyGlobalFilter(next);
+		const current = getGlobalFreeOnly();
+		const next = !current;
+		// Clear per-provider choices first so every provider follows
+		// the new global default — a stale explicit choice must not keep
+		// fighting the global flag on every new session (#510).
+		await clearModelViewOverrides();
+		applyGlobalFilter(next);
 
-			const registry = getProviderRegistry();
-			const providerCount = registry.size;
+		const registry = getProviderRegistry();
+		const providerCount = registry.size;
 
-			if (next) {
-				const totalFree = [...registry.values()].reduce(
-					(sum, e) => sum + e.stored.free.length,
-					0,
-				);
-				ctx.ui.notify(
-					`Free-only mode: ON (${totalFree} free models across ${providerCount} providers)`,
-					"info",
-				);
-			} else {
-				const totalAll = [...registry.values()].reduce(
-					(sum, e) => sum + (e.stored.all.length || e.stored.free.length),
-					0,
-				);
-				ctx.ui.notify(
-					`Free-only mode: OFF (all ${totalAll} models visible across ${providerCount} providers)`,
-					"info",
-				);
-			}
-			recordAction(
-				"toggle",
-				`global free-only ${current ? "ON→OFF" : "OFF→ON"} (${providerCount} providers)`,
+		if (next) {
+			const totalFree = [...registry.values()].reduce(
+				(sum, e) => sum + e.stored.free.length,
+				0,
 			);
+			ctx.ui.notify(
+				`Free-only mode: ON (${totalFree} free models across ${providerCount} providers)`,
+				"info",
+			);
+		} else {
+			const totalAll = [...registry.values()].reduce(
+				(sum, e) => sum + (e.stored.all.length || e.stored.free.length),
+				0,
+			);
+			ctx.ui.notify(
+				`Free-only mode: OFF (all ${totalAll} models visible across ${providerCount} providers)`,
+				"info",
+			);
+		}
+		recordAction(
+			"toggle",
+			`global free-only ${current ? "ON→OFF" : "OFF→ON"} (${providerCount} providers)`,
+		);
 	}
 
 	// /free-providers - Show free model counts by provider
