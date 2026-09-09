@@ -21,7 +21,8 @@ import type {
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
 import { getOpencodeApiKey, setModelViewOverride } from "../config.ts";
-import { createLogger } from "./logger.ts";
+import { recordAction } from "./action-log.ts";
+import { createLogger, withRunId } from "./logger.ts";
 import { isStaleContextError } from "./stale-ctx.ts";
 import {
 	getProviderRegistry,
@@ -477,6 +478,15 @@ async function maybeRestoreSavedModel(
 	config: BuiltInToggleConfig,
 	snapshot: SavedModelSnapshot,
 ): Promise<void> {
+	// One run tag for resolve + retry + setModel.
+	await withRunId(() => restoreSavedModelInner(pi, config, snapshot));
+}
+
+async function restoreSavedModelInner(
+	pi: ExtensionAPI,
+	config: BuiltInToggleConfig,
+	snapshot: SavedModelSnapshot,
+): Promise<void> {
 	try {
 		const contextModel =
 			snapshot.sessionManager?.buildSessionContext?.().model ?? null;
@@ -533,6 +543,10 @@ async function maybeRestoreSavedModel(
 			_logger.warn(
 				`[built-in-toggle] ${config.id}: saved model ${saved.modelId} not in the registered catalog; keeping Pi's fallback`,
 			);
+			recordAction(
+				"restore",
+				`${config.id}: saved ${saved.modelId} not in catalog; keeping fallback`,
+			);
 			return;
 		}
 		const restored = await pi.setModel(model);
@@ -540,9 +554,14 @@ async function maybeRestoreSavedModel(
 			_logger.info(
 				`[built-in-toggle] ${config.id}: restored saved model ${saved.modelId} after late registration`,
 			);
+			recordAction("restore", `${config.id}: restored ${saved.modelId}`);
 		} else {
 			_logger.warn(
 				`[built-in-toggle] ${config.id}: saved model ${saved.modelId} registered but setModel was rejected (auth?)`,
+			);
+			recordAction(
+				"restore",
+				`${config.id}: saved ${saved.modelId} registered but setModel rejected`,
 			);
 		}
 	} catch (error) {
@@ -555,6 +574,7 @@ async function maybeRestoreSavedModel(
 					error: error instanceof Error ? error.message : String(error),
 				},
 			);
+			recordAction("restore", `${config.id}: session changed; restore skipped`);
 			return;
 		}
 		_logger.warn(
@@ -946,7 +966,8 @@ function registerToggleCommand(
 		description: `Toggle free/paid ${config.id} models`,
 		handler: async (_args, ctx) => {
 			try {
-				await runToggleCommand(ctx);
+				// One run tag for capture-wait + apply + persist.
+				await withRunId(() => runToggleCommand(ctx));
 			} catch (error) {
 				// The command ctx may belong to a replaced session (#509).
 				// There is no live UI left to explain that on — drop it
@@ -1002,6 +1023,10 @@ function registerToggleCommand(
 		const next = resolveModelView(config.id) === "free" ? "all" : "free";
 		const applied = state.toggleState.applyMode(next, state.reRegister);
 		await setModelViewOverride(config.id, applied.mode);
+		recordAction(
+			"toggle",
+			`${config.id} ${next === applied.mode ? "" : `(asked ${next}, got ${applied.mode}) `}${applied.mode} (${applied.models.length} models)`,
+		);
 
 		if (applied.mode === "all") {
 			ctx.ui.notify(

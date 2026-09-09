@@ -114,7 +114,7 @@ environment.HOME = home;
 environment.USERPROFILE = home;
 environment.NPM_CONFIG_USERCONFIG = join(testRoot, "npmrc");
 environment.NPM_CONFIG_CACHE = join(testRoot, "npm-cache");
-environment.PI_FREE_FILE_LOG = "false";
+environment.PI_FREE_FILE_LOG = "true";
 delete environment.PI_CODING_AGENT_DIR;
 delete environment.PI_CODING_AGENT_SESSION_DIR;
 delete environment.PI_PACKAGE_DIR;

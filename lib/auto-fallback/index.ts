@@ -39,7 +39,8 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { getProviderRegistry } from "../registry.ts";
 import { fallbackState } from "../fallback-state.ts";
-import { createLogger } from "../logger.ts";
+import { recordAction } from "../action-log.ts";
+import { createLogger, withRunId } from "../logger.ts";
 import { isStaleContextError, safeNotify } from "../stale-ctx.ts";
 import { createBlacklist, type Blacklist } from "./blacklist.ts";
 import { getAutoFallbackConfig } from "./config.ts";
@@ -333,6 +334,10 @@ export function createAutoFallback(): AutoFallbackHandle {
 			_logger.info(
 				`auto-fallback: switched ${modelKey(provider, modelId)} → ${modelKey(cand.provider, cand.modelId)} (reason=${failureReason})`,
 			);
+			recordAction(
+				"fallback",
+				`${modelKey(provider, modelId)} → ${modelKey(cand.provider, cand.modelId)} (${failureReason})`,
+			);
 
 			// Mark for auto-continue: agent_settled will replay the captured
 			// prompt on the new model so the user doesn't have to re-send.
@@ -556,9 +561,11 @@ export function createAutoFallback(): AutoFallbackHandle {
 			// This single handler owns ALL decisions (recovery, strikes,
 			// switching, auto-continue) so each settled run is processed
 			// exactly once, in order.
+			// One run tag per settle: clean runs emit no lines (no noise),
+			// failure runs correlate classify → strike → switch → replay.
 			extensionPi.on("agent_settled", async (_event, ctx) => {
 				try {
-					await handleAgentSettled(ctx);
+					await withRunId(() => handleAgentSettled(ctx));
 				} catch (error) {
 					// Pi surfaces handler throws as a user-visible Extension
 					// error for the current turn. A stale ctx just means the
