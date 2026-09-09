@@ -181,15 +181,17 @@ describe("applyGlobalFilter", () => {
 		expect(reRegister).toHaveBeenCalledWith(free);
 	});
 
-	it("handles providers with no free models gracefully", () => {
+	it("registers the empty free list (hides the provider) when no free models exist", () => {
 		const free: ProviderModelConfig[] = [];
 		const all = [makePaidModel("expensive")];
 		const reRegister = vi.fn();
 
 		registerWithGlobalToggle("af-test-4", { free, all }, reRegister, true);
 
+		// Strict free views never retain the previous registration: that
+		// would leak the paid catalog the filter exists to hide.
 		expect(() => applyGlobalFilter(true)).not.toThrow();
-		expect(reRegister).not.toHaveBeenCalled();
+		expect(reRegister).toHaveBeenCalledWith([]);
 	});
 
 	it("applies filter to all registered providers", () => {

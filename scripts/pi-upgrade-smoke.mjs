@@ -141,11 +141,11 @@ try {
 	console.log("Launching Pi RPC load check on the upgraded tree");
 	await run([join(scriptDir, "rpc-load-check.mjs")], piOptions, 45_000);
 	console.log("Launching Pi RPC session + filter check on the upgraded tree");
-	await run([join(scriptDir, "rpc-session-check.mjs")], piOptions, 420_000);
+	await run([join(scriptDir, "rpc-session-check.mjs")], piOptions, 660_000);
 	console.log("Launching Pi RPC toggle check on the upgraded tree");
-	await run([join(scriptDir, "rpc-toggle-check.mjs")], piOptions, 420_000);
+	await run([join(scriptDir, "rpc-toggle-check.mjs")], piOptions, 660_000);
 	console.log("Launching Pi RPC restore check on the upgraded tree");
-	await run([join(scriptDir, "rpc-restore-check.mjs")], piOptions, 420_000);
+	await run([join(scriptDir, "rpc-restore-check.mjs")], piOptions, 660_000);
 	console.log("Pi upgrade smoke passed");
 } catch (error) {
 	console.error(

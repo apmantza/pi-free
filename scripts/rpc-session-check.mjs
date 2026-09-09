@@ -35,9 +35,9 @@
  * Usage:
  *   node scripts/rpc-session-check.mjs
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { bootPi } from "./lib/rpc-driver.mjs";
+import { bootPi, sleep } from "./lib/rpc-driver.mjs";
 
 const expectedCommands = ["toggle-free", "free-providers", "pi-free-health"];
 
@@ -64,7 +64,7 @@ const driver = bootPi({
 		ANTHROPIC_API_KEY:
 			process.env.ANTHROPIC_API_KEY || "sk-ant-dummy-rpc-session-check",
 	},
-	timeoutMs: 300_000,
+	timeoutMs: 600_000,
 });
 
 function paidCost(model) {
@@ -142,6 +142,15 @@ async function waitCatalog(phase, managed) {
 		(models) => assertCatalog(models, phase, managed),
 		{ timeoutMs: 180_000, label: `${phase} managed catalog` },
 	);
+}
+
+/**
+ * Write the smoke HOME's free.json (same file the extension reads).
+ * Used by the hot-reload probe to bypass applyGlobalFilter on purpose.
+ */
+function writeFreeJson(value) {
+	const homeDir = process.env.HOME || process.env.USERPROFILE || "";
+	writeFileSync(join(homeDir, ".pi", "free.json"), JSON.stringify(value));
 }
 
 /**
@@ -225,6 +234,54 @@ try {
 	console.log(
 		`post-toggle-replacement: llm7/pro survives new_session (${persisted.length} total)`,
 	);
+
+	// Global flip: /toggle-free clears overrides and shows paid everywhere;
+	// flipping back restores the strict free view.
+	await driver.prompt("/toggle-free");
+	await driver.waitFor(
+		async () => {
+			const found = (await driver.send({ type: "get_available_models" }))
+				.models;
+			const paid = (found ?? []).filter(
+				(m) => managed.has(m.provider) && paidCost(m),
+			);
+			return paid.length > 0 ? paid : null;
+		},
+		{ timeoutMs: 90_000, label: "toggle-free-off paid visible" },
+	);
+	console.log("toggle-free-off: paid managed models visible");
+	await driver.prompt("/toggle-free");
+	await waitCatalog("toggle-free-on", managed);
+
+	// Hot-reload probe (observe + report, not assert): a direct free.json
+	// write bypasses applyGlobalFilter, so the module-cached global may
+	// not follow. The log line below is the evidence either way.
+	writeFreeJson({ free_only: false });
+	await sleep(5000);
+	const probeOff = (await driver.send({ type: "get_available_models" })).models;
+	const probeOffPaid = (probeOff ?? []).filter(
+		(m) => managed.has(m.provider) && paidCost(m),
+	);
+	console.log(
+		`hot-reload-probe: file free_only=false -> ${probeOffPaid.length} paid managed visible`,
+	);
+	writeFreeJson({ free_only: true });
+	await sleep(5000);
+	const probeOn = (await driver.send({ type: "get_available_models" })).models;
+	const probeOnPaid = (probeOn ?? []).filter(
+		(m) => managed.has(m.provider) && paidCost(m),
+	);
+	console.log(
+		`hot-reload-probe: file free_only=true -> ${probeOnPaid.length} paid managed visible`,
+	);
+
+	// Rapid-switch stress: replacements back-to-back must stay clean.
+	for (let i = 0; i < 5; i++) {
+		await driver.send({ type: "new_session" });
+	}
+	console.log("rapid-switch: 5 replacements issued");
+	await waitCommands("rapid-switch");
+	await waitCatalog("rapid-switch", managed);
 
 	driver.pass("session replacement clean, free-only view holds");
 } catch (error) {
