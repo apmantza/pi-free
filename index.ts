@@ -25,7 +25,8 @@ import {
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { clearModelViewOverrides } from "./config.ts";
 import { setupBuiltInProviderToggles } from "./lib/built-in-toggle.ts";
-import { createLogger, flushLogsSync } from "./lib/logger.ts";
+import { recordAction } from "./lib/action-log.ts";
+import { createLogger, flushLogsSync, withRunId } from "./lib/logger.ts";
 import {
 	processQuotaResponse,
 	formatQuotaStatus,
@@ -139,6 +140,20 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 	pi.registerCommand("toggle-free", {
 		description: "Toggle global free-only mode for all providers",
 		handler: async (_args, ctx) => {
+			// One run tag for the whole fan-out; the action ring keeps the
+			// user-pasteable summary (file log carries the per-provider trace).
+			withRunId(() => {
+				void runGlobalToggle(ctx);
+			});
+		},
+	});
+
+	// /toggle-free body, extracted so the whole fan-out shares one run tag.
+	async function runGlobalToggle(ctx: {
+		ui: {
+			notify(message: string, type?: "info" | "warning" | "error"): void;
+		};
+	}): Promise<void> {
 			const current = getGlobalFreeOnly();
 			const next = !current;
 			// Clear per-provider choices first so every provider follows
@@ -169,8 +184,11 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 					"info",
 				);
 			}
-		},
-	});
+			recordAction(
+				"toggle",
+				`global free-only ${current ? "ON→OFF" : "OFF→ON"} (${providerCount} providers)`,
+			);
+	}
 
 	// /free-providers - Show free model counts by provider
 	pi.registerCommand("free-providers", {

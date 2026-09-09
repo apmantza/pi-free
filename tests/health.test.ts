@@ -102,6 +102,22 @@ describe("health report", () => {
 		expect(report).toContain("old-prov: store 8d old");
 	});
 
+	it("lists recent user-action outcomes when actions ran", async () => {
+		const actions = await import("../lib/action-log.ts");
+		const { formatHealthReport } = await import("../lib/health.ts");
+
+		actions.clearActions();
+		expect(formatHealthReport()).not.toContain("Recent actions:");
+		actions.recordAction("toggle", "global free-only OFF→ON (3 providers)");
+		actions.recordAction("restore", "opencode-go: restored big-pickle");
+
+		const report = formatHealthReport();
+		expect(report).toContain(
+			"Recent actions: [restore] opencode-go: restored big-pickle; [toggle] global free-only OFF→ON (3 providers)",
+		);
+		actions.clearActions();
+	});
+
 	it("aggregates auth-failure / rate-limit / 5xx response counters (M2, Mn3)", async () => {
 		const quota = await import("../lib/quota-monitor.ts");
 		const { formatHealthReport } = await import("../lib/health.ts");

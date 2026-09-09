@@ -11,6 +11,7 @@ import {
 	isFileLoggingEnabled,
 } from "./logger.ts";
 import { getAllResponseCounters } from "./quota-monitor.ts";
+import { getRecentActions } from "./action-log.ts";
 import { getAutoFallback } from "./auto-fallback-status.ts";
 
 /**
@@ -89,6 +90,16 @@ export function formatHealthReport(): string {
 				: "") +
 			`${fallbackStatus.exhausted ? ", EXHAUSTED" : ""})`;
 		lines.push(statusLine);
+	}
+
+	// Recent user-action outcomes (toggles, restores, fallback switches).
+	// The file log carries the full trace; this is the paste-into-an-issue
+	// summary. Absent when no action ran yet this process.
+	const actions = getRecentActions().slice(0, 8);
+	if (actions.length > 0) {
+		lines.push(
+			`Recent actions: ${actions.map((a) => `[${a.kind}] ${a.summary}`).join("; ")}`,
+		);
 	}
 
 	return lines.join("\n");
