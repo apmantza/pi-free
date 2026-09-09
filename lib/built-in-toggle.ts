@@ -645,8 +645,11 @@ function createProviderState(
 		isFreeModel({ ...m, provider: config.id }, allModels),
 	);
 
+	// No return-type annotation: Babel 8 (Stryker's instrumenter parser)
+	// rejects typed arrows in ternary position (UnexpectedTypeAnnotation).
+	// tsc still checks the inferred return at the assignment below.
 	const refreshModels = config.refreshEndpoint
-		? async (context: RefreshModelsContext): Promise<ProviderModelConfig[]> => {
+		? async (context: RefreshModelsContext) => {
 				const currentModels = () =>
 					stateForRefresh?.toggleState.getCurrentModels() ?? allModels;
 				if (!context.allowNetwork) {
