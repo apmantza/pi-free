@@ -88,6 +88,9 @@ Run the same checks as CI:
 
 ```bash
 npm run lint
+npm run format:check
+npm run lint:oxlint
+npm run check:knip
 npm run test:run
 ```
 
@@ -101,9 +104,11 @@ cd pi-free
 npm install
 git checkout -b feat/my-provider
 npm run lint
+npm run format:check
+npm run lint:oxlint
 npm run test:run
 git add -A
-git commit -m "feat: add myprovider"
+git commit -m "feat: add myprovider (refs #NNN)"
 git push origin feat/my-provider
 ```
 

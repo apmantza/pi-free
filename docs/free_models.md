@@ -4,6 +4,8 @@
 
 **Totals at audit time:** ~106 free-classified models across 16 providers. Three registered providers exposed **zero** free models (CrofAI, DeepInfra, SambaNova — see [Zero-free providers](#zero-free-providers)).
 
+> **Visibility:** these lists describe what each provider *offers*, not what `/model` shows. Providers you have not logged into are hidden (only the keyless allowlist — Cline, FastRouter, LLM7 — appears logged out); see [Model visibility](providers.md#model-visibility).
+
 ---
 
 ## Cross-cutting conditions
