@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-09-09
+
+### Added
+
+- **Logged-out providers hidden from `/model`** — Pi hides providers whose auth doesn't resolve, and pi-free's anonymous opt-ins made logged-out catalogs visible that chat couldn't use (the gateway rejects unauthenticated completions). The shared `anonymousCatalog` option is removed (commandcode, crofai, deepinfra, infron, novita, routeway, sambanova, venice) and the kilo/requesty/zenmux custom resolvers return undefined keyless; only genuinely keyless-usable providers stay visible (cline, fastrouter, llm7). Pinned by rewritten unit suites, docs, and a keyless-boot RPC check (kilo-absent / llm7-present) (#530).
+- **Recent actions in `/pi-free-health` plus run-tagged file logs** — user actions (toggles, restores, fallback switches) share one run-correlation id across their per-provider log lines and surface as a paste-into-an-issue summary in health. TUI visibility stays exclusively through health; no new toasts or console output. Smoke runs now preserve `free.log` as a failure artifact.
+- **PR conventions gate and advisory mutation lane** — titles require a conventional prefix plus issue ref (the merge subject is forever); bodies stay advisory. Mutation runs diff-scoped and capped, never gating, with score and survivors in the log.
+
+### Changed
+
+- **Refresh persists the effective view, not the complete fetch** — under a free view the store keeps only free models, so Pi's per-refresh clone/write scales with visible models instead of the full paid catalog; memory still takes the complete list via `onFetched`, so toggling to all works offline (#519).
+- **One resolved model view** — an explicit per-provider choice wins, otherwise the global `free_only` default applies; `/toggle-free` clears overrides. Sparse `model_view_overrides` replaces the `force`/`forced` branches and the template-materialized legacy keys (#510).
+- **TypeScript strictness to nine beyond-strict flags** — `exactOptionalPropertyTypes` and `noUncheckedIndexedAccess` migrated (273 errors: presence-aware widening, omit-at-construction for Pi/lib.dom types, guards where undefined is possible) plus the zero-cost set (`noImplicitOverride`, `noImplicitReturns`, `noFallthroughCasesInSwitch`, `useUnknownInCatchVariables`, `verbatimModuleSyntax`, `erasableSyntaxOnly`). The existing `tsc` lint gate guards every PR.
+- **Canonical formatting and hygiene gates** — oxfmt (tabs/80 cols) with `--check` in CI, oxlint correctness/suspicious, knip dead-code gate, whitespace-vs-base check. One canonical reformat; markdown excluded (formatter not idempotent there).
+- **Install/packaging hardening** — publint on the packed tarball, installed-closure and hoisting canaries, lockfile platform-completeness guard (a Linux `npm install` once pruned all foreign-platform TS natives and killed Windows `tsc`), production-tree shape checks.
+- **RPC end-to-end suite replaces mocked view/restore tests** — session/filter, toggle, and deferred-restore drivers boot real Pi over RPC with settled-snapshot assertions; subsumed mock suites deleted. The suite caught five product bugs mocks couldn't see.
+- **Dependency and vulnerability posture** — weekly + every-PR OSV scans (ungated from lockfile-change gating after it missed a live advisory), `qs` forced to ^6.16.0 via overrides (GHSA-q8mj-m7cp-5q26 and kin, dev-only via Stryker).
+- **Catalog snapshot carried over (note)** — the free-model snapshot dated 2026-08-26 carries over unchanged: this release touches no classification or catalog code (`isFreeModel` received type widenings only), so a full convention-18 re-audit would re-verify identical data. The next catalog-changing release triggers it.
+
+### Fixed
+
+- **Stale extension context errors** — dead-session work in auto-fallback and built-in-toggle drops quietly with bounded observability instead of surfacing as Extension errors; detached refresh resolves on stale capture (#509).
+- **Sick install trees fail loudly in CI** — closure, entry-point, and hoisting checks catch trees that load but crash on first pi-ai use; `typebox` resolution covered by vendored fallback bundles plus guards (#510).
+- **Refresh and restore correctness** — scoped refresh nudge with abort retry (no more empty catalogs on fresh installs), deferred saved-model restore skips Pi's own fallback artifacts, and flipping back to free-only registers the empty list instead of retaining the paid catalog (#519).
+- **Quieted login-gated noise** — refresh failures retain cache without Pi warnings; aborts stay silent per convention 15.
+
 ## [2.7.1] - 2026-09-07
 
 ### Changed
