@@ -102,9 +102,14 @@ export function mapRelatedTests(
 	for (const file of targets) {
 		const base = path.basename(file, ".ts");
 		const sibling = path.join("tests", `${base}.test.ts`);
-		if (testFiles.some((test) => normalized(test) === normalized(sibling))) {
-			related.get(file)?.add(sibling);
-		}
+		// Add the testFiles entry itself, not the computed sibling: on
+		// Windows path.join yields backslashes while callers may pass
+		// forward slashes — adding the computed form would insert the same
+		// test twice under two spellings.
+		const siblingMatch = testFiles.find(
+			(test) => normalized(test) === normalized(sibling),
+		);
+		if (siblingMatch) related.get(file)?.add(siblingMatch);
 		const target = normalized(file);
 		for (const [test, content] of testContents) {
 			if (content === null) continue;
