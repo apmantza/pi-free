@@ -448,56 +448,7 @@ describe("refreshModels online", () => {
 		]);
 	});
 });
-
-// ---------------------------------------------------------------------------
-// Toggle interop (filterModels)
-// ---------------------------------------------------------------------------
-
-describe("toggle interop", () => {
-	async function seededProvider() {
-		const { store } = makeStore();
-		const handle = createLlm7Provider();
-		await handle.provider.refreshModels?.(ctx({ store, allowNetwork: true }));
-		return handle;
-	}
-
-	it("keeps the full catalog while filterModels selects the free view", async () => {
-		const { provider } = await seededProvider();
-		expect(provider.getModels().map((m) => m.id)).toEqual([
-			"default",
-			"fast",
-			"pro",
-		]);
-		expect(
-			provider.filterModels!(provider.getModels(), undefined).map((m) => m.id),
-		).toEqual(["default", "fast"]);
-
-		expect(provider.getModels().map((m) => m.id)).toEqual([
-			"default",
-			"fast",
-			"pro",
-		]);
-		expect(
-			provider.filterModels!(provider.getModels(), undefined).map((m) => m.id),
-		).toEqual(["default", "fast"]);
-	});
-
-	it("decideView shows all when per-provider show_paid is set under global free-only", async () => {
-		mockGetLlm7ShowPaid.mockReturnValue(true);
-		const { provider } = await seededProvider();
-		// show_paid true + global free-only true => filterModels returns all.
-		expect(
-			provider.filterModels!(provider.getModels(), undefined).map((m) => m.id),
-		).toEqual(["default", "fast", "pro"]);
-	});
-
-	it("decideView shows all when global free-only is off", async () => {
-		// No explicit override recorded: the view follows the global default.
-		mockGetModelViewOverride.mockReturnValue(undefined);
-		mockGetGlobalFreeOnly.mockReturnValue(false);
-		const { provider } = await seededProvider();
-		expect(
-			provider.filterModels!(provider.getModels(), undefined).map((m) => m.id),
-		).toEqual(["default", "fast", "pro"]);
-	});
-});
+// NOTE (RPC migration): filter-view behavior is proven live by
+// rpc-session-check (/toggle-llm7 phases incl. persistence across
+// replacement). View resolution itself is pinned in
+// registry-provider-overrides.test.ts against the real resolver.

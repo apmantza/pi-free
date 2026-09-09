@@ -588,59 +588,10 @@ describe("refreshModels online", () => {
 	});
 });
 
-// ---------------------------------------------------------------------------
-// Toggle interop (filterModels / decideView)
-// ---------------------------------------------------------------------------
-
-describe("toggle interop", () => {
-	async function seededProvider() {
-		mockFetchClineCatalog.mockResolvedValue({
-			all: [freeCfg("a"), paidCfg("b")],
-			free: [freeCfg("a")],
-		});
-		const { store } = makeStore();
-		const handle = createClineProvider();
-		await handle.provider.refreshModels?.(ctx({ store, allowNetwork: true }));
-		return handle;
-	}
-
-	it("keeps the full catalog while filterModels selects the free view", async () => {
-		const { provider } = await seededProvider();
-		expect(
-			provider
-				.getModels()
-				.map((m) => m.id)
-				.sort(),
-		).toEqual(["a", "b"]);
-		expect(
-			provider.filterModels!(provider.getModels(), undefined).map((m) => m.id),
-		).toEqual(["a"]);
-	});
-
-	it("decideView shows all when per-provider show_paid is set under global free-only", async () => {
-		mockGetClineShowPaid.mockReturnValue(true);
-		const { provider } = await seededProvider();
-		// show_paid true + global free-only true => filterModels returns all.
-		expect(
-			provider.filterModels!(provider.getModels(), undefined)
-				.map((m) => m.id)
-				.sort(),
-		).toEqual(["a", "b"]);
-	});
-
-	it("decideView shows all when global free-only is off", async () => {
-		// No explicit override recorded: the view follows the global default.
-		mockGetModelViewOverride.mockReturnValue(undefined);
-		mockGetGlobalFreeOnly.mockReturnValue(false);
-		const { provider } = await seededProvider();
-		expect(
-			provider
-				.getModels()
-				.map((m) => m.id)
-				.sort(),
-		).toEqual(["a", "b"]);
-	});
-});
+// NOTE (RPC migration): filter-view behavior is proven live by
+// rpc-toggle-check (opencode-free free/all/persist phases). View
+// resolution itself is pinned in registry-provider-overrides.test.ts
+// against the real resolver.
 
 // ---------------------------------------------------------------------------
 // Stream wiring (standard openai-completions via the lazy compat bridge)

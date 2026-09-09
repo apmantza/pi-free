@@ -400,51 +400,10 @@ describe("toggle interop", () => {
 		return handle;
 	}
 
-	it("keeps the full catalog while filterModels selects the free view", async () => {
-		const { provider } = await seededProvider();
-		expect(
-			provider
-				.getModels()
-				.map((m) => m.id)
-				.sort(),
-		).toEqual(["a", "b"]);
-		expect(
-			provider.filterModels!(provider.getModels(), undefined).map((m) => m.id),
-		).toEqual(["a"]);
-
-		expect(
-			provider
-				.getModels()
-				.map((m) => m.id)
-				.sort(),
-		).toEqual(["a", "b"]);
-		expect(
-			provider.filterModels!(provider.getModels(), undefined).map((m) => m.id),
-		).toEqual(["a"]);
-	});
-
-	it("decideView shows all when per-provider show_paid is set under global free-only", async () => {
-		mockGetKiloShowPaid.mockReturnValue(true);
-		const { provider } = await seededProvider();
-		// show_paid true + global free-only true => filterModels returns all.
-		expect(
-			provider.filterModels!(provider.getModels(), undefined)
-				.map((m) => m.id)
-				.sort(),
-		).toEqual(["a", "b"]);
-	});
-
-	it("filterModels shows all when global free-only is off", async () => {
-		// No explicit override recorded: the view follows the global default.
-		mockGetModelViewOverride.mockReturnValue(undefined);
-		mockGetGlobalFreeOnly.mockReturnValue(false);
-		const { provider } = await seededProvider();
-		expect(
-			provider.filterModels!(provider.getModels(), undefined)
-				.map((m) => m.id)
-				.sort(),
-		).toEqual(["a", "b"]);
-	});
+	// NOTE (RPC migration): filter-view behavior is proven live by
+	// rpc-session-check (managed zero-paid + toggle phases incl.
+	// persistence). The kilo_free_only escape hatch below has no live
+	// equivalent and stays.
 
 	it("filterModels forces free when kilo_free_only is set", async () => {
 		mockGetKiloFreeOnly.mockReturnValue(true);

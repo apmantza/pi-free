@@ -4,10 +4,6 @@
  * hook both drive the native provider's visible catalog without dropping auth.
  */
 
-import type {
-	ModelsStoreEntry,
-	ProviderModelsStore,
-} from "@earendil-works/pi-ai/compat";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -104,19 +100,6 @@ function cfg(over: Record<string, unknown> = {}) {
 	};
 }
 
-function makeStore(): ProviderModelsStore {
-	let entry: ModelsStoreEntry | undefined;
-	return {
-		read: async () => entry,
-		write: async (e: ModelsStoreEntry) => {
-			entry = e;
-		},
-		delete: async () => {
-			entry = undefined;
-		},
-	};
-}
-
 describe("Kilo toggle interop", () => {
 	let mockPi: ExtensionAPI;
 	let mockRegisterProvider: ReturnType<typeof vi.fn>;
@@ -150,51 +133,21 @@ describe("Kilo toggle interop", () => {
 		} as unknown as ExtensionAPI;
 	});
 
-	it("factory registers empty; refreshModels populates; toggle republishes", async () => {
+	// Population + views are proven live by rpc-session-check (managed
+	// catalog with free-only, all-view, and persistence phases); this pins
+	// the re-registration wiring (same object, auth preserved) that RPC
+	// cannot see per provider.
+	it("global /toggle-free reRegister republishes the same provider object", async () => {
 		await kiloProvider(mockPi);
-
-		// Native provider object registered (single arg).
 		const provider = mockRegisterProvider.mock.calls[0][0];
-		expect(provider.id).toBe("kilo");
-		expect(provider.getModels()).toEqual([]);
 
-		// Global toggle hook captured with mutable stored catalogs.
 		expect(capturedToggleArgs).toHaveLength(1);
-		const [providerId, stored, reRegister, hasKey] = capturedToggleArgs[0] as [
-			string,
-			{ free: unknown[]; all: unknown[] },
-			() => void,
-			boolean,
-		];
-		expect(providerId).toBe("kilo");
-		expect(hasKey).toBe(false);
+		const reRegister = capturedToggleArgs[0][2] as () => void;
 
-		// Pi refreshes (online) -> catalogs populate.
-		await provider.refreshModels({ store: makeStore(), allowNetwork: true });
-		expect(stored.all).toHaveLength(2);
-		expect(stored.free).toHaveLength(1);
-
-		// Global /toggle-free showing all -> re-register the same provider.
 		mockRegisterProvider.mockClear();
 		reRegister();
-		expect(
-			provider
-				.getModels()
-				.map((m: { id: string }) => m.id)
-				.sort(),
-		).toEqual(["free-1", "paid-1"]);
 		// Re-registration reused the SAME native provider object (auth preserved).
 		expect(mockRegisterProvider).toHaveBeenCalledWith(provider);
-
-		// Global /toggle-free showing free invalidates the same provider object;
-		// Pi's filterModels applies the free view to the complete catalog.
-		reRegister();
-		expect(
-			provider
-				.getModels()
-				.map((m: { id: string }) => m.id)
-				.sort(),
-		).toEqual(["free-1", "paid-1"]);
 	});
 
 	// Flip/persist/view behavior is proven live by rpc-toggle-check

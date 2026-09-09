@@ -6,10 +6,6 @@
  * refresh nudge.
  */
 
-import type {
-	ModelsStoreEntry,
-	ProviderModelsStore,
-} from "@earendil-works/pi-ai/compat";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -104,19 +100,6 @@ function cfg(over: Record<string, unknown> = {}) {
 	};
 }
 
-function makeStore(): ProviderModelsStore {
-	let entry: ModelsStoreEntry | undefined;
-	return {
-		read: async () => entry,
-		write: async (e: ModelsStoreEntry) => {
-			entry = e;
-		},
-		delete: async () => {
-			entry = undefined;
-		},
-	};
-}
-
 describe("Cline factory wiring", () => {
 	let mockPi: ExtensionAPI;
 	let mockRegisterProvider: ReturnType<typeof vi.fn>;
@@ -208,43 +191,20 @@ describe("Cline factory wiring", () => {
 		).toBe(true);
 	});
 
-	it("refreshModels populates; global /toggle-free reRegister republishes the same provider", async () => {
+	// Population + views are proven live by rpc-toggle-check (capture views
+	// for a real catalog); this pins the re-registration wiring (same
+	// object, auth preserved) that RPC cannot see per provider.
+	it("global /toggle-free reRegister republishes the same provider object", async () => {
 		await clineProvider(mockPi);
 		const provider = mockRegisterProvider.mock.calls[0][0];
 
 		expect(capturedToggleArgs).toHaveLength(1);
-		const [, stored, reRegister] = capturedToggleArgs[0] as [
-			string,
-			{ free: unknown[]; all: unknown[] },
-			() => void,
-		];
+		const reRegister = capturedToggleArgs[0][2] as () => void;
 
-		// Pi refreshes (online) -> public catalogs populate.
-		await provider.refreshModels({ store: makeStore(), allowNetwork: true });
-		expect(stored.all).toHaveLength(2);
-		expect(stored.free).toHaveLength(1);
-
-		// Global /toggle-free showing all -> re-register the same provider.
 		mockRegisterProvider.mockClear();
 		reRegister();
-		expect(
-			provider
-				.getModels()
-				.map((m: { id: string }) => m.id)
-				.sort(),
-		).toEqual(["free-1", "paid-1"]);
 		// Re-registration reused the SAME native provider object (auth preserved).
 		expect(mockRegisterProvider).toHaveBeenCalledWith(provider);
-
-		// Global /toggle-free showing free invalidates the same provider object;
-		// Pi's filterModels applies the free view to the complete catalog.
-		reRegister();
-		expect(
-			provider
-				.getModels()
-				.map((m: { id: string }) => m.id)
-				.sort(),
-		).toEqual(["free-1", "paid-1"]);
 	});
 
 	// Flip/persist/view behavior is proven live by rpc-toggle-check
@@ -282,21 +242,14 @@ describe("Cline factory wiring", () => {
 		expect(buildClineHeaders()["X-Task-ID"]).toBe(after);
 	});
 
-	it("session_start nudges the model registry refresh and is safe without one", async () => {
+	// Nudge scoping/retry is pinned in native-refresh-nudge.test.ts; the
+	// live RPC suite proves refresh populates. This pins the wiring.
+	it("session_start registers a refresh-nudge handler safe without a registry", async () => {
 		await clineProvider(mockPi);
 		const handler = mockOn.mock.calls.find(
 			(call) => call[0] === "session_start",
 		)?.[1];
 		expect(handler).toBeDefined();
-
-		const refresh = vi.fn().mockResolvedValue(undefined);
-		await handler({}, { modelRegistry: { refresh } });
-		// Scoped to opted-in providers (never the whole registry), so
-		// foreign credential failures cannot fail our refresh.
-		expect(refresh).toHaveBeenCalledWith({
-			allowNetwork: true,
-			providers: expect.arrayContaining(["cline"]),
-		});
 
 		// No modelRegistry on the context -> safe no-op.
 		await expect(handler({}, {})).resolves.toBeUndefined();

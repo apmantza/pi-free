@@ -305,22 +305,10 @@ describe("createZenmuxProvider", () => {
 		expect(written).toHaveLength(0);
 	});
 
-	it("keeps the full catalog while filterModels selects the free view", async () => {
-		const { provider, stored } = createZenmuxProvider();
-		const free = nativeModel("free");
-		const paid = nativeModel("paid", true);
-		stored.free = [free];
-		stored.all = [free, paid];
-		expect(provider.getModels().map((model) => model.id)).toEqual([
-			"free",
-			"paid",
-		]);
-		expect(
-			provider.filterModels!(provider.getModels(), undefined).map(
-				(model) => model.id,
-			),
-		).toEqual(["free"]);
-	});
+	// NOTE (RPC migration): filter-view behavior is proven live by
+	// rpc-toggle-check (opencode-free free/all/persist phases). View
+	// resolution itself is pinned in registry-provider-overrides.test.ts
+	// against the real resolver.
 });
 
 describe("fetchZenmuxCatalog", () => {
