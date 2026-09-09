@@ -24,9 +24,8 @@ describe("provider cache", () => {
 	});
 
 	it("returns cached models directly without cloning on read", async () => {
-		const { saveProviderCache, loadProviderCache } = await import(
-			"../lib/provider-cache.ts"
-		);
+		const { saveProviderCache, loadProviderCache } =
+			await import("../lib/provider-cache.ts");
 		const model = {
 			id: "m1",
 			name: "Model 1",
@@ -46,9 +45,8 @@ describe("provider cache", () => {
 	it("reports whether a provider cache entry is fresh", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
-		const { isProviderCacheFresh, saveProviderCache } = await import(
-			"../lib/provider-cache.ts"
-		);
+		const { isProviderCacheFresh, saveProviderCache } =
+			await import("../lib/provider-cache.ts");
 		const model = {
 			id: "m1",
 			name: "Model 1",

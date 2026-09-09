@@ -414,7 +414,9 @@ function readModelChanges(
 				provider: candidate.provider,
 				modelId: candidate.modelId,
 				timestamp:
-					typeof candidate.timestamp === "string" ? candidate.timestamp : undefined,
+					typeof candidate.timestamp === "string"
+						? candidate.timestamp
+						: undefined,
 			});
 		}
 	}
@@ -488,10 +490,13 @@ async function maybeRestoreSavedModel(
 		if (!saved || saved.provider !== config.id) {
 			// Debug, not warn: a fresh session (or a deliberate previous-run
 			// switch) lands here on every resume.
-			_logger.debug(`[built-in-toggle] ${config.id}: no saved model to restore`, {
-				contextProvider: contextModel?.provider,
-				contextModelId: contextModel?.modelId,
-			});
+			_logger.debug(
+				`[built-in-toggle] ${config.id}: no saved model to restore`,
+				{
+					contextProvider: contextModel?.provider,
+					contextModelId: contextModel?.modelId,
+				},
+			);
 			return;
 		}
 		if (
@@ -501,7 +506,8 @@ async function maybeRestoreSavedModel(
 			return;
 		}
 		const catalog =
-			snapshot.modelRegistry.getAll?.() ?? snapshot.modelRegistry.getAvailable();
+			snapshot.modelRegistry.getAll?.() ??
+			snapshot.modelRegistry.getAvailable();
 		let model = catalog.find(
 			(m: Model<Api>) => m.provider === config.id && m.id === saved.modelId,
 		);
@@ -519,7 +525,8 @@ async function maybeRestoreSavedModel(
 					// Refresh failures are logged by the refresh task itself.
 				}
 				const refreshedCatalog =
-					snapshot.modelRegistry.getAll?.() ?? snapshot.modelRegistry.getAvailable();
+					snapshot.modelRegistry.getAll?.() ??
+					snapshot.modelRegistry.getAvailable();
 				model = refreshedCatalog.find(
 					(m: Model<Api>) => m.provider === config.id && m.id === saved.modelId,
 				);
@@ -870,7 +877,8 @@ function scheduleEndpointRefresh(
 	config: BuiltInToggleConfig,
 	state: BuiltInProviderState,
 ): void {
-	if (!config.refreshEndpoint || pendingEndpointRefreshes.has(config.id)) return;
+	if (!config.refreshEndpoint || pendingEndpointRefreshes.has(config.id))
+		return;
 
 	let task: Promise<void> | undefined;
 	task = (async () => {

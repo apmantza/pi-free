@@ -25,12 +25,6 @@ export interface CommandCodeModelCost extends CommandCodeModelCostRates {
 	tiers?: readonly CommandCodeModelCostTier[];
 }
 
-export interface TemporaryPricing {
-	models: readonly string[];
-	expiresOn: string;
-	description: string;
-}
-
 /**
  * Display prices in USD per million tokens.
  *
@@ -82,15 +76,30 @@ export const MODEL_COSTS: Readonly<Record<string, CommandCodeModelCost>> = {
 		cacheRead: 0.1,
 		cacheWrite: 0,
 	},
-	"zai-org/GLM-5.3": { input: 1.4, output: 4.4, cacheRead: 0.26, cacheWrite: 0 },
-	"zai-org/GLM-5.2": { input: 1.4, output: 4.4, cacheRead: 0.26, cacheWrite: 0 },
+	"zai-org/GLM-5.3": {
+		input: 1.4,
+		output: 4.4,
+		cacheRead: 0.26,
+		cacheWrite: 0,
+	},
+	"zai-org/GLM-5.2": {
+		input: 1.4,
+		output: 4.4,
+		cacheRead: 0.26,
+		cacheWrite: 0,
+	},
 	"zai-org/GLM-5.2-Fast": {
 		input: 3,
 		output: 10.25,
 		cacheRead: 0.5,
 		cacheWrite: 0,
 	},
-	"zai-org/GLM-5.1": { input: 1.4, output: 4.4, cacheRead: 0.26, cacheWrite: 0 },
+	"zai-org/GLM-5.1": {
+		input: 1.4,
+		output: 4.4,
+		cacheRead: 0.26,
+		cacheWrite: 0,
+	},
 	"zai-org/GLM-5": { input: 1, output: 3.2, cacheRead: 0.2, cacheWrite: 0 },
 	"MiniMaxAI/MiniMax-M3": {
 		input: 0.3,
@@ -267,7 +276,12 @@ export const MODEL_COSTS: Readonly<Record<string, CommandCodeModelCost>> = {
 	// OpenAI
 	"gpt-5.6-sol": { input: 5, output: 30, cacheRead: 0.5, cacheWrite: 6.25 },
 	"gpt-5.6-terra": { input: 2, output: 12, cacheRead: 0.2, cacheWrite: 2.5 },
-	"gpt-5.6-luna": { input: 0.2, output: 1.2, cacheRead: 0.02, cacheWrite: 0.25 },
+	"gpt-5.6-luna": {
+		input: 0.2,
+		output: 1.2,
+		cacheRead: 0.02,
+		cacheWrite: 0.25,
+	},
 	"gpt-5.5": { input: 5, output: 30, cacheRead: 0.5, cacheWrite: 0 },
 	"gpt-5.4": { input: 2.5, output: 15, cacheRead: 0.25, cacheWrite: 0 },
 	"gpt-5.3-codex": { input: 2, output: 8, cacheRead: 0.5, cacheWrite: 0 },
@@ -435,16 +449,3 @@ export const MODEL_MAX_OUTPUT_TOKENS: Readonly<Record<string, number>> = {
 	"Qwen/Qwen3.8-27B": 32_768,
 	"stealth/ox-alpha": 131_072,
 };
-
-export const TEMPORARY_PRICING: readonly TemporaryPricing[] = [
-	{
-		models: ["claude-sonnet-5"],
-		expiresOn: "2026-08-31",
-		description: "introductory pricing",
-	},
-	{
-		models: ["google/gemini-3.7-flash"],
-		expiresOn: "2026-12-31",
-		description: "50% promotional pricing",
-	},
-];

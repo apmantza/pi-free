@@ -244,7 +244,9 @@ function identityFromMeta(
 	meta: ModelsDevModel,
 ): ModelIdentity {
 	return {
-		id: [model.id, meta.id, meta.family, meta.provider].filter(Boolean).join(" "),
+		id: [model.id, meta.id, meta.family, meta.provider]
+			.filter(Boolean)
+			.join(" "),
 		name: [model.name, meta.name].filter(Boolean).join(" "),
 		family: meta.family,
 		provider: meta.provider,
@@ -308,7 +310,9 @@ function enrichModel<T extends ProviderModelConfig>(
 			? (["text", "image"] as const)
 			: model.input;
 	const reasoning =
-		ctx.enrichReasoning && modelMeta.reasoning === true ? true : model.reasoning;
+		ctx.enrichReasoning && modelMeta.reasoning === true
+			? true
+			: model.reasoning;
 	const thinkingLevelMap =
 		ctx.enrichReasoning && model.thinkingLevelMap === undefined
 			? thinkingMapFromReasoningOptions(modelMeta.reasoning_options)
@@ -470,7 +474,10 @@ export async function applyNativeFreeMetadata<T extends ProviderModelConfig>(
 	providerId: string,
 ): Promise<Array<T & { _freeKnown?: boolean; _isFree?: boolean }>> {
 	const nativeById = new Map(
-		(await getNativeCatalogModels(providerId)).map((model) => [model.id, model]),
+		(await getNativeCatalogModels(providerId)).map((model) => [
+			model.id,
+			model,
+		]),
 	);
 
 	return models.map((model) => {
@@ -489,7 +496,10 @@ export async function applyNativeProtocolMetadata<
 	T extends ProviderModelConfig,
 >(models: T[], providerId: string): Promise<T[]> {
 	const nativeById = new Map(
-		(await getNativeCatalogModels(providerId)).map((model) => [model.id, model]),
+		(await getNativeCatalogModels(providerId)).map((model) => [
+			model.id,
+			model,
+		]),
 	);
 
 	return models.map((model) => {

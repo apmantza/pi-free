@@ -219,7 +219,9 @@ describe("createOllamaProvider", () => {
 		);
 		expect(mockSaveProviderCache).toHaveBeenCalled();
 		expect(written).toHaveLength(1);
-		expect(provider.getModels().map((item) => item.id)).toEqual(["cloud-model"]);
+		expect(provider.getModels().map((item) => item.id)).toEqual([
+			"cloud-model",
+		]);
 	});
 
 	it("honors an already-aborted refresh signal", async () => {

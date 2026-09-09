@@ -63,8 +63,10 @@ function shouldLog(level: LogLevel, minLevel: LogLevel): boolean {
 
 function sanitizeLogText(value: string): string {
 	return value.replace(
+		// eslint-disable-next-line no-control-regex -- intentional: this IS the control-character escaper.
 		/[\u0000-\u001f\u007f]/g,
-		(character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`,
+		(character) =>
+			`\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`,
 	);
 }
 
@@ -126,9 +128,10 @@ let lastLogWriteError: string | null = null;
 
 function recordLogWriteFailure(err: unknown): void {
 	logWriteFailures += 1;
-	lastLogWriteError = String(
-		err instanceof Error ? err.message : err,
-	).slice(0, 200);
+	lastLogWriteError = String(err instanceof Error ? err.message : err).slice(
+		0,
+		200,
+	);
 }
 
 /**

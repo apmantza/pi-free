@@ -69,9 +69,9 @@ describe("mapMergeModel", () => {
 		// $0/$0 per million -> per-token zero, stamped Route A authoritative.
 		expect(model?.cost.input).toBe(0);
 		expect(model?.cost.output).toBe(0);
-		expect((model as unknown as { _pricingKnown?: boolean })._pricingKnown).toBe(
-			true,
-		);
+		expect(
+			(model as unknown as { _pricingKnown?: boolean })._pricingKnown,
+		).toBe(true);
 		expect(model?.reasoning).toBe(true);
 		expect(model?.contextWindow).toBe(1_000_000);
 		expect(model?.maxTokens).toBe(262_144);
@@ -118,7 +118,9 @@ describe("mapMergeModel", () => {
 						availability_status: "deprecated",
 						pricing: { input_per_million: 0, output_per_million: 0 },
 					}),
-					live: vendor({ pricing: { input_per_million: 2, output_per_million: 8 } }),
+					live: vendor({
+						pricing: { input_per_million: 2, output_per_million: 8 },
+					}),
 				},
 			}),
 		);
@@ -229,7 +231,9 @@ describe("fetchMergeModels pagination", () => {
 				ok: true,
 				status: 200,
 				json: async () => ({
-					data: [{ model: "a/one", display_name: "A", vendors: { v: vendor() } }],
+					data: [
+						{ model: "a/one", display_name: "A", vendors: { v: vendor() } },
+					],
 					has_more: true,
 					next_cursor: "c2",
 				}),
@@ -238,7 +242,9 @@ describe("fetchMergeModels pagination", () => {
 				ok: true,
 				status: 200,
 				json: async () => ({
-					data: [{ model: "b/two", display_name: "B", vendors: { v: vendor() } }],
+					data: [
+						{ model: "b/two", display_name: "B", vendors: { v: vendor() } },
+					],
 					has_more: false,
 					next_cursor: null,
 				}),

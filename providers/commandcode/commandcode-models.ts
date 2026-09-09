@@ -34,7 +34,6 @@ import {
 	MODEL_INPUT_MODALITIES,
 	MODEL_REASONING,
 	MODEL_MAX_OUTPUT_TOKENS,
-	TEMPORARY_PRICING,
 } from "./commandcode-pricing.ts";
 
 const _logger = createLogger("commandcode-models");

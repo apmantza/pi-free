@@ -130,15 +130,20 @@ export function processQuotaResponse(
 		// no known format matched — a remaining-only or limit-only header is a
 		// legitimate half-signal, not a format drift.
 		const keys = Object.keys(headers).map((k) => k.toLowerCase());
-		const hasRemaining = keys.some((k) => /remaining|remaining-requests/.test(k));
+		const hasRemaining = keys.some((k) =>
+			/remaining|remaining-requests/.test(k),
+		);
 		const hasLimit = keys.some((k) => /(^|-)limit/.test(k));
 		if (hasRemaining && hasLimit) {
 			counters.quotaHeaderDrift += 1;
-			_logger.debug(`Quota headers present but none matched for ${providerId}`, {
-				provider: providerId,
-				status,
-				presentKeys: keys,
-			});
+			_logger.debug(
+				`Quota headers present but none matched for ${providerId}`,
+				{
+					provider: providerId,
+					status,
+					presentKeys: keys,
+				},
+			);
 		}
 		return;
 	}

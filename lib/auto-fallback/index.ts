@@ -184,7 +184,12 @@ export function createAutoFallback(): AutoFallbackHandle {
 		const out: FallbackCandidate[] = [];
 		for (const [providerId, entry] of registry) {
 			if (
-				!matchesScope(providerId, scope, failingProvider, cfg.whitelistProviders)
+				!matchesScope(
+					providerId,
+					scope,
+					failingProvider,
+					cfg.whitelistProviders,
+				)
 			) {
 				continue;
 			}
@@ -297,7 +302,10 @@ export function createAutoFallback(): AutoFallbackHandle {
 			if (!hasAuth) {
 				// Provider has no usable auth (e.g. needs an API key). Skip it
 				// and remember not to retry it this session window.
-				blacklist.recordFailure(modelKey(cand.provider, cand.modelId), "no-auth");
+				blacklist.recordFailure(
+					modelKey(cand.provider, cand.modelId),
+					"no-auth",
+				);
 				tried++;
 				continue;
 			}
@@ -416,7 +424,9 @@ export function createAutoFallback(): AutoFallbackHandle {
 	async function safeSetModel(model: unknown): Promise<boolean> {
 		if (!pi) return false;
 		try {
-			return await pi.setModel(model as Parameters<ExtensionAPI["setModel"]>[0]);
+			return await pi.setModel(
+				model as Parameters<ExtensionAPI["setModel"]>[0],
+			);
 		} catch (err) {
 			const name = err instanceof Error ? err.name : String(err);
 			if (name === "AbortError") return false;

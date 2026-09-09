@@ -107,7 +107,7 @@ describe("built-in-toggle stale context (#509)", () => {
 	let mockPi: ExtensionAPI;
 	let handlers: Record<string, Function>;
 	let commands: Record<string, Function>;
-	let setupBuiltInProviderToggles: typeof import("../lib/built-in-toggle.ts")["setupBuiltInProviderToggles"];
+	let setupBuiltInProviderToggles: (typeof import("../lib/built-in-toggle.ts"))["setupBuiltInProviderToggles"];
 
 	afterEach(() => {
 		vi.unstubAllGlobals();
@@ -143,7 +143,8 @@ describe("built-in-toggle stale context (#509)", () => {
 			}),
 		} as unknown as ExtensionAPI;
 
-		({ setupBuiltInProviderToggles } = await import("../lib/built-in-toggle.ts"));
+		({ setupBuiltInProviderToggles } =
+			await import("../lib/built-in-toggle.ts"));
 	});
 
 	function staleRegistry() {

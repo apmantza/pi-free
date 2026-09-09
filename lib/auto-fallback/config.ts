@@ -147,7 +147,9 @@ export function getAutoFallbackConfig(): AutoFallbackConfig {
 	const cfg = loadConfigFile();
 	const result: AutoFallbackConfig = {
 		enabled: envBool("AUTO_FALLBACK", cfg.auto_fallback, DEFAULTS.enabled),
-		scope: parseScope(envString("AUTO_FALLBACK_SCOPE", cfg.auto_fallback_scope)),
+		scope: parseScope(
+			envString("AUTO_FALLBACK_SCOPE", cfg.auto_fallback_scope),
+		),
 		whitelistProviders: parseWhitelist(
 			envStringList("AUTO_FALLBACK_PROVIDERS", cfg.auto_fallback_providers),
 		),

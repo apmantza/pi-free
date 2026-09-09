@@ -51,11 +51,7 @@ vi.mock("../lib/registry.ts", () => ({
 	// real rule is unit-tested in registry-provider-overrides.test.ts).
 	resolveModelView: (providerId: string) =>
 		mockGetModelViewOverride(providerId) ??
-		(mockGetKiloShowPaid()
-			? "all"
-			: mockGetGlobalFreeOnly()
-				? "free"
-				: "all"),
+		(mockGetKiloShowPaid() ? "all" : mockGetGlobalFreeOnly() ? "free" : "all"),
 	isFreeModel: (m: { cost?: { input?: number } }) => (m.cost?.input ?? 0) === 0,
 }));
 

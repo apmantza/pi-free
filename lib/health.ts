@@ -80,12 +80,14 @@ export function formatHealthReport(): string {
 	// "not loaded" rather than "broken".
 	const fallback = getAutoFallback();
 	if (fallback) {
-		const status = fallback.getStatus();
+		const fallbackStatus = fallback.getStatus();
 		const statusLine =
-			`auto_fallback: ${status.enabled ? "enabled" : "disabled"}` +
-			` (switches: ${status.switchCount}` +
-			(status.lastSwitchReason ? `, last: ${status.lastSwitchReason}` : "") +
-			`${status.exhausted ? ", EXHAUSTED" : ""})`;
+			`auto_fallback: ${fallbackStatus.enabled ? "enabled" : "disabled"}` +
+			` (switches: ${fallbackStatus.switchCount}` +
+			(fallbackStatus.lastSwitchReason
+				? `, last: ${fallbackStatus.lastSwitchReason}`
+				: "") +
+			`${fallbackStatus.exhausted ? ", EXHAUSTED" : ""})`;
 		lines.push(statusLine);
 	}
 

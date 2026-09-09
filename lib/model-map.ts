@@ -279,7 +279,9 @@ export function mapOpenRouterModel(m: {
 	const promptPrice = Number.parseFloat(m.pricing?.prompt ?? "0");
 	const completionPrice = Number.parseFloat(m.pricing?.completion ?? "0");
 	const cacheReadPrice = Number.parseFloat(m.pricing?.input_cache_read ?? "0");
-	const cacheWritePrice = Number.parseFloat(m.pricing?.input_cache_write ?? "0");
+	const cacheWritePrice = Number.parseFloat(
+		m.pricing?.input_cache_write ?? "0",
+	);
 	const supportedParameters = m.supported_parameters ?? [];
 	const reasoning =
 		supportedParameters.includes("reasoning") ||
@@ -397,9 +399,7 @@ function resolveOpenAIMaxTokens(
 	m: OpenAIModelEntry,
 	defaults: OpenAIModelDefaults,
 ): number {
-	return (
-		m.max_completion_tokens ?? m.max_tokens ?? defaults.maxTokens ?? 4_096
-	);
+	return m.max_completion_tokens ?? m.max_tokens ?? defaults.maxTokens ?? 4_096;
 }
 
 function resolveOpenAIReasoning(

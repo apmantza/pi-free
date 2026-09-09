@@ -230,7 +230,7 @@ describe("Kilo XML tool call parsing", () => {
 			"<tool>",
 			"  <name>write_to_file</name>",
 			"  <path>test.ts</path>",
-			"  <content>function hello() { return \"<div>Hello</div>\"; }</content>",
+			'  <content>function hello() { return "<div>Hello</div>"; }</content>',
 			"</tool>",
 		];
 		expect(() => parseXmlToolCalls(lines.join("\n"))).not.toThrow();

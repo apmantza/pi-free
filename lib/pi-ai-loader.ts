@@ -148,7 +148,9 @@ const MIN_PI_AI_VERSION = [0, 81, 0] as const;
  */
 function isUsablePiAiRoot(root: string): boolean {
 	try {
-		const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
+		const pkg = JSON.parse(
+			readFileSync(join(root, "package.json"), "utf8"),
+		) as {
 			name?: unknown;
 			version?: unknown;
 		};
@@ -156,11 +158,7 @@ function isUsablePiAiRoot(root: string): boolean {
 		const version = typeof pkg.version === "string" ? pkg.version : "";
 		const match = /^(\d+)\.(\d+)\.(\d+)/.exec(version);
 		if (!match) return false;
-		const candidate = [
-			Number(match[1]),
-			Number(match[2]),
-			Number(match[3]),
-		];
+		const candidate = [Number(match[1]), Number(match[2]), Number(match[3])];
 		for (let i = 0; i < MIN_PI_AI_VERSION.length; i++) {
 			if (candidate[i] !== MIN_PI_AI_VERSION[i]) {
 				return candidate[i] > MIN_PI_AI_VERSION[i];
@@ -263,7 +261,9 @@ export function resolvePiAiPackageRoot(
 	//    fallback for installs where the extension tree and the host share
 	//    nothing (see findViaHostEntry).
 	const viaHost = findViaHostEntry(
-		options.argv1 === undefined ? process.argv[1] : (options.argv1 ?? undefined),
+		options.argv1 === undefined
+			? process.argv[1]
+			: (options.argv1 ?? undefined),
 	);
 	if (viaHost) return viaHost;
 
@@ -362,8 +362,12 @@ export function resolvePiAiEntryFile(
 					if (starIndex === -1) continue;
 					const prefix = key.slice(0, starIndex);
 					const suffix = key.slice(starIndex + 1);
-					if (!subpath.startsWith(prefix) || !subpath.endsWith(suffix)) continue;
-					const star = subpath.slice(prefix.length, subpath.length - suffix.length);
+					if (!subpath.startsWith(prefix) || !subpath.endsWith(suffix))
+						continue;
+					const star = subpath.slice(
+						prefix.length,
+						subpath.length - suffix.length,
+					);
 					target = substituteStar(value, star);
 					break;
 				}

@@ -119,8 +119,9 @@ describe("fetchOpenRouterCompatibleModels", () => {
 		});
 
 		for (const call of fetchMock.mock.calls) {
-			const headers = (call[1] as unknown as { headers: Record<string, string> })
-				.headers;
+			const headers = (
+				call[1] as unknown as { headers: Record<string, string> }
+			).headers;
 			expect(headers).not.toHaveProperty("Authorization");
 		}
 	});

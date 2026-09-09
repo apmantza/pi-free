@@ -38,15 +38,15 @@ function loadBenchmarks(): BenchmarkMap {
 	if (!benchmarkCache) {
 		try {
 			benchmarkCache = JSON.parse(
-				readFileSync(
-					new URL("./benchmarks.json", import.meta.url),
-					"utf8",
-				),
+				readFileSync(new URL("./benchmarks.json", import.meta.url), "utf8"),
 			) as BenchmarkMap;
 		} catch (err) {
-			_logger.warn("Failed to load benchmarks.json; benchmark scoring disabled", {
-				error: err instanceof Error ? err.message : String(err),
-			});
+			_logger.warn(
+				"Failed to load benchmarks.json; benchmark scoring disabled",
+				{
+					error: err instanceof Error ? err.message : String(err),
+				},
+			);
 			benchmarkCache = {};
 		}
 	}

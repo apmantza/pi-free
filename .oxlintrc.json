@@ -1,0 +1,21 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"categories": {
+		"correctness": "error",
+		"suspicious": "error"
+	},
+	"rules": {
+		// `_logger` / `_configLock` prefixing is the repo's deliberate
+		// convention for module-scope handles; renaming 100+ sites is churn.
+		"no-underscore-dangle": "allow",
+		// Hoisting test helpers to outer scope is cosmetic; tests keep
+		// their local arrangement.
+		"consistent-function-scoping": "allow",
+		// `toSorted`/`toReversed` need es2023 lib; tsconfig targets lower,
+		// so in-place sort/reverse on owned arrays stays (callers own the
+		// array or copy first — see action-log).
+		"no-array-sort": "allow",
+		"no-array-reverse": "allow"
+	},
+	"ignorePatterns": ["dist/", "coverage/", ".smoke-artifacts/"]
+}

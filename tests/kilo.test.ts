@@ -64,11 +64,7 @@ vi.mock("../lib/registry.ts", () => ({
 	// real rule is unit-tested in registry-provider-overrides.test.ts).
 	resolveModelView: (providerId: string) =>
 		mockGetModelViewOverride(providerId) ??
-		(mockGetKiloShowPaid()
-			? "all"
-			: mockGetGlobalFreeOnly()
-				? "free"
-				: "all"),
+		(mockGetKiloShowPaid() ? "all" : mockGetGlobalFreeOnly() ? "free" : "all"),
 }));
 
 vi.mock("../providers/kilo/kilo-provider.ts", () => ({
@@ -149,7 +145,8 @@ describe("Kilo extension wiring", () => {
 
 	it("global-toggle reRegister republishes the same provider object", async () => {
 		await kiloProvider(mockPi);
-		const reRegister = mockRegisterWithGlobalToggle.mock.calls[0][2] as () => void;
+		const reRegister = mockRegisterWithGlobalToggle.mock
+			.calls[0][2] as () => void;
 		mockRegisterProvider.mockClear();
 
 		reRegister();
@@ -188,7 +185,10 @@ describe("Kilo extension wiring", () => {
 			expect(notify).not.toHaveBeenCalled();
 			expect(mockLogger.debug).toHaveBeenCalledWith(
 				"Free-model terms notice",
-				expect.objectContaining({ provider: "kilo", termsUrl: expect.any(String) }),
+				expect.objectContaining({
+					provider: "kilo",
+					termsUrl: expect.any(String),
+				}),
 			);
 		});
 
@@ -198,11 +198,14 @@ describe("Kilo extension wiring", () => {
 			if (!call) throw new Error("model_select not registered");
 			const notify = vi.fn();
 			const isUsingOAuth = vi.fn(() => true);
-			await call[1]({}, {
-				model: { provider: "kilo" },
-				modelRegistry: { isUsingOAuth },
-				ui: { notify },
-			});
+			await call[1](
+				{},
+				{
+					model: { provider: "kilo" },
+					modelRegistry: { isUsingOAuth },
+					ui: { notify },
+				},
+			);
 			expect(isUsingOAuth).toHaveBeenCalledWith({ provider: "kilo" });
 			expect(notify).not.toHaveBeenCalled();
 		});

@@ -18,9 +18,8 @@ describe("quota-monitor response outcome counters (M2 + Mn3, #437)", () => {
 	});
 
 	it("counts 429 and 5xx responses per provider", async () => {
-		const { processQuotaResponse, getResponseCounters } = await import(
-			"../lib/quota-monitor.ts"
-		);
+		const { processQuotaResponse, getResponseCounters } =
+			await import("../lib/quota-monitor.ts");
 
 		processQuotaResponse("gateway", 429, {});
 		processQuotaResponse("gateway", 502, {});
@@ -39,9 +38,8 @@ describe("quota-monitor response outcome counters (M2 + Mn3, #437)", () => {
 	});
 
 	it("counts auth failures (401/403) per provider", async () => {
-		const { processQuotaResponse, getResponseCounters } = await import(
-			"../lib/quota-monitor.ts"
-		);
+		const { processQuotaResponse, getResponseCounters } =
+			await import("../lib/quota-monitor.ts");
 
 		processQuotaResponse("cline", 401, {});
 		processQuotaResponse("cline", 403, {});
@@ -55,9 +53,8 @@ describe("quota-monitor response outcome counters (M2 + Mn3, #437)", () => {
 	});
 
 	it("counts quota-header drift only when both halves are present but unmatched (Mn3)", async () => {
-		const { processQuotaResponse, getResponseCounters } = await import(
-			"../lib/quota-monitor.ts"
-		);
+		const { processQuotaResponse, getResponseCounters } =
+			await import("../lib/quota-monitor.ts");
 
 		// Half-pairs (remaining-only or limit-only) are legitimate signals from
 		// providers that send one half — NOT format drift (reviewer fix).
@@ -78,9 +75,8 @@ describe("quota-monitor response outcome counters (M2 + Mn3, #437)", () => {
 	});
 
 	it("extracts quota on a matched pair and does not count drift", async () => {
-		const { processQuotaResponse, getResponseCounters, getQuota } = await import(
-			"../lib/quota-monitor.ts"
-		);
+		const { processQuotaResponse, getResponseCounters, getQuota } =
+			await import("../lib/quota-monitor.ts");
 
 		processQuotaResponse("ok", 200, {
 			"x-ratelimit-remaining": "5",
@@ -92,9 +88,8 @@ describe("quota-monitor response outcome counters (M2 + Mn3, #437)", () => {
 	});
 
 	it("status classification is independent of the quota-header logic (M2)", async () => {
-		const { processQuotaResponse, getResponseCounters, getQuota } = await import(
-			"../lib/quota-monitor.ts"
-		);
+		const { processQuotaResponse, getResponseCounters, getQuota } =
+			await import("../lib/quota-monitor.ts");
 
 		// A 429 with a valid quota pair still counts the rate limit AND stores quota.
 		processQuotaResponse("both", 429, {

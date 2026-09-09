@@ -1,35 +1,30 @@
 {
 	"name": "pi-free",
 	"version": "2.7.1",
-	"type": "module",
 	"description": "AI model providers for Pi with free model filtering and dynamic model fetching",
 	"keywords": [
-		"pi-package",
-		"pi-extension",
+		"cline",
+		"crofai",
 		"free-models",
-		"paid-models",
+		"kilo",
 		"model-filter",
 		"nvidia-nim",
-		"kilo",
-		"cline",
-		"zenmux",
-		"crofai",
-		"ollama-cloud"
+		"ollama-cloud",
+		"paid-models",
+		"pi-extension",
+		"pi-package",
+		"zenmux"
 	],
-	"license": "MIT",
-	"author": "Apostolos Mantzaris",
 	"homepage": "https://github.com/apmantza/pi-free#readme",
 	"bugs": {
 		"url": "https://github.com/apmantza/pi-free/issues"
 	},
+	"license": "MIT",
+	"author": "Apostolos Mantzaris",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/apmantza/pi-free.git"
 	},
-	"engines": {
-		"node": ">=20.0.0"
-	},
-	"main": "./dist/index.js",
 	"files": [
 		"dist/**/*",
 		"README.md",
@@ -41,6 +36,8 @@
 		"scripts/rpc-load-check.mjs",
 		"scripts/lib/rpc-driver.mjs"
 	],
+	"type": "module",
+	"main": "./dist/index.js",
 	"scripts": {
 		"audit:prod": "npm audit --omit=dev --omit=peer --audit-level=high",
 		"build": "node scripts/build.mjs",
@@ -53,6 +50,10 @@
 		"check:closure": "node scripts/check-installed-closure.mjs",
 		"check:hoisting": "node scripts/check-hoisting.mjs",
 		"lint": "tsc --noEmit",
+		"format": "oxfmt --write .",
+		"format:check": "oxfmt --check .",
+		"lint:oxlint": "oxlint",
+		"check:knip": "knip",
 		"prepare": "npm run build",
 		"test": "vitest",
 		"test:ui": "vitest --ui",
@@ -66,15 +67,17 @@
 		"smoke:pi-install": "node scripts/pi-install-smoke.mjs",
 		"smoke:pi-upgrade": "node scripts/pi-upgrade-smoke.mjs"
 	},
-	"overrides": {
-		"brace-expansion": "^5.0.9",
-		"@earendil-works/pi-coding-agent": {
-			"brace-expansion": "^5.0.9",
-			"minimatch": {
-				"brace-expansion": "^5.0.9"
-			}
-		},
-		"protobufjs": "^7.6.5"
+	"devDependencies": {
+		"@earendil-works/pi-coding-agent": "^0.84.4",
+		"@vitest/coverage-v8": "^4.1.10",
+		"@vitest/ui": "^4.1.10",
+		"esbuild": "^0.28.1",
+		"knip": "6.35.0",
+		"oxfmt": "0.67.0",
+		"oxlint": "1.82.0",
+		"tsx": "^4.23.12",
+		"typescript": "^7.0.2",
+		"vitest": "^4.1.10"
 	},
 	"peerDependencies": {
 		"@earendil-works/pi-ai": ">=0.81.0",
@@ -89,14 +92,18 @@
 			"optional": true
 		}
 	},
-	"devDependencies": {
-		"@earendil-works/pi-coding-agent": "^0.84.4",
-		"@vitest/coverage-v8": "^4.1.10",
-		"@vitest/ui": "^4.1.10",
-		"esbuild": "^0.28.1",
-		"tsx": "^4.23.12",
-		"typescript": "^7.0.2",
-		"vitest": "^4.1.10"
+	"overrides": {
+		"@earendil-works/pi-coding-agent": {
+			"brace-expansion": "^5.0.9",
+			"minimatch": {
+				"brace-expansion": "^5.0.9"
+			}
+		},
+		"brace-expansion": "^5.0.9",
+		"protobufjs": "^7.6.5"
+	},
+	"engines": {
+		"node": ">=20.0.0"
 	},
 	"pi": {
 		"extensions": [

@@ -38,9 +38,9 @@ describe("mapCommandCodeModel", () => {
 		expect(model?.cost.cacheRead).toBeCloseTo(0.5e-6, 12);
 		expect(model?.cost.cacheWrite).toBeCloseTo(6.25e-6, 12);
 		expect(model?.contextWindow).toBe(1_000_000);
-		expect((model as unknown as { _pricingKnown?: boolean })._pricingKnown).toBe(
-			true,
-		);
+		expect(
+			(model as unknown as { _pricingKnown?: boolean })._pricingKnown,
+		).toBe(true);
 	});
 
 	it("maps the documented free models at zero cost with authority", () => {
@@ -48,9 +48,9 @@ describe("mapCommandCodeModel", () => {
 			const model = mapCommandCodeModel(catalogEntry({ id }));
 			expect(model?.cost.input).toBe(0);
 			expect(model?.cost.output).toBe(0);
-			expect((model as unknown as { _pricingKnown?: boolean })._pricingKnown).toBe(
-				true,
-			);
+			expect(
+				(model as unknown as { _pricingKnown?: boolean })._pricingKnown,
+			).toBe(true);
 		}
 	});
 
@@ -96,7 +96,9 @@ describe("mapCommandCodeModel", () => {
 
 	it("returns undefined for unusable entries", () => {
 		expect(mapCommandCodeModel(catalogEntry({ id: "" }))).toBeUndefined();
-		expect(mapCommandCodeModel(catalogEntry({ id: undefined }))).toBeUndefined();
+		expect(
+			mapCommandCodeModel(catalogEntry({ id: undefined })),
+		).toBeUndefined();
 	});
 });
 

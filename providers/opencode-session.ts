@@ -446,7 +446,9 @@ function resolvePiAiSubpathFromPackage(specifier: string): string | undefined {
 		const pkgDir = findPiAiPackageDir(candidate);
 		if (!pkgDir) continue;
 		try {
-			const pkg = JSON.parse(readFileSync(join(pkgDir, "package.json"), "utf-8"));
+			const pkg = JSON.parse(
+				readFileSync(join(pkgDir, "package.json"), "utf-8"),
+			);
 			const targetPath = resolvePiAiExportTarget(pkg.exports, subpath);
 			if (targetPath) return join(pkgDir, targetPath);
 		} catch {
@@ -610,7 +612,9 @@ export function createOpenCodeStreamSimple(
 				};
 				if (streamApi === "anthropic-messages") {
 					const streamSimpleAnthropic = getStreamSimple(
-						await importPiAiSubpath<AnthropicStreamModule>("api/anthropic-messages"),
+						await importPiAiSubpath<AnthropicStreamModule>(
+							"api/anthropic-messages",
+						),
 						"streamSimpleAnthropic",
 					);
 					await pipeStream(
@@ -792,7 +796,9 @@ function sanitizeMessagesForOpenCode(messages: unknown[]): unknown[] {
 		hasNonSystem = true;
 
 		// Insert placeholder user message between consecutive assistant messages
-		const last = sanitized[sanitized.length - 1] as { role?: string } | undefined;
+		const last = sanitized[sanitized.length - 1] as
+			| { role?: string }
+			| undefined;
 		if (role === "assistant" && last?.role === "assistant") {
 			sanitized.push({ role: "user", content: " " });
 		}

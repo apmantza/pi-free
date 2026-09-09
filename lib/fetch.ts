@@ -95,7 +95,9 @@ export function computeRetryBackoffMs(
 	const safeBase =
 		Number.isFinite(baseDelayMs) && baseDelayMs > 0 ? baseDelayMs : 0;
 	const cap =
-		Number.isFinite(capMs) && capMs > 0 ? Math.min(capMs, MAX_RETRY_BACKOFF_MS) : MAX_RETRY_BACKOFF_MS;
+		Number.isFinite(capMs) && capMs > 0
+			? Math.min(capMs, MAX_RETRY_BACKOFF_MS)
+			: MAX_RETRY_BACKOFF_MS;
 	return random() * Math.min(safeBase * 2 ** safeAttempt, cap);
 }
 
@@ -135,8 +137,8 @@ export async function fetchWithRetry(
 			return response; // Return non-ok but non-retryable responses
 		} catch (error) {
 			lastError = error;
-		if (options.signal?.aborted) throw error;
-		if (i < retries - 1) {
+			if (options.signal?.aborted) throw error;
+			if (i < retries - 1) {
 				await sleep(computeRetryBackoffMs(i, delayMs));
 			}
 		}

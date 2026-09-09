@@ -127,7 +127,10 @@ describe("Qoder native provider", () => {
 		expect(provider.auth).toBe(mocks.qoderAuth);
 		expect(provider.stream).toEqual(expect.any(Function));
 		expect(provider.streamSimple).toEqual(expect.any(Function));
-		expect(mocks.registerNativeProviderRefresh).toHaveBeenCalledWith(pi, "qoder");
+		expect(mocks.registerNativeProviderRefresh).toHaveBeenCalledWith(
+			pi,
+			"qoder",
+		);
 	});
 
 	it("keeps the basic catalog in the global toggle state", async () => {

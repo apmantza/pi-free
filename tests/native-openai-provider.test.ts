@@ -28,7 +28,7 @@ vi.mock("../config.ts", () => ({
 vi.mock("../lib/registry.ts", () => ({
 	getGlobalFreeOnly: () => mockGetGlobalFreeOnly(),
 	resolveModelView: (...args: [string]) => mockResolveModelView(...args),
-	isFreeModel: (model: { name: string }) => /free/i.test(model.name),
+	isFreeModel: (m: { name: string }) => /free/i.test(m.name),
 	registerWithGlobalToggle: vi.fn(),
 }));
 vi.mock("../provider-helper.ts", () => ({
@@ -387,7 +387,9 @@ describe("createNativeOpenAIProvider", () => {
 			fetchModels,
 		});
 
-		await handle.provider.refreshModels?.(context(store, { allowNetwork: true }));
+		await handle.provider.refreshModels?.(
+			context(store, { allowNetwork: true }),
+		);
 
 		expect(fetchModels).toHaveBeenCalledOnce();
 		expect(written[0].models[0]).toMatchObject({ id: "public" });
@@ -562,7 +564,7 @@ describe("createNativeOpenAIProvider", () => {
 
 		const summary = startup.getStartupSummary();
 		const entry = summary.cacheNetwork.find(
-			(entry) => entry.provider === "test-native",
+			(e) => e.provider === "test-native",
 		);
 		expect(entry).toMatchObject({
 			aborts: 1,
@@ -603,7 +605,7 @@ describe("createNativeOpenAIProvider", () => {
 
 		const entry = startup
 			.getStartupSummary()
-			.cacheNetwork.find((entry) => entry.provider === "test-native");
+			.cacheNetwork.find((e) => e.provider === "test-native");
 		expect(entry?.restoredCount).toBe(1);
 		expect(entry?.storeAgeMs).toBeLessThan(3 * 60 * 60 * 1000);
 		expect(entry?.storeAgeMs).toBeGreaterThan(60 * 60 * 1000);

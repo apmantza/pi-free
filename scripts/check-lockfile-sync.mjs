@@ -12,7 +12,9 @@ function readJson(file) {
 	try {
 		return JSON.parse(fs.readFileSync(file, "utf-8"));
 	} catch (error) {
-		console.error(`Cannot read ${file}: ${error instanceof Error ? error.message : String(error)}`);
+		console.error(
+			`Cannot read ${file}: ${error instanceof Error ? error.message : String(error)}`,
+		);
 		process.exit(1);
 	}
 }
@@ -51,7 +53,9 @@ for (const section of SECTIONS) {
 if (problems.length > 0) {
 	console.error("package-lock.json is out of sync with package.json:\n");
 	for (const problem of problems) console.error(`  • ${problem}`);
-	console.error("\nRun `npm install` and commit the updated package-lock.json.");
+	console.error(
+		"\nRun `npm install` and commit the updated package-lock.json.",
+	);
 	process.exit(1);
 }
 

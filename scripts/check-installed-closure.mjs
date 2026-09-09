@@ -176,7 +176,9 @@ function hasImportableEntry(depRoot) {
 	}
 	const exportsField = pkg.exports;
 	if (exportsField === undefined) {
-		return typeof pkg.main === "string" || existsSync(join(depRoot, "index.js"));
+		return (
+			typeof pkg.main === "string" || existsSync(join(depRoot, "index.js"))
+		);
 	}
 	const rootEntry =
 		typeof exportsField === "string" ? exportsField : exportsField["."];

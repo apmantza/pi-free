@@ -147,7 +147,11 @@ describe("Benchmark Lookup", () => {
 
 	describe("findHardcodedBenchmark", () => {
 		it("should find benchmark for exact model name", () => {
-			const result = findHardcodedBenchmark("Gemini 2.5 Pro", "gemini-2.5-pro", "google");
+			const result = findHardcodedBenchmark(
+				"Gemini 2.5 Pro",
+				"gemini-2.5-pro",
+				"google",
+			);
 			expect(result).not.toBeNull();
 			expect(typeof result?.codingIndex).toBe("number");
 			expect(result!.codingIndex).toBeGreaterThan(0);
@@ -210,7 +214,11 @@ describe("Benchmark Lookup", () => {
 
 	describe("getHardcodedScore", () => {
 		it("should return a score for known models", () => {
-			const score = getHardcodedScore("Gemini 2.5 Pro", "gemini-2.5-pro", "google");
+			const score = getHardcodedScore(
+				"Gemini 2.5 Pro",
+				"gemini-2.5-pro",
+				"google",
+			);
 			expect(score).not.toBeNull();
 			expect(typeof score).toBe("number");
 		});

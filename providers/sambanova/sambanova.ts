@@ -61,8 +61,7 @@ export default function sambanovaProvider(pi: ExtensionAPI): Promise<void> {
 				// undocumented _pricingKnown marker consumed by isFreeModel to
 				// mark cost-based (Route A) detection authoritative for these
 				// models; the field is metadata only and never read by pi-ai.
-				(model as unknown as { _pricingKnown?: boolean })._pricingKnown =
-					true;
+				(model as unknown as { _pricingKnown?: boolean })._pricingKnown = true;
 			}
 			return models;
 		},

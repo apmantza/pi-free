@@ -118,7 +118,9 @@ export function createOpenAIAvailabilityProbe(
 					},
 					10_000,
 				);
-				return response.status === 404 || response.status >= 500 ? "broken" : "ok";
+				return response.status === 404 || response.status >= 500
+					? "broken"
+					: "ok";
 			} catch {
 				return "unknown";
 			}

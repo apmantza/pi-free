@@ -94,7 +94,7 @@ describe("built-in provider toggles", () => {
 	let handlers: Record<string, Function>;
 	let commands: Record<string, Function>;
 	let mockRegisterProvider: ReturnType<typeof vi.fn>;
-	let setupBuiltInProviderToggles: typeof import("../lib/built-in-toggle.ts")["setupBuiltInProviderToggles"];
+	let setupBuiltInProviderToggles: (typeof import("../lib/built-in-toggle.ts"))["setupBuiltInProviderToggles"];
 
 	afterEach(() => {
 		vi.unstubAllGlobals();
@@ -134,7 +134,8 @@ describe("built-in provider toggles", () => {
 			}),
 		} as unknown as ExtensionAPI;
 
-		({ setupBuiltInProviderToggles } = await import("../lib/built-in-toggle.ts"));
+		({ setupBuiltInProviderToggles } =
+			await import("../lib/built-in-toggle.ts"));
 	});
 
 	// NOTE (RPC migration): capture-view assertions (free/all per recorded
@@ -541,6 +542,7 @@ describe("built-in provider toggles", () => {
 		// Release the detached endpoint refresh's fetch only after both
 		// explicit refreshes have joined it, so all three share one request.
 		// Poll: the detached task needs a few ticks to reach the fetcher.
+		// eslint-disable-next-line no-unmodified-loop-condition -- intentional: fetchCalls is mutated by the detached refresh task, not this loop.
 		for (let i = 0; i < 50 && fetchCalls === 0; i += 1) {
 			await new Promise((resolve) => setTimeout(resolve, 0));
 		}
@@ -1016,9 +1018,6 @@ describe("built-in provider toggles", () => {
 	// could not model: Pi appending its own fallback entry).Kept here:
 	// refresh-landing retry, another-provider, already-active.
 
-
-
-
 	it("retries the restore once the endpoint refresh lands the missing model", async () => {
 		setupBuiltInProviderToggles(mockPi);
 
@@ -1074,7 +1073,6 @@ describe("built-in provider toggles", () => {
 			expect.objectContaining({ provider: "opencode-free", id: "free-model" }),
 		);
 	});
-
 
 	it("does not restore when the saved model belongs to another provider", async () => {
 		setupBuiltInProviderToggles(mockPi);
@@ -1269,5 +1267,4 @@ describe("built-in provider toggles", () => {
 			"paid-model",
 		]);
 	});
-
 });

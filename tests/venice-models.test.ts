@@ -64,9 +64,9 @@ describe("mapVeniceModel", () => {
 
 	it("stamps _pricingKnown so Route A detection is authoritative", () => {
 		const model = mapVeniceModel(catalogEntry());
-		expect((model as unknown as { _pricingKnown?: boolean })._pricingKnown).toBe(
-			true,
-		);
+		expect(
+			(model as unknown as { _pricingKnown?: boolean })._pricingKnown,
+		).toBe(true);
 	});
 
 	function zeroPricedEntry(overrides: Record<string, unknown> = {}) {

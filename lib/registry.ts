@@ -6,11 +6,7 @@
  */
 
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
-import {
-	getFreeOnly,
-	getModelViewOverride,
-	saveConfig,
-} from "../config.ts";
+import { getFreeOnly, getModelViewOverride, saveConfig } from "../config.ts";
 import { createLogger } from "./logger.ts";
 
 const _logger = createLogger("pi-free");
@@ -68,9 +64,7 @@ function detectPricingExposed(allModels: ProviderModelConfig[]): boolean {
  */
 const pricingExposedCache = new WeakMap<ProviderModelConfig[], boolean>();
 
-function isPricingExposedCached(
-	allModels: ProviderModelConfig[],
-): boolean {
+function isPricingExposedCached(allModels: ProviderModelConfig[]): boolean {
 	const cached = pricingExposedCache.get(allModels);
 	if (cached !== undefined) return cached;
 	const verdict = detectPricingExposed(allModels);
@@ -213,8 +207,7 @@ export type ModelView = "free" | "all";
 
 export function resolveModelView(providerId: string): ModelView {
 	return (
-		getModelViewOverride(providerId) ??
-		(getGlobalFreeOnly() ? "free" : "all")
+		getModelViewOverride(providerId) ?? (getGlobalFreeOnly() ? "free" : "all")
 	);
 }
 
@@ -238,10 +231,7 @@ function showAllForProvider(providerId: string, entry: ProviderEntry): void {
 	}
 }
 
-function applyFilterToProvider(
-	providerId: string,
-	entry: ProviderEntry,
-): void {
+function applyFilterToProvider(providerId: string, entry: ProviderEntry): void {
 	const view = resolveModelView(providerId);
 	if (entry.native) {
 		// Native providers expose their complete catalog through getModels().

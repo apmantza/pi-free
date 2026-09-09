@@ -53,7 +53,7 @@ function gh(args) {
 // npx/execFileSync resolves binaries through PATH; CI runners and shared
 // systems otherwise inherit a modifiable search path.
 if (process.platform !== "win32") {
-	process.env.PATH = 
+	process.env.PATH =
 		"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
 }
 
@@ -65,7 +65,10 @@ function listReleases(repo) {
 	try {
 		parsed = JSON.parse(output);
 	} catch (err) {
-		throw new Error(`Failed to parse 'gh release list' output: ${String(err)}`);
+		throw new Error(
+			`Failed to parse 'gh release list' output: ${String(err)}`,
+			{ cause: err },
+		);
 	}
 	if (!Array.isArray(parsed)) {
 		throw new Error("Unexpected 'gh release list' output: expected JSON array");

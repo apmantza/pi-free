@@ -53,7 +53,9 @@ function run(args, options, timeoutMs = 180_000) {
 			} else {
 				const signalSuffix = signal ? ` (${String(signal)})` : "";
 				rejectRun(
-					new Error(`Node exited with code ${code ?? "unknown"}${signalSuffix}`),
+					new Error(
+						`Node exited with code ${code ?? "unknown"}${signalSuffix}`,
+					),
 				);
 			}
 		});
@@ -88,6 +90,7 @@ async function publishedVersion() {
 	} catch (error) {
 		throw new Error(
 			`cannot resolve published pi-free version: ${error instanceof Error ? error.message : String(error)}`,
+			{ cause: error },
 		);
 	} finally {
 		clearTimeout(timer);
@@ -164,7 +167,11 @@ try {
  */
 function preserveArtifacts(label) {
 	try {
-		const dir = join(process.cwd(), ".smoke-artifacts", `${label}-${Date.now()}`);
+		const dir = join(
+			process.cwd(),
+			".smoke-artifacts",
+			`${label}-${Date.now()}`,
+		);
 		mkdirSync(dir, { recursive: true });
 		for (const file of ["free.log", "free.json"]) {
 			const src = join(home, ".pi", file);

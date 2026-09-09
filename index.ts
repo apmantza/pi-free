@@ -224,7 +224,10 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 			const entries = Object.entries(allTelemetry);
 
 			if (entries.length === 0) {
-				ctx.ui.notify("No telemetry data yet. Use some free models first!", "info");
+				ctx.ui.notify(
+					"No telemetry data yet. Use some free models first!",
+					"info",
+				);
 				return;
 			}
 
@@ -252,7 +255,9 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 				const calls = String(t.totalCalls).padStart(5);
 				const ok = `${t.successRate}%`.padStart(5);
 				const lat =
-					t.avgLatencyMs > 0 ? `${t.avgLatencyMs}ms`.padStart(6) : "—".padStart(6);
+					t.avgLatencyMs > 0
+						? `${t.avgLatencyMs}ms`.padStart(6)
+						: "—".padStart(6);
 				const tps =
 					t.avgTokensPerSecond > 0
 						? `${t.avgTokensPerSecond}`.padStart(6)
@@ -271,7 +276,8 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 			const authFailures = getProviderErrorCounts();
 			const authLines: string[] = [];
 			for (const [provider, counts] of authFailures) {
-				const total = counts["401"] + counts["403"] + counts["429"] + counts["5xx"];
+				const total =
+					counts["401"] + counts["403"] + counts["429"] + counts["5xx"];
 				if (total === 0) continue;
 				authLines.push(
 					`  ${provider}: 401×${counts["401"]}, 403×${counts["403"]}, 429×${counts["429"]}, 5xx×${counts["5xx"]}`,

@@ -48,7 +48,9 @@ function managedIds(commands) {
 	return new Set(
 		(commands ?? [])
 			.map((command) => command.name)
-			.filter((name) => name.startsWith("toggle-") && !GLOBAL_COMMANDS.has(name))
+			.filter(
+				(name) => name.startsWith("toggle-") && !GLOBAL_COMMANDS.has(name),
+			)
 			.map((name) => name.slice("toggle-".length)),
 	);
 }
@@ -137,8 +139,7 @@ async function waitCatalog(phase, managed) {
 	// unfiltered on every re-registration until the availability refresh
 	// lands, so presence alone would assert a transient.
 	return driver.waitSettled(
-		async () =>
-			(await driver.send({ type: "get_available_models" })).models,
+		async () => (await driver.send({ type: "get_available_models" })).models,
 		(models) => assertCatalog(models, phase, managed),
 		{ timeoutMs: 180_000, label: `${phase} managed catalog` },
 	);
@@ -200,14 +201,13 @@ try {
 	await driver.prompt("/toggle-llm7");
 	await driver.waitFor(
 		async () =>
-			readSeededConfig()?.model_view_overrides?.llm7 === "all"
-				? true
-				: null,
+			readSeededConfig()?.model_view_overrides?.llm7 === "all" ? true : null,
 		{ timeoutMs: 60_000, label: "post-toggle llm7 override" },
 	);
 	const toggled = await driver.waitFor(
 		async () => {
-			const found = (await driver.send({ type: "get_available_models" })).models;
+			const found = (await driver.send({ type: "get_available_models" }))
+				.models;
 			return (found ?? []).some(
 				(m) => m.provider === ANCHOR_PROVIDER && m.id === "pro",
 			)
@@ -222,7 +222,8 @@ try {
 	await driver.send({ type: "new_session" });
 	const persisted = await driver.waitFor(
 		async () => {
-			const found = (await driver.send({ type: "get_available_models" })).models;
+			const found = (await driver.send({ type: "get_available_models" }))
+				.models;
 			return (found ?? []).some(
 				(m) => m.provider === ANCHOR_PROVIDER && m.id === "pro",
 			)

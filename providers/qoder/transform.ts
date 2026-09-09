@@ -94,7 +94,9 @@ export function transformMessagesForQoder(messages: Message[]): QoderMessage[] {
 		if (msg.role === "user") {
 			normalizedMessages.push(transformUserMessage(msg));
 		} else if (msg.role === "assistant") {
-			normalizedMessages.push(transformAssistantMessage(msg as AssistantMessage));
+			normalizedMessages.push(
+				transformAssistantMessage(msg as AssistantMessage),
+			);
 		} else if (msg.role === "toolResult") {
 			normalizedMessages.push(
 				transformToolResultMessage(msg as ToolResultMessage),

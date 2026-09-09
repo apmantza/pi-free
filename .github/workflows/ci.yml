@@ -19,6 +19,8 @@ jobs:
         # zizmor: artipacked - CI never pushes; no credential needed
         with:
           persist-credentials: false
+          # Full history so the whitespace check can diff against the base.
+          fetch-depth: 0
 
       # v7.0.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -30,6 +32,32 @@ jobs:
 
       - name: Lockfile in sync with package.json
         run: npm run check:lockfile
+
+      # Canonical formatting (oxfmt): the single style authority. Without
+      # this gate, editor/agent formatters drift files apart (132 files
+      # drifted before the canonical reformat). Markdown is excluded in
+      # .oxfmtrc.json — oxfmt's embedded-code formatting is not idempotent.
+      - name: Check canonical formatting
+        run: npm run format:check
+
+      # Correctness + suspicious lints only (see .oxlintrc.json). Style
+      # belongs to the formatter; three rules encode repo conventions or
+      # toolchain limits and are allowed with reasons in the config.
+      - name: Lint with oxlint
+        run: npm run lint:oxlint
+
+      # Dead exports / deps gate (see knip.json). Entry points declared so
+      # extension entry, scripts, and tests are not flagged; re-export
+      # barrels are checked for genuinely dead entries.
+      - name: Check for dead code with knip
+        run: npm run check:knip
+
+      # Whitespace errors introduced by the change (trailing space,
+      # space-before-tab). The formatter subsumes most of this; the check
+      # stays as a cheap backstop for non-code files it does not own.
+      # Empty on push-to-master (HEAD is the tip); the branch diff on PRs.
+      - name: Check for whitespace errors
+        run: git diff --check origin/master...HEAD
 
       # Fail on known-vulnerable production deps — the code that actually ships
       # to users. DevDeps are excluded because they do not run in Pi installs.
@@ -243,7 +271,7 @@ jobs:
       # Upload them so a red install-test is debuggable from the run.
       - name: Upload smoke failure artifacts
         if: failure()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: smoke-artifacts-${{ matrix.os }}
           path: .smoke-artifacts/

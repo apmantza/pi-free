@@ -85,9 +85,7 @@ vi.mock("node:fs", async (importOriginal) => {
 			}
 			return actual.createWriteStream(...args);
 		},
-		appendFileSync: (
-			...args: Parameters<typeof actual.appendFileSync>
-		) => {
+		appendFileSync: (...args: Parameters<typeof actual.appendFileSync>) => {
 			if (failNextRecoveryAppend) {
 				failNextRecoveryAppend = false;
 				throw new Error("ENOSPC: no space left on device, write");
@@ -194,9 +192,8 @@ describe("flushLogsSync", () => {
 			vi.stubEnv("PI_FREE_FILE_LOG", "true");
 			vi.resetModules();
 
-			const { createLogger, flushLogsSync, getLogPath } = await import(
-				"../lib/logger.ts"
-			);
+			const { createLogger, flushLogsSync, getLogPath } =
+				await import("../lib/logger.ts");
 			const logger = createLogger("flush-test");
 			logger.info("sync-flush-marker", { index: 1 });
 			logger.info("sync-flush-marker", { index: 2 });
@@ -214,7 +211,9 @@ describe("flushLogsSync", () => {
 
 			// Subsequent logging uses the synchronous path and still lands.
 			logger.info("sync-flush-after");
-			expect(await readFile(getLogPath(), "utf8")).toContain("sync-flush-after");
+			expect(await readFile(getLogPath(), "utf8")).toContain(
+				"sync-flush-after",
+			);
 		} finally {
 			await removeHomeRetry(home);
 		}
@@ -235,8 +234,12 @@ describe("log writer recovers writes lost to stream teardown (#456)", () => {
 			const fakeStream = createFakeDestroyableStream();
 			nextFakeStream = () => fakeStream;
 
-			const { createLogger, getLogPath, getLogWriteFailures, getLastLogWriteError } =
-				await import("../lib/logger.ts");
+			const {
+				createLogger,
+				getLogPath,
+				getLogWriteFailures,
+				getLastLogWriteError,
+			} = await import("../lib/logger.ts");
 			const logger = createLogger("destroy-test");
 			logger.info("in-flight-marker");
 
@@ -272,9 +275,8 @@ describe("log writer recovers writes lost to stream teardown (#456)", () => {
 			const fakeStream = createFakeDestroyableStream();
 			nextFakeStream = () => fakeStream;
 
-			const { createLogger, getLogWriteFailures, getLastLogWriteError } = await import(
-				"../lib/logger.ts"
-			);
+			const { createLogger, getLogWriteFailures, getLastLogWriteError } =
+				await import("../lib/logger.ts");
 			const logger = createLogger("loss-test");
 			logger.info("unrecoverable-marker");
 

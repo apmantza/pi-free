@@ -10,7 +10,11 @@
 
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { applyHidden } from "../../config.ts";
-import { BASE_URL_REQUESTY, DEFAULT_FETCH_TIMEOUT_MS, PROVIDER_REQUESTY } from "../../constants.ts";
+import {
+	BASE_URL_REQUESTY,
+	DEFAULT_FETCH_TIMEOUT_MS,
+	PROVIDER_REQUESTY,
+} from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { fetchWithRetry } from "../../lib/util.ts";
 
@@ -35,7 +39,9 @@ interface RequestyCatalogModel {
 const FALLBACK_CONTEXT_WINDOW = 128_000;
 
 function asNumber(value: unknown): number | undefined {
-	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+	return typeof value === "number" && Number.isFinite(value)
+		? value
+		: undefined;
 }
 
 /**
@@ -67,8 +73,7 @@ export function mapRequestyModel(
 			cacheRead: asNumber(entry.cached_price) ?? 0,
 			cacheWrite: asNumber(entry.caching_price) ?? 0,
 		},
-		contextWindow:
-			asNumber(entry.context_window) ?? FALLBACK_CONTEXT_WINDOW,
+		contextWindow: asNumber(entry.context_window) ?? FALLBACK_CONTEXT_WINDOW,
 		maxTokens: asNumber(entry.max_output_tokens) || 4_096,
 	};
 }

@@ -134,7 +134,8 @@ try {
 			fail(`pi.extensions entry missing from tarball: ${extension}`);
 		}
 		console.log(`OK: pi.extensions -> ${extension}`);
-		if (normalized === "dist/index.js") compiledEntry = join(packageDir, normalized);
+		if (normalized === "dist/index.js")
+			compiledEntry = join(packageDir, normalized);
 	}
 	if (pkg.main) {
 		const normalized = String(pkg.main).replace(/^\.\//, "");
@@ -143,7 +144,8 @@ try {
 		}
 		console.log(`OK: main -> ${pkg.main}`);
 	}
-	if (!compiledEntry) fail("compiled dist/index.js is not the Pi extension entry");
+	if (!compiledEntry)
+		fail("compiled dist/index.js is not the Pi extension entry");
 
 	// Always validate JavaScript syntax. When run from a checkout after npm ci,
 	// temporarily link its peer dependencies so Node can import the extracted

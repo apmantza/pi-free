@@ -142,7 +142,11 @@ try {
  */
 function preserveArtifacts(label) {
 	try {
-		const dir = join(process.cwd(), ".smoke-artifacts", `${label}-${Date.now()}`);
+		const dir = join(
+			process.cwd(),
+			".smoke-artifacts",
+			`${label}-${Date.now()}`,
+		);
 		mkdirSync(dir, { recursive: true });
 		for (const file of ["free.log", "free.json"]) {
 			const src = join(home, ".pi", file);

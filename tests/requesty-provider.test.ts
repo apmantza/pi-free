@@ -61,9 +61,7 @@ describe("mapRequestyModel", () => {
 	});
 
 	it("falls back when context_window is missing", () => {
-		const model = mapRequestyModel(
-			catalogEntry({ context_window: undefined }),
-		);
+		const model = mapRequestyModel(catalogEntry({ context_window: undefined }));
 		expect(model?.contextWindow).toBeGreaterThan(0);
 	});
 
@@ -90,9 +88,8 @@ describe("fetchRequestyModels", () => {
 	});
 
 	it("fetches the public catalog without a key and maps chat models", async () => {
-		const { fetchRequestyModels } = await import(
-			"../providers/requesty/requesty-models.ts"
-		);
+		const { fetchRequestyModels } =
+			await import("../providers/requesty/requesty-models.ts");
 		const fetchMock = vi.fn(async () => ({
 			ok: true,
 			json: async () => ({
@@ -113,13 +110,14 @@ describe("fetchRequestyModels", () => {
 			RequestInit,
 		];
 		expect(url).toBe("https://router.requesty.ai/v1/models");
-		expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
+		expect(
+			(init.headers as Record<string, string>).Authorization,
+		).toBeUndefined();
 	});
 
 	it("sends the bearer header when a key is configured", async () => {
-		const { fetchRequestyModels } = await import(
-			"../providers/requesty/requesty-models.ts"
-		);
+		const { fetchRequestyModels } =
+			await import("../providers/requesty/requesty-models.ts");
 		const fetchMock = vi.fn(async () => ({
 			ok: true,
 			json: async () => ({ data: [] }),

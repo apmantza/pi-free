@@ -111,7 +111,8 @@ function resolveApiKey(providerId: string): string | undefined {
 	if (credential?.type === "api_key" && credential.key) return credential.key;
 	// OAuth credentials vary per provider (kilo/cline map access tokens to
 	// bearer); best-effort pass-through so the harness stays generic.
-	if (credential?.type === "oauth" && credential.access) return credential.access;
+	if (credential?.type === "oauth" && credential.access)
+		return credential.access;
 	const envKey = `${providerId.replaceAll("-", "_").toUpperCase()}_API_KEY`;
 	return process.env[envKey];
 }
@@ -125,7 +126,7 @@ function resolveApiKey(providerId: string): string | undefined {
 function withGatewayCompat(model: StoreModel): StoreModel {
 	return {
 		...model,
-		compat: { ...(model.compat ?? {}), supportsDeveloperRole: false },
+		compat: { ...model.compat, supportsDeveloperRole: false },
 	};
 }
 
@@ -146,14 +147,20 @@ async function main(): Promise<number> {
 
 	const providerId = typeof args.provider === "string" ? args.provider : "";
 	if (!providerId) {
-		console.error("Usage: npx tsx scripts/drive-pi-ai.ts --provider <id> [--model <substr>] [--help]");
+		console.error(
+			"Usage: npx tsx scripts/drive-pi-ai.ts --provider <id> [--model <substr>] [--help]",
+		);
 		console.error("Run with --list to see providers in the store.");
 		return 1;
 	}
 	const providerModels = store[providerId]?.models ?? [];
 	if (providerModels.length === 0) {
 		console.error(`Provider '${providerId}' has no models in the store.`);
-		console.error(`Available: ${Object.keys(store).sort((a, b) => a.localeCompare(b)).join(", ")}`);
+		console.error(
+			`Available: ${Object.keys(store)
+				.sort((a, b) => a.localeCompare(b))
+				.join(", ")}`,
+		);
 		return 1;
 	}
 
@@ -167,7 +174,10 @@ async function main(): Promise<number> {
 	if (!base) {
 		console.error(`No model matching '${needle}' under ${providerId}.`);
 		console.error(
-			`Sample ids: ${providerModels.slice(0, 8).map((m) => m.id).join(", ")}`,
+			`Sample ids: ${providerModels
+				.slice(0, 8)
+				.map((m) => m.id)
+				.join(", ")}`,
 		);
 		return 1;
 	}
@@ -192,21 +202,27 @@ async function main(): Promise<number> {
 	const context = simple
 		? {
 				systemPrompt: "You are a coding agent.",
-				messages: [
-					{ role: "user", content: [{ type: "text", text: prompt }] },
-				],
+				messages: [{ role: "user", content: [{ type: "text", text: prompt }] }],
 			}
 		: {
 				// Realistic coding-agent turn: tool-call history with replayed
 				// thinking, a tool result, and a follow-up user message.
 				systemPrompt: "You are a coding agent.",
 				messages: [
-					{ role: "user", content: [{ type: "text", text: "Read the file then report." }] },
+					{
+						role: "user",
+						content: [{ type: "text", text: "Read the file then report." }],
+					},
 					{
 						role: "assistant",
 						content: [
 							{ type: "thinking", thinking: "I should call the tool." },
-							{ type: "toolCall", id: "call_1", name: "read_file", arguments: { path: "a.ts" } },
+							{
+								type: "toolCall",
+								id: "call_1",
+								name: "read_file",
+								arguments: { path: "a.ts" },
+							},
 						],
 					},
 					{
@@ -230,7 +246,8 @@ async function main(): Promise<number> {
 				],
 			};
 
-	const { lazyOpenAICompletionsApi, lazyAnthropicMessagesApi } = await import("../lib/lazy-compat.ts");
+	const { lazyOpenAICompletionsApi, lazyAnthropicMessagesApi } =
+		await import("../lib/lazy-compat.ts");
 	// Dispatch by the model's wire api — openai-completions for most gateways,
 	// anthropic-messages for Anthropic-compatible gateways.
 	const api =

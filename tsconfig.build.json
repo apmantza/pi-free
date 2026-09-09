@@ -1,17 +1,23 @@
 {
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "noEmit": false,
-    "noCheck": true,
-    "types": [],
-    "outDir": "dist",
-    "rootDir": ".",
-    "declaration": false,
-    "declarationMap": false,
-    "sourceMap": true,
-    "rewriteRelativeImportExtensions": true,
-    "noEmitOnError": true
-  },
-  "include": ["index.ts"],
-  "exclude": ["node_modules", ".pi-lens", "tests", "scripts", "vitest.config.ts"]
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"noEmit": false,
+		"noCheck": true,
+		"types": [],
+		"outDir": "dist",
+		"rootDir": ".",
+		"declaration": false,
+		"declarationMap": false,
+		"sourceMap": true,
+		"rewriteRelativeImportExtensions": true,
+		"noEmitOnError": true
+	},
+	"include": ["index.ts"],
+	"exclude": [
+		"node_modules",
+		".pi-lens",
+		"tests",
+		"scripts",
+		"vitest.config.ts"
+	]
 }

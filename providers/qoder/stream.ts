@@ -22,9 +22,7 @@ import type {
 	ThinkingContent,
 	ToolCall,
 } from "@earendil-works/pi-ai/compat";
-import {
-	AssistantMessageEventStream as LocalAssistantMessageEventStream,
-} from "../../lib/assistant-message-event-stream.ts";
+import { AssistantMessageEventStream as LocalAssistantMessageEventStream } from "../../lib/assistant-message-event-stream.ts";
 import { BASE_URL_QODER } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { getCachedModelConfig, staticModels } from "./models.ts";
@@ -287,8 +285,8 @@ async function consumeSSEStream(
 			const line = buffer.substring(0, lineEnd).trim();
 			buffer = buffer.substring(lineEnd + 1);
 
-			const done = handleSSELine(state, line);
-			if (done) break;
+			const lineDone = handleSSELine(state, line);
+			if (lineDone) break;
 		}
 	}
 }
@@ -540,8 +538,11 @@ async function runStream(
 		});
 		stream.end();
 	} catch (e: unknown) {
-		const logger = (await import("../../lib/logger.ts")).createLogger("qoder");
-		logger.error("stream error", {
+		// Local binding (not the module logger): the static import would cycle.
+		const streamLogger = (await import("../../lib/logger.ts")).createLogger(
+			"qoder",
+		);
+		streamLogger.error("stream error", {
 			error: e instanceof Error ? e.message : String(e),
 		});
 		output.stopReason = options?.signal?.aborted ? "aborted" : "error";

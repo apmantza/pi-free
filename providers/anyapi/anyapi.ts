@@ -210,8 +210,7 @@ export default function anyapiProvider(pi: ExtensionAPI): Promise<void> {
 		auth: anyapiAuth,
 		getApiKey: getAnyapiApiKey,
 		getShowPaid: getAnyapiShowPaid,
-		fetchModels: (apiKey, signal) =>
-			fetchAnyApiModels(apiKey, signal),
+		fetchModels: (apiKey, signal) => fetchAnyApiModels(apiKey, signal),
 		tosUrl: "https://anyapi.ai/terms-of-service",
 		suppressTosWhenKey: true,
 	});
