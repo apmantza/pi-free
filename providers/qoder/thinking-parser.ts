@@ -66,11 +66,12 @@ export class ThinkingTagParser {
 	private thinkingBlockIndex: number | null = null;
 	private textBlockIndex: number | null = null;
 	private activeEndTag = "";
+	private readonly output: AssistantMessage;
+	private readonly stream: AssistantMessageEventStream;
 
-	constructor(
-		private readonly output: AssistantMessage,
-		private readonly stream: AssistantMessageEventStream,
-	) {
+	constructor(output: AssistantMessage, stream: AssistantMessageEventStream) {
+		this.output = output;
+		this.stream = stream;
 		// Set initial active end tag to the first variant's close
 		this.activeEndTag = THINKING_TAG_VARIANTS[0]!.close;
 	}
