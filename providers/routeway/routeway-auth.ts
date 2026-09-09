@@ -6,5 +6,4 @@ export const routewayAuth = createNativeApiKeyAuth({
 	prompt: "Routeway API key",
 	source: "ROUTEWAY_API_KEY",
 	getApiKey: getRoutewayApiKey,
-	anonymousCatalog: true,
 });

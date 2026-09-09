@@ -1,12 +1,12 @@
 /**
- * Anonymous catalog resolution (#421).
+ * Logged-out provider visibility (#530).
  *
- * Pi's MutableModels.refresh() gates every provider's refreshModels() behind
- * auth resolution: if apiKey.resolve() returns undefined the catalog never
- * fetches. Providers with a public model catalog therefore resolve a truthy
- * keyless result when no credential is configured, so their models populate
- * anonymously. Providers whose catalogs require auth (stepfun, anyapi, bai,
- * opengateway) must keep resolving undefined.
+ * Pi hides providers whose auth doesn't resolve: if apiKey.resolve()
+ * returns undefined the catalog never fetches and /model stays clean.
+ * Providers whose catalogs are unusable without a key must therefore
+ * resolve undefined when no credential is configured — a visible-but-
+ * unchattable catalog is clutter, not discovery. Only genuinely
+ * keyless-usable providers (cline, fastrouter, llm7) resolve keyless.
  */
 
 import { describe, expect, it, vi } from "vitest";
@@ -17,10 +17,19 @@ vi.mock("../config.ts", () => ({
 	getNovitaApiKey: () => undefined,
 	getRoutewayApiKey: () => undefined,
 	getSambanovaApiKey: () => undefined,
+	getCommandCodeApiKey: () => undefined,
+	getInfronApiKey: () => undefined,
+	getVeniceApiKey: () => undefined,
 	getStepfunApiKey: () => undefined,
 	getAnyapiApiKey: () => undefined,
 	getBaiApiKey: () => undefined,
 	getOpengatewayApiKey: () => undefined,
+	getKiloApiKey: () => undefined,
+	getRequestyApiKey: () => undefined,
+	getZenmuxApiKey: () => undefined,
+	getClineApiKey: () => undefined,
+	getFastrouterApiKey: () => undefined,
+	getLlm7ApiKey: () => undefined,
 	// Non-key exports pulled in transitively by lib/registry / native-provider.
 	getFreeOnly: () => false,
 	getProviderShowPaid: () => false,
@@ -33,13 +42,20 @@ import { deepinfraAuth } from "../providers/deepinfra/deepinfra-auth.ts";
 import { novitaAuth } from "../providers/novita/novita-auth.ts";
 import { routewayAuth } from "../providers/routeway/routeway-auth.ts";
 import { sambanovaAuth } from "../providers/sambanova/sambanova-auth.ts";
+import { commandCodeAuth } from "../providers/commandcode/commandcode-auth.ts";
+import { infronAuth } from "../providers/infron/infron-auth.ts";
+import { veniceAuth } from "../providers/venice/venice-auth.ts";
 import { stepfunAuth } from "../providers/stepfun/stepfun-auth.ts";
 import { anyapiAuth } from "../providers/anyapi/anyapi-auth.ts";
 import { baiAuth } from "../providers/bai/bai-auth.ts";
 import { opengatewayAuth } from "../providers/opengateway/opengateway-auth.ts";
+import { kiloApiKeyAuth } from "../providers/kilo/kilo-auth.ts";
+import { requestyAuth } from "../providers/requesty/requesty-auth.ts";
+import { zenmuxAuth } from "../providers/zenmux/zenmux-auth.ts";
+import { clineApiKeyAuth } from "../providers/cline/cline-auth.ts";
+import { fastrouterAuth } from "../providers/fastrouter/fastrouter-auth.ts";
+import { llm7Auth } from "../providers/llm7/llm7-auth.ts";
 import { createNativeApiKeyAuth } from "../lib/native-provider.ts";
-
-const anonymous = { auth: {}, source: "public catalog (no account)" };
 
 function resolveInput() {
 	return {
@@ -49,37 +65,51 @@ function resolveInput() {
 	} as never;
 }
 
-describe("shared-factory providers with public catalogs", () => {
+describe("shared-factory providers hide without a key (#530)", () => {
 	it.each([
 		["crofai", crofaiAuth],
 		["deepinfra", deepinfraAuth],
 		["novita", novitaAuth],
 		["routeway", routewayAuth],
 		["sambanova", sambanovaAuth],
-	])(
-		"%s resolves keyless auth so the public catalog can refresh",
-		async (_name, auth) => {
-			const result = await auth.apiKey?.resolve(resolveInput());
-			expect(result).toEqual(anonymous);
-			// No apiKey.check: a check would hide the public catalog before login.
-			expect(auth.apiKey).not.toHaveProperty("check");
-		},
-	);
-});
-
-describe("shared-factory providers with auth-required catalogs", () => {
-	it.each([
+		["commandcode", commandCodeAuth],
+		["infron", infronAuth],
+		["venice", veniceAuth],
 		["stepfun", stepfunAuth],
 		["anyapi", anyapiAuth],
 		["bai", baiAuth],
 		["opengateway", opengatewayAuth],
-	])("%s still resolves undefined without a key", async (_name, auth) => {
+	])("%s resolves undefined without a key", async (_name, auth) => {
 		expect(await auth.apiKey?.resolve(resolveInput())).toBeUndefined();
 	});
 });
 
-describe("createNativeApiKeyAuth anonymousCatalog option", () => {
-	it("resolves undefined without the opt-in", async () => {
+describe("custom-resolver providers hide without a key (#530)", () => {
+	it.each([
+		["kilo", { apiKey: kiloApiKeyAuth }],
+		["requesty", requestyAuth],
+		["zenmux", zenmuxAuth],
+	])("%s resolves undefined without a key", async (_name, auth) => {
+		expect(await auth.apiKey?.resolve(resolveInput())).toBeUndefined();
+	});
+});
+
+describe("keyless allowlist still resolves (cline, fastrouter, llm7)", () => {
+	it.each([
+		["cline", { apiKey: clineApiKeyAuth }],
+		["fastrouter", fastrouterAuth],
+		["llm7", llm7Auth],
+	])("%s resolves keyless auth for the public catalog", async (_name, auth) => {
+		const result = await auth.apiKey?.resolve(resolveInput());
+		expect(result).toBeDefined();
+		expect(result?.auth).toBeDefined();
+		// No apiKey.check: a check would hide the public catalog before login.
+		expect(auth.apiKey).not.toHaveProperty("check");
+	});
+});
+
+describe("createNativeApiKeyAuth", () => {
+	it("resolves undefined without a key", async () => {
 		const auth = createNativeApiKeyAuth({
 			name: "Test key",
 			prompt: "Test key",
@@ -87,17 +117,6 @@ describe("createNativeApiKeyAuth anonymousCatalog option", () => {
 			getApiKey: () => undefined,
 		});
 		expect(await auth.apiKey?.resolve(resolveInput())).toBeUndefined();
-	});
-
-	it("resolves keyless auth with the opt-in", async () => {
-		const auth = createNativeApiKeyAuth({
-			name: "Test key",
-			prompt: "Test key",
-			source: "TEST_API_KEY",
-			getApiKey: () => undefined,
-			anonymousCatalog: true,
-		});
-		expect(await auth.apiKey?.resolve(resolveInput())).toEqual(anonymous);
 	});
 
 	it("still prefers stored and ambient keys when configured", async () => {
@@ -106,7 +125,6 @@ describe("createNativeApiKeyAuth anonymousCatalog option", () => {
 			prompt: "Test key",
 			source: "TEST_API_KEY",
 			getApiKey: () => "ambient-key",
-			anonymousCatalog: true,
 		});
 		expect(
 			await auth.apiKey?.resolve({

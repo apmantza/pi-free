@@ -1,9 +1,10 @@
 /**
  * Requesty native authentication.
  *
- * Requesty's model catalog (router.requesty.ai/v1/models) is public, so
- * native auth resolves even when no key is configured. Chat requests use the
- * configured key; the gateway rejects unauthenticated completions.
+ * Without a stored credential or ambient key, resolve() returns undefined
+ * and Pi hides the provider from /model (#530): the public catalog is
+ * visible but chat needs a key — the gateway rejects unauthenticated
+ * completions — so a logged-out listing is clutter, not discovery.
  */
 
 import type {
@@ -23,7 +24,7 @@ async function resolveRequestyApiKey(input: {
 }): Promise<AuthResult | undefined> {
 	const key = input.credential?.key ?? getRequestyApiKey();
 	if (!key) {
-		return { auth: {}, source: "public catalog (no account)" };
+		return undefined;
 	}
 	return {
 		auth: { apiKey: key },

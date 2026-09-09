@@ -165,14 +165,14 @@ describe("createZenmuxProvider", () => {
 		const models = createModels();
 		models.setProvider(provider);
 		expect(await models.getAvailable()).toEqual([]);
-		// ZenMux's catalog is public: auth resolves anonymously so Pi's model
-		// refresh populates the catalog without a configured key.
+		// Logged out: auth resolves undefined so Pi hides the provider
+		// from /model (#530) — the endpoint is public but chat needs a key.
 		expect(
 			await zenmuxAuth.apiKey?.resolve({
 				ctx: {} as never,
 				signal: new AbortController().signal,
 			} as never),
-		).toEqual({ auth: {}, source: "public catalog (no account)" });
+		).toBeUndefined();
 	});
 
 	it("restores the native store offline without network", async () => {

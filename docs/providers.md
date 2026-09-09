@@ -13,6 +13,18 @@ Provider catalog, authentication, and setup for pi-free. Catalog contents and pr
 | **Paid/trial** | Credits, payment, or a trial balance is required. |
 | **Built-in/native** | Pi owns the catalog lifecycle, including native model-store refresh. |
 
+## Model visibility
+
+Providers you have not logged into do not appear in `/model`. Pi hides
+any provider whose auth does not resolve, and pi-free resolves undefined
+without a stored credential or ambient key — a visible-but-unchattable
+catalog is clutter, not discovery. Only genuinely keyless-usable
+providers stay visible logged out: Cline, FastRouter, and LLM7, whose
+public catalogs work without an account (chat still needs a key where
+the gateway requires one). Logging in (`/login <provider>` or the
+provider's API-key variable) makes its models appear after the next
+refresh.
+
 ## Native providers
 
 These providers use Pi's native provider surface and model store. Their toggles remain available even though Pi owns catalog refresh and credential persistence.
@@ -103,11 +115,11 @@ Agnes AI is a native OpenAI-compatible provider mixing free and paid chat models
 
 ### Venice AI
 
-Venice AI is a native OpenAI-compatible provider mixing free-classified and paid chat models. Pi uses the inference API at `https://api.venice.ai/api/v1/chat/completions` (100+ text models billed in USD or DIEM per million tokens); the same base also exposes `GET /models?type=text`. The model catalog is public, so models appear before login, but chat requires `VENICE_API_KEY` or `venice_api_key`; toggle with `/toggle-venice`. Free/paid classification follows the published pricing (zero-priced models count as free). **Balance gate:** Venice requires a positive account balance for all inference — including zero-priced models, which answer HTTP 402 on unfunded keys — so a model classified as free can still fail at request time until the account is funded.
+Venice AI is a native OpenAI-compatible provider mixing free-classified and paid chat models. Pi uses the inference API at `https://api.venice.ai/api/v1/chat/completions` (100+ text models billed in USD or DIEM per million tokens); the same base also exposes `GET /models?type=text`. The model catalog endpoint is public, but models appear only after login — chat requires `VENICE_API_KEY` or `venice_api_key`; toggle with `/toggle-venice`. Free/paid classification follows the published pricing (zero-priced models count as free). **Balance gate:** Venice requires a positive account balance for all inference — including zero-priced models, which answer HTTP 402 on unfunded keys — so a model classified as free can still fail at request time until the account is funded.
 
 ### Infron AI
 
-Infron AI (infron.ai) is a unified AI gateway with passthrough pricing and pooled upstream uptime; its OpenAI-compatible API runs on the OneRouter gateway at `https://llm.onerouter.pro/v1/chat/completions`. The catalog is public (anonymous `/models` returns 200), so models appear before login; chat requires `INFRON_API_KEY` or `infron_api_key`; toggle with `/toggle-infron`. The catalog mixes ~285 chat LLM entries with embeddings/image/video entries (filtered out); min prices are USD per million tokens, and the zero-priced entries (currently five, including three explicit `:free` ids) classify as free via Route A
+Infron AI (infron.ai) is a unified AI gateway with passthrough pricing and pooled upstream uptime; its OpenAI-compatible API runs on the OneRouter gateway at `https://llm.onerouter.pro/v1/chat/completions`. The catalog endpoint is public (anonymous `/models` returns 200), but models appear only after login; chat requires `INFRON_API_KEY` or `infron_api_key`; toggle with `/toggle-infron`. The catalog mixes ~285 chat LLM entries with embeddings/image/video entries (filtered out); min prices are USD per million tokens, and the zero-priced entries (currently five, including three explicit `:free` ids) classify as free via Route A
 
 ### Merge Gateway
 
@@ -115,7 +127,7 @@ Infron AI (infron.ai) is a unified AI gateway with passthrough pricing and poole
 
 ### CommandCode
 
-[CommandCode](https://commandcode.ai) is an AI subscription gateway routing to ~60 models (OpenAI GPT-5.6 family, Claude Opus/Sonnet, Gemini 3.x, Grok 4.6, Kimi K3, Qwen 3.7/3.8, GLM 5.x, DeepSeek V4) through one Provider API at `https://api.commandcode.ai/provider/v1/chat/completions`. The catalog is public (anonymous `/models` returns 200), so models appear before login; chat requires an account whose plan includes **Provider API access** (`COMMAND_CODE_API_KEY` or `commandcode_api_key`; Go plans answer `upgrade_required`) — toggle with `/toggle-commandcode`. Pricing comes from a curated USD-per-M table ported from the MIT-licensed patlux/pi-commandcode-provider extension (verified against CommandCode's official pricing page 2026-08-25); zero-priced entries (`poolside/laguna-s-2.1-free`, `stealth/ox-alpha`) classify as free. Wire note: `claude-*` models route over Anthropic Messages, everything else over OpenAI Chat Completions — the provider dispatches transports per model.
+[CommandCode](https://commandcode.ai) is an AI subscription gateway routing to ~60 models (OpenAI GPT-5.6 family, Claude Opus/Sonnet, Gemini 3.x, Grok 4.6, Kimi K3, Qwen 3.7/3.8, GLM 5.x, DeepSeek V4) through one Provider API at `https://api.commandcode.ai/provider/v1/chat/completions`. The catalog endpoint is public (anonymous `/models` returns 200), but models appear only after login; chat requires an account whose plan includes **Provider API access** (`COMMAND_CODE_API_KEY` or `commandcode_api_key`; Go plans answer `upgrade_required`) — toggle with `/toggle-commandcode`. Pricing comes from a curated USD-per-M table ported from the MIT-licensed patlux/pi-commandcode-provider extension (verified against CommandCode's official pricing page 2026-08-25); zero-priced entries (`poolside/laguna-s-2.1-free`, `stealth/ox-alpha`) classify as free. Wire note: `claude-*` models route over Anthropic Messages, everything else over OpenAI Chat Completions — the provider dispatches transports per model.
 
 ### FastRouter
 

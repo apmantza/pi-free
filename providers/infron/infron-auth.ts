@@ -17,5 +17,4 @@ export const infronAuth = createNativeApiKeyAuth({
 	prompt: "Infron API key",
 	source: "INFRON_API_KEY",
 	getApiKey: getInfronApiKey,
-	anonymousCatalog: true,
 });

@@ -44,7 +44,6 @@ export default function veniceProvider(pi: ExtensionAPI): Promise<void> {
 		auth: veniceAuth,
 		getApiKey: getVeniceApiKey,
 		getShowPaid: getVeniceShowPaid,
-		allowUnauthenticated: true,
 		fetchModels: (apiKey, signal) => fetchVeniceModels(apiKey, signal),
 	});
 	return Promise.resolve();

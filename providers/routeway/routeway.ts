@@ -187,7 +187,6 @@ export default function routewayProvider(pi: ExtensionAPI): Promise<void> {
 		auth: routewayAuth,
 		getApiKey: getRoutewayApiKey,
 		getShowPaid: getRoutewayShowPaid,
-		allowUnauthenticated: true,
 		fetchModels: (apiKey, signal) => fetchRoutewayModels(apiKey, signal),
 		tosUrl: "https://routeway.ai/terms",
 	});

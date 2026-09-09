@@ -2,11 +2,10 @@
  * Merge Gateway API-key authentication.
  *
  * The model catalog (api-gateway.merge.dev/v1/openai/models) is KEYED —
- * anonymous requests return HTTP 401 (verified live) — so unlike public-
- * catalog providers this auth does NOT opt into `anonymousCatalog`: without a
- * stored credential or ambient key, `resolve()` returns undefined and Pi's
- * model refresh skips the provider until login/key setup. Chat requests use
- * the same key. Merge keys are issued at merge.dev.
+ * anonymous requests return HTTP 401 (verified live) — so without a stored
+ * credential or ambient key, `resolve()` returns undefined and Pi hides
+ * the provider until login/key setup. Chat requests use the same key.
+ * Merge keys are issued at merge.dev.
  */
 
 import { getMergeApiKey } from "../../config.ts";

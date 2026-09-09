@@ -71,7 +71,6 @@ export default function commandCodeProvider(pi: ExtensionAPI): Promise<void> {
 		auth: commandCodeAuth,
 		getApiKey: getCommandCodeApiKey,
 		getShowPaid: getCommandCodeShowPaid,
-		allowUnauthenticated: true,
 		fetchModels: (apiKey, signal) => fetchCommandCodeModels(apiKey, signal),
 		apiForModel,
 		streams: dualTransportStreams,

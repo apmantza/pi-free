@@ -146,6 +146,31 @@ async function waitCatalog(phase, managed) {
 }
 
 /**
+ * Logged-out visibility (#530): the smoke boots with no native provider
+ * keys, so a logged-out native (kilo) must contribute zero models while
+ * the keyless allowlist anchor (llm7, static seed) stays present.
+ * Settled: absence is polled, never asserted on first sight.
+ */
+async function waitLoggedOutHidden(phase) {
+	await driver.waitFor(
+		async () => {
+			const models =
+				(await driver.send({ type: "get_available_models" })).models ?? [];
+			const kilo = models.filter((m) => m.provider === "kilo");
+			const anchor = models.filter((m) => m.provider === ANCHOR_PROVIDER);
+			if (kilo.length > 0) {
+				throw new Error(
+					`${phase}: logged-out kilo still visible (${kilo.length} models)`,
+				);
+			}
+			return anchor.length > 0 ? models : null;
+		},
+		{ timeoutMs: 120_000, label: `${phase} logged-out hidden` },
+	);
+	console.log(`${phase}: logged-out hidden (kilo absent, llm7 present)`);
+}
+
+/**
  * Write the smoke HOME's free.json (same file the extension reads).
  * Used by the hot-reload probe to bypass applyGlobalFilter on purpose.
  */
@@ -183,6 +208,7 @@ try {
 	const commands = await waitCommands("boot");
 	const managed = managedIds(commands);
 	await waitCatalog("boot", managed);
+	await waitLoggedOutHidden("boot");
 
 	const replaced = await driver.send({ type: "new_session" });
 	if (replaced?.cancelled) {
