@@ -11,10 +11,10 @@ import type {
 import { getZenmuxApiKey } from "../../config.ts";
 
 /**
- * Resolve the ZenMux API key, or a truthy keyless result when nothing is
- * configured: ZenMux's model catalog is public, so native auth must resolve
- * anonymously for Pi's model refresh to populate it. Chat requests still use
- * the configured key (the gateway rejects unauthenticated requests).
+ * Without a stored credential or ambient key, resolve() returns undefined
+ * and Pi hides the provider from /model (#530): a visible-but-unchattable
+ * catalog is clutter, not discovery — the gateway rejects unauthenticated
+ * requests, so nothing here works logged out.
  */
 async function resolveZenmuxApiKey(input: {
 	ctx: AuthContext;
@@ -23,7 +23,7 @@ async function resolveZenmuxApiKey(input: {
 }): Promise<AuthResult | undefined> {
 	const key = input.credential?.key ?? getZenmuxApiKey();
 	if (!key) {
-		return { auth: {}, source: "public catalog (no account)" };
+		return undefined;
 	}
 	return {
 		auth: { apiKey: key },

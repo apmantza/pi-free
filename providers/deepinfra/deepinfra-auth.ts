@@ -6,5 +6,4 @@ export const deepinfraAuth = createNativeApiKeyAuth({
 	prompt: "DeepInfra API key",
 	source: "DEEPINFRA_TOKEN",
 	getApiKey: getDeepinfraApiKey,
-	anonymousCatalog: true,
 });

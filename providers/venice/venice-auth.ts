@@ -16,5 +16,4 @@ export const veniceAuth = createNativeApiKeyAuth({
 	prompt: "Venice API key",
 	source: "VENICE_API_KEY",
 	getApiKey: getVeniceApiKey,
-	anonymousCatalog: true,
 });

@@ -42,7 +42,6 @@ export default function infronProvider(pi: ExtensionAPI): Promise<void> {
 		auth: infronAuth,
 		getApiKey: getInfronApiKey,
 		getShowPaid: getInfronShowPaid,
-		allowUnauthenticated: true,
 		fetchModels: (apiKey, signal) => fetchInfronModels(apiKey, signal),
 	});
 	return Promise.resolve();

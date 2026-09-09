@@ -11,7 +11,7 @@ vi.mock("../config.ts", () => ({
 import { zenmuxAuth } from "../providers/zenmux/zenmux-auth.ts";
 
 describe("ZenMux native API-key auth", () => {
-	it("resolves keyless auth for the public catalog when nothing is configured", async () => {
+	it("resolves undefined without a key so Pi hides the provider (#530)", async () => {
 		mockGetZenmuxApiKey.mockReturnValue(undefined);
 		expect(
 			await zenmuxAuth.apiKey?.resolve({
@@ -19,10 +19,7 @@ describe("ZenMux native API-key auth", () => {
 				credential: undefined,
 				signal: new AbortController().signal,
 			} as never),
-		).toEqual({
-			auth: {},
-			source: "public catalog (no account)",
-		});
+		).toBeUndefined();
 		expect(zenmuxAuth.apiKey).not.toHaveProperty("check");
 	});
 

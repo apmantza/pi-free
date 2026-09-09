@@ -148,7 +148,6 @@ export default function crofaiProvider(pi: ExtensionAPI): Promise<void> {
 		auth: crofaiAuth,
 		getApiKey: getCrofaiApiKey,
 		getShowPaid: getCrofaiShowPaid,
-		allowUnauthenticated: true,
 		fetchModels: (apiKey, signal) => fetchCrofaiModels(apiKey, signal),
 	});
 	return Promise.resolve();

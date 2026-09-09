@@ -17,5 +17,4 @@ export const commandCodeAuth = createNativeApiKeyAuth({
 	prompt: "CommandCode API key",
 	source: "COMMAND_CODE_API_KEY",
 	getApiKey: getCommandCodeApiKey,
-	anonymousCatalog: true,
 });
