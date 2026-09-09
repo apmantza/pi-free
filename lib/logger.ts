@@ -9,6 +9,8 @@
  * - Rotate size: PI_FREE_LOG_MAX_BYTES=10485760 (default 10 MiB; 3 backups)
  */
 
+import { AsyncLocalStorage } from "node:async_hooks";
+import { randomUUID } from "node:crypto";
 import {
 	appendFileSync,
 	createWriteStream,
@@ -370,6 +372,31 @@ function appendToFile(line: string): void {
 	startLogStream(Boolean(logStream));
 }
 
+/**
+ * Ambient run-correlation ID, threaded through fan-out operations
+ * (global filter, per-provider toggles, restore, fallback switches,
+ * refresh nudges) so one user action's per-provider log lines share a
+ * tag. AsyncLocalStorage keeps concurrent runs distinct; outside a run
+ * no tag is attached. File-log only — never touches the TUI.
+ */
+const runIdStore = new AsyncLocalStorage<string>();
+
+/** Correlation tag for a user action's fan-out. CSPRNG-backed (Sonar
+ * S2245: avoid Math.random()); the first 8 hex chars of a UUID are ample. */
+export function newRunId(): string {
+	return randomUUID().slice(0, 8);
+}
+
+/** Run `fn` with `id` (generated when omitted) as the ambient run tag. */
+export function withRunId<T>(fn: () => T, id?: string): T {
+	return runIdStore.run(id ?? newRunId(), fn);
+}
+
+/** The ambient run tag, if inside withRunId. */
+export function getActiveRunId(): string | null {
+	return runIdStore.getStore() ?? null;
+}
+
 function log(
 	level: LogLevel,
 	namespace: string,
@@ -380,12 +407,13 @@ function log(
 	const logToFile = shouldLog(level, fileLevel);
 	if (!logToConsole && !logToFile) return;
 
+	const runId = getActiveRunId();
 	const entry: LogEntry = {
 		timestamp: new Date().toISOString(),
 		level,
 		namespace,
 		message,
-		data,
+		data: runId ? { run: runId, ...data } : data,
 	};
 
 	const formatted = formatMessage(entry);
