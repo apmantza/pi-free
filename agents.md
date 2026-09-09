@@ -10,6 +10,9 @@ This file is the durable context for every agent working on pi-free. **Update it
 - **Capture decisions.** When a commit establishes a non-obvious decision or gotcha the next agent would relearn the hard way, add it with the *why* (recent examples: the stale-ctx guard, the override-map presence rule, the refresh-supersede race).
 - **Placement.** New invariants go inside the matching section below, never prepended at the top or appended at the tail. Defect shapes append as numbered entries.
 - **Timeless wording.** No "new", "recently", "currently" in durable text — they rot. Point-in-time records (PRs, issues) use absolute dates.
+- **Shed to HISTORY.md, don't delete.** When a section completes or a rule's supporting narrative stops changing decisions, move the narrative to `HISTORY.md` and keep the live rule here. HISTORY.md updates ONLY on shedding.
+- **Cite by symbol, not line.** Durable text names mechanisms by symbol and section heading (`resolveModelView`, "Standing Invariants"); line numbers rot and belong only in point-in-time evidence.
+- **Name consulted sections in PR bodies.** Stating which agents.md sections you checked drives retention decisions for this file.
 
 ## What is pi-free?
 
@@ -362,6 +365,8 @@ Screen against these BEFORE writing code — each one cost a real incident:
 - **Startup perf:** `npx tsx scripts/bench-startup.ts <warm|cold|fastcold> [source|compiled]` runs in a sandboxed `HOME` with mocked `fetch` (warm = no legacy network, cold = dead API worst case) and reports `importMs`, `factoryMs`, and import-inclusive `totalMs`. Run `npm run build` before `compiled` mode. Source mode includes tsx loader/transpilation; compiled mode measures native Node ESM loading. `factoryMs` is the awaited `piFreeEntry` time; `lib/startup-timing.ts` records the import-inclusive total instead — its clock origin is a module-scope `performance.now()` capture (first import of the module), so the runtime startup total covers the module graph plus the factory. Native Pi model refresh and session-start detached work are reported separately.
 - **Tests:** `tests/*.test.ts` — covers registry, toggle state, config, model detection, provider compat
 - Tests use `vi.fn()` mocks for ExtensionAPI
+- **Design the state space before coding.** For stateful, ordered, or resource-mutating work, write the invariants, supported transitions, and a cross-product test matrix (operation order, failure atomicity, abort paths) before implementation. Examples are not enough — the refresh-supersede and restore-heuristic bugs both came from unmodeled orderings.
+- **Wait on the right clock.** Timing-sensitive tests poll for the condition (`waitFor`/`waitSettled` in RPC drivers; bounded poll loops in units) — never fixed sleeps. A detached task mutating polled state gets a targeted lint disable with the reason, not a restructured wait that changes what the test proves.
 
 ---
 
