@@ -47,11 +47,7 @@ vi.mock("../lib/registry.ts", () => ({
 	// real rule is unit-tested in registry-provider-overrides.test.ts).
 	resolveModelView: (providerId: string) =>
 		mockGetModelViewOverride(providerId) ??
-		(mockGetClineShowPaid()
-			? "all"
-			: mockGetGlobalFreeOnly()
-				? "free"
-				: "all"),
+		(mockGetClineShowPaid() ? "all" : mockGetGlobalFreeOnly() ? "free" : "all"),
 	isFreeModel: (m: { cost?: { input?: number } }) => (m.cost?.input ?? 0) === 0,
 }));
 
@@ -480,8 +476,8 @@ describe("normalizeStoredClineModels", () => {
 
 describe("refreshModels online", () => {
 	it("fetches the public catalog, persists to the store, and publishes models", async () => {
-	// All-view: pins persist mechanics, not view filtering (pinned in
-	// native-openai-provider persist-filtered-views tests).
+		// All-view: pins persist mechanics, not view filtering (pinned in
+		// native-openai-provider persist-filtered-views tests).
 		mockGetModelViewOverride.mockReturnValue("all");
 
 		mockFetchClineCatalog.mockResolvedValue({
@@ -668,7 +664,8 @@ describe("stream wiring", () => {
 		// merges only the MODEL's headers into the request, never
 		// provider.headers. The Cline identity record must therefore be
 		// stamped on every model and actually reach the gateway.
-		const captured: Array<{ url: string; headers: Record<string, string> }> = [];
+		const captured: Array<{ url: string; headers: Record<string, string> }> =
+			[];
 		const sse = [
 			`data: ${JSON.stringify({
 				id: "gen-1",
@@ -706,9 +703,8 @@ describe("stream wiring", () => {
 		try {
 			// Real compat path (the seam is reset in beforeEach, so the actual
 			// @earendil-works/pi-ai/compat module loads and issues the fetch).
-			const { createClineProvider: create } = await import(
-				"../providers/cline/cline-provider.ts"
-			);
+			const { createClineProvider: create } =
+				await import("../providers/cline/cline-provider.ts");
 			const { provider, stored } = create();
 			stored.all = [
 				{

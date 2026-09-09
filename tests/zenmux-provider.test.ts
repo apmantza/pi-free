@@ -38,7 +38,11 @@ vi.mock("../lib/registry.ts", () => ({
 	// real rule is unit-tested in registry-provider-overrides.test.ts).
 	resolveModelView: (providerId: string) =>
 		mockGetModelViewOverride(providerId) ??
-		(mockGetZenmuxShowPaid() ? "all" : mockGetGlobalFreeOnly() ? "free" : "all"),
+		(mockGetZenmuxShowPaid()
+			? "all"
+			: mockGetGlobalFreeOnly()
+				? "free"
+				: "all"),
 	isFreeModel: (model: { cost?: { input?: number; output?: number } }) =>
 		(model.cost?.input ?? 0) === 0 && (model.cost?.output ?? 0) === 0,
 }));
@@ -188,7 +192,7 @@ describe("createZenmuxProvider", () => {
 	});
 
 	it("fetches with the effective stored key and persists the catalog", async () => {
-	// All-view: pins persist mechanics, not view filtering.
+		// All-view: pins persist mechanics, not view filtering.
 		mockGetModelViewOverride.mockReturnValue("all");
 
 		mockGetZenmuxApiKey.mockReturnValue("sk-ambient");
@@ -270,7 +274,9 @@ describe("createZenmuxProvider", () => {
 		const { store } = makeStore();
 		const handle = createZenmuxProvider();
 
-		await handle.provider.refreshModels?.(context(store, { allowNetwork: true }));
+		await handle.provider.refreshModels?.(
+			context(store, { allowNetwork: true }),
+		);
 		expect(mockApplyHidden).toHaveBeenCalledWith(expect.any(Array), "zenmux");
 		expect(handle.stored.all.map((model) => model.id)).toEqual(["visible"]);
 	});

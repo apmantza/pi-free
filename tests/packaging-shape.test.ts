@@ -27,7 +27,9 @@ import {
 } from "../scripts/lib/host-provided-deps.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")) as {
+const pkg = JSON.parse(
+	fs.readFileSync(path.join(root, "package.json"), "utf8"),
+) as {
 	peerDependencies?: Record<string, string>;
 	peerDependenciesMeta?: Record<string, { optional?: boolean }>;
 	devDependencies?: Record<string, string>;
@@ -47,9 +49,10 @@ describe("peer-dependency shape guards production vendoring (#447)", () => {
 
 	for (const name of OPTIONAL_HOST_PROVIDED_PACKAGES) {
 		it(`${name} is declared as a peerDependency`, () => {
-			expect(Object.hasOwn(peers, name), `${name} missing from peerDependencies`).toBe(
-				true,
-			);
+			expect(
+				Object.hasOwn(peers, name),
+				`${name} missing from peerDependencies`,
+			).toBe(true);
 		});
 
 		it(`${name} is marked peerDependenciesMeta.optional`, () => {
@@ -65,9 +68,10 @@ describe("peer-dependency shape guards production vendoring (#447)", () => {
 
 	for (const name of REQUIRED_HOST_PROVIDED_PACKAGES) {
 		it(`${name} stays a REQUIRED (non-optional) peer`, () => {
-			expect(Object.hasOwn(peers, name), `${name} missing from peerDependencies`).toBe(
-				true,
-			);
+			expect(
+				Object.hasOwn(peers, name),
+				`${name} missing from peerDependencies`,
+			).toBe(true);
 			// pi-free value-imports this at the top level of ~30 provider files;
 			// marking it optional was tried during the #447 investigation and
 			// immediately broke `vitest run` (4 files: "Cannot find package

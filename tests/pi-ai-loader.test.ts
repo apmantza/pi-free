@@ -67,10 +67,19 @@ describe("resolvePiAiPackageRoot", () => {
 			"pi-ai",
 		);
 		makePackage(hostPiAi, PI_AI_EXPORTS);
-		const cli = join(base, "pnpm-global", "node_modules", "pi", "dist", "cli.js");
+		const cli = join(
+			base,
+			"pnpm-global",
+			"node_modules",
+			"pi",
+			"dist",
+			"cli.js",
+		);
 		mkdirSync(dirname(cli), { recursive: true });
 
-		expect(resolvePiAiPackageRoot(extensionTree, { argv1: cli })).toBe(hostPiAi);
+		expect(resolvePiAiPackageRoot(extensionTree, { argv1: cli })).toBe(
+			hostPiAi,
+		);
 	});
 
 	it("finds pi-ai through a pnpm virtual-store layout via the host entry", () => {
@@ -131,7 +140,9 @@ describe("resolvePiAiPackageRoot", () => {
 			return;
 		}
 
-		expect(resolvePiAiPackageRoot(extensionTree, { argv1: shim })).toBe(hostPiAi);
+		expect(resolvePiAiPackageRoot(extensionTree, { argv1: shim })).toBe(
+			hostPiAi,
+		);
 	});
 
 	it("rejects a relative argv1 even when the CWD tree contains pi-ai", () => {
@@ -181,7 +192,13 @@ describe("resolvePiAiPackageRoot", () => {
 		} as const;
 
 		// Wrong package name in a correctly-named directory.
-		const wrongName = join(base, "host", "node_modules", "@earendil-works", "pi-ai");
+		const wrongName = join(
+			base,
+			"host",
+			"node_modules",
+			"@earendil-works",
+			"pi-ai",
+		);
 		makePackage(wrongName, { ...PI_AI_EXPORTS, name: "some-other-package" });
 		expect(
 			resolvePiAiPackageRoot(extensionTree, { argv1: cli, ...isolated }),
@@ -231,7 +248,9 @@ describe("resolvePiAiPackageRoot", () => {
 			"pi-ai",
 		);
 		makePackage(nested, PI_AI_EXPORTS);
-		makePackage(join(base, "node_modules", "@earendil-works", "pi-coding-agent"));
+		makePackage(
+			join(base, "node_modules", "@earendil-works", "pi-coding-agent"),
+		);
 		const start = join(base, "node_modules", "pi-free", "lib");
 		mkdirSync(start, { recursive: true });
 		expect(
@@ -332,7 +351,9 @@ describe("isPiAiNotFoundError", () => {
 	});
 
 	it("rejects non-resolution errors", () => {
-		expect(isPiAiNotFoundError(new SyntaxError("Unexpected token"))).toBe(false);
+		expect(isPiAiNotFoundError(new SyntaxError("Unexpected token"))).toBe(
+			false,
+		);
 		expect(isPiAiNotFoundError(undefined)).toBe(false);
 	});
 

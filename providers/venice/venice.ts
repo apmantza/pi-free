@@ -37,15 +37,15 @@ import { veniceAuth } from "./venice-auth.ts";
 import { fetchVeniceModels } from "./venice-models.ts";
 
 export default function veniceProvider(pi: ExtensionAPI): Promise<void> {
- registerNativeOpenAIProvider(pi, {
-  providerId: PROVIDER_VENICE,
-  name: "Venice AI",
-  baseUrl: BASE_URL_VENICE,
-  auth: veniceAuth,
-  getApiKey: getVeniceApiKey,
-  getShowPaid: getVeniceShowPaid,
-  allowUnauthenticated: true,
-  fetchModels: (apiKey, signal) => fetchVeniceModels(apiKey, signal),
- });
- return Promise.resolve();
+	registerNativeOpenAIProvider(pi, {
+		providerId: PROVIDER_VENICE,
+		name: "Venice AI",
+		baseUrl: BASE_URL_VENICE,
+		auth: veniceAuth,
+		getApiKey: getVeniceApiKey,
+		getShowPaid: getVeniceShowPaid,
+		allowUnauthenticated: true,
+		fetchModels: (apiKey, signal) => fetchVeniceModels(apiKey, signal),
+	});
+	return Promise.resolve();
 }

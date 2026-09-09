@@ -61,7 +61,9 @@ function encodePatRefresh(
 	userID: string,
 	machineID: string,
 ): string {
-	return [PAT_REFRESH_PREFIX, pat, jobRefreshToken, userID, machineID].join("|");
+	return [PAT_REFRESH_PREFIX, pat, jobRefreshToken, userID, machineID].join(
+		"|",
+	);
 }
 
 function decodePatRefresh(refresh: string): {
@@ -355,7 +357,7 @@ async function runDeviceFlow(
 		} catch (e: unknown) {
 			const err = e as { name?: string };
 			if (err.name === "AbortError" || getSignal()?.aborted) {
-				throw new Error("Login cancelled");
+				throw new Error("Login cancelled", { cause: e });
 			}
 			throw e;
 		}

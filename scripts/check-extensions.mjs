@@ -55,8 +55,7 @@ function getFiles() {
 		return parsePackFileList(out)
 			.filter(
 				(f) =>
-					f &&
-					(f.endsWith(".js") || f.endsWith(".ts") || f.endsWith(".mjs")),
+					f && (f.endsWith(".js") || f.endsWith(".ts") || f.endsWith(".mjs")),
 			)
 			.map((f) => join(installDir, f));
 	}

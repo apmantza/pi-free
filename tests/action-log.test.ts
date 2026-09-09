@@ -10,9 +10,8 @@ afterEach(() => {
 describe("action ring", () => {
 	it("returns newest-first and caps at 20", async () => {
 		vi.resetModules();
-		const { recordAction, getRecentActions, clearActions } = await import(
-			"../lib/action-log.ts"
-		);
+		const { recordAction, getRecentActions, clearActions } =
+			await import("../lib/action-log.ts");
 		clearActions();
 		for (let i = 0; i < 25; i++) recordAction("toggle", `action-${i}`);
 		const recent = getRecentActions();
@@ -23,9 +22,8 @@ describe("action ring", () => {
 
 	it("truncates long summaries for health rendering", async () => {
 		vi.resetModules();
-		const { recordAction, getRecentActions, clearActions } = await import(
-			"../lib/action-log.ts"
-		);
+		const { recordAction, getRecentActions, clearActions } =
+			await import("../lib/action-log.ts");
 		clearActions();
 		recordAction("restore", "x".repeat(300));
 		expect(getRecentActions()[0].summary).toHaveLength(160);
@@ -33,9 +31,8 @@ describe("action ring", () => {
 
 	it("attaches the ambient run id, null outside a run", async () => {
 		vi.resetModules();
-		const { recordAction, getRecentActions, clearActions } = await import(
-			"../lib/action-log.ts"
-		);
+		const { recordAction, getRecentActions, clearActions } =
+			await import("../lib/action-log.ts");
 		const { withRunId, getActiveRunId } = await import("../lib/logger.ts");
 		clearActions();
 		expect(getActiveRunId()).toBeNull();
@@ -60,9 +57,8 @@ describe("action ring", () => {
 		vi.stubEnv("PI_FREE_LOG_LEVEL", "debug");
 		vi.stubEnv("PI_FREE_FILE_LOG", "true");
 		vi.resetModules();
-		const { createLogger, withRunId, getLogPath } = await import(
-			"../lib/logger.ts"
-		);
+		const { createLogger, withRunId, getLogPath } =
+			await import("../lib/logger.ts");
 		const { readFile } = await import("node:fs/promises");
 		const log = createLogger("runid-test");
 		log.info("outside run");

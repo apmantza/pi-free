@@ -44,6 +44,7 @@ const XML_LEAK_NEEDLES: readonly string[] = [
 	"<tool>",
 	"<tool_call>",
 	"<function_call>",
+	// eslint-disable-next-line no-useless-concat -- intentional: keeps the `<invoke` needle out of the source literally (detectors match code, not prose).
 	"<" + "invoke",
 	"<" + String.fromCharCode(97) + "ntml:tool_use>",
 ];

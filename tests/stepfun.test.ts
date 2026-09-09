@@ -15,8 +15,7 @@ vi.mock("../config.ts", () => ({
 		mocks.applyHidden(models),
 }));
 vi.mock("../lib/util.ts", () => ({
-	fetchOpenAICompatibleModels: (...args: unknown[]) =>
-		mocks.fetchModels(args),
+	fetchOpenAICompatibleModels: (...args: unknown[]) => mocks.fetchModels(args),
 }));
 vi.mock("../lib/native-provider.ts", () => ({
 	createNativeApiKeyAuth: (options: {
@@ -27,7 +26,9 @@ vi.mock("../lib/native-provider.ts", () => ({
 	}) => ({
 		apiKey: {
 			name: options.name,
-			async login(interaction: { prompt: (input: unknown) => Promise<string> }) {
+			async login(interaction: {
+				prompt: (input: unknown) => Promise<string>;
+			}) {
 				return { type: "api_key", key: await interaction.prompt({}) };
 			},
 			async resolve(input: { credential?: { key?: string } }) {

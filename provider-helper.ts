@@ -55,32 +55,6 @@ export interface StoredModels {
 // Provider Registration Helpers
 // =============================================================================
 
-export interface OpenAICompatibleConfig {
-	/** Provider identifier (e.g., "nvidia", "modal") */
-	providerId: string;
-	/** Base URL for the API */
-	baseUrl: string;
-	/** Environment variable name for the API key */
-	apiKey: string;
-	/**
-	 * Wire API to use. Defaults to `"openai-completions"` for backward
-	 * compatibility with the 17 existing providers that pass through
-	 * this helper without setting it. Set to `"anthropic-messages"`
-	 * for Anthropic-protocol gateways. The pi-ai
-	 * runtime dispatches to the right client based on this value.
-	 */
-	api?: "openai-completions" | "anthropic-messages";
-	/** Additional headers to include */
-	headers?: Record<string, string>;
-	/** OAuth configuration (optional) */
-	oauth?: {
-		name: string;
-		login: (callbacks: unknown) => Promise<unknown>;
-		refreshToken?: (cred: unknown) => Promise<unknown>;
-		getApiKey?: (cred: unknown) => string;
-	};
-}
-
 /**
  * Enhance all model names with Coding Index scores
  * Use this for direct provider registration (not through setupProvider)
@@ -91,7 +65,12 @@ export function enhanceWithCI(
 ): ProviderModelConfig[] {
 	return models.map((m) => ({
 		...m,
-		name: enhanceModelNameWithCodingIndex(m.name, m.id, providerId, m.modelsDev),
+		name: enhanceModelNameWithCodingIndex(
+			m.name,
+			m.id,
+			providerId,
+			m.modelsDev,
+		),
 	}));
 }
 
@@ -167,7 +146,10 @@ export async function loadCachedOrFetchModels(
 						logData,
 					);
 				} else {
-					_logger.warn(`[${providerId}] failed to persist provider cache`, logData);
+					_logger.warn(
+						`[${providerId}] failed to persist provider cache`,
+						logData,
+					);
 				}
 			});
 	} else if (cached && cached.length > 0) {

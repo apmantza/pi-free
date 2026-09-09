@@ -150,7 +150,8 @@ export function createLlm7Provider(): Llm7NativeProvider {
 				freeModels: stored.free,
 			}),
 		refreshModels,
-		stream: (model, context, options) => streams.stream(model, context, options),
+		stream: (model, context, options) =>
+			streams.stream(model, context, options),
 		streamSimple: (model, context, options) =>
 			streams.streamSimple(model, context, options),
 	};

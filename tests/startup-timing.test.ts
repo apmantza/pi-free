@@ -20,9 +20,8 @@ describe("startup-timing", () => {
 	});
 
 	it("measurePhase records a phase with a non-negative duration", async () => {
-		const { beginStartup, measurePhase, getStartupSummary } = await import(
-			"../lib/startup-timing.ts"
-		);
+		const { beginStartup, measurePhase, getStartupSummary } =
+			await import("../lib/startup-timing.ts");
 		beginStartup();
 
 		const result = measurePhase("work", () => {
@@ -58,9 +57,8 @@ describe("startup-timing", () => {
 	});
 
 	it("timeProvider records success and rethrows failures", async () => {
-		const { beginStartup, timeProvider, getStartupSummary } = await import(
-			"../lib/startup-timing.ts"
-		);
+		const { beginStartup, timeProvider, getStartupSummary } =
+			await import("../lib/startup-timing.ts");
 		beginStartup();
 
 		const ok = await timeProvider("good", async () => 42);
@@ -82,9 +80,8 @@ describe("startup-timing", () => {
 	});
 
 	it("sorts providers slowest-first in the summary", async () => {
-		const { beginStartup, timeProvider, getStartupSummary } = await import(
-			"../lib/startup-timing.ts"
-		);
+		const { beginStartup, timeProvider, getStartupSummary } =
+			await import("../lib/startup-timing.ts");
 		beginStartup();
 
 		// Use well-separated delays so ordering survives OS timer jitter.
@@ -197,9 +194,8 @@ describe("startup-timing", () => {
 	});
 
 	it("beginStartup resets state for a fresh run", async () => {
-		const { beginStartup, timeProvider, getStartupSummary } = await import(
-			"../lib/startup-timing.ts"
-		);
+		const { beginStartup, timeProvider, getStartupSummary } =
+			await import("../lib/startup-timing.ts");
 		beginStartup();
 		await timeProvider("first", () => sleep(1));
 		expect(getStartupSummary().providers).toHaveLength(1);
@@ -210,9 +206,8 @@ describe("startup-timing", () => {
 	});
 
 	it("totalMs is measured from first module load, not beginStartup", async () => {
-		const { beginStartup, getStartupSummary } = await import(
-			"../lib/startup-timing.ts"
-		);
+		const { beginStartup, getStartupSummary } =
+			await import("../lib/startup-timing.ts");
 		beginStartup();
 
 		// The origin is the module-scope timestamp captured at import time,
@@ -225,9 +220,8 @@ describe("startup-timing", () => {
 	});
 
 	it("formatStartupSummary states the module-load origin", async () => {
-		const { beginStartup, formatStartupSummary } = await import(
-			"../lib/startup-timing.ts"
-		);
+		const { beginStartup, formatStartupSummary } =
+			await import("../lib/startup-timing.ts");
 		beginStartup();
 
 		const text = formatStartupSummary();
@@ -316,9 +310,8 @@ describe("startup-timing", () => {
 		);
 
 		// A recent restore does not flag a store age.
-		const { beginStartup: reset, recordNativeRestored: record } = await import(
-			"../lib/startup-timing.ts"
-		);
+		const { beginStartup: reset, recordNativeRestored: record } =
+			await import("../lib/startup-timing.ts");
 		reset();
 		record("fresh-prov", 60 * 60 * 1000); // 1h
 		expect(nativeRefreshFlags(getStartupSummary())).toHaveLength(0);

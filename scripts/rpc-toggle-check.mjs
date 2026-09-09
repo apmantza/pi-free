@@ -119,10 +119,10 @@ try {
 	await driver.prompt(toggleCommand);
 	// The persisted override (not just catalog presence, which a transient
 	// unfiltered snapshot could fake) proves the command did its write.
-	await driver.waitFor(
-		async () => (readOverride() === "all" ? true : null),
-		{ timeoutMs: 60_000, label: `post-toggle ${providerId} override` },
-	);
+	await driver.waitFor(async () => (readOverride() === "all" ? true : null), {
+		timeoutMs: 60_000,
+		label: `post-toggle ${providerId} override`,
+	});
 	await settledView("post-toggle", assertAll);
 
 	await driver.send({ type: "new_session" });

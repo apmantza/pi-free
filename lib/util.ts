@@ -14,7 +14,6 @@ export {
 	logWarning,
 	MAX_RETRY_BACKOFF_MS,
 	parseModelResponse,
-	sleep,
 	withFetchDeadline,
 } from "./fetch.ts";
 export {
@@ -22,8 +21,4 @@ export {
 	fetchOpenAICompatibleModels,
 	isUsableModel,
 	mapOpenRouterModel,
-} from "./model-map.ts";
-export type {
-	OpenAIModelCallbacks,
-	OpenAIModelDefaults,
 } from "./model-map.ts";

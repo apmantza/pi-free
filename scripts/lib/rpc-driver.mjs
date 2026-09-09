@@ -160,8 +160,12 @@ export function bootPi({ cwd, env, timeoutMs = 120_000, noSession = true }) {
 		 * boots. Asserting that transient as final is a flake factory;
 		 * a twice-consecutive pass is the settled-state contract.
 		 */
-		async waitSettled(fetch, assert, { timeoutMs, steadyMs = 3000, intervalMs = 2000, label }) {
-			const deadline = Date.now() + timeoutMs;
+		async waitSettled(
+			fetch,
+			assert,
+			{ timeoutMs: budgetMs, steadyMs = 3000, intervalMs = 2000, label },
+		) {
+			const deadline = Date.now() + budgetMs;
 			let lastError;
 			for (;;) {
 				try {
@@ -176,7 +180,7 @@ export function bootPi({ cwd, env, timeoutMs = 120_000, noSession = true }) {
 				}
 				if (Date.now() >= deadline) {
 					throw new Error(
-						`timed out waiting for settled ${label} after ${timeoutMs}ms${lastError ? `: ${lastError.message}` : ""}`,
+						`timed out waiting for settled ${label} after ${budgetMs}ms${lastError ? `: ${lastError.message}` : ""}`,
 					);
 				}
 				await sleep(intervalMs);
@@ -187,8 +191,8 @@ export function bootPi({ cwd, env, timeoutMs = 120_000, noSession = true }) {
 		 * deadline. Replaces fixed sleeps: slow runners need wall-clock
 		 * patience, fast ones should not wait out arbitrary delays.
 		 */
-		async waitFor(fn, { timeoutMs, intervalMs = 2000, label }) {
-			const deadline = Date.now() + timeoutMs;
+		async waitFor(fn, { timeoutMs: budgetMs, intervalMs = 2000, label }) {
+			const deadline = Date.now() + budgetMs;
 			let lastError;
 			for (;;) {
 				try {

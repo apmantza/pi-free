@@ -67,7 +67,9 @@ const FALLBACK_CONTEXT_WINDOW = 128_000;
 const FALLBACK_MAX_TOKENS = 4_096;
 
 function asNumber(value: unknown): number | undefined {
-	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+	return typeof value === "number" && Number.isFinite(value)
+		? value
+		: undefined;
 }
 
 /** Convert a Venice usd-per-million price to the pi-free per-token unit. */
@@ -100,7 +102,9 @@ export function mapVeniceModel(
 	return {
 		id: entry.id,
 		name:
-			typeof spec.name === "string" && spec.name.length > 0 ? spec.name : entry.id,
+			typeof spec.name === "string" && spec.name.length > 0
+				? spec.name
+				: entry.id,
 		reasoning: capabilities.supportsReasoning === true,
 		input: vision ? (["text", "image"] as const) : (["text"] as const),
 		cost: {

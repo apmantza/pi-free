@@ -38,7 +38,7 @@ vi.mock("../lib/registry.ts", () => ({
 			: mockGetGlobalFreeOnly()
 				? "free"
 				: "all"),
-	isFreeModel: (model: { id: string }) => model.id.endsWith(":free"),
+	isFreeModel: (m: { id: string }) => m.id.endsWith(":free"),
 	registerWithGlobalToggle: vi.fn(),
 }));
 
@@ -325,7 +325,9 @@ describe("TokenRouter native factory", () => {
 		});
 
 		const untouched = await handler(
-			{ payload: { model: "claude-3-5-sonnet", thinking: { type: "enabled" } } },
+			{
+				payload: { model: "claude-3-5-sonnet", thinking: { type: "enabled" } },
+			},
 			{ model: { provider: "anthropic", id: "claude-3-5-sonnet" } },
 		);
 		expect(untouched).toBeUndefined();
@@ -373,7 +375,7 @@ describe("TokenRouter request normalization and streaming", () => {
 		);
 		try {
 			const { provider } = createTokenRouterProvider();
-			const model = {
+			const testModel = {
 				id: "deepseek-r1",
 				api: "openai-completions",
 				provider: "tokenrouter",
@@ -381,11 +383,11 @@ describe("TokenRouter request normalization and streaming", () => {
 			} as never;
 
 			const simpleEvents: Array<{ type?: string }> = [];
-			for await (const event of provider.streamSimple(model, {} as never)) {
+			for await (const event of provider.streamSimple(testModel, {} as never)) {
 				simpleEvents.push(event as { type?: string });
 			}
 			const streamEvents: Array<{ type?: string }> = [];
-			for await (const event of provider.stream(model, {} as never)) {
+			for await (const event of provider.stream(testModel, {} as never)) {
 				streamEvents.push(event as { type?: string });
 			}
 
@@ -393,8 +395,12 @@ describe("TokenRouter request normalization and streaming", () => {
 			// through the lazy bridge — no custom wire implementation.
 			expect(streamSimple).toHaveBeenCalledTimes(1);
 			expect(stream).toHaveBeenCalledTimes(1);
-			expect(simpleEvents.some((event) => event.type === "text_delta")).toBe(true);
-			expect(streamEvents.some((event) => event.type === "text_start")).toBe(true);
+			expect(simpleEvents.some((event) => event.type === "text_delta")).toBe(
+				true,
+			);
+			expect(streamEvents.some((event) => event.type === "text_start")).toBe(
+				true,
+			);
 		} finally {
 			__setCompatLoaderForTests(undefined);
 		}

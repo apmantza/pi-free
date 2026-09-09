@@ -149,7 +149,7 @@ function modelFromCatalog(
 ): ProviderModelConfig & { _pricingKnown?: boolean } {
 	const isReasoning = Boolean(
 		info.supported_parameters?.includes("include_reasoning") ||
-			info.supported_parameters?.includes("reasoning"),
+		info.supported_parameters?.includes("reasoning"),
 	);
 	const isFreeToTry = freeToTryIds.has(info.id);
 	const inputCost = isFreeToTry ? 0 : parsePricing(info.pricing?.prompt);

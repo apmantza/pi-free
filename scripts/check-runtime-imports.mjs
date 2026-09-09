@@ -72,7 +72,8 @@ const violations = [];
 
 // Published TypeScript output uses static ESM imports. Match both `from` and
 // side-effect imports, while intentionally ignoring dynamic/template imports.
-const importRe = /(?:\bfrom\s*|\bimport\s*)(["'])(@earendil-works\/pi-ai(?:\/[^"']+)?)\1/g;
+const importRe =
+	/(?:\bfrom\s*|\bimport\s*)(["'])(@earendil-works\/pi-ai(?:\/[^"']+)?)\1/g;
 
 for (const file of files) {
 	// Generated output retains documentation comments; keep examples in those
@@ -92,7 +93,9 @@ for (const file of files) {
 	}
 }
 
-console.log(`Checked ${files.length} published runtime file(s) for Pi loader imports.`);
+console.log(
+	`Checked ${files.length} published runtime file(s) for Pi loader imports.`,
+);
 if (violations.length > 0) {
 	console.error("Disallowed @earendil-works/pi-ai imports found:");
 	for (const violation of violations) {

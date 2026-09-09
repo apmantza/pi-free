@@ -253,7 +253,9 @@ function ensureConfigFile(): void {
 		if (existsSync(CONFIG_PATH)) {
 			let existing: PiFreeConfig;
 			try {
-				existing = JSON.parse(readFileSync(CONFIG_PATH, "utf8")) as PiFreeConfig;
+				existing = JSON.parse(
+					readFileSync(CONFIG_PATH, "utf8"),
+				) as PiFreeConfig;
 			} catch {
 				// File exists but is corrupt — back it up and write a fresh
 				// template so the extension can start. The original bytes are
@@ -277,7 +279,11 @@ function ensureConfigFile(): void {
 			// Merge with template to add any missing keys, preserving existing values
 			const merged = { ...CONFIG_TEMPLATE, ...existing };
 			if (JSON.stringify(merged) !== JSON.stringify(existing)) {
-				writeFileSync(CONFIG_PATH, `${JSON.stringify(merged, null, 2)}\n`, "utf8");
+				writeFileSync(
+					CONFIG_PATH,
+					`${JSON.stringify(merged, null, 2)}\n`,
+					"utf8",
+				);
 				restrictConfigFilePermissions();
 			}
 		} else {
@@ -538,7 +544,10 @@ function resolveShowPaidForProvider(providerId: string): boolean {
 	if (!meta) return false;
 	const cfg = loadConfigFile();
 	const fileVal = cfg[meta.showPaidKey];
-	return resolveBool(`${meta.prefix}_SHOW_PAID`, fileVal as boolean | undefined);
+	return resolveBool(
+		`${meta.prefix}_SHOW_PAID`,
+		fileVal as boolean | undefined,
+	);
 }
 
 /**
@@ -961,7 +970,11 @@ export async function saveConfig(
 		if (raw === undefined) {
 			// File doesn't exist or can't be read — start from template
 			const merged = { ...CONFIG_TEMPLATE, ...updates };
-			writeFileSync(CONFIG_PATH, `${JSON.stringify(merged, null, 2)}\n`, "utf8");
+			writeFileSync(
+				CONFIG_PATH,
+				`${JSON.stringify(merged, null, 2)}\n`,
+				"utf8",
+			);
 			restrictConfigFilePermissions();
 			_logger.info("Config saved (new file)", {
 				path: CONFIG_PATH,
@@ -982,7 +995,8 @@ export async function saveConfig(
 				"Config file was corrupt; a backup was created and the next save will overwrite it",
 				{
 					path: CONFIG_PATH,
-					error: parseErr instanceof Error ? parseErr.message : String(parseErr),
+					error:
+						parseErr instanceof Error ? parseErr.message : String(parseErr),
 				},
 			);
 		}
@@ -1014,8 +1028,8 @@ class ConfigLock {
 
 	async acquire(): Promise<() => void> {
 		let release: () => void = () => {};
-		const newPromise = new Promise<void>((resolve) => {
-			release = resolve;
+		const newPromise = new Promise<void>((unlock) => {
+			release = unlock;
 		});
 		const previous = this.promise;
 		this.promise = previous.then(() => newPromise);
@@ -1045,7 +1059,11 @@ export async function updateConfig(
 			// File doesn't exist — start from template, apply updater once
 			const updated = updater({ ...CONFIG_TEMPLATE });
 			const merged = { ...CONFIG_TEMPLATE, ...updated };
-			writeFileSync(CONFIG_PATH, `${JSON.stringify(merged, null, 2)}\n`, "utf8");
+			writeFileSync(
+				CONFIG_PATH,
+				`${JSON.stringify(merged, null, 2)}\n`,
+				"utf8",
+			);
 			restrictConfigFilePermissions();
 			_logger.info("Config updated (new file)", {
 				path: CONFIG_PATH,
@@ -1066,7 +1084,8 @@ export async function updateConfig(
 				"Config file was corrupt; a backup was created and the update will overwrite it",
 				{
 					path: CONFIG_PATH,
-					error: parseErr instanceof Error ? parseErr.message : String(parseErr),
+					error:
+						parseErr instanceof Error ? parseErr.message : String(parseErr),
 				},
 			);
 		}

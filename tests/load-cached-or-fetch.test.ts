@@ -78,9 +78,8 @@ describe("loadCachedOrFetchModels", () => {
 		mocks.isProviderCacheFresh.mockReturnValue(false);
 		const fetcher = vi.fn().mockRejectedValue(new Error("network down"));
 		const { loadCachedOrFetchModels } = await import("../provider-helper.ts");
-		const { beginStartup, getStartupSummary } = await import(
-			"../lib/startup-timing.ts"
-		);
+		const { beginStartup, getStartupSummary } =
+			await import("../lib/startup-timing.ts");
 		beginStartup();
 
 		const result = await loadCachedOrFetchModels("test", fetcher);
@@ -139,9 +138,8 @@ describe("loadCachedOrFetchModels", () => {
 		const fetcher = vi.fn().mockReturnValue(new Promise(() => {}));
 		const { loadCachedOrFetchModels } = await import("../provider-helper.ts");
 
-		const { beginStartup, getStartupSummary } = await import(
-			"../lib/startup-timing.ts"
-		);
+		const { beginStartup, getStartupSummary } =
+			await import("../lib/startup-timing.ts");
 		beginStartup();
 		const result = await loadCachedOrFetchModels("test", fetcher, {
 			fetchTimeoutMs: 30,

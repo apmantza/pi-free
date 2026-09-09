@@ -20,14 +20,14 @@ import { gmiAuth } from "./gmi-auth.ts";
 import { fetchGmiModels } from "./gmi-models.ts";
 
 export default function gmiProvider(pi: ExtensionAPI): Promise<void> {
- registerNativeOpenAIProvider(pi, {
-  providerId: PROVIDER_GMI,
-  name: "GMI Cloud",
-  baseUrl: BASE_URL_GMI,
-  auth: gmiAuth,
-  getApiKey: getGmiApiKey,
-  getShowPaid: getGmiShowPaid,
-  fetchModels: (apiKey, signal) => fetchGmiModels(apiKey, signal),
- });
- return Promise.resolve();
+	registerNativeOpenAIProvider(pi, {
+		providerId: PROVIDER_GMI,
+		name: "GMI Cloud",
+		baseUrl: BASE_URL_GMI,
+		auth: gmiAuth,
+		getApiKey: getGmiApiKey,
+		getShowPaid: getGmiShowPaid,
+		fetchModels: (apiKey, signal) => fetchGmiModels(apiKey, signal),
+	});
+	return Promise.resolve();
 }

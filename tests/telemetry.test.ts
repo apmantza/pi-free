@@ -24,9 +24,8 @@ describe("telemetry", () => {
 	});
 
 	it("records concurrent model calls without losing entries", async () => {
-		const { recordModelCall, getModelTelemetry } = await import(
-			"../lib/telemetry.ts"
-		);
+		const { recordModelCall, getModelTelemetry } =
+			await import("../lib/telemetry.ts");
 		const usage = { input: 1, output: 2, totalTokens: 3 };
 		const opts = { success: true };
 		await Promise.all([
@@ -39,9 +38,8 @@ describe("telemetry", () => {
 	});
 
 	it("pairs start and record via call id with correct latency", async () => {
-		const { startModelCall, recordModelCall, getModelTelemetry } = await import(
-			"../lib/telemetry.ts"
-		);
+		const { startModelCall, recordModelCall, getModelTelemetry } =
+			await import("../lib/telemetry.ts");
 
 		const callId = startModelCall("prov", "mdl");
 		expect(typeof callId).toBe("string");
@@ -58,9 +56,8 @@ describe("telemetry", () => {
 	});
 
 	it("records 0 latency when no matching startModelCall exists", async () => {
-		const { recordModelCall, getModelTelemetry } = await import(
-			"../lib/telemetry.ts"
-		);
+		const { recordModelCall, getModelTelemetry } =
+			await import("../lib/telemetry.ts");
 		const usage = { input: 5, output: 5, totalTokens: 10 };
 		await recordModelCall(undefined, "x", "y", usage, 0, {
 			success: true,
@@ -71,9 +68,8 @@ describe("telemetry", () => {
 	});
 
 	it("discards implausibly long latency samples", async () => {
-		const { startModelCall, recordModelCall, getModelTelemetry } = await import(
-			"../lib/telemetry.ts"
-		);
+		const { startModelCall, recordModelCall, getModelTelemetry } =
+			await import("../lib/telemetry.ts");
 
 		// Latency is measured with the monotonic performance.now() clock, so
 		// simulate a 15-min gap by mocking performance.now for the record call.
@@ -121,9 +117,8 @@ describe("telemetry", () => {
 	});
 
 	it("stores statusCode and errorClass on failed entries (M2)", async () => {
-		const { recordModelCall, getModelTelemetry } = await import(
-			"../lib/telemetry.ts"
-		);
+		const { recordModelCall, getModelTelemetry } =
+			await import("../lib/telemetry.ts");
 		const usage = { input: 1, output: 1, totalTokens: 2 };
 
 		await recordModelCall(undefined, "p", "m", usage, 0, {
@@ -151,9 +146,8 @@ describe("telemetry", () => {
 	});
 
 	it("aggregates provider error counts for health/telemetry output (M2)", async () => {
-		const { recordModelCall, getProviderErrorCounts } = await import(
-			"../lib/telemetry.ts"
-		);
+		const { recordModelCall, getProviderErrorCounts } =
+			await import("../lib/telemetry.ts");
 		const usage = { input: 1, output: 1, totalTokens: 2 };
 
 		await recordModelCall(undefined, "auth-prov", "m", usage, 0, {

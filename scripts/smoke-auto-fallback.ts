@@ -145,9 +145,8 @@ providerRegistry.set("afb-target", {
 // --- Wire the extension's auto-fallback ------------------------------------
 
 const { createAutoFallback } = await import("../lib/auto-fallback/index.ts");
-const { registerAutoFallbackStatusGetter } = await import(
-	"../lib/auto-fallback-status.ts"
-);
+const { registerAutoFallbackStatusGetter } =
+	await import("../lib/auto-fallback-status.ts");
 const { formatHealthReport } = await import("../lib/health.ts");
 const { loadConfigFile, updateConfig } = await import("../config.ts");
 
@@ -311,6 +310,4 @@ console.log(
 // ENOENT trace after the success line (reviewer finding #5).
 await new Promise((resolve) => setTimeout(resolve, 100));
 rmSync(sandbox, { recursive: true, force: true });
-console.log(
-	`\nSMOKE OK — status surface verified against a real ModelRuntime`,
-);
+console.log(`\nSMOKE OK — status surface verified against a real ModelRuntime`);

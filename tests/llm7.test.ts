@@ -55,11 +55,7 @@ vi.mock("../lib/registry.ts", () => ({
 	// real rule is unit-tested in registry-provider-overrides.test.ts).
 	resolveModelView: (providerId: string) =>
 		mockGetModelViewOverride(providerId) ??
-		(mockGetLlm7ShowPaid()
-			? "all"
-			: mockGetGlobalFreeOnly()
-				? "free"
-				: "all"),
+		(mockGetLlm7ShowPaid() ? "all" : mockGetGlobalFreeOnly() ? "free" : "all"),
 	isFreeModel: (m: { cost?: { input?: number } }) => (m.cost?.input ?? 0) === 0,
 }));
 
@@ -163,7 +159,6 @@ describe("LLM7 factory wiring", () => {
 		// Re-registration reused the SAME native provider object (auth preserved).
 		expect(mockRegisterProvider).toHaveBeenCalledWith(provider);
 	});
-
 
 	// Flip/persist/view behavior is proven live by rpc-session-check
 	// (/toggle-llm7 through prompt dispatch, incl. persistence across

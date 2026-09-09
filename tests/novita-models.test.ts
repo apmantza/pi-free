@@ -61,10 +61,7 @@ describe("fetchNovitaModels — internal test model filtering", () => {
 		stubModels([entry(), entry({ id: "dev/glm46" })]);
 
 		const models = await fetchNovitaModels("sk-test");
-		expect(models.map((m) => m.id)).toEqual([
-			"qwen/qwen3.5-plus",
-			"dev/glm46",
-		]);
+		expect(models.map((m) => m.id)).toEqual(["qwen/qwen3.5-plus", "dev/glm46"]);
 		expect(models[0]?.cost.input).toBe(0);
 		expect(models[0]?.cost.output).toBe(0);
 	});

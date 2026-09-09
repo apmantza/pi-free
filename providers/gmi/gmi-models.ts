@@ -36,20 +36,20 @@ import { fetchOpenAICompatibleModels } from "../../lib/util.ts";
  * to display. Hidden models in `~/.pi/free.json` are still filtered.
  */
 export async function fetchGmiModels(
- apiKey: string,
- signal?: AbortSignal,
+	apiKey: string,
+	signal?: AbortSignal,
 ): Promise<ProviderModelConfig[]> {
- const models = await fetchOpenAICompatibleModels(
-  PROVIDER_GMI,
-  BASE_URL_GMI,
-  apiKey,
-  {
-   contextWindow: 128_000,
-   maxTokens: 16_384,
-  },
-  undefined,
-  signal,
- );
+	const models = await fetchOpenAICompatibleModels(
+		PROVIDER_GMI,
+		BASE_URL_GMI,
+		apiKey,
+		{
+			contextWindow: 128_000,
+			maxTokens: 16_384,
+		},
+		undefined,
+		signal,
+	);
 
- return applyHidden(models, PROVIDER_GMI);
+	return applyHidden(models, PROVIDER_GMI);
 }

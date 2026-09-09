@@ -64,9 +64,7 @@ export function isLikelyReasoningModel(model: ProviderModelIdentity): boolean {
 function isDeepSeekStyleModel(model: ProviderModelIdentity): boolean {
 	const id = model.id.toLowerCase();
 	return (
-		isDeepSeekModel(model) ||
-		id.includes("qwen3.7") ||
-		id.includes("qwen3-7")
+		isDeepSeekModel(model) || id.includes("qwen3.7") || id.includes("qwen3-7")
 	);
 }
 

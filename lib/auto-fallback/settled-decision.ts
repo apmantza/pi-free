@@ -61,10 +61,7 @@ export function classifySettledFailure(
 	lastAssistant: SettledAssistantMessage | null | undefined,
 	currentProvider: string | undefined,
 	currentModelId: string | undefined,
-	getLastStatus: (
-		provider: string,
-		modelId: string,
-	) => number | undefined,
+	getLastStatus: (provider: string, modelId: string) => number | undefined,
 ): SettledFailure | null {
 	const isFailure =
 		lastAssistant != null &&

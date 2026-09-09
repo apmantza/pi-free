@@ -1,0 +1,13 @@
+{
+	"$schema": "./node_modules/knip/configuration_schema.json",
+	"entry": ["index.ts", "config.ts", "scripts/*.mjs", "scripts/*.ts"],
+	"project": [
+		"*.ts",
+		"lib/**/*.ts",
+		"providers/**/*.ts",
+		"provider-failover/**/*.ts",
+		"scripts/**/*.{mjs,ts}"
+	],
+	"ignoreExportsUsedInFile": true,
+	"includeEntryExports": false
+}

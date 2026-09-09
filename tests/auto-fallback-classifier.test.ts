@@ -51,9 +51,7 @@ describe("classifyErrorMessage", () => {
 		expect(classifyErrorMessage("Monthly usage limit reached")).toBe(
 			"recoverable",
 		);
-		expect(classifyErrorMessage("available balance: 0")).toBe(
-			"recoverable",
-		);
+		expect(classifyErrorMessage("available balance: 0")).toBe("recoverable");
 		expect(classifyErrorMessage("Out of budget")).toBe("recoverable");
 	});
 
@@ -72,18 +70,16 @@ describe("classifyErrorMessage", () => {
 	it("matches fatal patterns as unrecoverable", () => {
 		expect(classifyErrorMessage("Invalid API key")).toBe("unrecoverable");
 		expect(classifyErrorMessage("Permission denied")).toBe("unrecoverable");
-		expect(
-			classifyErrorMessage("context_length_exceeded: max is 8192"),
-		).toBe("unrecoverable");
+		expect(classifyErrorMessage("context_length_exceeded: max is 8192")).toBe(
+			"unrecoverable",
+		);
 		expect(classifyErrorMessage("model_not_found")).toBe("unrecoverable");
 	});
 
 	it("returns null for empty or unrecognized messages", () => {
 		expect(classifyErrorMessage("")).toBe(null);
 		expect(classifyErrorMessage(undefined)).toBe(null);
-		expect(classifyErrorMessage("an unspecified transient hiccup")).toBe(
-			null,
-		);
+		expect(classifyErrorMessage("an unspecified transient hiccup")).toBe(null);
 	});
 });
 
@@ -101,15 +97,15 @@ describe("classifyAssistantFailure", () => {
 	});
 
 	it("returns the kind for error + recoverable message", () => {
-		expect(
-			classifyAssistantFailure("error", "rate limit exceeded"),
-		).toBe("recoverable");
+		expect(classifyAssistantFailure("error", "rate limit exceeded")).toBe(
+			"recoverable",
+		);
 	});
 
 	it("returns the kind for error + unrecoverable message", () => {
-		expect(
-			classifyAssistantFailure("error", "Invalid API key"),
-		).toBe("unrecoverable");
+		expect(classifyAssistantFailure("error", "Invalid API key")).toBe(
+			"unrecoverable",
+		);
 	});
 });
 

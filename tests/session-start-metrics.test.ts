@@ -8,19 +8,16 @@ describe("session-start-metrics", () => {
 
 	it("records handler return and detached completion without awaiting the task", async () => {
 		const { getStartupSummary } = await import("../lib/startup-timing.ts");
-		const { wrapSessionStartHandler } = await import(
-			"../lib/session-start-metrics.ts"
-		);
+		const { wrapSessionStartHandler } =
+			await import("../lib/session-start-metrics.ts");
 		let resolveTask!: () => void;
 		const task = new Promise<void>((resolve) => {
 			resolveTask = resolve;
 		});
 
-		const handler = wrapSessionStartHandler(
-			"provider-refresh",
-			() => task,
-			{ detached: true },
-		);
+		const handler = wrapSessionStartHandler("provider-refresh", () => task, {
+			detached: true,
+		});
 		await handler();
 
 		expect(getStartupSummary().sessionStartHandlers).toEqual([

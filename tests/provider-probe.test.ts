@@ -186,9 +186,8 @@ describe("areAllModelsFresh", () => {
 	});
 
 	it("returns true when all models are fresh in cache", async () => {
-		const { areAllModelsFresh, recordModelProbeResults } = await import(
-			"../lib/probe-cache.ts"
-		);
+		const { areAllModelsFresh, recordModelProbeResults } =
+			await import("../lib/probe-cache.ts");
 
 		await recordModelProbeResults("test-fresh", [
 			{ modelId: "a", status: "ok" },
@@ -205,9 +204,8 @@ describe("areAllModelsFresh", () => {
 	});
 
 	it("returns false when a model is cached as broken", async () => {
-		const { areAllModelsFresh, recordModelProbeResults } = await import(
-			"../lib/probe-cache.ts"
-		);
+		const { areAllModelsFresh, recordModelProbeResults } =
+			await import("../lib/probe-cache.ts");
 
 		await recordModelProbeResults("test-broken", [
 			{ modelId: "a", status: "broken" },

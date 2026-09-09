@@ -30,15 +30,14 @@ function mockPi() {
 	};
 }
 
-let registerNativeProviderRefresh: typeof import("../lib/native-provider.ts")["registerNativeProviderRefresh"];
+let registerNativeProviderRefresh: (typeof import("../lib/native-provider.ts"))["registerNativeProviderRefresh"];
 
 beforeEach(async () => {
 	vi.clearAllMocks();
 	vi.resetModules();
 	vi.useFakeTimers();
-	({ registerNativeProviderRefresh } = await import(
-		"../lib/native-provider.ts"
-	));
+	({ registerNativeProviderRefresh } =
+		await import("../lib/native-provider.ts"));
 });
 
 afterEach(() => {

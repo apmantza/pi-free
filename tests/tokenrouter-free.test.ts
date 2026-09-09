@@ -1,4 +1,4 @@
-import type { AssistantMessage, Model } from "@earendil-works/pi-ai/compat";
+import type { AssistantMessage } from "@earendil-works/pi-ai/compat";
 import { describe, expect, it } from "vitest";
 import { isFreeModel } from "../lib/registry.ts";
 import {
@@ -300,7 +300,9 @@ describe("TokenRouter MiniMax handling", () => {
 		it("drops values the gateway rejects with a 400", () => {
 			// pi-ai derives "none" from models.dev thinkingLevelMaps; sending it
 			// hard-fails the request.
-			expect(normalizeTokenRouterRequestPayload({ reasoning_effort: "none" })).toEqual({
+			expect(
+				normalizeTokenRouterRequestPayload({ reasoning_effort: "none" }),
+			).toEqual({
 				reasoning_split: true,
 			});
 			expect(

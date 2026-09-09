@@ -31,10 +31,7 @@ import type {
 	RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
-import {
-	getKiloApiKey,
-	getKiloFreeOnly,
-} from "../../config.ts";
+import { getKiloApiKey, getKiloFreeOnly } from "../../config.ts";
 import { PROVIDER_KILO } from "../../constants.ts";
 import { isFreeModel } from "../../lib/registry.ts";
 import {
@@ -157,7 +154,8 @@ export function createKiloProvider(): KiloNativeProvider {
 				forceFree: getKiloFreeOnly(),
 			}),
 		refreshModels,
-		stream: (model, context, options) => streams.stream(model, context, options),
+		stream: (model, context, options) =>
+			streams.stream(model, context, options),
 		streamSimple: (model, context, options) =>
 			streams.streamSimple(model, context, options),
 	};

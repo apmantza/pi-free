@@ -47,11 +47,7 @@ vi.mock("../lib/registry.ts", () => ({
 	// real rule is unit-tested in registry-provider-overrides.test.ts).
 	resolveModelView: (providerId: string) =>
 		mockGetModelViewOverride(providerId) ??
-		(mockGetLlm7ShowPaid()
-			? "all"
-			: mockGetGlobalFreeOnly()
-				? "free"
-				: "all"),
+		(mockGetLlm7ShowPaid() ? "all" : mockGetGlobalFreeOnly() ? "free" : "all"),
 	isFreeModel: (m: { cost?: { input?: number } }) => (m.cost?.input ?? 0) === 0,
 }));
 
@@ -351,7 +347,7 @@ describe("refreshModels offline init", () => {
 
 describe("refreshModels online", () => {
 	it("publishes the static selector catalog and persists it, with zero network", async () => {
-	// All-view: pins persist mechanics, not view filtering.
+		// All-view: pins persist mechanics, not view filtering.
 		mockGetModelViewOverride.mockReturnValue("all");
 
 		const { store, written } = makeStore();

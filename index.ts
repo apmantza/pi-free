@@ -154,40 +154,40 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 			notify(message: string, type?: "info" | "warning" | "error"): void;
 		};
 	}): Promise<void> {
-			const current = getGlobalFreeOnly();
-			const next = !current;
-			// Clear per-provider choices first so every provider follows
-			// the new global default — a stale explicit choice must not keep
-			// fighting the global flag on every new session (#510).
-			await clearModelViewOverrides();
-			applyGlobalFilter(next);
+		const current = getGlobalFreeOnly();
+		const next = !current;
+		// Clear per-provider choices first so every provider follows
+		// the new global default — a stale explicit choice must not keep
+		// fighting the global flag on every new session (#510).
+		await clearModelViewOverrides();
+		applyGlobalFilter(next);
 
-			const registry = getProviderRegistry();
-			const providerCount = registry.size;
+		const registry = getProviderRegistry();
+		const providerCount = registry.size;
 
-			if (next) {
-				const totalFree = [...registry.values()].reduce(
-					(sum, e) => sum + e.stored.free.length,
-					0,
-				);
-				ctx.ui.notify(
-					`Free-only mode: ON (${totalFree} free models across ${providerCount} providers)`,
-					"info",
-				);
-			} else {
-				const totalAll = [...registry.values()].reduce(
-					(sum, e) => sum + (e.stored.all.length || e.stored.free.length),
-					0,
-				);
-				ctx.ui.notify(
-					`Free-only mode: OFF (all ${totalAll} models visible across ${providerCount} providers)`,
-					"info",
-				);
-			}
-			recordAction(
-				"toggle",
-				`global free-only ${current ? "ON→OFF" : "OFF→ON"} (${providerCount} providers)`,
+		if (next) {
+			const totalFree = [...registry.values()].reduce(
+				(sum, e) => sum + e.stored.free.length,
+				0,
 			);
+			ctx.ui.notify(
+				`Free-only mode: ON (${totalFree} free models across ${providerCount} providers)`,
+				"info",
+			);
+		} else {
+			const totalAll = [...registry.values()].reduce(
+				(sum, e) => sum + (e.stored.all.length || e.stored.free.length),
+				0,
+			);
+			ctx.ui.notify(
+				`Free-only mode: OFF (all ${totalAll} models visible across ${providerCount} providers)`,
+				"info",
+			);
+		}
+		recordAction(
+			"toggle",
+			`global free-only ${current ? "ON→OFF" : "OFF→ON"} (${providerCount} providers)`,
+		);
 	}
 
 	// /free-providers - Show free model counts by provider
@@ -242,7 +242,10 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 			const entries = Object.entries(allTelemetry);
 
 			if (entries.length === 0) {
-				ctx.ui.notify("No telemetry data yet. Use some free models first!", "info");
+				ctx.ui.notify(
+					"No telemetry data yet. Use some free models first!",
+					"info",
+				);
 				return;
 			}
 
@@ -270,7 +273,9 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 				const calls = String(t.totalCalls).padStart(5);
 				const ok = `${t.successRate}%`.padStart(5);
 				const lat =
-					t.avgLatencyMs > 0 ? `${t.avgLatencyMs}ms`.padStart(6) : "—".padStart(6);
+					t.avgLatencyMs > 0
+						? `${t.avgLatencyMs}ms`.padStart(6)
+						: "—".padStart(6);
 				const tps =
 					t.avgTokensPerSecond > 0
 						? `${t.avgTokensPerSecond}`.padStart(6)
@@ -289,7 +294,8 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 			const authFailures = getProviderErrorCounts();
 			const authLines: string[] = [];
 			for (const [provider, counts] of authFailures) {
-				const total = counts["401"] + counts["403"] + counts["429"] + counts["5xx"];
+				const total =
+					counts["401"] + counts["403"] + counts["429"] + counts["5xx"];
 				if (total === 0) continue;
 				authLines.push(
 					`  ${provider}: 401×${counts["401"]}, 403×${counts["403"]}, 429×${counts["429"]}, 5xx×${counts["5xx"]}`,

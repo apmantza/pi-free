@@ -35,29 +35,29 @@ const STALE_CTX_FRAGMENT = "is stale after session replacement or reload";
 
 /** True when `error` is Pi's stale extension-context guard (incl. causes). */
 export function isStaleContextError(error: unknown): boolean {
- if (!(error instanceof Error)) return false;
- if (error.message.includes(STALE_CTX_FRAGMENT)) return true;
- const cause = (error as { cause?: unknown }).cause;
- return cause instanceof Error && cause.message.includes(STALE_CTX_FRAGMENT);
+	if (!(error instanceof Error)) return false;
+	if (error.message.includes(STALE_CTX_FRAGMENT)) return true;
+	const cause = (error as { cause?: unknown }).cause;
+	return cause instanceof Error && cause.message.includes(STALE_CTX_FRAGMENT);
 }
 
 /** Minimal UI surface the safe helpers need (structurally matches pi's ctx). */
 export interface NotifyUiLike {
- notify(message: string, type?: "info" | "warning" | "error"): void;
- setStatus(key: string, text: string | undefined): void;
+	notify(message: string, type?: "info" | "warning" | "error"): void;
+	setStatus(key: string, text: string | undefined): void;
 }
 
 export interface NotifyCtxLike {
- ui: NotifyUiLike;
+	ui: NotifyUiLike;
 }
 
 function reportStale(action: string, error: unknown): void {
- _logger.debug(
-  `stale extension context during ${action}; session moved on, skipping`,
-  {
-   error: error instanceof Error ? error.message : String(error),
-  },
- );
+	_logger.debug(
+		`stale extension context during ${action}; session moved on, skipping`,
+		{
+			error: error instanceof Error ? error.message : String(error),
+		},
+	);
 }
 
 /**
@@ -66,16 +66,16 @@ function reportStale(action: string, error: unknown): void {
  * bugs keep their existing visibility.
  */
 export function safeNotify(
- ctx: NotifyCtxLike,
- message: string,
- type?: "info" | "warning" | "error",
+	ctx: NotifyCtxLike,
+	message: string,
+	type?: "info" | "warning" | "error",
 ): void {
- try {
-  ctx.ui.notify(message, type);
- } catch (error) {
-  if (!isStaleContextError(error)) throw error;
-  reportStale("notify", error);
- }
+	try {
+		ctx.ui.notify(message, type);
+	} catch (error) {
+		if (!isStaleContextError(error)) throw error;
+		reportStale("notify", error);
+	}
 }
 
 /**
@@ -83,14 +83,14 @@ export function safeNotify(
  * {@link safeNotify}.
  */
 export function safeSetStatus(
- ctx: NotifyCtxLike,
- key: string,
- text: string | undefined,
+	ctx: NotifyCtxLike,
+	key: string,
+	text: string | undefined,
 ): void {
- try {
-  ctx.ui.setStatus(key, text);
- } catch (error) {
-  if (!isStaleContextError(error)) throw error;
-  reportStale("setStatus", error);
- }
+	try {
+		ctx.ui.setStatus(key, text);
+	} catch (error) {
+		if (!isStaleContextError(error)) throw error;
+		reportStale("setStatus", error);
+	}
 }

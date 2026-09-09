@@ -197,7 +197,9 @@ export function classifyErrorMessage(
 		) {
 			return "recoverable";
 		}
-		return PROVIDER_LIMIT_ERROR_PATTERN.test(errorMessage) ? "recoverable" : null;
+		return PROVIDER_LIMIT_ERROR_PATTERN.test(errorMessage)
+			? "recoverable"
+			: null;
 	}
 	// Kick off the async load for next time (fire-and-forget; the current
 	// call uses the local tables so classification stays synchronous).

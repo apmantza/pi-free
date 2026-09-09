@@ -26,14 +26,7 @@ if (existsSync(localTsc)) {
 		stdio: "inherit",
 	});
 } else {
-	const npxArgs = [
-		"--yes",
-		"-p",
-		"typescript@7.0.2",
-		"tsc",
-		"-p",
-		buildConfig,
-	];
+	const npxArgs = ["--yes", "-p", "typescript@7.0.2", "tsc", "-p", buildConfig];
 	const npxCli = [
 		process.env.npm_execpath
 			? join(dirname(process.env.npm_execpath), "npx-cli.js")
@@ -142,7 +135,13 @@ async function buildVendoredPiAi() {
 			process.env.npm_execpath
 				? join(dirname(process.env.npm_execpath), "npx-cli.js")
 				: undefined,
-			join(dirname(process.execPath), "node_modules", "npm", "bin", "npx-cli.js"),
+			join(
+				dirname(process.execPath),
+				"node_modules",
+				"npm",
+				"bin",
+				"npx-cli.js",
+			),
 		].find((candidate) => candidate !== undefined && existsSync(candidate));
 		if (npxCli) {
 			execFileSync(process.execPath, [npxCli, ...npxArgs], {

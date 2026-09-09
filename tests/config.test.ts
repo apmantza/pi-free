@@ -52,13 +52,18 @@ function parseMockJson(value: unknown): Record<string, unknown> {
 			throw new TypeError("mock JSON value is not a string");
 		}
 		const parsed: unknown = JSON.parse(value);
-		if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+		if (
+			parsed === null ||
+			typeof parsed !== "object" ||
+			Array.isArray(parsed)
+		) {
 			throw new TypeError("mock JSON value is not an object");
 		}
 		return parsed as Record<string, unknown>;
 	} catch (error) {
 		throw new Error(
 			`Invalid mock JSON: ${error instanceof Error ? error.message : String(error)}`,
+			{ cause: error },
 		);
 	}
 }
@@ -198,7 +203,10 @@ describe("show-paid getters", () => {
 		vi.stubEnv("HOME", "/tmp");
 		const fs = await import("node:fs");
 		const { __mockData } = fs as any;
-		__mockData.set(configPath(), JSON.stringify({ openrouter_show_paid: true }));
+		__mockData.set(
+			configPath(),
+			JSON.stringify({ openrouter_show_paid: true }),
+		);
 
 		const { getOpenrouterShowPaid } = await import("../config.ts");
 		expect(getOpenrouterShowPaid()).toBe(true);
@@ -216,7 +224,10 @@ describe("show-paid getters", () => {
 		const { __mockData } = fs as any;
 		__mockData.set(
 			configPath(),
-			JSON.stringify({ opencode_show_paid: true, opencode_free_show_paid: false }),
+			JSON.stringify({
+				opencode_show_paid: true,
+				opencode_free_show_paid: false,
+			}),
 		);
 
 		const { getOpencodeFreeShowPaid } = await import("../config.ts");
@@ -229,7 +240,10 @@ describe("show-paid getters", () => {
 		const { __mockData } = fs as any;
 		__mockData.set(
 			configPath(),
-			JSON.stringify({ opencode_show_paid: false, opencode_go_show_paid: true }),
+			JSON.stringify({
+				opencode_show_paid: false,
+				opencode_go_show_paid: true,
+			}),
 		);
 
 		const { getOpencodeGoShowPaid } = await import("../config.ts");
@@ -253,9 +267,8 @@ describe("show-paid getters", () => {
 		const { __mockData } = fs as any;
 		__mockData.set(configPath(), JSON.stringify({ routeway_show_paid: true }));
 
-		const { getProviderShowPaid, getRoutewayShowPaid } = await import(
-			"../config.ts"
-		);
+		const { getProviderShowPaid, getRoutewayShowPaid } =
+			await import("../config.ts");
 		expect(getRoutewayShowPaid()).toBe(true);
 		expect(getProviderShowPaid("routeway")).toBe(true);
 	});
@@ -264,11 +277,13 @@ describe("show-paid getters", () => {
 		vi.stubEnv("HOME", "/tmp");
 		const fs = await import("node:fs");
 		const { __mockData } = fs as any;
-		__mockData.set(configPath(), JSON.stringify({ opengateway_show_paid: true }));
-
-		const { getOpengatewayShowPaid, getProviderShowPaid } = await import(
-			"../config.ts"
+		__mockData.set(
+			configPath(),
+			JSON.stringify({ opengateway_show_paid: true }),
 		);
+
+		const { getOpengatewayShowPaid, getProviderShowPaid } =
+			await import("../config.ts");
 		expect(getOpengatewayShowPaid()).toBe(true);
 		expect(getProviderShowPaid("opengateway")).toBe(true);
 	});
@@ -408,7 +423,10 @@ describe("updateConfig", () => {
 		vi.stubEnv("HOME", "/tmp");
 		const fs = await import("node:fs");
 		const { __mockData } = fs as any;
-		__mockData.set(configPath(), JSON.stringify({ hidden_models: ["initial"] }));
+		__mockData.set(
+			configPath(),
+			JSON.stringify({ hidden_models: ["initial"] }),
+		);
 
 		const { updateConfig } = await import("../config.ts");
 		// Simulate two providers' probes updating hidden_models concurrently

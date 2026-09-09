@@ -286,7 +286,8 @@ function applyProviderNormalization(
 		ctx.strategies.push("llama-dash-general");
 	}
 
-	if (provider === "ollama" || provider === "ollama-cloud") normalizeOllama(ctx);
+	if (provider === "ollama" || provider === "ollama-cloud")
+		normalizeOllama(ctx);
 	if (provider === "groq") normalizeGroq(ctx);
 	if (provider === "cerebras") normalizeCerebras(ctx);
 	if (provider === "mistral") normalizeMistral(ctx);
@@ -611,7 +612,10 @@ function tryProviderNormalizedMatch(
 	provider: string | undefined,
 	modelName: string,
 ): { result: HardcodedBenchmark | null; normalized: string } {
-	const { normalized, strategy } = applyProviderNormalization(modelId, provider);
+	const { normalized, strategy } = applyProviderNormalization(
+		modelId,
+		provider,
+	);
 
 	if (normalized === modelId.toLowerCase()) {
 		return { result: null, normalized };

@@ -306,10 +306,15 @@ export function createNativeOpenAIProvider(
 			context,
 			(storedModels) => {
 				stored.all = storedModels;
-				stored.free = classifyFree(storedModels as Model<"openai-completions">[]);
+				stored.free = classifyFree(
+					storedModels as Model<"openai-completions">[],
+				);
 			},
 			async () => {
-				const token = nativeCredentialToken(context.credential, options.getApiKey);
+				const token = nativeCredentialToken(
+					context.credential,
+					options.getApiKey,
+				);
 				if (!token && !options.allowUnauthenticated) return [];
 				const all = await options.fetchModels(token ?? "", context.signal);
 				return enhanceWithCI(all, options.providerId).map((model) =>
@@ -588,7 +593,9 @@ async function runRefreshNudge(
 		if (ownErrors.length > 0) {
 			throw new Error(
 				`Pi model refresh reported ${ownErrors.length} pi-free provider error(s): ` +
-					ownErrors.map(([id, error]) => `${id} :: ${error.message}`).join(" | "),
+					ownErrors
+						.map(([id, error]) => `${id} :: ${error.message}`)
+						.join(" | "),
 			);
 		}
 		if (result.aborted && !isRetry) {
@@ -622,9 +629,12 @@ async function runRefreshNudge(
 		// A replaced session invalidates the captured ctx mid-nudge (#509) —
 		// routine, not a warning.
 		if (isStaleContextError(err)) {
-			_logger.info("[native-model-refresh] session changed mid-nudge; dropping", {
-				error: err instanceof Error ? err.message : String(err),
-			});
+			_logger.info(
+				"[native-model-refresh] session changed mid-nudge; dropping",
+				{
+					error: err instanceof Error ? err.message : String(err),
+				},
+			);
 			return;
 		}
 		logRefreshFailure(err);
@@ -717,9 +727,12 @@ export async function restoreNativeProviderModels<T extends Model<Api>>(
 		}
 		if (models.length > 0) onModels(models);
 	} catch (err) {
-		_logger.warn(`Failed to read ${providerId} models store; continuing empty`, {
-			error: err instanceof Error ? err.message : String(err),
-		});
+		_logger.warn(
+			`Failed to read ${providerId} models store; continuing empty`,
+			{
+				error: err instanceof Error ? err.message : String(err),
+			},
+		);
 	}
 }
 
@@ -768,14 +781,17 @@ export async function refreshNativeProviderModels<T extends Model<Api>>(
 					)
 				: models;
 		_logger.debug(
-				`[${providerId}] persisting ${persistModels.length}/${models.length} models (${resolveModelView(providerId)} view)`,
-			);
+			`[${providerId}] persisting ${persistModels.length}/${models.length} models (${resolveModelView(providerId)} view)`,
+		);
 		// Only count as "ok" if persistence actually published: a superseded
 		// generation (publish() returns false — update never ran) or a store
 		// write failure must not inflate the success counter.
 		if (
-			await persistNativeProviderModels(providerId, context, persistModels, () =>
-				onFetched(models),
+			await persistNativeProviderModels(
+				providerId,
+				context,
+				persistModels,
+				() => onFetched(models),
 			)
 		) {
 			// Telemetry counts the fetched catalog (refresh productivity),

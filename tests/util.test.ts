@@ -458,9 +458,15 @@ describe("Utility Functions", () => {
 	describe("computeRetryBackoffMs", () => {
 		it("scales exponentially with the attempt and stays under the window", () => {
 			const alwaysMax = () => 0.999999;
-			expect(computeRetryBackoffMs(0, 1000, { random: alwaysMax })).toBeLessThanOrEqual(1000);
-			expect(computeRetryBackoffMs(1, 1000, { random: alwaysMax })).toBeLessThanOrEqual(2000);
-			expect(computeRetryBackoffMs(2, 1000, { random: alwaysMax })).toBeLessThanOrEqual(4000);
+			expect(
+				computeRetryBackoffMs(0, 1000, { random: alwaysMax }),
+			).toBeLessThanOrEqual(1000);
+			expect(
+				computeRetryBackoffMs(1, 1000, { random: alwaysMax }),
+			).toBeLessThanOrEqual(2000);
+			expect(
+				computeRetryBackoffMs(2, 1000, { random: alwaysMax }),
+			).toBeLessThanOrEqual(4000);
 		});
 
 		it("caps the exponential growth at the configured maximum", () => {
@@ -486,7 +492,9 @@ describe("Utility Functions", () => {
 
 		it("treats non-positive inputs as no backoff", () => {
 			const alwaysMax = () => 0.999999;
-			expect(computeRetryBackoffMs(-1, 1000, { random: alwaysMax })).toBeLessThanOrEqual(1000);
+			expect(
+				computeRetryBackoffMs(-1, 1000, { random: alwaysMax }),
+			).toBeLessThanOrEqual(1000);
 			expect(computeRetryBackoffMs(0, 0, { random: alwaysMax })).toBe(0);
 			expect(computeRetryBackoffMs(0, -50, { random: alwaysMax })).toBe(0);
 		});

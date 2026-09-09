@@ -56,12 +56,15 @@ describe("shared-factory providers with public catalogs", () => {
 		["novita", novitaAuth],
 		["routeway", routewayAuth],
 		["sambanova", sambanovaAuth],
-	])("%s resolves keyless auth so the public catalog can refresh", async (_name, auth) => {
-		const result = await auth.apiKey?.resolve(resolveInput());
-		expect(result).toEqual(anonymous);
-		// No apiKey.check: a check would hide the public catalog before login.
-		expect(auth.apiKey).not.toHaveProperty("check");
-	});
+	])(
+		"%s resolves keyless auth so the public catalog can refresh",
+		async (_name, auth) => {
+			const result = await auth.apiKey?.resolve(resolveInput());
+			expect(result).toEqual(anonymous);
+			// No apiKey.check: a check would hide the public catalog before login.
+			expect(auth.apiKey).not.toHaveProperty("check");
+		},
+	);
 });
 
 describe("shared-factory providers with auth-required catalogs", () => {
@@ -111,7 +114,10 @@ describe("createNativeApiKeyAuth anonymousCatalog option", () => {
 				credential: { type: "api_key", key: "stored-key" },
 				signal: new AbortController().signal,
 			} as never),
-		).toMatchObject({ auth: { apiKey: "stored-key" }, source: "stored API key" });
+		).toMatchObject({
+			auth: { apiKey: "stored-key" },
+			source: "stored API key",
+		});
 		expect(await auth.apiKey?.resolve(resolveInput())).toMatchObject({
 			auth: { apiKey: "ambient-key" },
 			source: "TEST_API_KEY",

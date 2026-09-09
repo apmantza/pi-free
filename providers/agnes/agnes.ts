@@ -30,14 +30,14 @@ import { agnesAuth } from "./agnes-auth.ts";
 import { fetchAgnesModels } from "./agnes-models.ts";
 
 export default function agnesProvider(pi: ExtensionAPI): Promise<void> {
- registerNativeOpenAIProvider(pi, {
-  providerId: PROVIDER_AGNES,
-  name: "Agnes AI",
-  baseUrl: BASE_URL_AGNES,
-  auth: agnesAuth,
-  getApiKey: getAgnesApiKey,
-  getShowPaid: getAgnesShowPaid,
-  fetchModels: (apiKey, signal) => fetchAgnesModels(apiKey, signal),
- });
- return Promise.resolve();
+	registerNativeOpenAIProvider(pi, {
+		providerId: PROVIDER_AGNES,
+		name: "Agnes AI",
+		baseUrl: BASE_URL_AGNES,
+		auth: agnesAuth,
+		getApiKey: getAgnesApiKey,
+		getShowPaid: getAgnesShowPaid,
+		fetchModels: (apiKey, signal) => fetchAgnesModels(apiKey, signal),
+	});
+	return Promise.resolve();
 }

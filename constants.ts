@@ -86,9 +86,6 @@ export const BASE_URL_MERGE = "https://api-gateway.merge.dev/v1/openai";
 export const BASE_URL_COMMANDCODE = "https://api.commandcode.ai/provider/v1";
 export const BASE_URL_QODER = "https://api2-v2.qoder.sh";
 
-/** Cline fetches free models from OpenRouter */
-export const BASE_URL_OPENROUTER = "https://openrouter.ai/api/v1";
-
 // =============================================================================
 // External URLs
 // =============================================================================
@@ -123,11 +120,11 @@ export const DEFAULT_FETCH_TIMEOUT_MS: number = 10_000;
  * PI_FREE_STARTUP_FETCH_TIMEOUT_MS (milliseconds).
  */
 export const STARTUP_FETCH_DEADLINE_MS: number = (() => {
- const raw = Number.parseInt(
-  process.env.PI_FREE_STARTUP_FETCH_TIMEOUT_MS ?? "",
-  10,
- );
- return Number.isFinite(raw) && raw > 0 ? raw : 8_000;
+	const raw = Number.parseInt(
+		process.env.PI_FREE_STARTUP_FETCH_TIMEOUT_MS ?? "",
+		10,
+	);
+	return Number.isFinite(raw) && raw > 0 ? raw : 8_000;
 })();
 
 export const KILO_POLL_INTERVAL_MS = 3_000;
