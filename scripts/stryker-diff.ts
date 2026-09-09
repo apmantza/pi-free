@@ -1,5 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import {
 	capMutationFiles,
 	DEFAULT_MAX_FILES,
@@ -20,10 +21,15 @@ const maxFiles = Number(
 	argumentValue("--max-files", String(DEFAULT_MAX_FILES)),
 );
 
+// NOSONAR (typescript:S4036): "git" is a platform tool resolved via the
+// operator's PATH by design — same class as backfill-github-releases.mjs.
+// PATH-hardening (its approach) would break the node toolchain the
+// mutation children inherit; the lane runs on pinned CI images and local
+// dev shells where PATH is already the operator's own.
 function changedFiles(): string[] {
 	try {
 		return execFileSync(
-			"git",
+			"git", // NOSONAR -- see justification above
 			["diff", "--name-only", "--diff-filter=AM", `${base}...HEAD`],
 			{ encoding: "utf8" },
 		)
@@ -60,8 +66,10 @@ if (covered.length === 0) {
 console.log(`mutation diff: mutating ${covered.join(", ")}`);
 console.log(`mutation diff: running related tests ${tests.join(", ")}`);
 const testArgs = tests.length > 0 ? ["--testFiles", tests.join(",")] : [];
+// Absolute repo-owned path: no PATH lookup, nothing writable to shadow.
+const strykerBin = path.resolve("node_modules", ".bin", "stryker");
 const result = spawnSync(
-	"node_modules/.bin/stryker",
+	strykerBin,
 	["run", "--mutate", covered.join(","), ...testArgs],
 	{ stdio: "inherit", encoding: "utf8" },
 );

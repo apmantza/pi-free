@@ -52,10 +52,12 @@ jobs:
             NEEDS_NPM_PUBLISH=true
           fi
 
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "should_release=$SHOULD_RELEASE" >> "$GITHUB_OUTPUT"
-          echo "needs_npm_publish=$NEEDS_NPM_PUBLISH" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=$VERSION"
+            echo "tag=$TAG"
+            echo "should_release=$SHOULD_RELEASE"
+            echo "needs_npm_publish=$NEEDS_NPM_PUBLISH"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Verify changelog entry exists
         if: >

@@ -42,7 +42,7 @@ function extractRelativeSpecifiers(content: string): string[] {
 function normalized(file: string): string {
 	return path
 		.resolve(file)
-		.replace(/\\/g, "/")
+		.replaceAll("\\", "/")
 		.replace(/\.(?:mts|ts|mjs|js|cjs)$/, "");
 }
 
@@ -53,7 +53,7 @@ export function capMutationFiles(
 	if (!Number.isInteger(maxFiles) || maxFiles < 0) {
 		throw new RangeError("maxFiles must be a non-negative integer");
 	}
-	const ordered = [...files].sort();
+	const ordered = [...files].sort((a, b) => a.localeCompare(b));
 	return {
 		selected: ordered.slice(0, maxFiles),
 		skipped: ordered.slice(maxFiles),

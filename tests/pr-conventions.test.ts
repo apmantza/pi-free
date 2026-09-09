@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 // Exercise the PR-convention scripts through their real CLI surface
@@ -18,8 +19,9 @@ function runScript(script: string, args: string[] = [], env = {}) {
 }
 
 describe("check-pr-title", () => {
-	const script = new URL("../scripts/check-pr-title.mjs", import.meta.url)
-		.pathname;
+	const script = fileURLToPath(
+		new URL("../scripts/check-pr-title.mjs", import.meta.url),
+	);
 
 	it("accepts a prefixed title with an issue ref", () => {
 		const result = runScript(script, ["fix(restore): skip artifacts (#519)"]);
@@ -56,8 +58,9 @@ describe("check-pr-title", () => {
 });
 
 describe("check-pr-body", () => {
-	const script = new URL("../scripts/check-pr-body.mjs", import.meta.url)
-		.pathname;
+	const script = fileURLToPath(
+		new URL("../scripts/check-pr-body.mjs", import.meta.url),
+	);
 
 	it("accepts a body with a section", () => {
 		const result = runScript(script, ["## What\n\nDid the thing."]);
