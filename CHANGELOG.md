@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.1] - 2026-09-12
+
+### Changed
+
+- **Catalog audit carry-over (2026-09-12)** — retain the 2026-08-26 audit snapshot for this authentication-only patch. Catalog fetching, model lists, pricing classification, and promotional rules are unchanged; no fresh full-provider audit is claimed. See `docs/catalog-audit.md` and `docs/free_models.md`.
+
+### Fixed
+
+- **OpenCode refresh warnings without an environment key** — omit pi-free's unconditional `$OPENCODE_API_KEY` override when no credential is resolved. Pi rejected that missing variable before calling the catalog refresh handler, so successful OpenCode endpoint fetches could coexist with warnings for both `opencode-free` and `opencode-go`. Go retains Pi's native authentication; free-provider shared/stored/environment keys continue working. Reproduced locally on Pi 0.85.1 and pinned through the real runtime, including logged-out and stored-key cases (refs #504).
+
 ## [2.8.0] - 2026-09-09
 
 ### Added

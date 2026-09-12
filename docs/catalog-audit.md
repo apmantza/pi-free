@@ -13,6 +13,10 @@ Each provider's live `/models` endpoint is fetched (stored credential from `~/.p
 
 Counts drift as providers change their catalogs — treat every audit below as a verified snapshot, never a guarantee. Providers whose credentials are unavailable are listed as "not audited" rather than guessed. Never print or commit API keys during an audit.
 
+## 2026-09-12 — 2.8.1 carry-over
+
+Carry forward the 2026-08-26 snapshot under the authentication-only release exception. Version 2.8.1 removes an unconditional missing-key override; it does not change catalog fetching, model lists, pricing classification, or promotional rules. The OpenCode live refresh reproduction is recorded in [issue-504-investigation.md](issue-504-investigation.md), not presented as a full-provider audit. No fresh full-provider audit was run; counts and expired promotional windows below remain historical. The same carry-over is recorded in [free_models.md](free_models.md) and the 2.8.1 changelog.
+
 ## 2026-08-26 audit
 
 Fetched directly from each provider's real `/models` endpoint. Carried over unchanged through 2.8.0 (no classification or catalog code changed in that window — `isFreeModel` received type widenings only).

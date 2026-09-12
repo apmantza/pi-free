@@ -1,5 +1,7 @@
 # Free Models Catalog
 
+> **2026-09-12 — 2.8.1 carry-over:** this authentication-only patch leaves catalog fetching and free/paid classification unchanged. The 2026-08-26 snapshot is carried forward, not freshly audited. Counts and promotional windows remain historical; expired promotions are not renewed by this note. See [catalog audit](catalog-audit.md#2026-09-12--281-carry-over).
+
 > **Audit date: 2026-08-26.** Every list below was pulled live from the provider's real endpoint and classified with pi-free's own detection semantics (cost-based Route A, name-based Route B, authoritative stamps). Provider catalogs change constantly — treat this as a verified point-in-time snapshot, not a guarantee. Re-check before relying on any single model.
 
 **Totals at audit time:** ~106 free-classified models across 16 providers. Three registered providers exposed **zero** free models (CrofAI, DeepInfra, SambaNova — see [Zero-free providers](#zero-free-providers)).
