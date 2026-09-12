@@ -1120,17 +1120,9 @@ async function resolveApiKey(
 		if (configKey) return configKey;
 	}
 
-	return getApiKeyEnvForProvider(providerId);
-}
-
-function getApiKeyEnvForProvider(providerId: string): string | undefined {
-	// OpenRouter is Pi's built-in provider. Do not supply an apiKey here:
-	// re-registerProvider merges only defined fields, so omitting it preserves
-	// Pi-managed OAuth credentials from /login openrouter (and refresh support).
-	const envMap: Record<string, string> = {
-		opencode: "$OPENCODE_API_KEY",
-		"opencode-free": "$OPENCODE_API_KEY",
-		"opencode-go": "$OPENCODE_API_KEY",
-	};
-	return envMap[providerId];
+	// No credential means no override. An unconditional $OPENCODE_API_KEY
+	// makes Pi throw during refresh auth resolution when the variable is absent,
+	// before our refreshModels callback runs (#504). Go and OpenRouter retain
+	// Pi's native auth; the free provider's actual key was resolved above.
+	return undefined;
 }
