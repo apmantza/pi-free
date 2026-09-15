@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **pi-ai peer floor raised to ^0.85.1** — the pi-coding-agent 0.85.1 bump split the dev tree into two pi-ai copies (0.84.4 top-level vs 0.85.1 nested), failing `tsc` on master with a nominal stream-type clash. Both copies now resolve to 0.85.x while production installs still vendor the required peer (refs #539).
+
 ## [2.8.1] - 2026-09-12
 
 ### Changed

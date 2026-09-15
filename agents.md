@@ -22,7 +22,7 @@ A **Pi extension** (`@earendil-works/pi-coding-agent`) that registers free and p
 **Author:** Apostolos Mantzaris  
 **License:** MIT  
 **Repo:** `github.com/apmantza/pi-free`  
-**Peer deps:** `@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui` (all `>=0.81.0` — the native `createProvider` / `registerProvider(provider)` surface)
+**Peer deps:** `@earendil-works/pi-ai` (`^0.85.1` — floor tracks pi-coding-agent's minor, defect shape 10), `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui` (both `>=0.81.0`; the native `createProvider` / `registerProvider(provider)` surface)
 
 ---
 
@@ -51,6 +51,7 @@ index.ts                          ← Extension entry point (piFreeEntry)
   ├─ lib/model-metadata.ts        ← models.dev enrichment + ModelIdentity
   ├─ lib/telemetry.ts             ← Local model performance telemetry
   ├─ lib/action-log.ts            ← In-memory recent-actions ring surfaced in health
+├─ lib/wire-signature.ts        ← Header-names-only wire logging (convention 17)
   ├─ lib/lazy-compat.ts           ← Lazy pi-ai bridge (compat loads on first use, never at startup)
   ├─ lib/fallback-state.ts        ← Shared in-memory store (last HTTP status per model) used by both quota-monitor and auto-fallback
   ├─ lib/auto-fallback/           ← Auto-fallback to another free model on error (since 2.7.0; opt-in, default off)
@@ -138,8 +139,6 @@ For a new OpenAI-compatible native provider, use `registerNativeOpenAIProvider()
 
 ### Native `Provider` providers
 
-Kilo, Cline, LLM7, ZenMux, TokenRouter, Ollama Cloud, B.AI, AnyAPI, CrofAI, SambaNova, Novita, DeepInfra, Routeway, OpenGateway, FastRouter, StepFun, GMI Cloud, Agnes AI, Venice AI, Infron AI, and Qoder use Pi's modern provider API (Pi `>=0.81.0`). Instead of the legacy `registerProvider(id, { baseUrl, apiKey, models, oauth })` form, each builds a native pi-ai `Provider` object and registers it via the single-argument `registerProvider(provider)`. Pi then owns credential refresh, background model refresh (4h throttle, abortable), and offline initialization — so these extension factories perform no catalog network I/O on startup
-
 Kilo, Cline, LLM7, ZenMux, TokenRouter, Ollama Cloud, B.AI, AnyAPI, CrofAI, SambaNova, Novita, DeepInfra, Routeway, OpenGateway, FastRouter, StepFun, GMI Cloud, Agnes AI, Venice AI, Merge Gateway, and Qoder use Pi's modern provider API (Pi `>=0.81.0`). Instead of the legacy `registerProvider(id, { baseUrl, apiKey, models, oauth })` form, each builds a native pi-ai `Provider` object and registers it via the single-argument `registerProvider(provider)`. Pi then owns credential refresh, background model refresh (4h throttle, abortable), and offline initialization — so these extension factories perform no catalog network I/O on startup.
 
 ```text
@@ -161,7 +160,7 @@ Key points of the pattern (the recipe for porting other unique providers):
 - A single native session-start hook nudges Pi's model registry without awaiting detached refresh work; registering one global nudge avoids Pi 0.84 superseding the same providers from multiple concurrent refreshes. `lib/session-start-metrics.ts` records both handler return time and eventual refresh/probe completion or failure so `/free-startup` does not hide post-finalize work.
 - Native `auth`: `apiKey.resolve` returns `credential?.key ?? getKiloApiKey()` (ambient env/config); `oauth` implements `login(interaction)` (device flow via `interaction.notify`), `refresh(credential)` (Kilo tokens are long-lived; expired → throw, re-login fixes), and `toAuth(credential)` → `{ apiKey: credential.access }`. Credentials persist to `~/.pi/agent/auth.json` — the same store the legacy `/login kilo` already used, so existing OAuth users need no migration.
 - The free/paid toggle stays coordinated by `registerWithGlobalToggle`: native `reRegister()` re-registers the **same** provider object (upsert by id) only to invalidate Pi's availability snapshot, while `filterModels` selects the complete catalog view. This keeps per-provider toggles and the global `/toggle-free` working without rebuilding model arrays.
-- Because the dev lockfile can lag the declared peer minimum, `kilo.ts` and `cline.ts` register through a small documented `NativeRegistrar` type bridge; the source type-checks against both the pinned dev snapshot and the declared `>=0.81.0` runtime.
+- Because the dev lockfile can lag the declared peer minimum, `kilo.ts` and `cline.ts` register through a small documented `NativeRegistrar` type bridge; the source type-checks against both the pinned dev snapshot and the declared peer-minimum runtime.
 
 Cline-specific deviations from the Kilo reference (porting recipe supplements):
 
@@ -258,8 +257,6 @@ One resolution rule behind every filter decision (`resolveModelView` in `lib/reg
 | ----------- | -------------------------------------------------- | ----------------- | -------------------------------- |
 | ✅ Free / free-tier | kilo, cline, llm7, tokenrouter, agnes, qoder basic | OAuth, API key, or none | Free models or tier; toggles can expose paid models |
 | 🔄 Freemium | anyapi, ollama-cloud, sambanova, requesty | API key | Free allowance with limits |
-| 💳 Paid / trial | zenmux, crofai, deepinfra, novita, routeway, opengateway, bai, stepfun, gmi, venice, infron, qoder premium | API key, OAuth, or credits | Paid access, trial credit, or premium tier |
-| 🔧 Native | Kilo, Cline, LLM7, Ollama Cloud, AnyAPI, SambaNova, TokenRouter, ZenMux, CrofAI, DeepInfra, Novita, Routeway, OpenGateway, B.AI, FastRouter, Requesty, StepFun, GMI Cloud, Agnes AI, Venice AI, Infron AI, Qoder | API key, OAuth, or none | Pi owns catalog refresh and native stores |
 | 💳 Paid / trial | zenmux, crofai, deepinfra, novita, routeway, opengateway, bai, stepfun, gmi, venice, merge, qoder premium | API key, OAuth, or credits | Paid access, trial credit, or premium tier |
 | 🔧 Native | Kilo, Cline, LLM7, Ollama Cloud, AnyAPI, SambaNova, TokenRouter, ZenMux, CrofAI, DeepInfra, Novita, Routeway, OpenGateway, B.AI, FastRouter, Requesty, StepFun, GMI Cloud, Agnes AI, Venice AI, Merge Gateway, Qoder | API key, OAuth, or none | Pi owns catalog refresh and native stores |
 
@@ -313,6 +310,7 @@ Screen against these BEFORE writing code — each one cost a real incident:
 7. **`import.meta.resolve` parent argument is ignored on some Node builds** — it silently scopes to the calling module's tree instead. Tree-scoped resolution must use `createRequire` (verified: honors parent paths), with a physical present-and-importable fallback for import-only packages.
 8. **NOSONAR markers must sit on sink lines.** The formatter breaks `console.error( // NOSONAR` across lines, which silently un-suppresses the marker. Build log messages into consts first so the marker trails a short, unsplittable sink call.
 9. **Optional credentials must not become required environment references.** An unconditional `$OPENCODE_API_KEY` override makes Pi's refresh auth resolution throw when that variable is absent, before the extension callback runs (#504). `resolveApiKey` omits absent keys; Go/OpenRouter inherit Pi auth, while the free alias keeps its existing resolved-key lookup. Screen missing-credential paths through real `ModelRuntime.refresh`, not a mocked registry or direct callback; passing public catalog fetches do not prove the auth/composition path works (`tests/built-in-toggle-runtime.test.ts`).
+10. **Dual pi-ai copies with skewed versions.** The dev tree holds two pi-ai copies (top-level peer install + nested under pi-coding-agent). `providers/opencode-session.ts` mixes them nominally — top-level stream types returned as pi-coding-agent's `ProviderConfig["streamSimple"]` — so a version skew fails `tsc` with TS2322 (separate declarations of private `queue`). Keep the pi-ai peer floor in lockstep with pi-coding-agent's minor. Never pin pi-ai as a devDependency: it suppresses the peer install, so production installs (`--omit=dev`) lose the REQUIRED peer and the vendor-bundle build fails. npm `overrides` cannot target a peer (`EOVERRIDE`), and pi-coding-agent does not re-export the pi-ai type symbols, so no source-level single-origin import exists (#539).
 
 ## Standing Invariants
 
@@ -371,7 +369,7 @@ Screen against these BEFORE writing code — each one cost a real incident:
 
 ## Testing
 
-- **Framework:** Vitest (`vitest` v4.1.10)
+- **Framework:** Vitest (`vitest` v5)
 - **Run:** `npm test` (watch), `npm run test:run` (once)
 - **Drive pi-ai directly:** `npm run drive -- --provider <id> [--model <substr|exact>] [--effort <level>] [--simple] [--prompt "..."] [--anonymous] | --list` runs a realistic coding-agent turn (system prompt, thinking+toolCall history replay, tool result) through pi-ai's `streamSimple` against a model from Pi's native models store — the same code path Pi uses at runtime. Credential resolution mirrors Pi: stored `~/.pi/agent/auth.json` credential first, then `<PROVIDER>_API_KEY`; `--anonymous` drives keyless-by-design providers (chat then correctly fails for auth-required gateways). Exits non-zero on error events, so it works as an automated smoke check for provider wire behavior (e.g. after adding a normalizer or compat stamp). Exact model ids win over substring matches.
 - **Startup perf:** `npx tsx scripts/bench-startup.ts <warm|cold|fastcold> [source|compiled]` runs in a sandboxed `HOME` with mocked `fetch` (warm = no legacy network, cold = dead API worst case) and reports `importMs`, `factoryMs`, and import-inclusive `totalMs`. Run `npm run build` before `compiled` mode. Source mode includes tsx loader/transpilation; compiled mode measures native Node ESM loading. `factoryMs` is the awaited `piFreeEntry` time; `lib/startup-timing.ts` records the import-inclusive total instead — its clock origin is a module-scope `performance.now()` capture (first import of the module), so the runtime startup total covers the module graph plus the factory. Native Pi model refresh and session-start detached work are reported separately.
