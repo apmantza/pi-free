@@ -69,11 +69,11 @@
 		"smoke:pi-upgrade": "node scripts/pi-upgrade-smoke.mjs"
 	},
 	"devDependencies": {
-		"@earendil-works/pi-coding-agent": "^0.84.4",
+		"@earendil-works/pi-coding-agent": "^0.85.1",
 		"@stryker-mutator/core": "10.0.0",
 		"@stryker-mutator/vitest-runner": "10.0.0",
-		"@vitest/coverage-v8": "^4.1.10",
-		"@vitest/ui": "^4.1.10",
+		"@vitest/coverage-v8": "^5.0.0",
+		"@vitest/ui": "^5.0.0",
 		"esbuild": "^0.28.1",
 		"knip": "6.35.0",
 		"oxfmt": "0.67.0",
@@ -81,7 +81,7 @@
 		"publint": "0.3.24",
 		"tsx": "^4.23.12",
 		"typescript": "^7.0.2",
-		"vitest": "^4.1.10"
+		"vitest": "^5.0.0"
 	},
 	"peerDependencies": {
 		"@earendil-works/pi-ai": ">=0.81.0",
