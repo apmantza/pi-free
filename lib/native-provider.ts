@@ -440,11 +440,151 @@ export function registerNativeAvailabilityProbe(
 	);
 }
 
-/** Register a native provider across the current dev snapshot and >=0.81 peers. */
+/**
+ * Compatibility bridge for hosts like Oh My Pi (`omp`) or earlier Pi runtimes
+ * that only implement the two-argument signature:
+ *   registerProvider(name: string, config: ProviderConfig): void
+ */
+export function registerLegacyProviderFromNative(
+	pi: ExtensionAPI,
+	provider: Provider,
+): void {
+	const id = provider.id;
+	const models = [...provider.getModels()];
+
+	// 1. OAuth bridge: adapt native AuthInteraction login/refresh to OMP callbacks
+	let oauth: Record<string, unknown> | undefined;
+	const nativeOAuth = (provider.auth as any)?.oauth;
+	if (nativeOAuth) {
+		oauth = {
+			name: nativeOAuth.name ?? provider.name ?? id,
+			login: async (callbacks: any) => {
+				if (typeof nativeOAuth.login === "function") {
+					const interaction = {
+						signal: callbacks?.signal,
+						notify: (ev: any) => {
+							if (ev.type === "auth_url") {
+								callbacks?.onAuth?.({
+									url: ev.url,
+									instructions: ev.instructions,
+								});
+							} else if (ev.type === "device_code") {
+								callbacks?.onDeviceCode?.(ev);
+							} else if (ev.type === "progress") {
+								callbacks?.onProgress?.(ev.message);
+							}
+						},
+						prompt: async (p: any) => {
+							if (p.type === "manual_code" && callbacks?.onManualCodeInput) {
+								return callbacks.onManualCodeInput();
+							}
+							if (p.type === "select" && callbacks?.onSelect) {
+								return callbacks.onSelect(p);
+							}
+							if (callbacks?.onPrompt) {
+								return callbacks.onPrompt({
+									message: p.message,
+									defaultValue: p.placeholder,
+								});
+							}
+							return "";
+						},
+					};
+					return await nativeOAuth.login(interaction);
+				}
+				return {};
+			},
+			refreshToken: async (credentials: any) => {
+				if (typeof nativeOAuth.refresh === "function") {
+					return await nativeOAuth.refresh(credentials);
+				}
+				return credentials;
+			},
+			getApiKey: (credentials: any) => {
+				// 1. If access token is already a string on credentials, return it synchronously
+				if (typeof credentials?.access === "string") {
+					return credentials.access;
+				}
+				// 2. Fall back to calling toAuth synchronously if it isn't a promise
+				if (typeof nativeOAuth.toAuth === "function") {
+					const authRes = nativeOAuth.toAuth(credentials);
+					if (authRes && typeof authRes.then !== "function") {
+						return authRes?.apiKey ?? credentials?.access;
+					}
+				}
+				return credentials?.access;
+			},
+		};
+	}
+
+	// 2. API Key resolution
+	let apiKey: string | undefined;
+	const nativeApiKey = (provider.auth as any)?.apiKey;
+	if (nativeApiKey && typeof nativeApiKey.getApiKey === "function") {
+		apiKey = nativeApiKey.getApiKey();
+	}
+	if (!apiKey && typeof (provider.auth as any)?.getApiKey === "function") {
+		apiKey = (provider.auth as any).getApiKey();
+	}
+
+	// In OMP runtime registration (Iot):
+	// If models has elements, OMP requires apiKey or oauthConfigured: Boolean(oauth).
+	// If neither is present, OMP throws. In that case, if models are present but unauthenticated,
+	// provide a placeholder key so OMP registers the catalog.
+	const effectiveApiKey =
+		apiKey || (oauth ? undefined : models.length > 0 ? "placeholder" : undefined);
+
+	const config: Record<string, unknown> = {
+		name: provider.name ?? id,
+		baseUrl: provider.baseUrl ?? "",
+		api: "openai-completions",
+		headers: provider.headers ?? undefined,
+		models,
+		...(effectiveApiKey ? { apiKey: effectiveApiKey } : {}),
+		...(oauth ? { oauth } : {}),
+	};
+
+	if (typeof provider.refreshModels === "function") {
+		config.fetchDynamicModels = async () => {
+			try {
+				await provider.refreshModels?.({
+					allowNetwork: true,
+					signal: AbortSignal.timeout(15000),
+					publish: async (pub) => {
+						pub.update?.();
+						return true;
+					},
+				});
+				return provider.getModels();
+			} catch (_err) {
+				return provider.getModels();
+			}
+		};
+	}
+
+	(pi.registerProvider as any)(id, config);
+}
+
+/** Register a native provider across the current dev snapshot, >=0.81 peers, and Oh My Pi (omp). */
 export function registerNativeProvider(
 	pi: ExtensionAPI,
 	provider: Provider,
 ): void {
+	// Detect host capability proactively. OMP (and older Pi runtimes) expose
+	// a two-argument registerProvider(name, config). Calling the single-arg
+	// Provider overload on those hosts causes a fatal crash in Bun's runtime
+	// (TypeError on `t.streamSimple` where `t` is undefined) that cannot be
+	// caught by a try/catch — the process aborts before the catch clause
+	// runs. Checking Function.length is reliable: OMP's wrapper is
+	//   registerProvider(e, t) { this.runtime.registerProvider(e, t, this.extension.path); }
+	// so its .length is 2, whereas the >=0.81 single-arg signature has .length 1.
+	const arity = (pi.registerProvider as Function).length;
+	if (arity >= 2) {
+		// Host expects the legacy (name, config) form — bridge to it.
+		registerLegacyProviderFromNative(pi, provider);
+		return;
+	}
+
 	// SAFETY: this bridge exists only because the declared peer minimum
 	// registerProvider(provider) single-arg signature is not satisfiable with
 	// the pinned dev snapshot's ExtensionAPI. Provider is the exact runtime
