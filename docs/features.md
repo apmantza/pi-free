@@ -24,6 +24,17 @@ Most pi-free providers now use Pi's native `registerProvider(provider)` surface.
 
 FastRouter and Qoder now use the native provider lifecycle alongside the other migrated providers. Pi owns the OpenCode, OpenCode Go, and OpenRouter built-in catalogs. The `opencode-free` wrapper captures Pi's built-in metadata, then performs one detached `GET /zen/v1/models` refresh after session start so new or retired Zen models are reflected without delaying Pi startup; the `opencode-go` wrapper does the same against the Go tier's public `GET /zen/go/v1/models` endpoint, so Go models OpenCode ships between Pi releases are not stuck on Pi's build-time snapshot. The `openrouter` wrapper does the same against the public `GET /api/v1/models` endpoint: known model IDs keep Pi's curated metadata, while models that are new since Pi's release are synthesized from the endpoint's pricing, context-window, modality, and reasoning data. All three refreshes are detached, deduplicated per process, and never block session start; a failed or empty fetch retains the cached catalog and is written to `~/.pi/free.log` instead of rethrowing into Pi's `Could not refresh …; showing cached models` warning. See [configuration](configuration.md#model-stores-and-caches) for cache locations, including Ollama Cloud's intentional compatibility-cache exception.
 
+## `glob` tool and OpenCode Zen free-tier compatibility
+
+OpenCode Zen's free tier refuses requests that do not look like its own client: it requires the request's `tools[]` to contain the lowercase names `bash`, `edit`, `glob`, `grep`, `read`. Pi's built-in tools are `read`, `bash`, `powershell`, `edit`, `write`, `grep`, `find`, `ls` — its file finder is **`find`**, and `grep` is not in the default roster — so an `opencode-free` turn would present fewer than five of those names and be rejected with `403 FreeTierError` ("OpenCode's free tier can only be used from within OpenCode").
+
+pi-free therefore:
+
+- registers Pi's built-in `find` definition under the name **`glob`** (`createFindToolDefinition`), so the tool keeps Pi's own implementation — schema, `.gitignore` handling, truncation, and the host's search backend. pi-free adds no dependency and spawns nothing itself, so this stays OS-agnostic; and
+- adds `glob` and `grep` to that run's selected tools when the selected model is on `opencode-free` (`event.systemPromptOptions.selectedTools`). The change is per-turn, so no other provider's request changes and nothing is activated globally.
+
+The `glob` tool is registered for every session but only selected on `opencode-free` turns. `opencode-free` inference also sends Zen's anonymous `public` bearer instead of the stored account credential (the keyed free-tier lane is rejected upstream); `opencode-go` keeps its credential. See [providers](providers.md#opencode-and-opencode-go).
+
 ## Coding Index (CI) scores
 
 Where a model matches the benchmark catalog, pi-free appends a Coding Index score such as `CI: 52.3` to its display name. Matching uses direct, alias, provider-normalization, and prefix-fallback strategies. Missing scores are not fabricated.
