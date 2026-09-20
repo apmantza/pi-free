@@ -4,7 +4,7 @@
 
 > **Audit date: 2026-08-26.** Every list below was pulled live from the provider's real endpoint and classified with pi-free's own detection semantics (cost-based Route A, name-based Route B, authoritative stamps). Provider catalogs change constantly — treat this as a verified point-in-time snapshot, not a guarantee. Re-check before relying on any single model.
 
-**Totals at audit time:** ~106 free-classified models across 16 providers. Three registered providers exposed **zero** free models (CrofAI, DeepInfra, SambaNova — see [Zero-free providers](#zero-free-providers)).
+**Totals at audit time:** ~106 free-classified models across 15 providers. Two registered providers exposed **zero** free models (DeepInfra, SambaNova — see [Zero-free providers](#zero-free-providers)).
 
 > **Visibility:** these lists describe what each provider *offers*, not what `/model` shows. Providers you have not logged into are hidden (only the keyless allowlist — Cline, FastRouter, LLM7 — appears logged out); see [Model visibility](providers.md#model-visibility).
 
@@ -282,7 +282,6 @@ These registered providers exposed **no free-classified chat models** at audit t
 
 | Provider | Catalog | Why nothing is free |
 | --- | --- | --- |
-| CrofAI | 21 models | All carry non-zero pricing |
 | DeepInfra | 188 models | 60 zero-priced entries exist but are all media-generation (image/video/TTS/STT) — filtered out; chat models are priced. Access is via the $5 trial credit instead |
 | SambaNova | 7 models | All carry real per-token pricing; the free tier is rate-limited access *at listed prices* (billing-layer, invisible to the catalog) |
 

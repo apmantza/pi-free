@@ -12,7 +12,6 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../config.ts", () => ({
-	getCrofaiApiKey: () => undefined,
 	getDeepinfraApiKey: () => undefined,
 	getNovitaApiKey: () => undefined,
 	getRoutewayApiKey: () => undefined,
@@ -37,7 +36,6 @@ vi.mock("../config.ts", () => ({
 	applyHidden: (models: unknown[]) => models,
 }));
 
-import { crofaiAuth } from "../providers/crofai/crofai-auth.ts";
 import { deepinfraAuth } from "../providers/deepinfra/deepinfra-auth.ts";
 import { novitaAuth } from "../providers/novita/novita-auth.ts";
 import { routewayAuth } from "../providers/routeway/routeway-auth.ts";
@@ -67,7 +65,6 @@ function resolveInput() {
 
 describe("shared-factory providers hide without a key (#530)", () => {
 	it.each([
-		["crofai", crofaiAuth],
 		["deepinfra", deepinfraAuth],
 		["novita", novitaAuth],
 		["routeway", routewayAuth],

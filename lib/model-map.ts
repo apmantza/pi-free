@@ -378,7 +378,7 @@ interface OpenAIModelEntry {
  * Fetch and map models from an OpenAI-compatible /v1/models endpoint.
  *
  * Eliminates ~40 lines of duplicated fetch→parse→map boilerplate
- * that was repeated in CrofAI, DeepInfra, and SambaNova providers.
+ * that was repeated in DeepInfra and SambaNova providers.
  */
 /**
  * Per-model field resolvers for `fetchOpenAICompatibleModels` (arch

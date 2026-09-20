@@ -53,7 +53,6 @@ import {
 } from "./lib/registry.ts";
 // Import unique provider extensions (only providers NOT built into pi)
 import cline from "./providers/cline/cline.ts";
-import crofai from "./providers/crofai/crofai.ts";
 import kilo from "./providers/kilo/kilo.ts";
 import llm7 from "./providers/llm7/llm7.ts";
 import deepinfra from "./providers/deepinfra/deepinfra.ts";
@@ -90,7 +89,6 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 	ollama,
 	cline,
 	zenmux,
-	crofai,
 	llm7,
 	deepinfra,
 	sambanova,

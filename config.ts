@@ -38,7 +38,6 @@ import {
 	PROVIDER_OPENGATEWAY,
 	PROVIDER_TOKENROUTER,
 	PROVIDER_ZENMUX,
-	PROVIDER_CROFAI,
 	PROVIDER_LLM7,
 	PROVIDER_DEEPINFRA,
 	PROVIDER_SAMBANOVA,
@@ -106,7 +105,6 @@ interface PiFreeConfig {
 	nvidia_api_key?: string;
 	ollama_api_key?: string;
 	zenmux_api_key?: string;
-	crofai_api_key?: string;
 	llm7_api_key?: string;
 	deepinfra_api_key?: string;
 	sambanova_api_key?: string;
@@ -134,7 +132,6 @@ interface PiFreeConfig {
 	ollama_show_paid?: boolean;
 	cline_show_paid?: boolean;
 	zenmux_show_paid?: boolean;
-	crofai_show_paid?: boolean;
 	llm7_show_paid?: boolean;
 	deepinfra_show_paid?: boolean;
 	sambanova_show_paid?: boolean;
@@ -184,7 +181,6 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	nvidia_api_key: "",
 	ollama_api_key: "",
 	zenmux_api_key: "",
-	crofai_api_key: "",
 	llm7_api_key: "",
 	deepinfra_api_key: "",
 	sambanova_api_key: "",
@@ -213,7 +209,6 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	ollama_show_paid: false,
 	cline_show_paid: false,
 	zenmux_show_paid: false,
-	crofai_show_paid: false,
 	llm7_show_paid: false,
 	deepinfra_show_paid: false,
 	sambanova_show_paid: false,
@@ -457,7 +452,6 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 	{ id: PROVIDER_KILO, prefix: "KILO", showPaidKey: "kilo_show_paid" },
 	{ id: PROVIDER_CLINE, prefix: "CLINE", showPaidKey: "cline_show_paid" },
 	{ id: PROVIDER_ZENMUX, prefix: "ZENMUX", showPaidKey: "zenmux_show_paid" },
-	{ id: PROVIDER_CROFAI, prefix: "CROFAI", showPaidKey: "crofai_show_paid" },
 	{ id: PROVIDER_LLM7, prefix: "LLM7", showPaidKey: "llm7_show_paid" },
 	{
 		id: PROVIDER_DEEPINFRA,
@@ -648,10 +642,6 @@ export function getZenmuxShowPaid(): boolean {
 	return resolveBool("ZENMUX_SHOW_PAID", loadConfigFile().zenmux_show_paid);
 }
 
-export function getCrofaiShowPaid(): boolean {
-	return resolveBool("CROFAI_SHOW_PAID", loadConfigFile().crofai_show_paid);
-}
-
 export function getLlm7ShowPaid(): boolean {
 	return resolveBool("LLM7_SHOW_PAID", loadConfigFile().llm7_show_paid);
 }
@@ -802,10 +792,6 @@ export function getNvidiaApiKey(): string | undefined {
 
 export function getZenmuxApiKey(): string | undefined {
 	return resolve("ZENMUX_API_KEY", loadConfigFile().zenmux_api_key);
-}
-
-export function getCrofaiApiKey(): string | undefined {
-	return resolve("CROFAI_API_KEY", loadConfigFile().crofai_api_key);
 }
 
 export function getLlm7ApiKey(): string | undefined {

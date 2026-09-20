@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import type { Model, Api, Context } from "@earendil-works/pi-ai/compat";
+import type { Model, Api } from "@earendil-works/pi-ai/compat";
 import {
 	createOpenCodeHeaders,
 	createOpenCodeStreamSimple,
@@ -351,7 +351,9 @@ console.log(JSON.stringify({
 			baseUrl: "https://api.opencode.ai/anthropic",
 		} as Model<Api>;
 
-		const context = { messages: [] } as unknown as Context;
+		const context = { messages: [] } as unknown as Parameters<
+			typeof streamSimple
+		>[1];
 
 		// This should NOT throw — it will attempt to import the anthropic
 		// subpath via importPiAiSubpath, which uses the fixed fallback.
@@ -401,7 +403,9 @@ console.log(JSON.stringify({
 			baseUrl: "https://api.opencode.ai/v1",
 		} as Model<Api>;
 
-		const context = { messages: [] } as unknown as Context;
+		const context = { messages: [] } as unknown as Parameters<
+			typeof streamSimple
+		>[1];
 
 		const stream = streamSimple(openaiModel, context);
 		expect(stream).toBeDefined();

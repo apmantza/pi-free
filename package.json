@@ -4,7 +4,6 @@
 	"description": "AI model providers for Pi with free model filtering and dynamic model fetching",
 	"keywords": [
 		"cline",
-		"crofai",
 		"free-models",
 		"kilo",
 		"model-filter",
@@ -69,7 +68,7 @@
 		"smoke:pi-upgrade": "node scripts/pi-upgrade-smoke.mjs"
 	},
 	"devDependencies": {
-		"@earendil-works/pi-coding-agent": "^0.85.1",
+		"@earendil-works/pi-coding-agent": "^0.86.0",
 		"@stryker-mutator/core": "10.0.0",
 		"@stryker-mutator/vitest-runner": "10.0.0",
 		"@vitest/coverage-v8": "^5.0.0",
@@ -84,8 +83,8 @@
 		"vitest": "^5.0.0"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-ai": "^0.85.1",
-		"@earendil-works/pi-coding-agent": ">=0.81.0",
+		"@earendil-works/pi-ai": "^0.86.0",
+		"@earendil-works/pi-coding-agent": ">=0.86.0",
 		"@earendil-works/pi-tui": ">=0.81.0"
 	},
 	"peerDependenciesMeta": {

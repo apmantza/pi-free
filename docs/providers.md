@@ -145,16 +145,6 @@ export ZENMUX_API_KEY="..."
 
 Or set `zenmux_api_key`. Toggle with `/toggle-zenmux`.
 
-### CrofAI
-
-OpenAI-compatible provider requiring a CrofAI key and credits:
-
-```bash
-export CROFAI_API_KEY="..."
-```
-
-Or set `crofai_api_key`. Toggle with `/toggle-crofai`.
-
 ### DeepInfra
 
 DeepInfra offers trial credits and paid inference. Its environment variable is intentionally `DEEPINFRA_TOKEN` (not `DEEPINFRA_API_KEY`):
