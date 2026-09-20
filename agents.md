@@ -28,6 +28,7 @@ A **Pi extension** that registers free and paid AI model providers with Pi's mod
 ```text
 index.ts                          ← Extension entry (piFreeEntry)
   ├─ lib/registry.ts              ← provider registry, isFreeModel, resolveModelView
+  ├─ lib/glob-tool.ts             ← `glob` tool (Pi find under the Zen gate name)
   ├─ lib/stale-ctx.ts             ← stale-context guard
   ├─ lib/native-provider.ts       ← native Provider factory/bridge
   ├─ lib/toggle-state.ts          ← free↔all state machine
