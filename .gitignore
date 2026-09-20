@@ -2,6 +2,7 @@ node_modules/
 .claude/
 .pisessionsummaries/
 .pi-lens/
+.vitest/
 *.log
 .smoke-artifacts/
 .pi/greedysearch-sources/
