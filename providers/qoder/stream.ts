@@ -14,13 +14,17 @@ import type {
 	Api,
 	AssistantMessage,
 	AssistantMessageEventStream as PiAssistantMessageEventStream,
-	Context,
 	Model,
 	SimpleStreamOptions,
 	StopReason,
 	TextContent,
 	ThinkingContent,
 	ToolCall,
+	TranscriptContext,
+} from "@earendil-works/pi-ai/compat";
+import {
+	getCurrentSystemPrompt,
+	getCurrentTools,
 } from "@earendil-works/pi-ai/compat";
 import { AssistantMessageEventStream as LocalAssistantMessageEventStream } from "../../lib/assistant-message-event-stream.ts";
 import { BASE_URL_QODER } from "../../constants.ts";
@@ -322,7 +326,7 @@ interface StreamSetup {
 
 function buildStreamSetup(
 	model: Model<Api>,
-	context: Context,
+	context: TranscriptContext,
 	options: SimpleStreamOptions | undefined,
 ): StreamSetup {
 	const accessToken = options?.apiKey;
@@ -345,8 +349,13 @@ function buildStreamSetup(
 
 	const maxOutputTokens = (modelConfig.max_output_tokens as number) || 32768;
 
+	// Pi 0.86+ normalizes the request into a TranscriptContext: the system
+	// prompt and tool declarations live in the transcript's system messages and
+	// are read via the transcript helpers (top-level context.systemPrompt /
+	// context.tools were removed). getCurrentSystemPrompt folds any
+	// mid-conversation system messages into one prompt.
+	const systemText = getCurrentSystemPrompt(context.messages) || "";
 	let normalizedMessages = transformMessagesForQoder(context.messages);
-	const systemText = context.systemPrompt || "";
 
 	// Prepend system prompt as a system message if present.
 	if (systemText) {
@@ -358,10 +367,8 @@ function buildStreamSetup(
 
 	const maxTokens = resolveMaxTokens(maxOutputTokens, options?.maxTokens);
 
-	const toolsRaw =
-		context.tools && context.tools.length > 0
-			? transformTools(context.tools)
-			: undefined;
+	const tools = getCurrentTools(context.messages);
+	const toolsRaw = tools.length > 0 ? transformTools(tools) : undefined;
 
 	if (isDebug) {
 		logger.info("[QODER] streaming request", {
@@ -411,6 +418,10 @@ async function fetchQoderStream(
 		"User-Agent": "pi-free-providers",
 	};
 
+	// QODER_CHAT_URL is a build-time constant derived from BASE_URL_QODER; no
+	// request input reaches the destination host, so the SSRF heuristic is a
+	// false positive here.
+	// pi-lens-ignore: ts-ssrf
 	const response = await fetch(
 		QODER_CHAT_URL,
 		withSignal(
@@ -451,7 +462,7 @@ async function fetchQoderStream(
 
 export function streamQoder(
 	model: Model<Api>,
-	context: Context,
+	context: TranscriptContext,
 	options?: SimpleStreamOptions,
 ): PiAssistantMessageEventStream {
 	const stream = new LocalAssistantMessageEventStream();
@@ -495,7 +506,7 @@ async function runStream(
 	output: AssistantMessage,
 	stream: LocalAssistantMessageEventStream,
 	model: Model<Api>,
-	context: Context,
+	context: TranscriptContext,
 	options: SimpleStreamOptions | undefined,
 ): Promise<void> {
 	try {

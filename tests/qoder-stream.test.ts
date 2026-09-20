@@ -98,11 +98,9 @@ function modelStub(id: string) {
 }
 
 function contextStub(messages: unknown[] = []) {
-	return {
-		messages,
-		systemPrompt: "",
-		tools: [],
-	} as any;
+	// Pi 0.86+ TranscriptContext shape: the system prompt and tools live in the
+	// transcript's system messages, so the stub only carries messages.
+	return { messages } as any;
 }
 
 function getMockStream(stream: unknown): MockStreamShape {
