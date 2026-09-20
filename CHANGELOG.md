@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **ZenMux listed non-chat models** — the ZenMux catalog carries image/video generation, speech/transcription, embeddings and rerank endpoints (33 of 192 at the time of the fix), and `fetchZenmuxCatalog` ignored `output_modalities`, so all of them reached the model picker. Entries whose `output_modalities` is present and lacks `text` are now dropped; rows with no modality info are kept, matching the shared OpenRouter-compatible filter (refs #551).
+
 - **pi-ai / pi-coding-agent floors raised to 0.86** — Pi 0.86 hands providers a normalized `TranscriptContext` (system prompt and tool declarations live in the transcript's system messages) and `openai-completions` reads tools via `getDeclaredTools(context.messages)`, not the old top-level `context.tools`. The `^0.85.1` peer floor excluded `0.86.0`, so an installed pi-free kept resolving its own nested pi-ai 0.85.1 while the host moved to 0.86 — every native provider (ZenMux, Kilo, Cline, LLM7, DeepInfra, …) then lost tool calls (`Cannot read properties of undefined (reading 'length')`). Floors are now `@earendil-works/pi-ai@^0.86.0` / `@earendil-works/pi-coding-agent@>=0.86.0`; the dev snapshot and the vendored pi-ai fallback bundles are rebuilt against 0.86 (refs #545).
 
 - **pi-ai peer floor raised to ^0.85.1** — the pi-coding-agent 0.85.1 bump split the dev tree into two pi-ai copies (0.84.4 top-level vs 0.85.1 nested), failing `tsc` on master with a nominal stream-type clash. Both copies now resolve to 0.85.x while production installs still vendor the required peer (refs #539).

@@ -145,6 +145,8 @@ export ZENMUX_API_KEY="..."
 
 Or set `zenmux_api_key`. Toggle with `/toggle-zenmux`.
 
+The catalog also lists non-chat endpoints (image/video generation, speech/transcription, embeddings, rerank); pi-free registers only chat-capable entries, dropping any model whose `output_modalities` is present and does not include `text` and keeping rows with no modality info.
+
 ### DeepInfra
 
 DeepInfra offers trial credits and paid inference. Its environment variable is intentionally `DEEPINFRA_TOKEN` (not `DEEPINFRA_API_KEY`):
