@@ -14,7 +14,6 @@ These are the pi-free config keys and their environment variables:
 | `cline_api_key` | `CLINE_API_KEY` |
 | `ollama_api_key` | `OLLAMA_API_KEY` |
 | `zenmux_api_key` | `ZENMUX_API_KEY` |
-| `crofai_api_key` | `CROFAI_API_KEY` |
 | `llm7_api_key` | `LLM7_API_KEY` |
 | `deepinfra_api_key` | `DEEPINFRA_TOKEN` |
 | `sambanova_api_key` | `SAMBANOVA_API_KEY` |

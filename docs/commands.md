@@ -26,7 +26,6 @@ Run `/toggle-{provider}` to switch between a provider's free/basic view and its 
 | `/toggle-ollama-cloud` | Ollama Cloud | Native |
 | `/toggle-llm7` | LLM7 | Native |
 | `/toggle-zenmux` | ZenMux | Native |
-| `/toggle-crofai` | CrofAI | Native |
 | `/toggle-deepinfra` | DeepInfra | Native |
 | `/toggle-sambanova` | SambaNova | Native |
 | `/toggle-novita` | Novita AI | Native |

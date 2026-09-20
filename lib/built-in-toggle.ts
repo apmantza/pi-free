@@ -20,6 +20,7 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
+import { PROVIDER_OPENCODE_FREE } from "../constants.ts";
 import { getOpencodeApiKey, setModelViewOverride } from "../config.ts";
 import { recordAction } from "./action-log.ts";
 import { createLogger, withRunId } from "./logger.ts";
@@ -734,7 +735,11 @@ function createProviderState(
 			...(apiKey === undefined ? {} : { apiKey }),
 			api: isOpenCodeProvider(config.id) ? OPENCODE_DYNAMIC_API : api,
 			...(isOpenCodeProvider(config.id)
-				? { streamSimple: createOpenCodeStreamSimple(getOpenCodeSession()) }
+				? {
+						streamSimple: createOpenCodeStreamSimple(getOpenCodeSession(), {
+							anonymous: config.id === PROVIDER_OPENCODE_FREE,
+						}),
+					}
 				: {}),
 			models,
 		};

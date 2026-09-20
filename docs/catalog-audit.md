@@ -35,7 +35,6 @@ Fetched directly from each provider's real `/models` endpoint. Carried over unch
 | Novita | 151 | 0 | Trial-credit posture, same as DeepInfra |
 | Routeway | 246 | 6 | |
 | Venice AI | 113 | 1 | `stealth-ox-alpha` is $0-listed but Venice gates inference behind account balance (402 when unfunded) |
-| CrofAI | 21 | 0 | |
 | SambaNova | 7 | 0 | Free tier is at the billing layer; list prices nonzero |
 | Agnes AI | 4 | 2 | Flash class free, pro paid per Agnes pricing docs |
 | OpenGateway | 14 | 2 | Promotional free entries |

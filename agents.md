@@ -19,7 +19,7 @@ Durable context for every agent on pi-free. **Update it in the same commit that 
 A **Pi extension** that registers free and paid AI model providers with Pi's model picker: free models by default, per-provider free↔all toggles via `/toggle-{provider}`.
 
 **Package:** `pi-free` v2.8.1 · MIT · Apostolos Mantzaris · `github.com/apmantza/pi-free`
-**Peer deps:** `@earendil-works/pi-ai` (`^0.85.1` — floor tracks pi-coding-agent's minor, defect shape 10), `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui` (both `>=0.81.0`; the native `createProvider` / `registerProvider(provider)` surface)
+**Peer deps:** `@earendil-works/pi-ai` (`^0.86.0` — floor tracks pi-coding-agent's minor, defect shape 10), `@earendil-works/pi-coding-agent` (`>=0.86.0`; 0.86 introduced the `TranscriptContext` provider contract), `@earendil-works/pi-tui` (`>=0.81.0`; the native `createProvider` / `registerProvider(provider)` surface)
 
 ---
 
@@ -72,7 +72,7 @@ index.ts                          ← Extension entry (piFreeEntry)
   │
   └─ providers/                   ← per-provider extensions (default async fn each):
       kilo/ cline/ (native reference ports) novita venice ollama-cloud routeway
-      opengateway sambanova zenmux crofai llm7 deepinfra tokenrouter anyapi
+      opengateway sambanova zenmux llm7 deepinfra tokenrouter anyapi
       model-fetcher.ts (shared OpenRouter fetching) opencode-session.ts qoder/
       bai agnes commandcode infron merge/ fastrouter/ requesty stepfun/
       (gmi/ mirrors this structure for GMI Cloud; full per-file map under
@@ -162,7 +162,7 @@ One rule (`resolveModelView` in `lib/registry.ts`): **explicit per-provider choi
 | ----------- | -------------------------------------------------- | ----------------- | -------------------------------- |
 | ✅ Free / free-tier | kilo, cline, llm7, tokenrouter, agnes, qoder basic | OAuth, key, or none | Toggles can expose paid |
 | 🔄 Freemium | anyapi, ollama-cloud, sambanova, requesty | API key | Free allowance with limits |
-| 💳 Paid / trial | zenmux, crofai, deepinfra, novita, routeway, opengateway, bai, stepfun, gmi, venice, merge, qoder premium | API key, OAuth, or credits | Trial credit or premium tier |
+| 💳 Paid / trial | zenmux, deepinfra, novita, routeway, opengateway, bai, stepfun, gmi, venice, merge, qoder premium | API key, OAuth, or credits | Trial credit or premium tier |
 | 🔧 Native | (all above except built-ins) | API key, OAuth, or none | Pi owns catalog refresh + native stores |
 
 | 🔧 Built-in | opencode-free, opencode-go, openrouter | Built-in Pi auth | Built-in toggles; Pi owns catalogs |
@@ -245,7 +245,7 @@ Screen against these BEFORE writing code — each one cost a real incident:
 
 **Authentication notes:**
 
-- **Anonymous public catalogs** — Kilo, ZenMux, CrofAI, DeepInfra, Novita, Routeway, SambaNova, FastRouter, Cline resolve keyless (`public catalog (no account)`); chat still needs a key/login. StepFun, GMI Cloud, Agnes AI, TokenRouter, AnyAPI, B.AI, OpenGateway, Merge Gateway resolve `undefined` without a key (#421).
+- **Anonymous public catalogs** — Kilo, ZenMux, DeepInfra, Novita, Routeway, SambaNova, FastRouter, Cline resolve keyless (`public catalog (no account)`); chat still needs a key/login. StepFun, GMI Cloud, Agnes AI, TokenRouter, AnyAPI, B.AI, OpenGateway, Merge Gateway resolve `undefined` without a key (#421).
 - **Kilo/Cline** support OAuth (`/login`) and API keys (`KILO_API_KEY` / `CLINE_API_KEY` or `~/.pi/free.json`); stored credential wins, then ambient key. Cline's catalog refreshes without a credential.
 - **Qoder**: OAuth/PAT, Pi-owned stores, COSY signing, custom stream. `/login qoder` or `QODER_PERSONAL_ACCESS_TOKEN` / `QODER_PAT`.
 - **OpenCode / OpenCode Go** are Pi-built-in; pi-free captures their catalogs for filtering, then runs one **detached** public-endpoint refresh per tier for models shipped between Pi releases. New IDs synthesize via `resolveOpenCodeModelApi`/`applyOpenCodeProtocolDefaults`. Failed/empty/aborted fetches retain cache and never rethrow. `resolveApiKey` omits absent credentials so logged-out providers read as unavailable, not refresh failures (defect shape 9; full #504 narrative in HISTORY.md).

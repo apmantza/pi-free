@@ -22,6 +22,15 @@ import { loadPiAiEntry } from "../lib/pi-ai-loader.ts";
 
 export const OPENCODE_DYNAMIC_API = "opencode-dynamic" as const;
 
+/**
+ * Zen's anonymous bearer. opencode-free sends this instead of the account
+ * credential because the keyed free-tier lane is rejected upstream ("Model
+ * access is disabled"), while the literal `public` bearer is treated as
+ * anonymous and accepted. Sent only when `createOpenCodeStreamSimple` is
+ * constructed with `{ anonymous: true }` (the opencode-free provider).
+ */
+const OPENCODE_ANONYMOUS_API_KEY = "public";
+
 const OPENCODE_STATIC_HEADERS = {
 	"User-Agent": "opencode/1.18.18",
 	"x-opencode-client": "cli",
@@ -581,9 +590,18 @@ async function pipeStream(
  */
 export function createOpenCodeStreamSimple(
 	tracker: OpenCodeSessionTracker,
+	settings?: { anonymous?: boolean },
 ): NonNullable<ProviderConfig["streamSimple"]> {
+	// opencode-free must not send the account key: the keyed free-tier lane is
+	// disabled upstream, so every keyed request 403s with "Model access is
+	// disabled". The anonymous `public` bearer is accepted. opencode-go keeps
+	// the credential (its own `lite` lane).
+	const anonymous = settings?.anonymous === true;
 	return (model, context, options) => {
 		const headers = createOpenCodeHeaders(tracker, options?.headers);
+		const requestOptions = anonymous
+			? { ...options, apiKey: OPENCODE_ANONYMOUS_API_KEY }
+			: options;
 		const stream = new DeferredAssistantMessageEventStream();
 
 		// Sanitize context messages for Anthropic/OpenAI compatibility.
@@ -625,7 +643,7 @@ export function createOpenCodeStreamSimple(
 								api: "anthropic-messages",
 							} as Model<"anthropic-messages">,
 							sanitizedContext,
-							{ ...options, headers },
+							{ ...requestOptions, headers },
 						),
 					);
 					return;
@@ -646,7 +664,7 @@ export function createOpenCodeStreamSimple(
 								api: "google-generative-ai",
 							} as Model<"google-generative-ai">,
 							sanitizedContext,
-							{ ...options, headers },
+							{ ...requestOptions, headers },
 						),
 					);
 					return;
@@ -667,7 +685,7 @@ export function createOpenCodeStreamSimple(
 								api: "openai-responses",
 							} as Model<"openai-responses">,
 							sanitizedContext,
-							{ ...options, headers },
+							{ ...requestOptions, headers },
 						),
 					);
 					return;
@@ -687,7 +705,7 @@ export function createOpenCodeStreamSimple(
 							api: "openai-completions",
 						} as Model<"openai-completions">,
 						sanitizedContext,
-						{ ...options, headers },
+						{ ...requestOptions, headers },
 					),
 				);
 			} catch (error) {
