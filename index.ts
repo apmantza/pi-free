@@ -51,6 +51,7 @@ import {
 	isFreeModel,
 	registerWithGlobalToggle,
 } from "./lib/registry.ts";
+import { addOpenCodeFreeGateTools, registerGlobTool } from "./lib/glob-tool.ts";
 // Import unique provider extensions (only providers NOT built into pi)
 import cline from "./providers/cline/cline.ts";
 import kilo from "./providers/kilo/kilo.ts";
@@ -558,6 +559,17 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 
 		// Setup auto-fallback (event-driven model switching on errors)
 		setupAutoFallback(pi);
+
+		// Expose Pi's file finder as `glob`, and present the OpenCode Zen
+		// free-tier gate tool names on opencode-free turns only (issue #544).
+		// Registered once per runner with the others; both are guarded by the
+		// same `handlersRegisteredFor` identity check above. The host package
+		// import is lazy, so a production-shaped tree without the optional
+		// peer still loads (registerGlobTool returns false there).
+		await registerGlobTool(pi, process.cwd());
+		pi.on("before_agent_start", (event, ctx) => {
+			addOpenCodeFreeGateTools(event, ctx.model?.provider);
+		});
 	}
 	endPhase("global-handlers");
 

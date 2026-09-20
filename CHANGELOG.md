@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`glob` tool for the OpenCode Zen free-tier gate** — registers Pi's built-in `find` definition under the name `glob` (`createFindToolDefinition`) and adds `glob` + `grep` to this run's `systemPromptOptions.selectedTools` on `opencode-free` turns only. Zen's free tier requires the request `tools[]` to carry `bash, edit, glob, grep, read`; Pi's default roster is `read, write, edit, bash` and its file finder is named `find`, so opencode-free presented fewer than five and was refused with `403 FreeTierError`. Delegating to Pi's own `find` keeps this OS-agnostic (no new dependency, no search binary spawned by pi-free). Verified end-to-end: a real Pi session on `opencode-free/big-pickle` sent all five names and the provider answered HTTP 200 (refs #544).
+
 ### Changed
 
 - **opencode-free requests are anonymous** — Zen's keyed free-tier lane is rejected upstream ("Model access is disabled"), so `opencode-free` now sends the literal `public` bearer instead of the resolved account credential (`createOpenCodeStreamSimple(..., { anonymous: true })`). `opencode-go` keeps the credential. Stopgap for the upstream free-tier client gate; the remaining `glob`-tool blocker is tracked in #544.
