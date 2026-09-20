@@ -17,7 +17,10 @@ import type {
 	ProviderConfig,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import { DEFAULT_FETCH_TIMEOUT_MS } from "../constants.ts";
+import {
+	DEFAULT_FETCH_TIMEOUT_MS,
+	PROVIDER_OPENCODE_FREE,
+} from "../constants.ts";
 import { loadPiAiEntry } from "../lib/pi-ai-loader.ts";
 
 export const OPENCODE_DYNAMIC_API = "opencode-dynamic" as const;
@@ -732,6 +735,40 @@ let _apiProviderRegistrationSourceId: string | undefined;
 let _apiProviderRegistrationPromise: Promise<void> | undefined;
 
 /**
+ * Pick the stream for a compat-registry call. The registry key is the api id
+ * (`opencode-dynamic`), so `opencode-free` and `opencode-go` share one entry:
+ * free models must use the anonymous bearer, Go keeps the credential.
+ *
+ * Exported so the rule is unit-tested directly.
+ */
+export function selectOpenCodeCompatStream<T>(
+	freeStream: T,
+	keyedStream: T,
+	providerId: string | undefined,
+): T {
+	return providerId === PROVIDER_OPENCODE_FREE ? freeStream : keyedStream;
+}
+
+/**
+ * Stream for the compat registry: one anonymous instance and one keyed
+ * instance, dispatched per model. `createStream` is injectable so a test can
+ * assert both construction flags without a network or host import.
+ */
+export function createOpenCodeCompatStream(
+	tracker: OpenCodeSessionTracker,
+	createStream: typeof createOpenCodeStreamSimple = createOpenCodeStreamSimple,
+): NonNullable<ProviderConfig["streamSimple"]> {
+	const freeStream = createStream(tracker, { anonymous: true });
+	const keyedStream = createStream(tracker);
+	return (model, context, options) =>
+		selectOpenCodeCompatStream(freeStream, keyedStream, model.provider)(
+			model,
+			context,
+			options,
+		);
+}
+
+/**
  * Register the opencode-dynamic API in compat's global API registry
  * so that fallback code paths (compat streamSimple) can resolve it.
  * Safe to call multiple times — registers once per tracker instance.
@@ -746,7 +783,7 @@ export function ensureOpenCodeApiProviderRegistered(
 	if (_apiProviderRegistrationSourceId || _apiProviderRegistrationPromise)
 		return;
 
-	const streamFn = createOpenCodeStreamSimple(tracker);
+	const streamFn = createOpenCodeCompatStream(tracker);
 	const sourceId = `pi-free-opencode-${randomBytes(4).toString("hex")}`;
 	_apiProviderRegistrationPromise = loadPiAiEntry<{
 		registerApiProvider?: unknown;
