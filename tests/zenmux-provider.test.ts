@@ -338,4 +338,35 @@ describe("fetchZenmuxCatalog", () => {
 			10_000,
 		);
 	});
+
+	it("drops non-chat (non-text-output) catalog entries", async () => {
+		mockFetchWithRetry.mockResolvedValue({
+			ok: true,
+			json: async () => ({
+				data: [
+					{
+						id: "text/chat",
+						display_name: "Chat",
+						output_modalities: ["text"],
+					},
+					{
+						id: "image/gen",
+						display_name: "Image",
+						output_modalities: ["image"],
+					},
+					{
+						id: "video/gen",
+						display_name: "Video",
+						output_modalities: ["video"],
+					},
+					{ id: "tts/gen", display_name: "TTS", output_modalities: ["speech"] },
+					{ id: "unknown/mod", display_name: "Unknown" },
+				],
+			}),
+		});
+
+		const { all } = await fetchZenmuxCatalog({});
+
+		expect(all.map((model) => model.id)).toEqual(["text/chat", "unknown/mod"]);
+	});
 });

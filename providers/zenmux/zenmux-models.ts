@@ -43,6 +43,19 @@ function extractZenmuxPrice(
 }
 
 /**
+ * Whether a catalog entry can produce chat text. ZenMux lists image/video
+ * generation, speech/transcription, embeddings and rerank endpoints alongside
+ * chat models; only text-output entries belong in the model picker. Entries
+ * with no `output_modalities` are kept (older/partial rows) to avoid
+ * over-filtering — the same rule the shared OpenRouter-compatible fetcher
+ * applies.
+ */
+function isChatModel(model: ZenMuxModel): boolean {
+	const outputModalities = model.output_modalities ?? [];
+	return outputModalities.length === 0 || outputModalities.includes("text");
+}
+
+/**
  * Fetch and convert the ZenMux catalog. The catalog endpoint is public, so a
  * missing token fetches anonymously (no Authorization header); a configured
  * token is sent when present.
@@ -79,7 +92,9 @@ export async function fetchZenmuxCatalog(options: {
 		}
 
 		const data = (await response.json()) as { data?: ZenMuxModel[] };
-		const mapped = (data.data ?? []).map((model) => {
+		// Chat entries only; see isChatModel.
+		const chatModels = (data.data ?? []).filter(isChatModel);
+		const mapped = chatModels.map((model) => {
 			const hasPricings = model.pricings !== undefined;
 			return {
 				id: model.id,
