@@ -13,6 +13,10 @@ Each provider's live `/models` endpoint is fetched (stored credential from `~/.p
 
 Counts drift as providers change their catalogs — treat every audit below as a verified snapshot, never a guarantee. Providers whose credentials are unavailable are listed as "not audited" rather than guessed. Never print or commit API keys during an audit.
 
+## 2026-09-22 — 2.8.2 carry-over
+
+Carry forward the 2026-08-26 snapshot under the patch exception. Version 2.8.2 changes authentication routing (anonymous opencode-free bearer, compat-registry dispatch), host compatibility (OMP bridge discriminator), log-stream teardown handling, ZenMux output-modality picker filtering, and dependency floors; it does not change free/paid price-classification semantics, and the CrofAI removal is already reflected in the tables below. No fresh full-provider audit was run; counts and expired promotional windows below remain historical. The same carry-over is recorded in [free_models.md](free_models.md#2026-09-22--282-carry-over) and the 2.8.2 changelog.
+
 ## 2026-09-12 — 2.8.1 carry-over
 
 Carry forward the 2026-08-26 snapshot under the authentication-only release exception. Version 2.8.1 removes an unconditional missing-key override; it does not change catalog fetching, model lists, pricing classification, or promotional rules. The OpenCode live refresh reproduction is recorded in [issue-504-investigation.md](issue-504-investigation.md), not presented as a full-provider audit. No fresh full-provider audit was run; counts and expired promotional windows below remain historical. The same carry-over is recorded in [free_models.md](free_models.md) and the 2.8.1 changelog.

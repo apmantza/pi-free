@@ -1,6 +1,6 @@
 # Free Models Catalog
 
-> **2026-09-12 — 2.8.1 carry-over:** this authentication-only patch leaves catalog fetching and free/paid classification unchanged. The 2026-08-26 snapshot is carried forward, not freshly audited. Counts and promotional windows remain historical; expired promotions are not renewed by this note. See [catalog audit](catalog-audit.md#2026-09-12--281-carry-over).
+> **2026-09-22 — 2.8.2 carry-over:** this patch (auth routing, host compat, logging, picker-level modality filter, dep floors) leaves free/paid price classification unchanged. The 2026-08-26 snapshot is carried forward, not freshly audited. Counts and promotional windows remain historical; expired promotions are not renewed by this note. See [catalog audit](catalog-audit.md#2026-09-22--282-carry-over).
 
 > **Audit date: 2026-08-26.** Every list below was pulled live from the provider's real endpoint and classified with pi-free's own detection semantics (cost-based Route A, name-based Route B, authoritative stamps). Provider catalogs change constantly — treat this as a verified point-in-time snapshot, not a guarantee. Re-check before relying on any single model.
 
