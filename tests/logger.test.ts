@@ -18,6 +18,7 @@ interface FakeWriteStream {
 	write(chunk: string, callback: (err?: Error | null) => void): boolean;
 	end(callback?: () => void): void;
 	destroy(): void;
+	waitForWrite(): Promise<void>;
 }
 
 /**
@@ -30,6 +31,14 @@ function createFakeDestroyableStream(): FakeWriteStream {
 	const errorHandlers: ((err: Error) => void)[] = [];
 	const pendingCallbacks: ((err?: Error | null) => void)[] = [];
 	let destroyed = false;
+	let resolveFirstWrite: (() => void) | null = null;
+	const firstWrite = new Promise<void>((resolve) => {
+		resolveFirstWrite = resolve;
+	});
+	const markFirstWrite = () => {
+		resolveFirstWrite?.();
+		resolveFirstWrite = null;
+	};
 	const stream: FakeWriteStream = {
 		on(event, handler) {
 			if (event === "error") errorHandlers.push(handler);
@@ -37,6 +46,7 @@ function createFakeDestroyableStream(): FakeWriteStream {
 		},
 		write(_chunk, callback) {
 			if (destroyed) {
+				markFirstWrite();
 				queueMicrotask(() =>
 					callback(
 						new Error(
@@ -47,6 +57,7 @@ function createFakeDestroyableStream(): FakeWriteStream {
 				return false;
 			}
 			pendingCallbacks.push(callback);
+			markFirstWrite();
 			return true;
 		},
 		end(callback) {
@@ -61,6 +72,9 @@ function createFakeDestroyableStream(): FakeWriteStream {
 			);
 			for (const callback of pendingCallbacks.splice(0)) callback(err);
 			for (const handler of errorHandlers) handler(err);
+		},
+		waitForWrite() {
+			return firstWrite;
 		},
 	};
 	return stream;
@@ -182,6 +196,40 @@ describe("logger file rotation", () => {
 });
 
 describe("flushLogsSync", () => {
+	it("does not report an error from a stream detached by synchronous flush", async () => {
+		const home = await mkdtemp(
+			join(tmpdir(), "pi-free-logger-stale-stream-test-"),
+		);
+		const consoleError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => undefined);
+		try {
+			vi.stubEnv("HOME", home);
+			vi.stubEnv("USERPROFILE", home);
+			vi.stubEnv("PI_FREE_LOG_PATH", "stale-stream.log");
+			vi.stubEnv("PI_FREE_LOG_LEVEL", "debug");
+			vi.stubEnv("PI_FREE_FILE_LOG", "true");
+			vi.resetModules();
+
+			const fakeStream = createFakeDestroyableStream();
+			nextFakeStream = () => fakeStream;
+
+			const { createLogger, flushLogsSync } = await import("../lib/logger.ts");
+			createLogger("stale-stream-test").info("flush-marker");
+			await fakeStream.waitForWrite();
+
+			flushLogsSync();
+
+			expect(consoleError).not.toHaveBeenCalledWith(
+				"Failed to write to log file:",
+				expect.anything(),
+			);
+		} finally {
+			consoleError.mockRestore();
+			await removeHomeRetry(home);
+		}
+	});
+
 	it("writes buffered log lines to disk synchronously", async () => {
 		const home = await mkdtemp(join(tmpdir(), "pi-free-logger-flush-test-"));
 		try {

@@ -263,6 +263,12 @@ function flushQueuedFallback(): void {
 
 function attachLogStream(stream: WriteStream, existingBytes: number): void {
 	stream.on("error", (err) => {
+		// Rotation and flushLogsSync() detach a stream before ending/destroying
+		// it. Node reports pending writes on that old stream as errors; the
+		// write callbacks already recover those lines, so do not surface an
+		// expected teardown on stderr. Errors from the active stream still
+		// switch logging to the synchronous fallback below.
+		if (stream !== logStream) return;
 		console.error("Failed to write to log file:", err);
 		logStreamUnavailable = true;
 		logStream = null;
