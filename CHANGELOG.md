@@ -5,7 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.8.2] - 2026-09-22
+
+### Changed
+
+- **Catalog audit carry-over (2026-09-22)** — retain the 2026-08-26 audit snapshot for this patch. No change in this window alters free/paid price classification: the ZenMux edit filters by output modality at the picker level only, the CrofAI removal is already reflected in the docs, and the remaining changes are authentication routing, host compatibility, logging, and dependency floors. No fresh full-provider audit is claimed. See `docs/catalog-audit.md` and `docs/free_models.md`.
 
 ### Added
 
