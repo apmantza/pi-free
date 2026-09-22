@@ -583,10 +583,20 @@ export function registerLegacyProviderFromNative(
 /**
  * Whether this host needs the legacy two-argument provider bridge.
  *
- * A host that exposes `registerNativeProvider` speaks native Provider
- * objects — bridge is never needed there. Otherwise the bridge is explicit
- * opt-in only (`oh_my_pi_compat` in `~/.pi/free.json` or `OH_MY_PI_COMPAT=1`);
- * stock Pi must keep the native single-arg path.
+ * Decision order (first match wins):
+ *
+ * 1. Explicit override — `oh_my_pi_compat` in `~/.pi/free.json` (or
+ *    `OH_MY_PI_COMPAT=1`) forces the bridge, e.g. for OMP API drift or
+ *    other legacy-only hosts.
+ * 2. Native capability — a host exposing `registerNativeProvider` speaks
+ *    native Provider objects; the bridge is never needed there.
+ * 3. Auto-detect — Oh My Pi exposes a legacy-only two-argument
+ *    `registerProvider(name, config)` plus OMP-specific API members. Both
+ *    markers below are verified against can1357/oh-my-pi
+ *    (`packages/coding-agent/src/extensibility/extensions/types.ts`:
+ *    `registerFileWriteFallback`, injected `arktype` shim) and both are
+ *    absent from the installed stock-Pi bundle, so an unknown future host
+ *    falls through to the native default instead of being misrouted.
  *
  * Deliberately NOT based on `Function.length`: stock Pi's extension-facing
  * `registerProvider(providerOrName, config)` overload also has `.length 2`
@@ -595,12 +605,14 @@ export function registerLegacyProviderFromNative(
  * exists to prevent. Exported so the rule is unit-tested directly.
  */
 export function shouldUseLegacyProviderBridge(pi: ExtensionAPI): boolean {
-	// SAFETY: capability probe only — reads one optional method off the host
-	// object; no call, no write, no behavioral assumption beyond presence.
-	const hostSpeaksNative =
-		typeof (pi as { registerNativeProvider?: unknown })
-			.registerNativeProvider === "function";
-	return !hostSpeaksNative && isOhMyPiCompat();
+	if (isOhMyPiCompat()) return true;
+	// SAFETY: capability probes only — read optional members off the host
+	// object; no calls, no writes, no behavioral assumptions beyond presence.
+	const maybeNative = pi as unknown as {
+		registerNativeProvider?: unknown;
+	};
+	if (typeof maybeNative.registerNativeProvider === "function") return false;
+	return "registerFileWriteFallback" in pi && "arktype" in pi;
 }
 
 /** Register a native provider across the current dev snapshot, >=0.81 peers, and Oh My Pi (omp). */

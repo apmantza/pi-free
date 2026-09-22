@@ -9,10 +9,14 @@
  * supported host while trying to fix Oh My Pi. Mocks (`vi.fn()`, length 0)
  * masked it, and the bridge shipped with 0% coverage.
  *
- * The rule is now explicit: a host exposing `registerNativeProvider` speaks
- * native objects; otherwise the legacy bridge is opt-in only
- * (`oh_my_pi_compat` / `OH_MY_PI_COMPAT`). Stock Pi keeps the native
- * single-arg call byte-for-byte.
+ * The rule is now source-verified instead of sniffed: a host exposing
+ * `registerNativeProvider` speaks native objects; otherwise OMP is
+ * detected by its own API members (`registerFileWriteFallback`, injected
+ * `arktype` shim — both confirmed in can1357/oh-my-pi
+ * `packages/coding-agent/src/extensibility/extensions/types.ts` and both
+ * absent from the installed stock-Pi bundle). `oh_my_pi_compat` /
+ * `OH_MY_PI_COMPAT` remains as a force-legacy override. Stock Pi keeps the
+ * native single-arg call byte-for-byte.
  */
 import type { Provider } from "@earendil-works/pi-ai/compat";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -79,6 +83,24 @@ function makeLegacyPi() {
 	};
 }
 
+/**
+ * OMP-shaped host: legacy-only registration plus the OMP-specific API
+ * members the auto-detect keys on (see shouldUseLegacyProviderBridge).
+ */
+function makeOmpPi() {
+	const registerProvider = vi.fn(
+		(_id: string, _config: unknown, _sourceId?: unknown) => {},
+	);
+	return {
+		pi: {
+			registerProvider,
+			registerFileWriteFallback: vi.fn(),
+			arktype: {},
+		} as unknown as ExtensionAPI,
+		registerProvider,
+	};
+}
+
 beforeEach(() => {
 	vi.clearAllMocks();
 	mockIsOhMyPiCompat.mockReturnValue(false);
@@ -97,17 +119,42 @@ describe("shouldUseLegacyProviderBridge (#557)", () => {
 		expect(shouldUseLegacyProviderBridge(pi)).toBe(false);
 	});
 
+	it("auto-detects an OMP-shaped host with no flag set", () => {
+		// No opt-in: the OMP API markers alone select the bridge.
+		const { pi } = makeOmpPi();
+		expect(shouldUseLegacyProviderBridge(pi)).toBe(true);
+	});
+
+	it("needs both OMP markers — one alone stays native (unknown-host default)", () => {
+		const oneMarker = {
+			registerProvider: vi.fn(),
+			registerFileWriteFallback: vi.fn(),
+		} as unknown as ExtensionAPI;
+		expect(shouldUseLegacyProviderBridge(oneMarker)).toBe(false);
+	});
+
 	it("is true on a legacy host once the compat flag opts in", () => {
 		mockIsOhMyPiCompat.mockReturnValue(true);
 		const { pi } = makeLegacyPi();
 		expect(shouldUseLegacyProviderBridge(pi)).toBe(true);
 	});
 
-	it("is false when the host exposes registerNativeProvider, flag or not", () => {
-		mockIsOhMyPiCompat.mockReturnValue(true);
+	it("is false when the host exposes registerNativeProvider and no flag is set", () => {
 		const pi = {
 			registerProvider: vi.fn(),
 			registerNativeProvider: vi.fn(),
+		} as unknown as ExtensionAPI;
+		expect(shouldUseLegacyProviderBridge(pi)).toBe(false);
+	});
+
+	it("prefers native capability over OMP markers", () => {
+		// A future OMP that gains native registration must take the native
+		// path even though the legacy markers are still present.
+		const pi = {
+			registerProvider: vi.fn(),
+			registerNativeProvider: vi.fn(),
+			registerFileWriteFallback: vi.fn(),
+			arktype: {},
 		} as unknown as ExtensionAPI;
 		expect(shouldUseLegacyProviderBridge(pi)).toBe(false);
 	});
@@ -132,6 +179,21 @@ describe("registerNativeProvider (#557)", () => {
 
 		expect(registerProvider).toHaveBeenCalledTimes(1);
 		expect(registerProvider).toHaveBeenCalledWith(provider);
+	});
+
+	it("bridges an OMP-shaped host with no flag set (auto-detect)", () => {
+		const { pi, registerProvider } = makeOmpPi();
+
+		registerNativeProvider(pi, makeProvider());
+
+		expect(registerProvider).toHaveBeenCalledTimes(1);
+		const [id, config] = registerProvider.mock.calls[0] as [
+			string,
+			Record<string, unknown>,
+		];
+		expect(id).toBe("probe-provider");
+		expect(config.api).toBe("openai-completions");
+		expect(config.models).toHaveLength(2);
 	});
 
 	it("bridges to (id, config) on a legacy host with the flag on", () => {
