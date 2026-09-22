@@ -24,6 +24,7 @@ const mockSaveConfig = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock("../config.ts", () => ({
 	getOllamaApiKey: () => mockGetOllamaApiKey(),
 	getOllamaShowPaid: () => mockGetOllamaShowPaid(),
+	isOhMyPiCompat: () => false,
 	getModelViewOverride: (providerId: string) =>
 		mockGetModelViewOverride(providerId),
 	setModelViewOverride: (...args: unknown[]) =>

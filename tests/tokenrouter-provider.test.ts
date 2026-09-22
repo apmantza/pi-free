@@ -19,6 +19,7 @@ const mockFetchWithRetry = vi.hoisted(() => vi.fn());
 vi.mock("../config.ts", () => ({
 	getTokenrouterApiKey: () => mockGetTokenrouterApiKey(),
 	getTokenrouterShowPaid: () => mockGetTokenrouterShowPaid(),
+	isOhMyPiCompat: () => false,
 	getModelViewOverride: (providerId: string) =>
 		mockGetModelViewOverride(providerId),
 	setModelViewOverride: (...args: unknown[]) =>

@@ -22,6 +22,7 @@ const mockRegisterWithGlobalToggle = vi.hoisted(() => vi.fn());
 vi.mock("../config.ts", () => ({
 	getZenmuxApiKey: () => mockGetZenmuxApiKey(),
 	getZenmuxShowPaid: () => mockGetZenmuxShowPaid(),
+	isOhMyPiCompat: () => false,
 	getModelViewOverride: (providerId: string) =>
 		mockGetModelViewOverride(providerId),
 	setModelViewOverride: (...args: unknown[]) =>

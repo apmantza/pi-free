@@ -48,6 +48,7 @@ const mockLogger = vi.hoisted(() => ({
 vi.mock("../config.ts", () => ({
 	getKiloApiKey: () => mockGetKiloApiKey(),
 	getKiloShowPaid: () => mockGetKiloShowPaid(),
+	isOhMyPiCompat: () => false,
 	getModelViewOverride: (providerId: string) =>
 		mockGetModelViewOverride(providerId),
 	setModelViewOverride: (...args: unknown[]) =>

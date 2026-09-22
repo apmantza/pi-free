@@ -17,7 +17,11 @@ import type {
 	ExtensionContext,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import { applyHidden, setModelViewOverride } from "../config.ts";
+import {
+	applyHidden,
+	isOhMyPiCompat,
+	setModelViewOverride,
+} from "../config.ts";
 import { createLogger } from "./logger.ts";
 import { isStaleContextError } from "./stale-ctx.ts";
 import {
@@ -444,6 +448,13 @@ export function registerNativeAvailabilityProbe(
  * Compatibility bridge for hosts like Oh My Pi (`omp`) or earlier Pi runtimes
  * that only implement the two-argument signature:
  *   registerProvider(name: string, config: ProviderConfig): void
+ *
+ * Only used when {@link shouldUseLegacyProviderBridge} opts in (see below).
+ *
+ * SAFETY: every `as any` below touches the legacy host's undocumented
+ * registration surface, which has no shared types in this repo. Each cast
+ * is confined to reading one optional field or forwarding one callback;
+ * nothing is written back into the native Provider object.
  */
 export function registerLegacyProviderFromNative(
 	pi: ExtensionAPI,
@@ -527,12 +538,16 @@ export function registerLegacyProviderFromNative(
 		apiKey = (provider.auth as any).getApiKey();
 	}
 
-	// In OMP runtime registration (Iot):
+	// In OMP runtime registration:
 	// If models has elements, OMP requires apiKey or oauthConfigured: Boolean(oauth).
 	// If neither is present, OMP throws. In that case, if models are present but unauthenticated,
-	// provide a placeholder key so OMP registers the catalog.
+	// provide an inert sentinel so OMP registers the catalog. This value only
+	// satisfies OMP's registration gate — real auth flows through `oauth` or
+	// `apiKey` above when present. Whether OMP ever transmits the sentinel
+	// upstream is unverified on a live host: never put a real credential here.
 	const effectiveApiKey =
-		apiKey || (oauth ? undefined : models.length > 0 ? "placeholder" : undefined);
+		apiKey ||
+		(oauth ? undefined : models.length > 0 ? "placeholder" : undefined);
 
 	const config: Record<string, unknown> = {
 		name: provider.name ?? id,
@@ -556,7 +571,7 @@ export function registerLegacyProviderFromNative(
 					},
 				});
 				return provider.getModels();
-			} catch (_err) {
+			} catch {
 				return provider.getModels();
 			}
 		};
@@ -565,21 +580,35 @@ export function registerLegacyProviderFromNative(
 	(pi.registerProvider as any)(id, config);
 }
 
+/**
+ * Whether this host needs the legacy two-argument provider bridge.
+ *
+ * A host that exposes `registerNativeProvider` speaks native Provider
+ * objects — bridge is never needed there. Otherwise the bridge is explicit
+ * opt-in only (`oh_my_pi_compat` in `~/.pi/free.json` or `OH_MY_PI_COMPAT=1`);
+ * stock Pi must keep the native single-arg path.
+ *
+ * Deliberately NOT based on `Function.length`: stock Pi's extension-facing
+ * `registerProvider(providerOrName, config)` overload also has `.length 2`
+ * (it dispatches on `typeof providerOrName`), so an arity check routes the
+ * standard host down the legacy path — the exact regression this guard
+ * exists to prevent. Exported so the rule is unit-tested directly.
+ */
+export function shouldUseLegacyProviderBridge(pi: ExtensionAPI): boolean {
+	// SAFETY: capability probe only — reads one optional method off the host
+	// object; no call, no write, no behavioral assumption beyond presence.
+	const hostSpeaksNative =
+		typeof (pi as { registerNativeProvider?: unknown })
+			.registerNativeProvider === "function";
+	return !hostSpeaksNative && isOhMyPiCompat();
+}
+
 /** Register a native provider across the current dev snapshot, >=0.81 peers, and Oh My Pi (omp). */
 export function registerNativeProvider(
 	pi: ExtensionAPI,
 	provider: Provider,
 ): void {
-	// Detect host capability proactively. OMP (and older Pi runtimes) expose
-	// a two-argument registerProvider(name, config). Calling the single-arg
-	// Provider overload on those hosts causes a fatal crash in Bun's runtime
-	// (TypeError on `t.streamSimple` where `t` is undefined) that cannot be
-	// caught by a try/catch — the process aborts before the catch clause
-	// runs. Checking Function.length is reliable: OMP's wrapper is
-	//   registerProvider(e, t) { this.runtime.registerProvider(e, t, this.extension.path); }
-	// so its .length is 2, whereas the >=0.81 single-arg signature has .length 1.
-	const arity = (pi.registerProvider as Function).length;
-	if (arity >= 2) {
+	if (shouldUseLegacyProviderBridge(pi)) {
 		// Host expects the legacy (name, config) form — bridge to it.
 		registerLegacyProviderFromNative(pi, provider);
 		return;
