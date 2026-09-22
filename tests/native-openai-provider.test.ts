@@ -23,6 +23,7 @@ const mockSaveConfig = vi.hoisted(() => vi.fn(async () => undefined));
 
 vi.mock("../config.ts", () => ({
 	saveConfig: mockSaveConfig,
+	isOhMyPiCompat: () => false,
 	applyHidden: (models: unknown[]) => models,
 }));
 vi.mock("../lib/registry.ts", () => ({

@@ -17,7 +17,11 @@ import type {
 	ExtensionContext,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import { applyHidden, setModelViewOverride } from "../config.ts";
+import {
+	applyHidden,
+	isOhMyPiCompat,
+	setModelViewOverride,
+} from "../config.ts";
 import { createLogger } from "./logger.ts";
 import { isStaleContextError } from "./stale-ctx.ts";
 import {
@@ -440,11 +444,188 @@ export function registerNativeAvailabilityProbe(
 	);
 }
 
-/** Register a native provider across the current dev snapshot and >=0.81 peers. */
+/**
+ * Compatibility bridge for hosts like Oh My Pi (`omp`) or earlier Pi runtimes
+ * that only implement the two-argument signature:
+ *   registerProvider(name: string, config: ProviderConfig): void
+ *
+ * Only used when {@link shouldUseLegacyProviderBridge} opts in (see below).
+ *
+ * SAFETY: every `as any` below touches the legacy host's undocumented
+ * registration surface, which has no shared types in this repo. Each cast
+ * is confined to reading one optional field or forwarding one callback;
+ * nothing is written back into the native Provider object.
+ */
+export function registerLegacyProviderFromNative(
+	pi: ExtensionAPI,
+	provider: Provider,
+): void {
+	const id = provider.id;
+	const models = [...provider.getModels()];
+
+	// 1. OAuth bridge: adapt native AuthInteraction login/refresh to OMP callbacks
+	let oauth: Record<string, unknown> | undefined;
+	const nativeOAuth = (provider.auth as any)?.oauth;
+	if (nativeOAuth) {
+		oauth = {
+			name: nativeOAuth.name ?? provider.name ?? id,
+			login: async (callbacks: any) => {
+				if (typeof nativeOAuth.login === "function") {
+					const interaction = {
+						signal: callbacks?.signal,
+						notify: (ev: any) => {
+							if (ev.type === "auth_url") {
+								callbacks?.onAuth?.({
+									url: ev.url,
+									instructions: ev.instructions,
+								});
+							} else if (ev.type === "device_code") {
+								callbacks?.onDeviceCode?.(ev);
+							} else if (ev.type === "progress") {
+								callbacks?.onProgress?.(ev.message);
+							}
+						},
+						prompt: async (p: any) => {
+							if (p.type === "manual_code" && callbacks?.onManualCodeInput) {
+								return callbacks.onManualCodeInput();
+							}
+							if (p.type === "select" && callbacks?.onSelect) {
+								return callbacks.onSelect(p);
+							}
+							if (callbacks?.onPrompt) {
+								return callbacks.onPrompt({
+									message: p.message,
+									defaultValue: p.placeholder,
+								});
+							}
+							return "";
+						},
+					};
+					return await nativeOAuth.login(interaction);
+				}
+				return {};
+			},
+			refreshToken: async (credentials: any) => {
+				if (typeof nativeOAuth.refresh === "function") {
+					return await nativeOAuth.refresh(credentials);
+				}
+				return credentials;
+			},
+			getApiKey: (credentials: any) => {
+				// 1. If access token is already a string on credentials, return it synchronously
+				if (typeof credentials?.access === "string") {
+					return credentials.access;
+				}
+				// 2. Fall back to calling toAuth synchronously if it isn't a promise
+				if (typeof nativeOAuth.toAuth === "function") {
+					const authRes = nativeOAuth.toAuth(credentials);
+					if (authRes && typeof authRes.then !== "function") {
+						return authRes?.apiKey ?? credentials?.access;
+					}
+				}
+				return credentials?.access;
+			},
+		};
+	}
+
+	// 2. API Key resolution
+	let apiKey: string | undefined;
+	const nativeApiKey = (provider.auth as any)?.apiKey;
+	if (nativeApiKey && typeof nativeApiKey.getApiKey === "function") {
+		apiKey = nativeApiKey.getApiKey();
+	}
+	if (!apiKey && typeof (provider.auth as any)?.getApiKey === "function") {
+		apiKey = (provider.auth as any).getApiKey();
+	}
+
+	// In OMP runtime registration:
+	// If models has elements, OMP requires apiKey or oauthConfigured: Boolean(oauth).
+	// If neither is present, OMP throws. In that case, if models are present but unauthenticated,
+	// provide an inert sentinel so OMP registers the catalog. This value only
+	// satisfies OMP's registration gate — real auth flows through `oauth` or
+	// `apiKey` above when present. Whether OMP ever transmits the sentinel
+	// upstream is unverified on a live host: never put a real credential here.
+	const effectiveApiKey =
+		apiKey ||
+		(oauth ? undefined : models.length > 0 ? "placeholder" : undefined);
+
+	const config: Record<string, unknown> = {
+		name: provider.name ?? id,
+		baseUrl: provider.baseUrl ?? "",
+		api: "openai-completions",
+		headers: provider.headers ?? undefined,
+		models,
+		...(effectiveApiKey ? { apiKey: effectiveApiKey } : {}),
+		...(oauth ? { oauth } : {}),
+	};
+
+	if (typeof provider.refreshModels === "function") {
+		config.fetchDynamicModels = async () => {
+			try {
+				await provider.refreshModels?.({
+					allowNetwork: true,
+					signal: AbortSignal.timeout(15000),
+					publish: async (pub) => {
+						pub.update?.();
+						return true;
+					},
+				});
+				return provider.getModels();
+			} catch {
+				return provider.getModels();
+			}
+		};
+	}
+
+	(pi.registerProvider as any)(id, config);
+}
+
+/**
+ * Whether this host needs the legacy two-argument provider bridge.
+ *
+ * Decision order (first match wins):
+ *
+ * 1. Explicit override — `oh_my_pi_compat` in `~/.pi/free.json` (or
+ *    `OH_MY_PI_COMPAT=1`) forces the bridge, e.g. for OMP API drift or
+ *    other legacy-only hosts.
+ * 2. Native capability — a host exposing `registerNativeProvider` speaks
+ *    native Provider objects; the bridge is never needed there.
+ * 3. Auto-detect — Oh My Pi exposes a legacy-only two-argument
+ *    `registerProvider(name, config)` plus OMP-specific API members. Both
+ *    markers below are verified against can1357/oh-my-pi
+ *    (`packages/coding-agent/src/extensibility/extensions/types.ts`:
+ *    `registerFileWriteFallback`, injected `arktype` shim) and both are
+ *    absent from the installed stock-Pi bundle, so an unknown future host
+ *    falls through to the native default instead of being misrouted.
+ *
+ * Deliberately NOT based on `Function.length`: stock Pi's extension-facing
+ * `registerProvider(providerOrName, config)` overload also has `.length 2`
+ * (it dispatches on `typeof providerOrName`), so an arity check routes the
+ * standard host down the legacy path — the exact regression this guard
+ * exists to prevent. Exported so the rule is unit-tested directly.
+ */
+export function shouldUseLegacyProviderBridge(pi: ExtensionAPI): boolean {
+	if (isOhMyPiCompat()) return true;
+	// SAFETY: capability probes only — read optional members off the host
+	// object; no calls, no writes, no behavioral assumptions beyond presence.
+	const maybeNative = pi as unknown as {
+		registerNativeProvider?: unknown;
+	};
+	if (typeof maybeNative.registerNativeProvider === "function") return false;
+	return "registerFileWriteFallback" in pi && "arktype" in pi;
+}
+
+/** Register a native provider across the current dev snapshot, >=0.81 peers, and Oh My Pi (omp). */
 export function registerNativeProvider(
 	pi: ExtensionAPI,
 	provider: Provider,
 ): void {
+	if (shouldUseLegacyProviderBridge(pi)) {
+		// Host expects the legacy (name, config) form — bridge to it.
+		registerLegacyProviderFromNative(pi, provider);
+		return;
+	}
+
 	// SAFETY: this bridge exists only because the declared peer minimum
 	// registerProvider(provider) single-arg signature is not satisfiable with
 	// the pinned dev snapshot's ExtensionAPI. Provider is the exact runtime

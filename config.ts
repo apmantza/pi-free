@@ -175,6 +175,14 @@ interface PiFreeConfig {
 	// switch (loop-bounded by `auto_fallback_auto_continue_max`).
 	auto_fallback_auto_continue?: boolean;
 	auto_fallback_auto_continue_max?: number;
+
+	// Legacy-host bridge (Oh My Pi and other hosts without native Provider
+	// registration): force registration via the two-argument
+	// `registerProvider(name, config)` form. Normally unnecessary — OMP is
+	// auto-detected (see shouldUseLegacyProviderBridge); this override
+	// covers OMP API drift and other legacy-only hosts. Stock Pi must never
+	// set it: the native single-arg path is the only correct one there.
+	oh_my_pi_compat?: boolean;
 }
 
 const CONFIG_TEMPLATE: PiFreeConfig = {
@@ -241,6 +249,9 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	auto_fallback_blacklist_max: 3,
 	fallback_notify: "toast",
 	fallback_restore: "manual",
+
+	// Legacy-host bridge is opt-in (see oh_my_pi_compat above).
+	oh_my_pi_compat: false,
 };
 
 const CONFIG_PATH = join(PI_DATA_DIR, "free.json");
@@ -780,6 +791,16 @@ export function getFreeOnly(): boolean {
 
 export function getKiloFreeOnly(): boolean {
 	return resolveBool("PI_FREE_KILO_FREE_ONLY", loadConfigFile().kilo_free_only);
+}
+
+/**
+ * Force the legacy two-argument provider bridge for hosts without native
+ * Provider registration (Oh My Pi). Normally unnecessary — the host is
+ * auto-detected; this override covers OMP API drift and other legacy-only
+ * hosts. Never enable on stock Pi.
+ */
+export function isOhMyPiCompat(): boolean {
+	return resolveBool("OH_MY_PI_COMPAT", loadConfigFile().oh_my_pi_compat);
 }
 
 // =============================================================================

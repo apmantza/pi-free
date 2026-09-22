@@ -37,6 +37,7 @@ let capturedToggleArgs: unknown[][] = [];
 vi.mock("../config.ts", () => ({
 	getLlm7ApiKey: () => mockGetLlm7ApiKey(),
 	getLlm7ShowPaid: () => mockGetLlm7ShowPaid(),
+	isOhMyPiCompat: () => false,
 	getModelViewOverride: (providerId: string) =>
 		mockGetModelViewOverride(providerId),
 	setModelViewOverride: (...args: unknown[]) =>
