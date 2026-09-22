@@ -544,9 +544,14 @@ export function registerNativeProviderRefresh(
 	pi: ExtensionAPI,
 	providerId: string,
 ): void {
+	// The opt-in id must land before the once-per-runner guard below: every
+	// provider registers through here on the same `pi`, so returning early
+	// before adding would leave only the first provider (kilo) in the nudge
+	// scope and every other catalog (e.g. zenmux) stale forever (#551). The
+	// guard still ensures a single session_start handler per runner.
+	nudgeProviderIds.add(providerId);
 	if (nativeRefreshRegistrations.has(pi as object)) return;
 	nativeRefreshRegistrations.add(pi as object);
-	nudgeProviderIds.add(providerId);
 
 	pi.on(
 		"session_start",

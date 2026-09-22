@@ -67,6 +67,29 @@ describe("native refresh nudge", () => {
 		});
 	});
 
+	it("opts in every provider on a shared runner, with one handler (#551)", async () => {
+		// Recurrence this prevents: the once-per-runner guard returned before
+		// adding the provider id, so only the first registrant (kilo) ever
+		// entered the nudge scope and later catalogs (e.g. zenmux) stayed on
+		// their pre-fix stale store — non-chat entries survived the #551
+		// filter because the refresh that would have dropped them never ran.
+		const pi = mockPi();
+		registerNativeProviderRefresh(pi as never, "kilo");
+		registerNativeProviderRefresh(pi as never, "zenmux");
+		registerNativeProviderRefresh(pi as never, "cline");
+		mockRefresh.mockResolvedValue({ aborted: false, errors: new Map() });
+
+		await fireSessionStart(pi, mockCtx());
+
+		expect(mockRefresh).toHaveBeenCalledTimes(1);
+		expect(mockRefresh).toHaveBeenCalledWith({
+			allowNetwork: true,
+			providers: ["kilo", "zenmux", "cline"],
+		});
+		// One session_start handler per runner — no re-registration storm.
+		expect(pi.on).toHaveBeenCalledTimes(1);
+	});
+
 	it("ignores other providers' errors (e.g. missing OPENCODE_API_KEY)", async () => {
 		const pi = mockPi();
 		registerNativeProviderRefresh(pi as never, "kilo");
