@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Qoder loads on Oh My Pi's legacy pi-ai bundle** — `providers/qoder/stream.ts` statically imported `getCurrentSystemPrompt` / `getCurrentTools` from `@earendil-works/pi-ai/compat`, which OMP remaps to its legacy bundle predating those exports, failing the whole extension at load ("Export named 'getCurrentSystemPrompt' not found in module 'omp-legacy-pi-bundled:@oh-my-pi/pi-ai'"). Qoder now reads the transcript through host-agnostic locals (`lib/transcript-helpers.ts`, behavior-pinned against upstream); the only remaining compat import in that file is `import type` (erased at compile). Pinned with `tests/qoder-omp-compat.test.ts` (refs #543).
+
 ## [2.8.2] - 2026-09-22
 
 ### Changed
