@@ -37,17 +37,6 @@ function contentText(content: any, separator = "\n"): string {
 	return "";
 }
 
-/** Render a system message as a complete prompt (upstream `getSystemMessageText`). */
-export function getSystemMessageText(message: AnyMsg): string {
-	const parts = [contentText(message.content)];
-	for (const text of Object.values(
-		(message.sections ?? {}) as Record<string, string | null>,
-	)) {
-		if (text !== null && text !== undefined) parts.push(text);
-	}
-	return parts.filter((part) => part.length > 0).join("\n\n");
-}
-
 function isSystemMessage(message: AnyMsg): boolean {
 	return message.role === "system";
 }
