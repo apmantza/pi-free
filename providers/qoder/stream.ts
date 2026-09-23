@@ -25,7 +25,7 @@ import type {
 import {
 	getCurrentSystemPrompt,
 	getCurrentTools,
-} from "@earendil-works/pi-ai/compat";
+} from "../../lib/transcript-helpers.ts";
 import { AssistantMessageEventStream as LocalAssistantMessageEventStream } from "../../lib/assistant-message-event-stream.ts";
 import { BASE_URL_QODER } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
