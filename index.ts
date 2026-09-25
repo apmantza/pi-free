@@ -75,6 +75,7 @@ import ollama from "./providers/ollama/ollama.ts";
 import zenmux from "./providers/zenmux/zenmux.ts";
 import bai from "./providers/bai/bai.ts";
 import anyapi from "./providers/anyapi/anyapi.ts";
+import orcarouter from "./providers/orcarouter/orcarouter.ts";
 import qoder from "./providers/qoder/qoder.ts";
 
 /**
@@ -108,6 +109,7 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 	tokenRouter,
 	anyapi,
 	bai,
+	orcarouter,
 	qoder,
 ];
 
