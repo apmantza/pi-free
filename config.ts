@@ -21,6 +21,7 @@ import { join } from "node:path";
 import {
 	PROVIDER_ANYAPI,
 	PROVIDER_BAI,
+	PROVIDER_ORCAROUTER,
 	PROVIDER_CLINE,
 	PROVIDER_FASTROUTER,
 	PROVIDER_REQUESTY,
@@ -123,6 +124,7 @@ interface PiFreeConfig {
 	tokenrouter_api_key?: string;
 	anyapi_api_key?: string;
 	bai_api_key?: string;
+	orcarouter_api_key?: string;
 	kilo_api_key?: string;
 	cline_api_key?: string;
 	kilo_free_only?: boolean;
@@ -150,6 +152,7 @@ interface PiFreeConfig {
 	tokenrouter_show_paid?: boolean;
 	anyapi_show_paid?: boolean;
 	bai_show_paid?: boolean;
+	orcarouter_show_paid?: boolean;
 	openrouter_show_paid?: boolean;
 	opencode_show_paid?: boolean;
 	opencode_free_show_paid?: boolean;
@@ -207,6 +210,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	tokenrouter_api_key: "",
 	anyapi_api_key: "",
 	bai_api_key: "",
+	orcarouter_api_key: "",
 	kilo_api_key: "",
 	cline_api_key: "",
 
@@ -235,6 +239,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	tokenrouter_show_paid: false,
 	anyapi_show_paid: false,
 	bai_show_paid: false,
+	orcarouter_show_paid: false,
 	openrouter_show_paid: false,
 	opencode_show_paid: false,
 	opencode_free_show_paid: false,
@@ -501,6 +506,11 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 	{ id: PROVIDER_ANYAPI, prefix: "ANYAPI", showPaidKey: "anyapi_show_paid" },
 	{ id: PROVIDER_BAI, prefix: "BAI", showPaidKey: "bai_show_paid" },
 	{
+		id: PROVIDER_ORCAROUTER,
+		prefix: "ORCAROUTER",
+		showPaidKey: "orcarouter_show_paid",
+	},
+	{
 		id: PROVIDER_FASTROUTER,
 		prefix: "FASTROUTER",
 		showPaidKey: "fastrouter_show_paid",
@@ -722,6 +732,13 @@ export function getBaiShowPaid(): boolean {
 	return resolveBool("BAI_SHOW_PAID", loadConfigFile().bai_show_paid);
 }
 
+export function getOrcarouterShowPaid(): boolean {
+	return resolveBool(
+		"ORCAROUTER_SHOW_PAID",
+		loadConfigFile().orcarouter_show_paid,
+	);
+}
+
 export function getFastrouterShowPaid(): boolean {
 	return resolveBool(
 		"FASTROUTER_SHOW_PAID",
@@ -885,6 +902,10 @@ export function getAnyapiApiKey(): string | undefined {
 
 export function getBaiApiKey(): string | undefined {
 	return resolve("BAI_API_KEY", loadConfigFile().bai_api_key);
+}
+
+export function getOrcarouterApiKey(): string | undefined {
+	return resolve("ORCAROUTER_API_KEY", loadConfigFile().orcarouter_api_key);
 }
 
 export function getKiloApiKey(): string | undefined {
