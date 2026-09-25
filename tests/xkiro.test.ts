@@ -37,7 +37,12 @@ describe("Xkiro free model detection", () => {
 		expect(
 			isXkiroFreeModel({
 				id: "cohere/command-r-plus-08-2024",
-				pricing: { currency: "USD", unit: "per_1m_tokens", input: 0, output: 0 },
+				pricing: {
+					currency: "USD",
+					unit: "per_1m_tokens",
+					input: 0,
+					output: 0,
+				},
 			}),
 		).toBe(true);
 	});

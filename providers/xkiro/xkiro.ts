@@ -26,11 +26,7 @@ import type {
 	ExtensionAPI,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
-import {
-	applyHidden,
-	getXkiroApiKey,
-	getXkiroShowPaid,
-} from "../../config.ts";
+import { applyHidden, getXkiroApiKey, getXkiroShowPaid } from "../../config.ts";
 import {
 	BASE_URL_XKIRO,
 	DEFAULT_FETCH_TIMEOUT_MS,
@@ -42,11 +38,7 @@ import {
 	getProxyModelCompat,
 	isLikelyReasoningModel,
 } from "../../lib/provider-compat.ts";
-import {
-	cleanModelName,
-	fetchWithRetry,
-	withSignal,
-} from "../../lib/util.ts";
+import { cleanModelName, fetchWithRetry, withSignal } from "../../lib/util.ts";
 import { registerNativeOpenAIProvider } from "../../lib/native-provider.ts";
 import { xkiroAuth } from "./xkiro-auth.ts";
 
