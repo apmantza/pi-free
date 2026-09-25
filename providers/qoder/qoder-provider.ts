@@ -21,7 +21,7 @@ import {
 } from "../../lib/native-provider.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
 import { qoderAuth } from "./auth.ts";
-import { isBasicModel, staticModels } from "./models.ts";
+import { isQoderFreeModel, staticModels } from "./models.ts";
 import { streamQoder } from "./stream.ts";
 
 type QoderModel = Model<"qoder-api">;
@@ -48,7 +48,7 @@ function toQoderModels(models: ProviderModelConfig[]): QoderModel[] {
 
 function staticCatalog(): { all: QoderModel[]; free: QoderModel[] } {
 	const all = toQoderModels(enhanceWithCI(staticModels, PROVIDER_QODER));
-	return { all, free: all.filter(isBasicModel) };
+	return { all, free: all.filter((model) => isQoderFreeModel(model)) };
 }
 
 export function createQoderProvider(): QoderNativeProvider {
@@ -57,7 +57,7 @@ export function createQoderProvider(): QoderNativeProvider {
 	function ingest(all: ProviderModelConfig[]): void {
 		const models = toQoderModels(enhanceWithCI(all, PROVIDER_QODER));
 		stored.all = models;
-		stored.free = models.filter(isBasicModel);
+		stored.free = models.filter((model) => isQoderFreeModel(model));
 	}
 
 	const initial = staticCatalog();
@@ -72,7 +72,7 @@ export function createQoderProvider(): QoderNativeProvider {
 			context,
 			(storedModels: QoderModel[]) => {
 				stored.all = storedModels;
-				stored.free = storedModels.filter(isBasicModel);
+				stored.free = storedModels.filter((model) => isQoderFreeModel(model));
 			},
 			async () => {
 				// Qoder has no supported catalog endpoint. Re-publish the curated
@@ -82,7 +82,7 @@ export function createQoderProvider(): QoderNativeProvider {
 			},
 			(catalog) => {
 				stored.all = catalog;
-				stored.free = catalog.filter(isBasicModel);
+				stored.free = catalog.filter((model) => isQoderFreeModel(model));
 			},
 		);
 	}

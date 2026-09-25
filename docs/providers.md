@@ -232,7 +232,7 @@ Authenticate with either method:
 - Browser OAuth uses Qoder's device/PKCE flow.
 - PAT authentication can use `QODER_PERSONAL_ACCESS_TOKEN` or the alias `QODER_PAT`.
 
-`/toggle-qoder` switches between basic and all Qoder models. Qoder's API remains OpenAI-compatible, while its authentication and custom stream integration remain Qoder-specific.
+`/toggle-qoder` switches between basic and all Qoder models. Time-bound 0.0x-credit promos (e.g. Qwen3.8-Flash, Sep 18-30 2026) are captured in `PROMO_FREE_MODELS` in `providers/qoder/models.ts` with an exclusive expiry, so the free flag lapses automatically with no follow-up change. Qoder's API remains OpenAI-compatible, while its authentication and custom stream integration remain Qoder-specific.
 
 ## Pi built-in providers
 
