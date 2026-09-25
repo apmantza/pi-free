@@ -35,6 +35,7 @@ Run `/toggle-{provider}` to switch between a provider's free/basic view and its 
 | `/toggle-anyapi` | AnyAPI | Native |
 | `/toggle-bai` | B.AI | Native |
 | `/toggle-orcarouter` | OrcaRouter | Native |
+| `/toggle-xkiro` | Xkiro | Native |
 | `/toggle-stepfun` | StepFun | Native |
 | `/toggle-qoder` | Qoder | Legacy |
 | `/toggle-openrouter` | OpenRouter | Pi built-in |

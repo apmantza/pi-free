@@ -21,6 +21,7 @@ export const PROVIDER_TOKENROUTER = "tokenrouter";
 export const PROVIDER_ANYAPI = "anyapi";
 export const PROVIDER_BAI = "bai";
 export const PROVIDER_ORCAROUTER = "orcarouter";
+export const PROVIDER_XKIRO = "xkiro";
 export const PROVIDER_QODER = "qoder";
 export const PROVIDER_FASTROUTER = "fastrouter";
 export const PROVIDER_REQUESTY = "requesty";
@@ -68,6 +69,7 @@ export const BASE_URL_TOKENROUTER = "https://api.tokenrouter.com/v1";
 export const BASE_URL_ANYAPI = "https://api.anyapi.ai/v1";
 export const BASE_URL_BAI = "https://api.b.ai/v1";
 export const BASE_URL_ORCAROUTER = "https://api.orcarouter.ai/v1";
+export const BASE_URL_XKIRO = "https://api.xkiro.com/v1";
 export const BASE_URL_FASTROUTER = "https://api.fastrouter.ai/api/v1";
 export const BASE_URL_REQUESTY = "https://router.requesty.ai/v1";
 /** StepFun Step Plan OpenAI-compatible Chat Completions API base URL. */
