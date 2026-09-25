@@ -207,6 +207,16 @@ export ORCAROUTER_API_KEY="sk-orca-..."
 
 Or set `orcarouter_api_key`. Toggle with `/toggle-orcarouter`. Free models include `orcarouter/free`, `deepseek/deepseek-v4-flash-free`, `tencent/hy3-free`, and `z-ai/glm-5.3-flash-free`; the gateway prices them per-request at zero, which pi-free detects explicitly.
 
+### Xkiro
+
+Xkiro is an OpenAI-compatible gateway with a catalog `access_tier` (free, paid, premium) per model:
+
+```bash
+export XKIRO_API_KEY="sk-xt-..."
+```
+
+Or set `xkiro_api_key`. Toggle with `/toggle-xkiro`. Free models include `deepseek/deepseek-v4.1-flash:free`, `qwen/qwen3.5-397b-a17b:free`, and the `minimax/*:free` family. Note the gateway can paywall individual models per key/plan server-side, so paid entries may refuse chat without a funded plan.
+
 Three models are currently documented as free on the B.AI API and are stamped free in the catalog: `deepseek-v4-flash`, `deepseek-v4-flash-vision-exp`, and `mimo-v2.5` (source: [B.AI pricing](https://docs.b.ai/llmservice/pricing-and-usage/), audited 2026-08-26). This is a time-limited promotion — revisit the pricing page before relying on it.
 
 ## Qoder (native)

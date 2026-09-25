@@ -22,6 +22,7 @@ import {
 	PROVIDER_ANYAPI,
 	PROVIDER_BAI,
 	PROVIDER_ORCAROUTER,
+	PROVIDER_XKIRO,
 	PROVIDER_CLINE,
 	PROVIDER_FASTROUTER,
 	PROVIDER_REQUESTY,
@@ -125,6 +126,7 @@ interface PiFreeConfig {
 	anyapi_api_key?: string;
 	bai_api_key?: string;
 	orcarouter_api_key?: string;
+	xkiro_api_key?: string;
 	kilo_api_key?: string;
 	cline_api_key?: string;
 	kilo_free_only?: boolean;
@@ -153,6 +155,7 @@ interface PiFreeConfig {
 	anyapi_show_paid?: boolean;
 	bai_show_paid?: boolean;
 	orcarouter_show_paid?: boolean;
+	xkiro_show_paid?: boolean;
 	openrouter_show_paid?: boolean;
 	opencode_show_paid?: boolean;
 	opencode_free_show_paid?: boolean;
@@ -211,6 +214,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	anyapi_api_key: "",
 	bai_api_key: "",
 	orcarouter_api_key: "",
+	xkiro_api_key: "",
 	kilo_api_key: "",
 	cline_api_key: "",
 
@@ -240,6 +244,7 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	anyapi_show_paid: false,
 	bai_show_paid: false,
 	orcarouter_show_paid: false,
+	xkiro_show_paid: false,
 	openrouter_show_paid: false,
 	opencode_show_paid: false,
 	opencode_free_show_paid: false,
@@ -510,6 +515,7 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 		prefix: "ORCAROUTER",
 		showPaidKey: "orcarouter_show_paid",
 	},
+	{ id: PROVIDER_XKIRO, prefix: "XKIRO", showPaidKey: "xkiro_show_paid" },
 	{
 		id: PROVIDER_FASTROUTER,
 		prefix: "FASTROUTER",
@@ -739,6 +745,10 @@ export function getOrcarouterShowPaid(): boolean {
 	);
 }
 
+export function getXkiroShowPaid(): boolean {
+	return resolveBool("XKIRO_SHOW_PAID", loadConfigFile().xkiro_show_paid);
+}
+
 export function getFastrouterShowPaid(): boolean {
 	return resolveBool(
 		"FASTROUTER_SHOW_PAID",
@@ -906,6 +916,10 @@ export function getBaiApiKey(): string | undefined {
 
 export function getOrcarouterApiKey(): string | undefined {
 	return resolve("ORCAROUTER_API_KEY", loadConfigFile().orcarouter_api_key);
+}
+
+export function getXkiroApiKey(): string | undefined {
+	return resolve("XKIRO_API_KEY", loadConfigFile().xkiro_api_key);
 }
 
 export function getKiloApiKey(): string | undefined {
