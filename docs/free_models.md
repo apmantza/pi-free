@@ -196,18 +196,20 @@ sarvam/sarvam-105b:free
 | `deepseek-v4-flash-vision-exp` | Currently free for B.AI API use |
 | `mimo-v2.5` | API usage currently free |
 
-### Infron AI (`infron`) — 5
+### Infron AI (`infron`) — 7
 
-`:free` suffix conditions apply; free-endpoint prompts/outputs may be logged upstream.
+`:free` suffix conditions apply; free-endpoint prompts/outputs may be logged upstream. `motif/motif-3` carries `(Free)` in its display name instead of a `:free` suffix.
 
-<details><summary>Full list (5)</summary>
+<details><summary>Full list (7)</summary>
 
 ```text
 deepseek/deepseek-v4-flash:free
-moonshotai/kimi-k2.6:free
-nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
-nvidia/nemotron-3.5-lightning-30b-a3b:free
+deepseek/deepseek-v4-flash-0731:free
+deepseek/deepseek-v4.1-flash:free
+motif/motif-3
+qwen/qwen3.8-flash:free
 qwen/qwen3.8-27b:free
+qwen/qwen3.8-27b-abliterated-cyber:free
 ```
 
 </details>
