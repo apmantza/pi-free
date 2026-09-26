@@ -146,36 +146,45 @@ describe("resolvePiAiPackageRoot", () => {
 		);
 	});
 
-	it("rejects a relative argv1 even when the CWD tree contains pi-ai", () => {
+	it("rejects a relative argv1 that would otherwise reach a project-local pi-ai", () => {
 		// Compiled-binary hosts can expose the first USER argument as argv[1].
 		// Walking up from a CWD-relative path must never let an unrelated
-		// project's node_modules satisfy the lookup.
+		// project's node_modules satisfy the lookup. The project copy here is
+		// deliberately usable (right name, version above the peer floor, entry
+		// present), so the only reason the relative path is refused is its
+		// relativity — asserted both ways below.
+		//
+		// No process.chdir(): the predicate rejects a relative argv1 before any
+		// walk-up runs, so the CWD is never consulted, and chdir throws
+		// "process.chdir() is not supported in workers" under the repo's own
+		// mutation gate (Stryker's worker-thread vitest runner), which reds the
+		// initial dry run for any change touching this module.
 		const proj = mkdtempSync(join(tmpdir(), "pi-free-loader-"));
-		makePackage(join(proj, "node_modules", "@earendil-works", "pi-ai"), {
-			...PI_AI_EXPORTS,
-			version: "0.1.0",
-		});
+		const projectPiAi = join(proj, "node_modules", "@earendil-works", "pi-ai");
+		makePackage(projectPiAi, PI_AI_EXPORTS);
 		// The extension tree lives OUTSIDE the project, like ~/.pi/agent/npm.
 		const extensionTree = mkdtempSync(join(tmpdir(), "pi-free-loader-ext-"));
-		const cwd = join(proj, "src");
-		mkdirSync(cwd, { recursive: true });
 		// A separate empty system tree so the executable-relative probe cannot
 		// walk into either tree.
 		const sysTree = mkdtempSync(join(tmpdir(), "pi-free-loader-sys-"));
-		const originalCwd = process.cwd();
-		process.chdir(cwd);
-		try {
-			expect(
-				resolvePiAiPackageRoot(extensionTree, {
-					argv1: "foo.ts",
-					homeDir: proj,
-					appData: join(proj, "no-appdata"),
-					execPath: join(sysTree, "bin", "node.exe"),
-				}),
-			).toBeUndefined();
-		} finally {
-			process.chdir(originalCwd);
-		}
+		const isolated = {
+			homeDir: join(proj, "no-home"),
+			appData: join(proj, "no-appdata"),
+			execPath: join(sysTree, "bin", "node.exe"),
+		} as const;
+
+		expect(
+			resolvePiAiPackageRoot(extensionTree, { ...isolated, argv1: "foo.ts" }),
+		).toBeUndefined();
+
+		// Non-vacuity: the same path in absolute form IS reachable, so the
+		// refusal above is the relativity guard firing and not an empty fixture.
+		expect(
+			resolvePiAiPackageRoot(extensionTree, {
+				...isolated,
+				argv1: join(projectPiAi, "dist", "cli.js"),
+			}),
+		).toBe(projectPiAi);
 	});
 
 	it("rejects host-entry hits whose package is not a usable pi-ai", () => {
