@@ -45,6 +45,10 @@ describe("check-tlc CLI", () => {
 			"RefreshR-A-starve",
 			"RefreshR-F",
 			"ToggleB",
+			"FallbackA",
+			"FallbackB",
+			"SessionA",
+			"SessionB",
 		]) {
 			expect(result.stdout).toContain(cfg);
 		}
