@@ -136,6 +136,15 @@ jobs:
       - name: Execute pi-ai entries from production tree
         run: node scripts/smoke-pi-ai-entries.mjs .
 
+      # #581: the entries smoke above runs against the healthy chain. A stale
+      # pi-ai copy shadowing the walk-up (right name/version, exports predating
+      # the allow-listed entries) made Node throw ERR_PACKAGE_PATH_NOT_EXPORTED,
+      # which the loader did not treat as "not found here" — every provider
+      # stream died at first use on otherwise-healthy installs. This builds the
+      # hostile layout and requires the loader to skip the shadowing copy.
+      - name: Recover pi-ai entries from a shadowed walk-up chain (#581)
+        run: node scripts/smoke-pi-ai-shadowed.mjs .
+
       - name: Verify pi-ai deps hoist canonically in production tree
         run: node scripts/check-hoisting.mjs .
 
@@ -270,6 +279,14 @@ jobs:
           INSTALL_DIR=$(npm root -g)/pi-free
           node scripts/smoke-pi-ai-entries.mjs "$INSTALL_DIR"
 
+      # #581: same hostile-layout detector as source-install-build, run on
+      # every matrix OS against the tree `pi install` actually produced.
+      - name: Recover pi-ai entries from a shadowed walk-up chain (#581)
+        shell: bash
+        run: |
+          INSTALL_DIR=$(npm root -g)/pi-free
+          node scripts/smoke-pi-ai-shadowed.mjs "$INSTALL_DIR"
+
       - name: Verify pi-ai deps hoist canonically in installed tree
         shell: bash
         run: |
@@ -281,7 +298,8 @@ jobs:
       # Upload them so a red install-test is debuggable from the run.
       - name: Upload smoke failure artifacts
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        # v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: smoke-artifacts-${{ matrix.os }}
           path: .smoke-artifacts/
