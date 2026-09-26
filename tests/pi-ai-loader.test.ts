@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import {
 	findPackageInNodeModules,
 	isPiAiNotFoundError,
+	piAiRootDefinesEntry,
 	resolvePiAiEntryFile,
 	resolvePiAiPackageRoot,
 	resolveVendoredPiAiEntryFile,
@@ -263,20 +264,161 @@ describe("resolvePiAiPackageRoot", () => {
 		).toBe(nested);
 	});
 
+	it("selects a different root per entry when each copy serves only one (#581)", () => {
+		// The invariant the loader's per-entry root cache preserves: a copy that
+		// knows `compat` but predates `providers/all` must not pin the root for
+		// the other entry — each entry keeps probing until it finds a copy that
+		// defines it.
+		const base = mkdtempSync(join(tmpdir(), "pi-free-loader-"));
+		const compatOnly = join(base, "node_modules", "@earendil-works", "pi-ai");
+		makePackage(compatOnly, {
+			name: "@earendil-works/pi-ai",
+			version: "0.84.2",
+			exports: { ".": "./dist/index.js", "./compat": "./dist/compat.js" },
+		});
+		const providersOnly = join(
+			base,
+			"host",
+			"node_modules",
+			"@earendil-works",
+			"pi-ai",
+		);
+		makePackage(providersOnly, {
+			name: "@earendil-works/pi-ai",
+			version: "0.87.1",
+			exports: {
+				".": "./dist/index.js",
+				"./providers/*": "./dist/providers/*.js",
+			},
+		});
+		const start = join(base, "node_modules", "pi-free", "dist", "lib");
+		mkdirSync(start, { recursive: true });
+		const cli = join(base, "host", "dist", "cli.js");
+		mkdirSync(dirname(cli), { recursive: true });
+		const isolated = {
+			argv1: cli,
+			homeDir: join(base, "no-home"),
+			appData: join(base, "no-appdata"),
+			execPath: join(base, "sys", "node"),
+		} as const;
+
+		expect(
+			resolvePiAiPackageRoot(start, { ...isolated, entry: "compat" }),
+		).toBe(compatOnly);
+		expect(
+			resolvePiAiPackageRoot(start, { ...isolated, entry: "providers/all" }),
+		).toBe(providersOnly);
+		// No entry: the legacy version-only verdict keeps the first hit.
+		expect(resolvePiAiPackageRoot(start, isolated)).toBe(compatOnly);
+	});
+
+	it("skips a version-compatible pi-ai whose exports lack the requested entry (#581)", () => {
+		// A stale pi-ai copy (right name, allowed version, pre-compat exports)
+		// shadowing the walk-up chain, e.g. ~/node_modules from a long-ago
+		// install. Entry-agnostic resolution keeps its legacy version-only
+		// verdict; entry-aware resolution must skip it for the host copy.
+		const base = mkdtempSync(join(tmpdir(), "pi-free-loader-"));
+		const stale = join(base, "node_modules", "@earendil-works", "pi-ai");
+		makePackage(stale, {
+			name: "@earendil-works/pi-ai",
+			version: "0.84.2",
+			// Predates the allow-listed entries: no "./compat" key.
+			exports: { ".": "./dist/index.js" },
+		});
+		const start = join(base, "node_modules", "pi-free", "dist", "lib");
+		mkdirSync(start, { recursive: true });
+		const hostPiAi = join(
+			base,
+			"host",
+			"node_modules",
+			"@earendil-works",
+			"pi-ai",
+		);
+		makePackage(hostPiAi, PI_AI_EXPORTS);
+		const cli = join(base, "host", "dist", "cli.js");
+		mkdirSync(dirname(cli), { recursive: true });
+		// Pin every environment probe so only the walk-up and host-entry
+		// strategies can find anything.
+		const isolated = {
+			homeDir: join(base, "no-home"),
+			appData: join(base, "no-appdata"),
+			execPath: join(base, "sys", "node"),
+		} as const;
+
+		expect(resolvePiAiPackageRoot(start, { argv1: cli, ...isolated })).toBe(
+			stale,
+		);
+		expect(
+			resolvePiAiPackageRoot(start, {
+				argv1: cli,
+				entry: "compat",
+				...isolated,
+			}),
+		).toBe(hostPiAi);
+		expect(
+			resolvePiAiPackageRoot(start, {
+				argv1: cli,
+				entry: "providers/all",
+				...isolated,
+			}),
+		).toBe(hostPiAi);
+	});
+
 	it("prefers a hoisted pi-ai over a nested one", () => {
 		const base = mkdtempSync(join(tmpdir(), "pi-free-loader-"));
 		const hoisted = join(base, "node_modules", "@earendil-works", "pi-ai");
 		makePackage(hoisted, PI_AI_EXPORTS);
 		const start = join(base, "node_modules", "pi-free", "lib");
 		mkdirSync(start, { recursive: true });
+		const isolated = {
+			argv1: null,
+			homeDir: base,
+			appData: join(base, "no-appdata"),
+			execPath: join(base, "bin", "node.exe"),
+		} as const;
+		expect(resolvePiAiPackageRoot(start, isolated)).toBe(hoisted);
+		// Entry-aware resolution agrees: the hoisted copy defines both entries,
+		// so it wins the first probe either way.
 		expect(
-			resolvePiAiPackageRoot(start, {
-				argv1: null,
-				homeDir: base,
-				appData: join(base, "no-appdata"),
-				execPath: join(base, "bin", "node.exe"),
-			}),
+			resolvePiAiPackageRoot(start, { ...isolated, entry: "compat" }),
 		).toBe(hoisted);
+		expect(
+			resolvePiAiPackageRoot(start, { ...isolated, entry: "providers/all" }),
+		).toBe(hoisted);
+	});
+});
+
+describe("piAiRootDefinesEntry", () => {
+	it("is true when exports define the entry even if the file is absent", () => {
+		const base = mkdtempSync(join(tmpdir(), "pi-free-loader-"));
+		const root = join(base, "pi-ai");
+		makePackage(root, PI_AI_EXPORTS);
+		expect(piAiRootDefinesEntry(root, "compat")).toBe(true);
+		expect(piAiRootDefinesEntry(root, "providers/all")).toBe(true);
+	});
+
+	it("is false when exports predate the entry (stale copy, #581)", () => {
+		const base = mkdtempSync(join(tmpdir(), "pi-free-loader-"));
+		const root = join(base, "pi-ai");
+		makePackage(root, {
+			name: "@earendil-works/pi-ai",
+			version: "0.84.2",
+			exports: { ".": "./dist/index.js" },
+		});
+		expect(piAiRootDefinesEntry(root, "compat")).toBe(false);
+		expect(piAiRootDefinesEntry(root, "providers/all")).toBe(false);
+	});
+
+	it("falls back to the known dist file when exports are unreadable", () => {
+		const base = mkdtempSync(join(tmpdir(), "pi-free-loader-"));
+		const root = join(base, "pi-ai");
+		makePackage(root);
+		writeFileSync(join(root, "package.json"), "not json");
+		const compatFile = join(root, "dist", "compat.js");
+		mkdirSync(join(root, "dist"), { recursive: true });
+		writeFileSync(compatFile, "export {};");
+		expect(piAiRootDefinesEntry(root, "compat")).toBe(true);
+		expect(piAiRootDefinesEntry(root, "providers/all")).toBe(false);
 	});
 });
 
@@ -368,6 +510,56 @@ describe("isPiAiNotFoundError", () => {
 				),
 			),
 		).toBe(true);
+	});
+
+	// #581: a stale pi-ai copy shadowing the resolution chain (right name,
+	// allowed version, exports predating the allow-listed entry) makes Node
+	// throw ERR_PACKAGE_PATH_NOT_EXPORTED instead of ERR_MODULE_NOT_FOUND.
+	// The loader must treat that as "pi-ai not found here" and fall back,
+	// not crash with the raw resolution error.
+	function notExported(message: string) {
+		const error = new Error(message) as NodeJS.ErrnoException;
+		error.code = "ERR_PACKAGE_PATH_NOT_EXPORTED";
+		return error;
+	}
+
+	it("matches a missing allow-listed subpath in a shadowing pi-ai copy (#581)", () => {
+		expect(
+			isPiAiNotFoundError(
+				notExported(
+					`Package subpath './compat' is not defined by "exports" in /Users/user/node_modules/@earendil-works/pi-ai/package.json imported from /Users/user/.pi/agent/npm/node_modules/pi-free/dist/lib/pi-ai-loader.js`,
+				),
+			),
+		).toBe(true);
+		expect(
+			isPiAiNotFoundError(
+				notExported(
+					`Package subpath './providers/all' is not defined by "exports" in C:\\Users\\user\\node_modules\\@earendil-works\\pi-ai\\package.json imported from C:\\Users\\user\\.pi\\agent\\npm\\node_modules\\pi-free\\dist\\lib\\pi-ai-loader.js`,
+				),
+			),
+		).toBe(true);
+	});
+
+	it("rejects a missing non-allow-listed subpath (#581)", () => {
+		// './api/...' is pi-ai's own internal breakage, not a stale copy — it
+		// must surface instead of triggering the disk fallback.
+		expect(
+			isPiAiNotFoundError(
+				notExported(
+					`Package subpath './api/openai-completions' is not defined by "exports" in /Users/user/node_modules/@earendil-works/pi-ai/package.json imported from /Users/user/node_modules/@earendil-works/pi-ai/dist/compat.js`,
+				),
+			),
+		).toBe(false);
+	});
+
+	it("rejects a not-exported error naming a different package (#581)", () => {
+		expect(
+			isPiAiNotFoundError(
+				notExported(
+					`Package subpath './compat' is not defined by "exports" in /x/node_modules/some-other-package/package.json imported from /x/lazy-compat.js`,
+				),
+			),
+		).toBe(false);
 	});
 });
 
