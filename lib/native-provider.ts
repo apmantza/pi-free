@@ -37,6 +37,7 @@ import type { ProviderProbe } from "./provider-probe.ts";
 import { lazyOpenAICompletionsApi } from "./lazy-compat.ts";
 import { enhanceWithCI, type StoredModels } from "../provider-helper.ts";
 import {
+	getStartupSummary,
 	recordNativeAbort,
 	recordNativeEmptyRetain,
 	recordNativeRefreshOk,
@@ -308,6 +309,10 @@ export function createNativeOpenAIProvider(
 				stored.free = classifyFree(
 					storedModels as Model<"openai-completions">[],
 				);
+				// Restore loads the persisted (possibly free-view-only)
+				// subset into both slots: stored.all is not the catalog
+				// until a network generation publishes (TLC ToggleB).
+				stored.complete = false;
 			},
 			async () => {
 				const token = nativeCredentialToken(
@@ -328,6 +333,7 @@ export function createNativeOpenAIProvider(
 			(models) => {
 				stored.all = models;
 				stored.free = classifyFree(models as Model<"openai-completions">[]);
+				stored.complete = true;
 			},
 		);
 	}
@@ -635,10 +641,7 @@ export function registerNativeProvider(
 
 interface NativeToggleOptions {
 	providerId: string;
-	stored: {
-		free: ProviderModelConfig[];
-		all: ProviderModelConfig[];
-	};
+	stored: StoredModels;
 	setShowPaid?: (showPaid: boolean) => void;
 	reRegister: () => void;
 }
@@ -666,16 +669,24 @@ export function registerNativeProviderToggle(
 
 			reRegister();
 
+			// stored.all may still be the restored subset (complete is set
+			// only by a network publication): never present subset counts
+			// as catalog totals (TLC ToggleB NoSubsetAsAll).
+			const complete = stored.complete === true;
 			const freeCount = stored.free.length;
 			const paidCount = stored.all.length - freeCount;
 			if (showPaid && stored.all.length > 0) {
 				ctx.ui.notify(
-					`${providerId}: showing all ${stored.all.length} models (${freeCount} free, ${paidCount} paid)`,
+					complete
+						? `${providerId}: showing all ${stored.all.length} models (${freeCount} free, ${paidCount} paid)`
+						: `${providerId}: showing ${stored.all.length} restored models (full catalog not yet fetched; paid count unknown)`,
 					"info",
 				);
 			} else {
 				ctx.ui.notify(
-					`${providerId}: showing ${freeCount} free models (${paidCount} paid hidden)`,
+					complete
+						? `${providerId}: showing ${freeCount} free models (${paidCount} paid hidden)`
+						: `${providerId}: showing ${freeCount} restored free models (full catalog not yet fetched)`,
 					"info",
 				);
 			}
@@ -683,9 +694,53 @@ export function registerNativeProviderToggle(
 	});
 }
 
-/** Delay before retrying a superseded refresh; captures (~1s) and endpoint
- * refresh re-registrations (~2s) have settled by then. */
-const NUDGE_RETRY_DELAY_MS = 5000;
+/**
+ * Backoff schedule for refresh attempts after the initial nudge.
+ * TLC model RefreshB (tla/pi-free-refresh): 1 initial + 3 retries exhaust
+ * a storm budget of 3 adversarial re-registers; further attempts would only
+ * repeat the same race, so the nudge then stands down loudly and the next
+ * session_start tries again with a fresh budget.
+ */
+const NUDGE_RETRY_DELAYS_MS = [5_000, 15_000, 30_000];
+
+/**
+ * Nudge epoch: bumped on every session_start. A pending retry whose epoch
+ * no longer matches belongs to a previous runner (a reload creates a new
+ * runner while the old timer is still in flight in the same process) and
+ * must stand down — otherwise the obsolete retry's scoped refresh
+ * supersedes the new nudge's generations and both abort each other.
+ */
+let nudgeEpoch = 0;
+
+/** Fallback nonce so an unreadable ledger reads as "no progress" (retry
+ * direction), never as false completion. getStartupSummary is pure
+ * in-memory and never throws in practice. */
+let completionSnapshotNonce = 0;
+
+/**
+ * Completion stamp per in-scope provider: refresh-ok and empty-retain
+ * counters from the startup-timing ledger. A provider whose stamp is
+ * unchanged across a refresh() call published nothing — Pi swallows
+ * per-provider aborts, so a clean result alone proves nothing (TLC
+ * NoFalseClean). An empty-retain counts as completion: the provider ran a
+ * full network generation and genuinely found nothing (e.g. no token).
+ */
+function nativeCompletionSnapshot(ids: readonly string[]): Map<string, string> {
+	try {
+		const entries = getStartupSummary().cacheNetwork;
+		const known = new Map(entries.map((entry) => [entry.provider, entry]));
+		return new Map(
+			ids.map((id) => {
+				const entry = known.get(id);
+				return [id, `${entry?.refreshOks ?? 0}:${entry?.emptyRetains ?? 0}`];
+			}),
+		);
+	} catch {
+		return new Map(
+			ids.map((id) => [id, `unknown-${completionSnapshotNonce++}`]),
+		);
+	}
+}
 
 /**
  * Provider ids that asked for the session-start refresh nudge. The nudge
@@ -737,7 +792,8 @@ export function registerNativeProviderRefresh(
 	pi.on(
 		"session_start",
 		wrapSessionStartHandler("native-model-refresh", (_event, ctx) => {
-			void runRefreshNudge(ctx, false);
+			const epoch = ++nudgeEpoch;
+			void runRefreshNudge(ctx, epoch, 0);
 			return Promise.resolve();
 		}),
 	);
@@ -745,11 +801,11 @@ export function registerNativeProviderRefresh(
 
 async function runRefreshNudge(
 	ctx: ExtensionContext,
-	isRetry: boolean,
+	epoch: number,
+	attempt: number,
 ): Promise<void> {
-	// No casts: ctx.modelRegistry is pi's typed ModelRegistry, whose
-	// refresh() takes ModelsRefreshOptions and returns ModelsRefreshResult
-	// ({aborted, errors: ReadonlyMap<string, Error>}).
+	// A newer session started while we were queued: its nudge owns refresh now.
+	if (epoch !== nudgeEpoch) return;
 	try {
 		if (nudgeProviderIds.size === 0) {
 			_logger.debug(
@@ -758,10 +814,13 @@ async function runRefreshNudge(
 			return;
 		}
 		const scopedIds = [...nudgeProviderIds];
+		const before = nativeCompletionSnapshot(scopedIds);
 		const result = await ctx.modelRegistry?.refresh?.({
 			allowNetwork: true,
 			providers: scopedIds,
 		});
+		// A newer session started mid-refresh: its nudge owns the next attempt.
+		if (epoch !== nudgeEpoch) return;
 		if (!result) {
 			_logger.debug(
 				"[native-model-refresh] registry refresh unavailable; skipping nudge",
@@ -779,33 +838,54 @@ async function runRefreshNudge(
 						.join(" | "),
 			);
 		}
-		if (result.aborted && !isRetry) {
-			_logger.info(
-				"[native-model-refresh] refresh superseded; retrying once after settle",
+		// Pi swallows per-provider aborts, so a clean result is not proof
+		// that anything published: retry while scoped providers show no
+		// completion stamp (TLC RefreshB).
+		const after = nativeCompletionSnapshot(scopedIds);
+		const incomplete = scopedIds.filter(
+			(id) => after.get(id) === before.get(id),
+		);
+		if (incomplete.length === 0) {
+			trackDetachedSessionStart(
+				"native-model-refresh",
+				Promise.resolve(),
+				undefined,
 			);
-			setTimeout(() => {
-				trackDetachedSessionStart(
-					"native-model-refresh-retry",
-					runRefreshNudge(ctx, true),
-					(err) => logRefreshFailure(err),
-				);
-			}, NUDGE_RETRY_DELAY_MS);
+			_logger.debug(
+				`[native-model-refresh] refreshed ${scopedIds.length} provider(s) clean`,
+			);
+			return;
+		}
+		if (attempt >= NUDGE_RETRY_DELAYS_MS.length) {
+			_logger.warn(
+				"[native-model-refresh] refresh incomplete; catalogs stay as-is until the next refresh",
+				{ providers: incomplete },
+			);
 			return;
 		}
 		if (result.aborted) {
-			_logger.warn(
-				"[native-model-refresh] retry superseded; catalogs stay as-is until the next refresh",
+			_logger.info(
+				"[native-model-refresh] refresh superseded; retrying with backoff",
+				{ attempt: attempt + 1, providers: incomplete },
 			);
-			return;
+		} else {
+			_logger.info(
+				"[native-model-refresh] refresh published nothing; retrying with backoff",
+				{ attempt: attempt + 1, providers: incomplete },
+			);
 		}
-		trackDetachedSessionStart(
-			"native-model-refresh",
-			Promise.resolve(),
-			undefined,
-		);
-		_logger.debug(
-			`[native-model-refresh] refreshed ${scopedIds.length} provider(s) clean`,
-		);
+		const delay = NUDGE_RETRY_DELAYS_MS[attempt] ?? 30_000;
+		setTimeout(() => {
+			// Obsolete retry from a previous runner: the current epoch's
+			// nudge owns refresh; firing would abort its generations.
+			if (epoch !== nudgeEpoch) return;
+			trackDetachedSessionStart(
+				`native-model-refresh-retry-${attempt + 1}`,
+				runRefreshNudge(ctx, epoch, attempt + 1),
+				(err) => logRefreshFailure(err),
+			);
+		}, delay);
+		return;
 	} catch (err) {
 		// A replaced session invalidates the captured ctx mid-nudge (#509) —
 		// routine, not a warning.

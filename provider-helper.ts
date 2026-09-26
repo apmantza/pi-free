@@ -49,6 +49,15 @@ export function isCurrentModelOAuth(ctx: unknown): boolean {
 export interface StoredModels {
 	free: ProviderModelConfig[];
 	all: ProviderModelConfig[];
+	/**
+	 * True only once a network generation has published the complete
+	 * catalog into this object this process. A session restore loads the
+	 * persisted (possibly free-view-only) subset into BOTH slots, so
+	 * absent/false means stored.all may be a subset, never the catalog.
+	 * Consumers (e.g. the free/all toggle notify) must not present
+	 * subset counts as catalog totals while this is not true.
+	 */
+	complete?: boolean;
 }
 
 // =============================================================================
