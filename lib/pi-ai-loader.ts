@@ -44,6 +44,18 @@
  *      It is tried last because its pi-ai version is frozen at pi-free's build
  *      time, while any on-disk copy matches the running host.
  *
+ * Two failure kinds trigger the fallback. `ERR_MODULE_NOT_FOUND` means pi-ai
+ * is absent from the chain; `ERR_PACKAGE_PATH_NOT_EXPORTED` for an
+ * allow-listed subpath means a stale pi-ai copy (right name, allowed version,
+ * exports predating the entry — e.g. a long-ago `npm install` in ~/node_modules
+ * shadowing the walk-up from ~/.pi/agent/npm, #581) resolved instead of the
+ * real one. Other subpaths are pi-ai's internal breakage and rethrow.
+ *
+ * Resolution is entry-aware: a candidate root must define the requested entry
+ * in its exports map (or carry the known dist file), so a stale copy never
+ * shadows a good one further down the probe order — the stale copy is skipped
+ * and the search continues toward the vendored bundle.
+ *
  * The fallback imports the resolved entry by absolute file path, so pi-ai's
  * own relative imports keep resolving against pi-ai's real location.
  */
@@ -120,6 +132,13 @@ interface ResolvePiAiRootOptions {
 	appData?: string | null;
 	/** Overrides `process.execPath` for the executable-relative probe (tests). */
 	execPath?: string;
+	/**
+	 * Allow-listed entry the resolved copy must serve (#581). A candidate
+	 * root whose exports map predates the entry (stale shadowing copy) is
+	 * skipped so the search continues to the next probe. Omitted for the
+	 * legacy version-only verdict.
+	 */
+	entry?: PiAiEntry;
 }
 
 const PI_AI_SEGMENTS = ["@earendil-works", "pi-ai"];
@@ -180,6 +199,20 @@ function isUsablePiAiRoot(root: string): boolean {
 }
 
 /**
+ * A candidate root qualifies for `entry` when it is a usable pi-ai copy AND
+ * defines the requested entry. Without `entry` this is the legacy
+ * version-only verdict. The entry check keeps a stale shadowing copy (#581:
+ * right name, allowed version, exports predating the entry) from winning an
+ * early probe over a good copy further down the order.
+ */
+function isCandidatePiAiRoot(root: string, entry?: PiAiEntry): boolean {
+	return (
+		isUsablePiAiRoot(root) &&
+		(entry === undefined || piAiRootDefinesEntry(root, entry))
+	);
+}
+
+/**
  * Locates pi-ai relative to the running pi host's entry script. Handles the
  * hosted-layout failure mode where pi-free's extension tree shares no
  * node_modules with the host install: the entry path is realpath-resolved
@@ -189,7 +222,10 @@ function isUsablePiAiRoot(root: string): boolean {
  * top-level agent entry is a symlink and pi-ai lives only next to the real
  * package directory.
  */
-function findViaHostEntry(argvPath: string | undefined): string | undefined {
+function findViaHostEntry(
+	argvPath: string | undefined,
+	entry?: PiAiEntry,
+): string | undefined {
 	// Relative entry paths are rejected outright: a compiled-binary host (or
 	// any launcher) can expose the first USER argument as argv[1], and walking
 	// up from a CWD-relative path would let an unrelated project's node_modules
@@ -201,14 +237,14 @@ function findViaHostEntry(argvPath: string | undefined): string | undefined {
 	if (!argvPath || !isAbsolute(argvPath)) return undefined;
 	const entryDir = dirname(safeRealpath(argvPath));
 	const direct = findPackageInNodeModules(entryDir, PI_AI_SEGMENTS);
-	if (direct && isUsablePiAiRoot(direct)) return direct;
+	if (direct && isCandidatePiAiRoot(direct, entry)) return direct;
 	const agentRoot = findPackageInNodeModules(entryDir, AGENT_SEGMENTS);
 	if (!agentRoot) return undefined;
 	const nested = findPackageInNodeModules(
 		dirname(safeRealpath(agentRoot)),
 		PI_AI_SEGMENTS,
 	);
-	return nested && isUsablePiAiRoot(nested) ? nested : undefined;
+	return nested && isCandidatePiAiRoot(nested, entry) ? nested : undefined;
 }
 
 function probePackageRoot(candidate: string): string | undefined {
@@ -226,9 +262,9 @@ function probePackageRoot(candidate: string): string | undefined {
  * when nothing better was found, so a stale or foreign look-alike directory
  * must not be imported wholesale.
  */
-function probePiAiInRoot(root: string): string | undefined {
+function probePiAiInRoot(root: string, entry?: PiAiEntry): string | undefined {
 	const direct = probePackageRoot(join(root, "@earendil-works", "pi-ai"));
-	if (direct && isUsablePiAiRoot(direct)) return direct;
+	if (direct && isCandidatePiAiRoot(direct, entry)) return direct;
 	const nested = probePackageRoot(
 		join(
 			root,
@@ -239,7 +275,7 @@ function probePiAiInRoot(root: string): string | undefined {
 			"pi-ai",
 		),
 	);
-	return nested && isUsablePiAiRoot(nested) ? nested : undefined;
+	return nested && isCandidatePiAiRoot(nested, entry) ? nested : undefined;
 }
 
 /**
@@ -251,10 +287,11 @@ export function resolvePiAiPackageRoot(
 	startDir: string = THIS_FILE_DIR,
 	options: ResolvePiAiRootOptions = {},
 ): string | undefined {
+	const { entry } = options;
 	// 1) pi-ai reachable through the standard walk-up (hoisted at or above
 	//    the pi-free install, which is what native resolution would see).
 	const direct = findPackageInNodeModules(startDir, PI_AI_SEGMENTS);
-	if (direct && isUsablePiAiRoot(direct)) return direct;
+	if (direct && isCandidatePiAiRoot(direct, entry)) return direct;
 
 	// 2) pi-ai as pi-coding-agent's own dependency. Finding the agent through
 	//    the same walk-up, then searching upward from it, covers both the
@@ -263,7 +300,7 @@ export function resolvePiAiPackageRoot(
 	const agentRoot = findPackageInNodeModules(startDir, AGENT_SEGMENTS);
 	if (agentRoot) {
 		const nested = findPackageInNodeModules(agentRoot, PI_AI_SEGMENTS);
-		if (nested && isUsablePiAiRoot(nested)) return nested;
+		if (nested && isCandidatePiAiRoot(nested, entry)) return nested;
 	}
 
 	// 3) Relative to the running pi host's entry script — the hosted-run
@@ -273,12 +310,14 @@ export function resolvePiAiPackageRoot(
 		options.argv1 === undefined
 			? process.argv[1]
 			: (options.argv1 ?? undefined),
+		entry,
 	);
 	if (viaHost) return viaHost;
 
 	// 4) The agent npm dir under the user's home.
 	const homeRoot = probePiAiInRoot(
 		join(options.homeDir ?? homedir(), ".pi", "agent", "npm", "node_modules"),
+		entry,
 	);
 	if (homeRoot) return homeRoot;
 
@@ -286,7 +325,10 @@ export function resolvePiAiPackageRoot(
 	const appData =
 		options.appData === undefined ? process.env.APPDATA : options.appData;
 	if (process.platform === "win32" && appData) {
-		const globalRoot = probePiAiInRoot(join(appData, "npm", "node_modules"));
+		const globalRoot = probePiAiInRoot(
+			join(appData, "npm", "node_modules"),
+			entry,
+		);
 		if (globalRoot) return globalRoot;
 	}
 
@@ -296,8 +338,8 @@ export function resolvePiAiPackageRoot(
 	//    executable; POSIX prefixes keep it under <prefix>/lib/node_modules.
 	const execDir = dirname(options.execPath ?? process.execPath);
 	const execRoot =
-		probePiAiInRoot(join(execDir, "node_modules")) ??
-		probePiAiInRoot(join(execDir, "..", "lib", "node_modules"));
+		probePiAiInRoot(join(execDir, "node_modules"), entry) ??
+		probePiAiInRoot(join(execDir, "..", "lib", "node_modules"), entry);
 	if (execRoot) return execRoot;
 
 	return undefined;
@@ -343,6 +385,59 @@ function substituteStar(
 }
 
 /**
+ * Looks up the exports target for an allow-listed subpath, honoring wildcard
+ * keys (pi-ai's `"./providers/*"`). Returns undefined when the map defines no
+ * matching subpath — the signal that this copy predates the entry (#581).
+ */
+function findExportTarget(
+	map: Record<string, unknown>,
+	subpath: string,
+): string | Record<string, unknown> | undefined {
+	const direct = map[subpath] as string | Record<string, unknown> | undefined;
+	if (direct !== undefined) return direct;
+	for (const [key, value] of Object.entries(map)) {
+		const starIndex = key.indexOf("*");
+		if (starIndex === -1) continue;
+		const prefix = key.slice(0, starIndex);
+		const suffix = key.slice(starIndex + 1);
+		if (!subpath.startsWith(prefix) || !subpath.endsWith(suffix)) continue;
+		const star = subpath.slice(prefix.length, subpath.length - suffix.length);
+		return substituteStar(value, star);
+	}
+	return undefined;
+}
+
+/**
+ * True when a pi-ai package root defines an allow-listed entry. Unlike
+ * {@link resolvePiAiEntryFile} this does NOT require the target file to exist
+ * — it answers "does this copy know the entry at all", which is the question
+ * the entry-aware root search asks. When the exports map is unreadable it
+ * degrades to the known dist layout on disk.
+ */
+export function piAiRootDefinesEntry(root: string, entry: PiAiEntry): boolean {
+	const subpath = EXPORT_SUBPATHS[entry];
+	try {
+		const exportsField = JSON.parse(
+			readFileSync(join(root, "package.json"), "utf8"),
+		).exports;
+		if (
+			exportsField &&
+			typeof exportsField === "object" &&
+			!Array.isArray(exportsField)
+		) {
+			if (
+				findExportTarget(exportsField as Record<string, unknown>, subpath) !==
+				undefined
+			)
+				return true;
+		}
+	} catch {
+		// Unreadable package.json: fall through to the known dist layout.
+	}
+	return existsSync(PI_AI_ENTRY_FILES[entry](root));
+}
+
+/**
  * Resolves an allow-listed entry to the file path inside a pi-ai package root,
  * honoring pi-ai's `exports` map (including wildcard subpaths). Returns
  * undefined when no candidate file exists on disk, so callers can surface the
@@ -362,25 +457,10 @@ export function resolvePiAiEntryFile(
 			typeof exportsField === "object" &&
 			!Array.isArray(exportsField)
 		) {
-			const map = exportsField as Record<string, unknown>;
-			let target = map[subpath] as string | Record<string, unknown> | undefined;
-			if (target === undefined) {
-				// wildcard patterns, e.g. "./providers/*"
-				for (const [key, value] of Object.entries(map)) {
-					const starIndex = key.indexOf("*");
-					if (starIndex === -1) continue;
-					const prefix = key.slice(0, starIndex);
-					const suffix = key.slice(starIndex + 1);
-					if (!subpath.startsWith(prefix) || !subpath.endsWith(suffix))
-						continue;
-					const star = subpath.slice(
-						prefix.length,
-						subpath.length - suffix.length,
-					);
-					target = substituteStar(value, star);
-					break;
-				}
-			}
+			const target = findExportTarget(
+				exportsField as Record<string, unknown>,
+				subpath,
+			);
 			const file = unwrapExportTarget(target);
 			if (file) {
 				const resolved = join(root, file);
@@ -409,31 +489,46 @@ export function resolveVendoredPiAiEntryFile(
 	return existsSync(file) ? file : undefined;
 }
 
-let resolvedPiAiRoot: string | undefined;
-let resolvedPiAiRootAttempted = false;
+const resolvedPiAiRoots = new Map<PiAiEntry, string>();
 
 /**
- * True only when the fast-path import failed because pi-ai itself is missing.
- * A failure inside pi-ai (a missing transitive dep, a corrupt file) must NOT
+ * True when the fast-path import failed because pi-ai itself is missing or
+ * does not serve the allow-listed entry. A failure inside pi-ai (a missing
+ * transitive dep, a corrupt file, a missing non-allow-listed subpath) must NOT
  * trigger the disk fallback — it would mask the real error and could load a
  * second, possibly stale pi-ai copy into the process.
  */
 export function isPiAiNotFoundError(error: unknown): boolean {
-	return (
-		typeof error === "object" &&
-		error !== null &&
-		(error as NodeJS.ErrnoException).code === "ERR_MODULE_NOT_FOUND" &&
+	if (typeof error !== "object" || error === null) return false;
+	const code = (error as NodeJS.ErrnoException).code;
+	const message = String((error as Error).message);
+	if (code === "ERR_MODULE_NOT_FOUND") {
 		// Match the quoted specifier, not the "imported from" path — a missing
 		// transitive dep names its own package but carries pi-ai in the path.
-		/Cannot find (?:package|module) '@earendil-works\/pi-ai(?:\/[^']*)?'/.test(
-			String((error as Error).message),
-		)
-	);
+		return /Cannot find (?:package|module) '@earendil-works\/pi-ai(?:\/[^']*)?'/.test(
+			message,
+		);
+	}
+	if (code === "ERR_PACKAGE_PATH_NOT_EXPORTED") {
+		// #581: a stale pi-ai copy shadowing the resolution chain (right name,
+		// allowed version, exports predating the entry — e.g. a long-ago install
+		// in ~/node_modules above ~/.pi/agent/npm) resolves instead of the real
+		// one and Node throws this instead of ERR_MODULE_NOT_FOUND. Only the
+		// baseline allow-listed subpaths qualify: any other subpath is pi-ai's own
+		// internal breakage and must surface rather than silently pick another
+		// copy.
+		return /^Package subpath '\.\/(?:compat|providers\/all)' is not defined by "exports" in .*@earendil-works[\\/]pi-ai[\\/]package\.json/.test(
+			message,
+		);
+	}
+	return false;
 }
 
 /**
  * Loads an allow-listed pi-ai entry point, caching the resolved package root
- * so repeated fallbacks (e.g. provider stream setup) do not re-probe the disk.
+ * per entry so repeated fallbacks (e.g. provider stream setup) do not re-probe
+ * the disk. Per-entry rather than global: resolution is entry-aware (#581), so
+ * one subpath's root must not pin another's.
  */
 export async function loadPiAiEntry<T = unknown>(entry: PiAiEntry): Promise<T> {
 	// Fast path: the bare specifier, exactly like the previous lazy imports.
@@ -446,12 +541,12 @@ export async function loadPiAiEntry<T = unknown>(entry: PiAiEntry): Promise<T> {
 		// A failed resolution is NOT cached: matching lazy-compat's policy that
 		// a transient load error must not break every later stream, the next
 		// call re-probes instead of rethrowing a stale miss forever.
-		if (!resolvedPiAiRootAttempted) {
-			resolvedPiAiRoot = resolvePiAiPackageRoot();
-			resolvedPiAiRootAttempted = resolvedPiAiRoot !== undefined;
+		let root = resolvedPiAiRoots.get(entry);
+		if (root === undefined) {
+			root = resolvePiAiPackageRoot(THIS_FILE_DIR, { entry });
+			if (root !== undefined) resolvedPiAiRoots.set(entry, root);
 		}
-		const root = resolvedPiAiRoot;
-		if (root) {
+		if (root !== undefined) {
 			const entryFile = resolvePiAiEntryFile(root, entry);
 			if (entryFile) return (await import(pathToFileURL(entryFile).href)) as T;
 		}
