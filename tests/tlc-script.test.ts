@@ -47,6 +47,8 @@ describe("check-tlc CLI", () => {
 			"ToggleB",
 			"FallbackA",
 			"FallbackB",
+			"FallbackC",
+			"FallbackLive",
 			"SessionA",
 			"SessionB",
 		]) {

@@ -26,6 +26,8 @@ Holding configs (must verify clean — the shipped behavior):
 | `ToggleA` | Display always matches the effective view; full display needs a fetch |
 | `ToggleC` | `FlaggedHonesty`: a subset shown as "all" is always flagged by the honest notify |
 | `FallbackB` | `BudgetSafe` (auto-continue budget never negative) + `SingleStrike` (every ban count covered by a failure settle or recorded collateral hit) |
+| `FallbackC` | All of the above + `ManualWins` with the #576 fix (generation ticket + landing repair; stale picks stay) |
+| `FallbackLive` | Coverage probe: `CoverRepair` must fire (proves FallbackC's hold is non-vacuous -- caught a dead repair action during development) |
 | `SessionB` | `ScopeComplete` under Pi's emission contract (session_start fires after all extensions load): the nudge scope is the full provider set |
 
 Falsifying configs (must produce the named violation — they prove the

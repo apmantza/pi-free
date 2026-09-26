@@ -1007,3 +1007,207 @@ describe("auto-fallback integration", () => {
 		expect(pi.setModel).not.toHaveBeenCalled();
 	});
 });
+
+describe("recovery restore vs explicit user selection (#576)", () => {
+	function autoRestoreConfig() {
+		mockGetAutoFallbackConfig.mockReturnValue({
+			enabled: true,
+			scope: "provider" as const,
+			whitelistProviders: [] as string[],
+			blacklistTtlMs: 60_000,
+			blacklistMaxStrikes: 3,
+			notifyLevel: "silent" as const,
+			restoreMode: "auto_next_turn" as const,
+			autoContinue: true,
+			autoContinueMax: 3,
+		});
+	}
+
+	function register(pi: MockPi) {
+		createAutoFallback().register(
+			pi as unknown as Parameters<
+				ReturnType<typeof createAutoFallback>["register"]
+			>[0],
+		);
+	}
+
+	async function failOn(
+		pi: MockPi,
+		provider: string,
+		id: string,
+		settleOn?: { provider: string; id: string },
+	) {
+		const on = settleOn ?? { provider, id };
+		await emit(
+			pi,
+			"after_provider_response",
+			{ status: 429, headers: {} },
+			buildMockCtx({ provider, id }),
+		);
+		await emit(
+			pi,
+			"message_end",
+			{
+				message: {
+					role: "assistant",
+					provider,
+					model: id,
+					stopReason: "error",
+					errorMessage: "rate limit exceeded",
+				},
+			},
+			buildMockCtx({ provider, id }),
+		);
+		await emit(pi, "agent_settled", {}, buildMockCtx(on));
+	}
+
+	async function cleanOn(pi: MockPi, provider: string, id: string) {
+		await emit(
+			pi,
+			"message_end",
+			{
+				message: {
+					role: "assistant",
+					provider,
+					model: id,
+					stopReason: "stop",
+				},
+			},
+			buildMockCtx({ provider, id }),
+		);
+		await emit(pi, "agent_settled", {}, buildMockCtx({ provider, id }));
+	}
+
+	async function flushAsyncWork() {
+		for (let i = 0; i < 5; i++) {
+			await new Promise((resolve) => setTimeout(resolve, 0));
+		}
+	}
+
+	function lastSetModel(pi: MockPi) {
+		const calls = pi.setModel.mock.calls;
+		return calls[calls.length - 1]![0] as { provider: string; id: string };
+	}
+
+	it("repairs the user's explicit pick when a recovery restore lands over it", async () => {
+		// TLC FallbackA trace: fail A -> switch B, clean on B dispatches
+		// restore(A), user re-selects elsewhere, restore lands anyway.
+		autoRestoreConfig();
+		const pi = buildMockPi({ provider: "kilo", id: "gpt-4o" });
+		register(pi);
+		await emit(
+			pi,
+			"session_start",
+			{},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
+
+		// Hold the recovery restore in flight so the user pick lands first.
+		let releaseRestore!: () => void;
+		const restoreGate = new Promise<void>((resolve) => {
+			releaseRestore = resolve;
+		});
+		pi.setModel
+			.mockImplementationOnce(async () => true)
+			.mockImplementationOnce(async () => {
+				await restoreGate;
+				return true;
+			})
+			.mockImplementation(async () => true);
+
+		await failOn(pi, "kilo", "gpt-4o"); // switch to claude-sonnet
+		expect(pi.setModel).toHaveBeenCalledTimes(1);
+		await cleanOn(pi, "kilo", "claude-sonnet"); // dispatches restore (held)
+
+		// User explicitly picks elsewhere while the restore is in flight.
+		await emit(
+			pi,
+			"model_select",
+			{},
+			buildMockCtx({ provider: "sambanova", id: "llama-3.1-8b" }),
+		);
+		releaseRestore();
+		await flushAsyncWork();
+
+		// Repair: a third setModel back to the user's explicit pick.
+		expect(pi.setModel).toHaveBeenCalledTimes(3);
+		expect(lastSetModel(pi)).toMatchObject({
+			provider: "sambanova",
+			id: "llama-3.1-8b",
+		});
+	});
+
+	it("preserves a newer episode marker when a stale restore lands", async () => {
+		// Dispatch restore (held) -> user picks X (marker cleared) -> fail
+		// on X switches to Y (marker = X) -> stale landing must preserve it
+		// so the next clean run still restores X.
+		autoRestoreConfig();
+		const pi = buildMockPi({ provider: "kilo", id: "gpt-4o" });
+		register(pi);
+		await emit(
+			pi,
+			"session_start",
+			{},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
+
+		let releaseRestore!: () => void;
+		const restoreGate = new Promise<void>((resolve) => {
+			releaseRestore = resolve;
+		});
+		pi.setModel
+			.mockImplementationOnce(async () => true)
+			.mockImplementationOnce(async () => {
+				await restoreGate;
+				return true;
+			})
+			.mockImplementation(async () => true);
+
+		await failOn(pi, "kilo", "gpt-4o"); // switch to claude-sonnet
+		await cleanOn(pi, "kilo", "claude-sonnet"); // dispatches restore (held)
+		await emit(
+			pi,
+			"model_select",
+			{},
+			buildMockCtx({ provider: "sambanova", id: "llama-3.1-8b" }),
+		);
+		// Fail on the user's pick: switch to llama-3.3-70b, marker = X.
+		// (The repair for X fires too -- the pick still stands -- then the
+		// switch below supersedes it; both are honored in order.)
+		await failOn(pi, "sambanova", "llama-3.1-8b");
+		releaseRestore();
+		await flushAsyncWork();
+
+		// Next clean run must still restore X (marker preserved).
+		await cleanOn(pi, "sambanova", "llama-3.3-70b");
+		await flushAsyncWork();
+		expect(lastSetModel(pi)).toMatchObject({
+			provider: "sambanova",
+			id: "llama-3.1-8b",
+		});
+	});
+
+	it("restores cleanly with no intervening action (no spurious repair)", async () => {
+		// Guard: the repair path must stay quiet on the undisturbed flow.
+		// Passes pre-fix too; pins the no-over-repair direction.
+		autoRestoreConfig();
+		const pi = buildMockPi({ provider: "kilo", id: "gpt-4o" });
+		register(pi);
+		await emit(
+			pi,
+			"session_start",
+			{},
+			buildMockCtx({ provider: "kilo", id: "gpt-4o" }),
+		);
+
+		await failOn(pi, "kilo", "gpt-4o");
+		await cleanOn(pi, "kilo", "claude-sonnet");
+		await flushAsyncWork();
+
+		expect(pi.setModel).toHaveBeenCalledTimes(2);
+		expect(lastSetModel(pi)).toMatchObject({
+			provider: "kilo",
+			id: "gpt-4o",
+		});
+	});
+});
