@@ -11,6 +11,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Qoder loads on Oh My Pi's legacy pi-ai bundle** — `providers/qoder/stream.ts` statically imported `getCurrentSystemPrompt` / `getCurrentTools` from `@earendil-works/pi-ai/compat`, which OMP remaps to its legacy bundle predating those exports, failing the whole extension at load ("Export named 'getCurrentSystemPrompt' not found in module 'omp-legacy-pi-bundled:@oh-my-pi/pi-ai'"). Qoder now reads the transcript through host-agnostic locals (`lib/transcript-helpers.ts`, behavior-pinned against upstream); the only remaining compat import in that file is `import type` (erased at compile). Pinned with `tests/qoder-omp-compat.test.ts` (refs #543).
 
+## [2.8.3] - 2026-09-26
+
+### Added
+
+- **Orcarouter provider** — new unified-gateway provider with free/paid classification through the native catalog fetcher (refs #567).
+- **Xkiro provider** — new provider with free-tier catalog entries (refs #566).
+- **Qoder catalog expansion** — broader model list plus a time-bound promo free slot (refs #566).
+- **TLA+/TLC model-checking gate** — `tla/` specs (refresh storm + reloads, toggle lifecycle, auto-fallback, session ordering) run in CI via `scripts/check-tlc.mjs` (`.github/workflows/tlc.yml`); every hold plan ships a falsifying twin proving the guarded transition fires (refs #573).
+- **Refresh-storm design note and agents.md methodology section** — why re-publish is load-bearing, the storm-3 operating boundary, and the TLC working rules (refs #573, #576).
+
+### Changed
+
+- **Infron free catalog 5 → 7** — `kimi-k2.6:free` and both Nemotron entries delisted (plain `kimi-k2.6` is now paid); two DeepSeek flashes, Motif 3, Qwen Flash and two Qwen 27B variants report $0/$0. Detection is dynamic Route A pricing, so no code change; docs refreshed (refs #573).
+- **Refresh nudge is abort-aware** — verifies per-provider completion stamps, retries with 5s/15s/30s backoff, logs clean only on completion, and drops obsolete retries across reloads via an epoch guard (refs #573).
+- **Toggle counts are honest on restored subsets** — `StoredModels.complete` tracks network publication; `/toggle-x` over a restored free-view subset reports "not yet fetched" instead of "0 paid hidden" (refs #573).
+
+### Fixed
+
+- **Refresh starvation under the re-registration storm** — Pi's `setProvider` superseded the nudge's fetch every session while reporting clean, aging catalogs 5–19 days with `refresh ok 0 (0 models)` and `2 aborts` (closes #573).
+- **Auto-fallback recovery restore overriding explicit user picks** — the fire-and-forget restore is now a generation-tagged flight: own switches are value-matched, user picks during a flight are recorded, and the landing repairs to a live pick while preserving newer episode markers (closes #576).
+
 ## [2.8.2] - 2026-09-22
 
 ### Changed
