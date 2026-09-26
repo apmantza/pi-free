@@ -24,16 +24,7 @@ import {
 	getCurrentSystemPrompt,
 	getCurrentTools,
 } from "../lib/transcript-helpers.ts";
-
-/** Strip comments and string literals so prose can never satisfy the scan. */
-function blanked(source: string): string {
-	return source
-		.replace(/\/\*[\s\S]*?\*\//g, " ")
-		.replace(/\/\/[^\n]*/g, " ")
-		.replace(/'(?:[^'\\\n]|\\.)*'/g, "''")
-		.replace(/"(?:[^"\\\n]|\\.)*"/g, '""')
-		.replace(/`(?:[^`\\]|\\.)*`/g, "``");
-}
+import { blankNonCode } from "./helpers/blanked-source.ts";
 
 describe("Qoder OMP legacy-compat", () => {
 	it("has no static value import from pi-ai compat (type-only is fine)", () => {
@@ -53,7 +44,7 @@ describe("Qoder OMP legacy-compat", () => {
 		// The transcript helpers must come from the host-agnostic local
 		// module. Checked on blanked text so a comment quoting the path
 		// can never satisfy it.
-		const source = blanked(raw);
+		const source = blankNonCode(raw);
 		expect(source).toMatch(/getCurrentSystemPrompt/);
 		expect(source).toMatch(/getCurrentTools/);
 		expect(raw).toContain("lib/transcript-helpers");
