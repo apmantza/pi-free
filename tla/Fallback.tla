@@ -25,7 +25,9 @@
  *)
 EXTENDS Naturals, TLC, FiniteSets
 
-CONSTANTS Models, MaxBudget, MaxFailSettles
+CONSTANTS Models, MaxBudget, MaxFailSettles, HonorUserPick
+(* HonorUserPick = FALSE models the shipped code (unconditional landing);
+   TRUE models the #576 fix (generation ticket + landing repair). *)
 
 VARIABLES
     cur,             \* current model
@@ -39,13 +41,15 @@ VARIABLES
     initFlag,       \* budget initialized this session
     hasPrompt,      \* captured user prompt available for replay
     restoreTarget,  \* in-flight async restore destination or ""
+    flightPick,     \* user pick recorded during the flight or ""
     doomed,         \* in-flight restore no longer matches user intent
+    repairedLatch,  \* a landing repair has fired (coverage probe, #576)
     overrodeUser,   \* violation latch for P1
     failBudget      \* bounds failure settles (finite states)
 
 vars == <<cur, pre, lastFrom, recovered, banned, settlesPerKey,
           collateral, budget, initFlag, hasPrompt, restoreTarget,
-          doomed, overrodeUser, failBudget>>
+          flightPick, doomed, repairedLatch, overrodeUser, failBudget>>
 
 NoModel == "NONE"
 
@@ -65,7 +69,9 @@ Init ==
     /\ initFlag = FALSE
     /\ hasPrompt = FALSE
     /\ restoreTarget = NoModel
+    /\ flightPick = NoModel
     /\ doomed = FALSE
+    /\ repairedLatch = FALSE
     /\ overrodeUser = FALSE
     /\ failBudget = MaxFailSettles
 
@@ -97,7 +103,8 @@ FailSettle ==
        \/ Eligible = {} /\ banned' = [banned EXCEPT ![cur] = Min(@ + 1, 3)]
             /\ UNCHANGED <<cur, pre, lastFrom, recovered, budget,
                            initFlag, collateral>>
-    /\ UNCHANGED <<hasPrompt, restoreTarget, doomed, overrodeUser>>
+    /\ UNCHANGED <<hasPrompt, restoreTarget, flightPick, doomed,
+                   overrodeUser, repairedLatch>>
 
 \* Clean run: refill budget; recover the outstanding switch (clear the
  \* failed key, dispatch the async restore). Display/model unchanged.
@@ -105,20 +112,36 @@ CleanSettle ==
     /\ IF pre /= NoModel /\ ~recovered
        THEN /\ banned' = [banned EXCEPT ![lastFrom] = 0]
             /\ recovered' = TRUE
-            /\ restoreTarget' = pre
-       ELSE UNCHANGED <<banned, recovered, restoreTarget>>
+            /\ IF restoreTarget = NoModel
+               THEN /\ restoreTarget' = pre
+                    /\ flightPick' = NoModel
+               ELSE UNCHANGED <<restoreTarget, flightPick>>
+       ELSE UNCHANGED <<banned, recovered, restoreTarget, flightPick>>
     /\ budget' = MaxBudget
     /\ initFlag' = TRUE
     /\ UNCHANGED <<cur, pre, lastFrom, settlesPerKey, collateral,
-                   hasPrompt, doomed, overrodeUser, failBudget>>
+                   hasPrompt, doomed, overrodeUser, failBudget, repairedLatch>>
 
 \* The in-flight restore lands (the un-awaited .then). Possibly stale.
 RestoreLand ==
     /\ restoreTarget /= NoModel
-    /\ IF doomed THEN overrodeUser' = TRUE ELSE UNCHANGED overrodeUser
-    /\ cur' = restoreTarget
-    /\ pre' = NoModel
+    /\ IF HonorUserPick
+       THEN /\ IF doomed /\ flightPick /= NoModel /\ banned[flightPick] = 0
+                 THEN /\ cur' = flightPick \* repair: honor explicit pick
+                      /\ repairedLatch' = TRUE
+                      /\ UNCHANGED overrodeUser
+                 ELSE /\ cur' = restoreTarget
+                      /\ UNCHANGED overrodeUser \* stale/null pick: intended stay
+                      /\ UNCHANGED repairedLatch
+            /\ IF pre /= NoModel /\ pre /= restoreTarget
+               THEN UNCHANGED pre \* preserve a newer episode's marker
+               ELSE pre' = NoModel
+       ELSE /\ cur' = restoreTarget
+            /\ IF doomed THEN overrodeUser' = TRUE ELSE UNCHANGED overrodeUser
+            /\ pre' = NoModel
+            /\ UNCHANGED repairedLatch
     /\ restoreTarget' = NoModel
+    /\ flightPick' = NoModel
     /\ doomed' = FALSE
     /\ UNCHANGED <<lastFrom, recovered, banned, settlesPerKey,
                    collateral, budget, initFlag, hasPrompt, failBudget>>
@@ -136,24 +159,29 @@ UserSelect ==
             ELSE IF restoreTarget /= NoModel /\ m = restoreTarget
                  THEN doomed' = FALSE
                  ELSE UNCHANGED doomed
+         /\ IF restoreTarget /= NoModel /\ restoreTarget /= m
+            THEN flightPick' = m
+            ELSE UNCHANGED flightPick
     /\ UNCHANGED <<lastFrom, recovered, banned, settlesPerKey,
                    collateral, budget, initFlag, hasPrompt,
-                   restoreTarget, overrodeUser, failBudget>>
+                   restoreTarget, overrodeUser, failBudget, repairedLatch>>
 
 \* Genuine user prompt (before_agent_start): captured, supersedes replays.
 UserPrompt ==
     /\ hasPrompt' = TRUE
     /\ UNCHANGED <<cur, pre, lastFrom, recovered, banned, settlesPerKey,
-                   collateral, budget, initFlag, restoreTarget, doomed,
-                   overrodeUser, failBudget>>
+                   collateral, budget, initFlag, restoreTarget, flightPick,
+                   doomed, overrodeUser, failBudget, repairedLatch>>
 
 \* Session start clears prompt capture and budget init (budget value kept).
 SessionStart ==
     /\ hasPrompt' = FALSE
     /\ initFlag' = FALSE
+    /\ restoreTarget' = NoModel
+    /\ flightPick' = NoModel
+    /\ doomed' = FALSE
     /\ UNCHANGED <<cur, pre, lastFrom, recovered, banned, settlesPerKey,
-                   collateral, budget, restoreTarget, doomed,
-                   overrodeUser, failBudget>>
+                   collateral, budget, overrodeUser, failBudget, repairedLatch>>
 
 Next ==
     \/ FailSettle
@@ -177,7 +205,9 @@ TypeOK ==
     /\ initFlag \in BOOLEAN
     /\ hasPrompt \in BOOLEAN
     /\ restoreTarget \in Models \cup {NoModel}
+    /\ flightPick \in Models \cup {NoModel}
     /\ doomed \in BOOLEAN
+    /\ repairedLatch \in BOOLEAN
     /\ overrodeUser \in BOOLEAN
     /\ failBudget \in 0..MaxFailSettles
 
@@ -192,5 +222,9 @@ BudgetSafe == budget \in 0..MaxBudget
  \* regression (striking again at switch time) would break this.
 SingleStrike ==
     \A k \in Models : banned[k] <= settlesPerKey[k] + collateral
+
+\* Coverage probe: the repair transition fires (proves FallbackC's hold
+ \* is non-vacuous -- a dead repair action would hold ManualWins trivially).
+CoverRepair == ~repairedLatch
 
 ====

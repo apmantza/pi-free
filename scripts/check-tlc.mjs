@@ -39,6 +39,7 @@ const HOLD = [
 	{ cfg: "ToggleA", module: "Toggle" },
 	{ cfg: "ToggleC", module: "Toggle" },
 	{ cfg: "FallbackB", module: "Fallback" },
+	{ cfg: "FallbackC", module: "Fallback" },
 	{ cfg: "SessionB", module: "Session" },
 ];
 
@@ -54,6 +55,7 @@ const FALSIFY = [
 	{ cfg: "RefreshR-F", module: "RefreshR", invariant: "EventualRefresh" },
 	{ cfg: "ToggleB", module: "Toggle", invariant: "NoSubsetAsAll" },
 	{ cfg: "FallbackA", module: "Fallback", invariant: "ManualWins" },
+	{ cfg: "FallbackLive", module: "Fallback", invariant: "CoverRepair" },
 	{ cfg: "SessionA", module: "Session", invariant: "ScopeComplete" },
 ];
 

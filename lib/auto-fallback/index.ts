@@ -114,6 +114,22 @@ export function createAutoFallback(): AutoFallbackHandle {
 	const blacklist: Blacklist = createBlacklist();
 	const history: HistoryEntry[] = [];
 	let preFallbackModel: { provider: string; modelId: string } | null = null;
+	/**
+	 * Outstanding recovery-restore flight, if any (generation tag, #576).
+	 * At most one: a second dispatch while one is in flight is skipped.
+	 * The landing reconciles against this ticket — including a user pick
+	 * recorded mid-flight — instead of trusting ambient state.
+	 */
+	let activeRestore: {
+		target: { provider: string; modelId: string };
+		userPick: { provider: string; modelId: string } | null;
+	} | null = null;
+	/**
+	 * Target of our own in-flight setModel, matched by VALUE in
+	 * model_select (Pi emits model_select for programmatic switches too).
+	 * Never windowed: set immediately before the call, consumed on match.
+	 */
+	let ownSwitchTarget: { provider: string; modelId: string } | null = null;
 	let lastSeenCtx: ExtensionContext | undefined;
 	let pi: ExtensionAPI | undefined;
 
@@ -310,7 +326,17 @@ export function createAutoFallback(): AutoFallbackHandle {
 				tried++;
 				continue;
 			}
+			// Tag our own switch so model_select can tell it apart from an
+			// explicit user pick (Pi emits model_select for both, #576).
+			ownSwitchTarget = { provider: cand.provider, modelId: cand.modelId };
 			const ok = await safeSetModel(newModel);
+			if (
+				ownSwitchTarget &&
+				ownSwitchTarget.provider === cand.provider &&
+				ownSwitchTarget.modelId === cand.modelId
+			) {
+				ownSwitchTarget = null;
+			}
 			if (!ok) {
 				blacklist.recordFailure(
 					modelKey(cand.provider, cand.modelId),
@@ -388,13 +414,97 @@ export function createAutoFallback(): AutoFallbackHandle {
 			preFallbackModel = null;
 			return;
 		}
+		// Single outstanding flight: a second dispatch while one is in
+		// flight would double-switch to the same target. Skip; the next
+		// clean settle re-dispatches if still needed (#576).
+		if (activeRestore) {
+			_logger.debug(
+				"auto-fallback: restore already in flight; skipping duplicate",
+			);
+			return;
+		}
+		const target = {
+			provider: preFallbackModel.provider,
+			modelId: preFallbackModel.modelId,
+		};
+		const flight = {
+			target,
+			userPick: null as { provider: string; modelId: string } | null,
+		};
+		activeRestore = flight;
 		void safeSetModel(restoreModel).then((ok) => {
-			if (ok) {
-				_logger.info(
-					`auto-fallback: restored ${preFallbackModel?.provider}/${preFallbackModel?.modelId} after recovery`,
-				);
+			// Orphaned by session start: a newer cycle owns reconciliation;
+			// the next clean settle re-dispatches if still needed.
+			if (activeRestore !== flight) return;
+			activeRestore = null;
+			// Never clear a newer episode's marker: only the ticket's own
+			// target may be retired here (#576).
+			if (
+				preFallbackModel &&
+				preFallbackModel.provider === target.provider &&
+				preFallbackModel.modelId === target.modelId
+			) {
+				preFallbackModel = null;
 			}
-			preFallbackModel = null;
+			if (!ok) {
+				_logger.debug("auto-fallback: restore setModel failed", {
+					model: modelKey(target.provider, target.modelId),
+				});
+				return;
+			}
+			const pick = flight.userPick;
+			if (!pick) {
+				_logger.info(
+					`auto-fallback: restored ${target.provider}/${target.modelId} after recovery`,
+				);
+				return;
+			}
+			// The user explicitly moved during our flight. A pick that
+			// failed since is stale intent — stay where the machinery put
+			// us. Otherwise honor it: setModel to the current model is a
+			// Pi-side no-op, so this is safe however the race resolved.
+			if (blacklist.isBlacklisted(modelKey(pick.provider, pick.modelId))) {
+				_logger.debug(
+					"auto-fallback: user pick failed since; keeping current model",
+					{
+						model: modelKey(pick.provider, pick.modelId),
+					},
+				);
+				return;
+			}
+			const pickModel = allModels.find(
+				(m) => m.provider === pick.provider && m.id === pick.modelId,
+			);
+			if (!pickModel) {
+				_logger.warn(
+					"auto-fallback: user pick no longer in catalog; keeping current model",
+					{
+						model: modelKey(pick.provider, pick.modelId),
+					},
+				);
+				return;
+			}
+			void safeSetModel(pickModel).then((repaired) => {
+				if (!repaired) {
+					_logger.warn("auto-fallback: failed to restore user selection", {
+						model: modelKey(pick.provider, pick.modelId),
+					});
+					return;
+				}
+				_logger.info(
+					`auto-fallback: restored user-selected ${pick.provider}/${pick.modelId} over a stale auto-restore`,
+				);
+				recordAction(
+					"fallback",
+					`${target.provider}/${target.modelId} → ${pick.provider}/${pick.modelId} (repair-user-pick)`,
+				);
+				getNotifier().recordSwitch({
+					fromKey: modelKey(target.provider, target.modelId),
+					toKey: modelKey(pick.provider, pick.modelId),
+					reason: "repair-user-pick",
+					at: Date.now(),
+				});
+			});
 		});
 	}
 
@@ -506,6 +616,10 @@ export function createAutoFallback(): AutoFallbackHandle {
 				lastUserPrompt = null;
 				lastAssistantMessage = null;
 				budgetInitialized = false;
+				// A newer cycle owns reconciliation from here; an orphaned
+				// landing reconciles nothing (#576).
+				activeRestore = null;
+				ownSwitchTarget = null;
 			});
 
 			extensionPi.on("agent_start", (_event, ctx) => {
@@ -696,6 +810,29 @@ export function createAutoFallback(): AutoFallbackHandle {
 
 			extensionPi.on("model_select", (_event, ctx) => {
 				lastSeenCtx = ctx;
+				const picked = ctx.model
+					? { provider: ctx.model.provider, modelId: ctx.model.id }
+					: null;
+				if (
+					picked &&
+					ownSwitchTarget &&
+					picked.provider === ownSwitchTarget.provider &&
+					picked.modelId === ownSwitchTarget.modelId
+				) {
+					// Our own switch landing: consume the tag. Marker logic
+					// below runs unchanged.
+					ownSwitchTarget = null;
+				} else if (
+					picked &&
+					activeRestore &&
+					(picked.provider !== activeRestore.target.provider ||
+						picked.modelId !== activeRestore.target.modelId)
+				) {
+					// Genuine user pick during a restore flight (own emits
+					// self-exclude by tag or by matching the target):
+					// reconcile at landing instead of losing the race (#576).
+					activeRestore.userPick = picked;
+				}
 				if (preFallbackModel && ctx.model) {
 					if (
 						ctx.model.provider !== preFallbackModel.provider ||
