@@ -696,7 +696,7 @@ export function registerNativeProviderToggle(
 
 /**
  * Backoff schedule for refresh attempts after the initial nudge.
- * TLC model RefreshB (tla/pi-free-refresh): 1 initial + 3 retries exhaust
+ * TLC model RefreshB (tla/RefreshB.cfg): 1 initial + 3 retries exhaust
  * a storm budget of 3 adversarial re-registers; further attempts would only
  * repeat the same race, so the nudge then stands down loudly and the next
  * session_start tries again with a fresh budget.
