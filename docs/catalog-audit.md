@@ -65,7 +65,7 @@ Fetched directly from each provider's real `/models` endpoint. Carried over unch
 | FastRouter | 139 | 11 | |
 | TokenRouter | 128 | 2 | `qwen3.8-max-free` upstream was flaky at audit time (gateway 503s) |
 | GMI Cloud | 75 | 2 | MiniMax Week promotion through 2026-09-06 |
-| Infron AI | 285 | 5 | New in this release |
+| Infron AI | 295 | 7 | New in this release |
 | LLM7 | 46 | 46 | Entirely free gateway |
 | DeepInfra | 188 | 0 | $5 trial-credit provider; no pricing exposed, no free-named models |
 | Novita | 151 | 0 | Trial-credit posture, same as DeepInfra |

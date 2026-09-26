@@ -10,10 +10,9 @@
  * and no per-model reasoning flag. Mapped here instead of through the shared
  * OpenRouter-compatible fetcher.
  *
- * Free models: exactly the zero-priced LLM entries — currently five, three
- * with an explicit `:free` id suffix, one with a `-reasoning` id whose
- * display name carries "(free)", all reported at 0/0 min prices by the
- * catalog. Classification follows published pricing via Route A
+ * Free models: exactly the zero-priced LLM entries — currently seven, six
+ * with an explicit `:free` id suffix plus `motif/motif-3` whose display
+ * name carries "(Free)", all reported at 0/0 min prices by the catalog. Classification follows published pricing via Route A
  * (`_pricingKnown: true`, no free/paid override).
  */
 
