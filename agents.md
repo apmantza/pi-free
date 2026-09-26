@@ -80,6 +80,7 @@ index.ts                          ← Extension entry (piFreeEntry)
       "Native `Provider` providers" below)
 
 tests/                            ← Vitest test suite
+tla/                              ← TLA+ specs + TLC gate (see TLC Model Checking)
 ```
 
 ---
@@ -264,6 +265,17 @@ Screen against these BEFORE writing code — each one cost a real incident:
 - **Tests:** `tests/*.test.ts` (registry, toggle, config, detection, compat; `vi.fn()` ExtensionAPI doubles)
 - **Design the state space before coding.** For stateful/ordered/resource-mutating work, write invariants, transitions, and a cross-product matrix (order, failure atomicity, aborts) first — the refresh-supersede and restore bugs came from unmodeled orderings.
 - **Wait on the right clock.** Poll for conditions (`waitFor`/`waitSettled`, bounded loops) — never fixed sleeps. Detached tasks mutating polled state get a targeted lint disable with reason.
+
+---
+
+## TLC Model Checking
+
+- **Scope:** `tla/` models concurrency-shaped behavior only (refresh generations vs re-registration storms, toggle vs restore timing, fallback restore vs user picks, load/start ordering). Pure logic stays in unit tests; TLC is for interleavings.
+- **Run:** `node scripts/check-tlc.mjs` (all plans), `--list` for the plan table without a toolchain. The toolchain (pinned Temurin JRE + tla2tools) bootstraps into `~/.cache`; `TLC_JAVA`/`TLC_JAR` reuse an existing one. CI job `tlc.yml` runs it on `tla/**` changes; the unit suite never runs TLC (toolchain weight) — `tests/tlc-script.test.ts` pins only the runner's CLI contract.
+- **Every hazard ships a falsify plan and every fix a hold plan** (`RefreshA`/`RefreshB`); reload and session variants take the model suffix (`RefreshR-*`, `Session*`); boundary maps take the storm parameter (`RefreshR-F`). A falsify plan that stops failing means the spec no longer exercises the hazard — treat it like a dead mutation test.
+- **Every hold gets a firing proof.** A hold is vacuous until a falsifying twin proves the guarded transition fires (the `FallbackLive` pattern: `CoverRepair` must violate). If the guarded action cannot fire, the hold proves nothing — and TLC reports nothing either way.
+- **Audit frames on every variable touch.** Each `X' = …` assignment must exclude `X` from every conjoined `UNCHANGED` tuple, or the action silently dies: no error, just a shrunken space. After adding or moving a variable, confirm state counts move in the expected direction; sudden shrinkage is a dead action until proven otherwise.
+- **Trust the compiler over cached diagnostics.** When an editor/linter finding contradicts `tsc --noEmit` on a tree identical to a green base, re-verify the finding against current file contents before editing.
 
 ---
 
