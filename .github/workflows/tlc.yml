@@ -1,0 +1,35 @@
+name: TLC model checking
+
+on:
+  push:
+    branches: [master]
+    paths: ["tla/**", "scripts/check-tlc.mjs", ".github/workflows/tlc.yml"]
+  pull_request:
+    branches: [master]
+    paths: ["tla/**", "scripts/check-tlc.mjs", ".github/workflows/tlc.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  tlc:
+    name: TLC (TLA+ refresh/toggle models)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # zizmor: artipacked - CI never pushes; no credential needed
+        with:
+          persist-credentials: false
+
+      # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22"
+
+      # Toolchain (Temurin JRE + tla2tools, pinned in
+      # scripts/check-tlc.mjs) downloads into ~/.cache on first run.
+      # Small enough (~55MB) that no cross-run cache is worth another
+      # pinned dependency.
+      - name: Run TLC model checks
+        run: node scripts/check-tlc.mjs
