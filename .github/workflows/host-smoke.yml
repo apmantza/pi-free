@@ -12,8 +12,8 @@ name: Host smoke
 # as field reports, not CI reds.
 #
 # Two lanes:
-# - host-floor (PR + push): oldest supported host (PI_HOST_FLOOR). Blocking:
-#   claiming support for a host CI never boots is how #547 ships.
+# - host-floor (PR + push): oldest supported host (literal peer floor).
+#   Blocking: claiming support for a host CI never boots is how #547 ships.
 # - host-latest (nightly + dispatch): newest published pi-coding-agent.
 #   Reds on failure but never blocks a PR (a schedule cannot gate): a new pi
 #   release breaking pi-free load is our drift to fix, and this is the lane
@@ -58,8 +58,10 @@ jobs:
         with:
           node-version: "22"
 
+      # S6505 NOSONAR below: devDep lifecycle scripts (esbuild postinstall)
+      # are required — identical install shape to every existing lane.
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+        run: npm ci --no-audit --no-fund # NOSONAR
 
       # Swap the tree's host for the floor: every driver below resolves pi
       # from here, so the whole lane boots the oldest supported release.
@@ -126,8 +128,10 @@ jobs:
         with:
           node-version: "22"
 
+      # S6505 NOSONAR below: devDep lifecycle scripts (esbuild postinstall)
+      # are required — identical install shape to every existing lane.
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+        run: npm ci --no-audit --no-fund # NOSONAR
 
       # Resolve at run time: "newest" is a property of the registry on the
       # night the lane runs, not of this file. Pinned nowhere by design.
@@ -148,8 +152,8 @@ jobs:
         env:
           PI_HOST_VERSION: ${{ steps.host.outputs.version }}
         shell: bash
-        run: >- # NOSONAR -- S8543: the newest-host lane exists to install
-          npm install --no-save --ignore-scripts --no-audit --no-fund
+        run: >-
+          npm install --no-save --ignore-scripts --no-audit --no-fund # NOSONAR
           "@earendil-works/pi-coding-agent@${PI_HOST_VERSION}"
 
       - name: Pack tarball
