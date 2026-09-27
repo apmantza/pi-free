@@ -13,6 +13,71 @@ import {
 import { getAllResponseCounters } from "./quota-monitor.ts";
 import { getRecentActions } from "./action-log.ts";
 import { getAutoFallback } from "./auto-fallback-status.ts";
+import { describePiAiResolution } from "./pi-ai-loader.ts";
+import type {
+	PiAiEntryResolution,
+	PiAiResolutionSnapshot,
+} from "./pi-ai-loader.ts";
+
+/** The allow-listed pi-ai entries, in report order. */
+const PI_AI_ENTRIES = ["compat", "providers/all"] as const;
+
+/**
+ * `root@version`, or `none` — the one place this report formats a pi-ai copy,
+ * so the health and telemetry surfaces cannot drift apart.
+ */
+function describePiAiCopy(root: string | null, version: string | null): string {
+	return root === null ? "none" : `${root}@${version ?? "unknown"}`;
+}
+
+/** One entry's resolution, e.g. `on-disk via walk-up (/path@0.86.1)`. */
+function describePiAiEntry(resolution: PiAiEntryResolution): string {
+	const how = resolution.source ?? "unresolved";
+	const via = resolution.via ? ` via ${resolution.via}` : "";
+	const where = resolution.root
+		? ` (${describePiAiCopy(resolution.root, resolution.version)})`
+		: "";
+	return `${how}${via}${where}`;
+}
+
+/**
+ * pi-ai resolution section for `/pi-free-health` and `/free-telemetry`.
+ *
+ * The fast-path copy is rendered **separately** from the entry-aware result,
+ * because the #581 failure is "the bare specifier resolved a name+version-valid
+ * copy that cannot serve the entry": every other line can look healthy while
+ * streams die. Credential-free — absolute paths, versions and booleans, the
+ * same class of data this report already prints for the log path.
+ */
+export function formatPiAiResolutionLines(
+	snapshot: PiAiResolutionSnapshot,
+): string[] {
+	const lines = [
+		`pi-ai: ${snapshot.shadowed ? "SHADOWED" : "ok"}`,
+		`  fast path (bare specifier): ${describePiAiCopy(snapshot.fastPath.root, snapshot.fastPath.version)}`,
+	];
+	for (const entry of PI_AI_ENTRIES) {
+		lines.push(`  ${entry}: ${describePiAiEntry(snapshot.entries[entry])}`);
+	}
+	if (snapshot.shadowed) {
+		const missing = PI_AI_ENTRIES.filter(
+			(entry) => !snapshot.fastPath.defines[entry],
+		);
+		lines.push(
+			`  ↳ fast-path copy does not define ${missing.map((e) => `"${e}"`).join(", ")} (#581 shape)`,
+		);
+	}
+	lines.push(`  vendored bundle: ${snapshot.vendored ? "present" : "absent"}`);
+	// Session failures that fell off the fast path, deduped by the loader: the
+	// narrative behind a SHADOWED verdict, or the reason a Bun host recovered.
+	for (const event of snapshot.events) {
+		lines.push(
+			`  ↳ ${event.entry}: ${event.code} → ${event.recovered}` +
+				(event.resolvedFile ? ` (${event.resolvedFile})` : ""),
+		);
+	}
+	return lines;
+}
 
 /**
  * Render a credential-free diagnostic report for `/pi-free-health`.
@@ -33,13 +98,21 @@ export function formatHealthReport(): string {
 	const emptyCatalogs = emptyCatalogFlags();
 	const responseIssues = responseOutcomeLines();
 	const logWriteFailures = getLogWriteFailures();
+	// pi-ai resolution (the doctor). This is the only section that can see the
+	// #581 shape: the fast path resolving a name+version-valid copy that cannot
+	// serve the entry, while every other line still reads healthy.
+	const piAi = describePiAiResolution();
+	const piAiBroken =
+		piAi.shadowed ||
+		PI_AI_ENTRIES.some((entry) => piAi.entries[entry].source === null);
 	const problemCount =
 		failures.length +
 		networkFailures.length +
 		outcomeFlags.length +
 		emptyCatalogs.length +
 		responseIssues.length +
-		(logWriteFailures > 0 ? 1 : 0);
+		(logWriteFailures > 0 ? 1 : 0) +
+		(piAiBroken ? 1 : 0);
 	const status = registry.size === 0 || problemCount > 0 ? "WARN" : "OK";
 	const logSuffix = isFileLoggingEnabled() ? "" : " (file logging disabled)";
 	const lines = [
@@ -49,6 +122,8 @@ export function formatHealthReport(): string {
 		`Log file: ${getLogPath()}${logSuffix}`,
 		"",
 		formatStartupSummary(),
+		"",
+		...formatPiAiResolutionLines(piAi),
 	];
 
 	if (networkFailures.length > 0) {

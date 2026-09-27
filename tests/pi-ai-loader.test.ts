@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
+	describePiAiResolution,
 	findPackageInNodeModules,
 	isPiAiNotFoundError,
 	piAiRootDefinesEntry,
@@ -10,6 +11,7 @@ import {
 	resolvePiAiPackageRoot,
 	resolveVendoredPiAiEntryFile,
 } from "../lib/pi-ai-loader.ts";
+import type { PiAiProbeRecord } from "../lib/pi-ai-loader.ts";
 
 function makePackage(root: string, packageJson: object = { name: "pkg" }) {
 	mkdirSync(root, { recursive: true });
@@ -428,6 +430,119 @@ describe("piAiRootDefinesEntry", () => {
 		writeFileSync(compatFile, "export {};");
 		expect(piAiRootDefinesEntry(root, "compat")).toBe(true);
 		expect(piAiRootDefinesEntry(root, "providers/all")).toBe(false);
+	});
+});
+
+describe("resolvePiAiPackageRoot probe trace", () => {
+	it("records a single hit for a healthy hoisted copy, in order", () => {
+		const base = mkdtempSync(join(tmpdir(), "pi-free-loader-"));
+		const root = join(base, "node_modules", "@earendil-works", "pi-ai");
+		makePackage(root, PI_AI_EXPORTS);
+		const start = join(base, "node_modules", "pi-free", "lib");
+		mkdirSync(start, { recursive: true });
+		const trace: PiAiProbeRecord[] = [];
+		expect(
+			resolvePiAiPackageRoot(start, { argv1: null, trace, entry: "compat" }),
+		).toBe(root);
+		// The first probe wins, so nothing after it is evaluated: the documented
+		// order says walk-up precedes every fallback.
+		expect(trace).toEqual([{ probe: "walk-up", outcome: "hit", root }]);
+	});
+
+	it("names the rejection reason for a stale shadowing copy (#581)", () => {
+		// The doctor's whole point: a bare "not found" cost a support thread on
+		// #581, while the trace names the exact defect — a name+version-valid
+		// copy whose exports predate the entry.
+		const base = mkdtempSync(join(tmpdir(), "pi-free-loader-"));
+		const stale = join(base, "node_modules", "@earendil-works", "pi-ai");
+		makePackage(stale, {
+			name: "@earendil-works/pi-ai",
+			version: "0.84.2",
+			exports: { ".": { import: "./dist/index.js" } },
+		});
+		const start = join(base, "node_modules", "pi-free", "dist", "lib");
+		mkdirSync(start, { recursive: true });
+		const host = join(base, "host", "node_modules", "@earendil-works", "pi-ai");
+		makePackage(host, PI_AI_EXPORTS);
+		const cli = join(base, "host", "dist", "cli.js");
+		mkdirSync(dirname(cli), { recursive: true });
+		const trace: PiAiProbeRecord[] = [];
+
+		expect(
+			resolvePiAiPackageRoot(start, {
+				argv1: cli,
+				entry: "compat",
+				trace,
+				homeDir: join(base, "no-home"),
+				appData: join(base, "no-appdata"),
+				execPath: join(base, "sys", "node"),
+			}),
+		).toBe(host);
+		expect(trace).toEqual([
+			{
+				probe: "walk-up",
+				outcome: "rejected",
+				root: stale,
+				reason: 'exports do not define "./compat"',
+			},
+			{ probe: "agent-nested", outcome: "miss" },
+			{ probe: "host-entry/direct", outcome: "hit", root: host },
+		]);
+	});
+
+	it("distinguishes a wrong name from a low version", () => {
+		const base = mkdtempSync(join(tmpdir(), "pi-free-loader-"));
+		const root = join(base, "node_modules", "@earendil-works", "pi-ai");
+		const start = join(base, "node_modules", "pi-free", "lib");
+		mkdirSync(start, { recursive: true });
+		const trace: PiAiProbeRecord[] = [];
+		const isolated = { argv1: null, trace, homeDir: join(base, "no-home") };
+
+		makePackage(root, { ...PI_AI_EXPORTS, name: "@earendil-works/pi-ai-x" });
+		resolvePiAiPackageRoot(start, { ...isolated, entry: "compat" });
+		expect(trace[0]).toEqual({
+			probe: "walk-up",
+			outcome: "rejected",
+			root,
+			reason: "not a @earendil-works/pi-ai package",
+		});
+
+		trace.length = 0;
+		makePackage(root, { ...PI_AI_EXPORTS, version: "0.80.9" });
+		resolvePiAiPackageRoot(start, { ...isolated, entry: "compat" });
+		expect(trace[0]).toEqual({
+			probe: "walk-up",
+			outcome: "rejected",
+			root,
+			reason: "version 0.80.9 is below 0.81.0",
+		});
+	});
+
+	it("traces nothing unless asked (production passes no trace)", () => {
+		const base = mkdtempSync(join(tmpdir(), "pi-free-loader-"));
+		const root = join(base, "node_modules", "@earendil-works", "pi-ai");
+		makePackage(root, PI_AI_EXPORTS);
+		const start = join(base, "node_modules", "pi-free", "lib");
+		mkdirSync(start, { recursive: true });
+		// No assertion on a collector — the contract is simply that omitting the
+		// option cannot throw and still resolves.
+		expect(resolvePiAiPackageRoot(start, { argv1: null })).toBe(root);
+	});
+});
+
+describe("describePiAiResolution", () => {
+	it("describes the real tree without importing pi-ai", () => {
+		const snapshot = describePiAiResolution();
+		// This checkout has a hoisted pi-ai, so the fast path resolves and both
+		// entries come from disk. The guard is that the doctor never claims a
+		// shadowed tree here — a false shadow would flip /pi-free-health to WARN
+		// on every healthy install.
+		expect(snapshot.fastPath.root).not.toBeNull();
+		expect(snapshot.shadowed).toBe(false);
+		expect(snapshot.entries.compat.source).toBe("on-disk");
+		expect(snapshot.entries["providers/all"].source).toBe("on-disk");
+		expect(snapshot.entries.compat.via).toBeTruthy();
+		expect(snapshot.entries.compat.probes.length).toBeGreaterThan(0);
 	});
 });
 

@@ -10,6 +10,10 @@
 import { createLogger } from "./logger.ts";
 import { resolveSafeDataFile } from "./paths.ts";
 import { createJSONStore } from "./json-persistence.ts";
+import type {
+	PiAiResolutionEvent,
+	PiAiResolutionSnapshot,
+} from "./pi-ai-loader.ts";
 
 const _logger = createLogger("telemetry");
 
@@ -71,6 +75,48 @@ interface TelemetryStore {
 	models: Record<string, ModelTelemetry>;
 	/** When the store was last updated. */
 	lastUpdated: number;
+	/**
+	 * pi-ai resolution diagnostics, one record per session. **Additive and
+	 * optional**: a telemetry file written before this existed simply has no
+	 * `diagnostics` key, and every reader goes through `?.` — old records keep
+	 * parsing with their model data intact.
+	 */
+	diagnostics?: { piAi?: PiAiDiagnostics };
+}
+
+/**
+ * Durable half of the pi-ai doctor (#585). One record per session, so a
+ * support transcript can show what an install resolved even after the process
+ * that hit the problem is gone — the #581 report had none of this.
+ *
+ * Credential-free by construction: absolute paths, versions, booleans and
+ * loader event codes only.
+ */
+export interface PiAiDiagnostics {
+	/** Epoch ms of the recorded snapshot. */
+	recordedAt: number;
+	/** Bare-specifier copy (the one Node resolves without the entry check). */
+	fastPathRoot: string | null;
+	fastPathVersion: string | null;
+	/** Per allow-listed entry: does the fast-path copy define it? */
+	fastPathDefines: Record<string, boolean>;
+	/** Fast-path copy exists but cannot serve an entry (#581 shape). */
+	shadowed: boolean;
+	/** `dist/vendor` bundles present (Bun-compiled hosts need them). */
+	vendored: boolean;
+	/** Entry-aware resolution per allow-listed entry. */
+	entries: Record<string, PiAiEntryDiagnostics>;
+	/** Session loads that fell off the fast path (loader-bounded and deduped). */
+	events: PiAiResolutionEvent[];
+}
+
+/** One entry's resolved source, as persisted. */
+export interface PiAiEntryDiagnostics {
+	root: string | null;
+	version: string | null;
+	file: string | null;
+	source: "on-disk" | "vendored" | null;
+	via: string | null;
 }
 
 // =============================================================================
@@ -238,6 +284,59 @@ export function getModelTelemetry(
 	model: string,
 ): ModelTelemetry | null {
 	return _store.load().models[telemetryKey(provider, model)] ?? null;
+}
+
+/**
+ * Persist one pi-ai resolution snapshot into the telemetry file.
+ *
+ * The durable counterpart of `/pi-free-health`'s live section: the health
+ * report is only visible while the process lives, and the #581 report arrived
+ * with nothing but a stack trace. Overwrites the previous record (one per
+ * session) rather than appending, so the file cannot grow with every reload.
+ */
+export async function recordPiAiDiagnostics(
+	snapshot: PiAiResolutionSnapshot,
+): Promise<void> {
+	const entries: Record<string, PiAiEntryDiagnostics> = {};
+	for (const [entry, resolution] of Object.entries(snapshot.entries)) {
+		entries[entry] = {
+			root: resolution.root,
+			version: resolution.version,
+			file: resolution.file,
+			source: resolution.source,
+			via: resolution.via,
+		};
+	}
+	const piAi: PiAiDiagnostics = {
+		recordedAt: Date.now(),
+		fastPathRoot: snapshot.fastPath.root,
+		fastPathVersion: snapshot.fastPath.version,
+		fastPathDefines: { ...snapshot.fastPath.defines },
+		shadowed: snapshot.shadowed,
+		vendored: snapshot.vendored,
+		entries,
+		events: snapshot.events,
+	};
+	await _store.update((store) => ({
+		...store,
+		diagnostics: { ...store.diagnostics, piAi },
+		lastUpdated: Date.now(),
+	}));
+	// Flush immediately. Telemetry writes are debounced (1500ms) to coalesce
+	// chatty per-turn call records, but this record is written once per session
+	// and Pi calls process.exit(0) right after extension startup (see
+	// lib/logger.ts): a debounced diagnostics write would routinely vanish with
+	// the exact process that needed to record it. Same rationale as
+	// clearTelemetry, and bounded to one flush per session.
+	await _store.flush();
+}
+
+/**
+ * The persisted pi-ai diagnostics, or undefined for a telemetry file written
+ * before the record existed (or one that has not seen a session yet).
+ */
+export function getPiAiDiagnostics(): PiAiDiagnostics | undefined {
+	return _store.load().diagnostics?.piAi;
 }
 
 /**

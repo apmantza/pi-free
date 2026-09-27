@@ -34,7 +34,7 @@ import {
 import { fallbackState } from "./lib/fallback-state.ts";
 import { createAutoFallback } from "./lib/auto-fallback/index.ts";
 import { registerAutoFallbackStatusGetter } from "./lib/auto-fallback-status.ts";
-import { formatHealthReport } from "./lib/health.ts";
+import { formatHealthReport, formatPiAiResolutionLines } from "./lib/health.ts";
 import { logWireSignature } from "./lib/wire-signature.ts";
 import {
 	startModelCall,
@@ -43,7 +43,9 @@ import {
 	getProviderErrorCounts,
 	getTelemetryPath,
 	clearTelemetry,
+	recordPiAiDiagnostics,
 } from "./lib/telemetry.ts";
+import { describePiAiResolution } from "./lib/pi-ai-loader.ts";
 import {
 	applyGlobalFilter,
 	getGlobalFreeOnly,
@@ -308,6 +310,11 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 				lines.push("", "Failures by class:", ...authLines);
 			}
 
+			// pi-ai resolution (#585): the install-layout diagnosis that a stack
+			// trace alone never carried (#581/#510/#448). Live probe, same
+			// formatter as /pi-free-health so the two cannot drift.
+			lines.push("", ...formatPiAiResolutionLines(describePiAiResolution()));
+
 			ctx.ui.notify(lines.join("\n"), "info");
 		},
 	});
@@ -326,6 +333,15 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 			"Show pi-free health, startup issues, and the diagnostic log path",
 		handler: async (_args, ctx) => {
 			ctx.ui.notify(formatHealthReport(), "info");
+			// Refreshing the durable record here means a user who pastes health
+			// output has also written the resolution state to the telemetry file,
+			// where it survives the process. Detached: the report must not wait
+			// on disk I/O.
+			recordPiAiDiagnostics(describePiAiResolution()).catch((error) => {
+				_logger.debug("pi-ai diagnostics recording failed", {
+					error: String(error),
+				});
+			});
 		},
 	});
 
@@ -550,7 +566,18 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 
 		// Start a fresh observability window before any provider session_start
 		// handlers run. The handler is synchronous and never blocks Pi.
-		pi.on("session_start", () => beginSessionStart());
+		pi.on("session_start", () => {
+			beginSessionStart();
+			// pi-ai resolution diagnostics (#585): record what this install
+			// resolved, once per session, so a mid-session install change shows up.
+			// Measured at ~0.3ms of filesystem probes and no pi-ai import; the
+			// write itself is detached, keeping the handler synchronous.
+			recordPiAiDiagnostics(describePiAiResolution()).catch((error) => {
+				_logger.debug("pi-ai diagnostics recording failed", {
+					error: String(error),
+				});
+			});
+		});
 
 		// Setup global commands first
 		setupGlobalCommands(pi);

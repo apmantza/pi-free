@@ -167,4 +167,80 @@ describe("health report", () => {
 		vi.doUnmock("../lib/logger.ts");
 		vi.resetModules();
 	});
+
+	it("reports pi-ai resolution (the doctor) on a healthy tree", async () => {
+		const { formatHealthReport } = await import("../lib/health.ts");
+		const report = formatHealthReport();
+
+		// The section exists and separates the bare-specifier copy from the
+		// entry-aware result — that split is what makes #581 diagnosable.
+		expect(report).toContain("pi-ai: ok");
+		expect(report).toContain("fast path (bare specifier):");
+		expect(report).toContain("compat: on-disk");
+		expect(report).toContain("providers/all: on-disk");
+		expect(report).toContain("vendored bundle:");
+	});
+
+	it("names the shadowing copy and the recovery when degraded (#581)", async () => {
+		// A healthy checkout cannot produce this state, so the renderer is driven
+		// with the shape the loader reports in the hostile-layout smoke: a stale
+		// fast-path copy plus an entry-aware recovery elsewhere on disk.
+		const { formatPiAiResolutionLines } = await import("../lib/health.ts");
+		const lines = formatPiAiResolutionLines({
+			fastPath: {
+				root: "/home/u/node_modules/@earendil-works/pi-ai",
+				version: "0.84.2",
+				defines: { compat: false, "providers/all": false },
+			},
+			entries: {
+				compat: {
+					root: "/usr/lib/node_modules/@earendil-works/pi-ai",
+					version: "0.87.1",
+					file: "/usr/lib/node_modules/@earendil-works/pi-ai/dist/compat.js",
+					source: "on-disk",
+					via: "host-entry/direct",
+					probes: [],
+				},
+				"providers/all": {
+					// A vendored source has no root serving it: the bundle itself is the
+					// source, so root stays null (the fixture mirrors the real snapshot).
+					root: null,
+					version: null,
+					file: "/opt/pi-free/dist/vendor/pi-ai-providers-all.js",
+					source: "vendored",
+					via: null,
+					probes: [],
+				},
+			},
+			events: [
+				{
+					at: "2026-09-26T00:00:00.000Z",
+					entry: "compat",
+					code: "ERR_PACKAGE_PATH_NOT_EXPORTED",
+					fastPathRoot: "/home/u/node_modules/@earendil-works/pi-ai",
+					recovered: "on-disk",
+					resolvedRoot: "/usr/lib/node_modules/@earendil-works/pi-ai",
+					resolvedFile:
+						"/usr/lib/node_modules/@earendil-works/pi-ai/dist/compat.js",
+				},
+			],
+			vendored: true,
+			shadowed: true,
+		});
+		const report = lines.join("\n");
+
+		expect(report).toContain("pi-ai: SHADOWED");
+		expect(report).toContain(
+			"fast path (bare specifier): /home/u/node_modules/@earendil-works/pi-ai@0.84.2",
+		);
+		expect(report).toContain(
+			'fast-path copy does not define "compat", "providers/all" (#581 shape)',
+		);
+		expect(report).toContain(
+			"compat: on-disk via host-entry/direct (/usr/lib/node_modules/@earendil-works/pi-ai@0.87.1)",
+		);
+		expect(report).toContain("providers/all: vendored");
+		expect(report).toContain("compat: ERR_PACKAGE_PATH_NOT_EXPORTED → on-disk");
+		expect(report).toContain("vendored bundle: present");
+	});
 });

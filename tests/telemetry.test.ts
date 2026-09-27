@@ -1,15 +1,77 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { existsSync, mkdtempSync, unlinkSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	unlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import type { PiAiResolutionSnapshot } from "../lib/pi-ai-loader.ts";
+
 const tempDir = mkdtempSync(join(tmpdir(), "pi-free-telemetry-test-"));
+
+/** Where telemetry actually lands: PI_DATA_DIR is `<home>/.pi`. */
+const telemetryFile = () => join(tempDir, ".pi", "free-telemetry.json");
+
+function removeTelemetryFile(): void {
+	if (existsSync(telemetryFile())) unlinkSync(telemetryFile());
+}
+
+/**
+ * A #581-shaped snapshot: the bare-specifier copy resolves but cannot serve
+ * `./compat`, and the load recovered from another copy on disk. A plain typed
+ * value is deliberate — the subject under test here is persistence, not
+ * resolution (the loader's own tests run the real probes).
+ */
+function shadowedSnapshot(): PiAiResolutionSnapshot {
+	return {
+		fastPath: {
+			root: "/home/u/node_modules/@earendil-works/pi-ai",
+			version: "0.84.2",
+			defines: { compat: false, "providers/all": false },
+		},
+		entries: {
+			compat: {
+				root: "/usr/lib/node_modules/@earendil-works/pi-ai",
+				version: "0.87.1",
+				file: "/usr/lib/node_modules/@earendil-works/pi-ai/dist/compat.js",
+				source: "on-disk",
+				via: "host-entry/direct",
+				probes: [],
+			},
+			"providers/all": {
+				root: "/usr/lib/node_modules/@earendil-works/pi-ai",
+				version: "0.87.1",
+				file: "/usr/lib/node_modules/@earendil-works/pi-ai/dist/providers/all.js",
+				source: "on-disk",
+				via: "host-entry/direct",
+				probes: [],
+			},
+		},
+		events: [
+			{
+				at: "2026-09-26T00:00:00.000Z",
+				entry: "compat",
+				code: "ERR_PACKAGE_PATH_NOT_EXPORTED",
+				fastPathRoot: "/home/u/node_modules/@earendil-works/pi-ai",
+				recovered: "on-disk",
+				resolvedRoot: "/usr/lib/node_modules/@earendil-works/pi-ai",
+				resolvedFile:
+					"/usr/lib/node_modules/@earendil-works/pi-ai/dist/compat.js",
+			},
+		],
+		vendored: false,
+		shadowed: true,
+	};
+}
 
 describe("telemetry", () => {
 	beforeEach(() => {
-		if (existsSync(join(tempDir, "free-telemetry.json"))) {
-			unlinkSync(join(tempDir, "free-telemetry.json"));
-		}
+		removeTelemetryFile();
 		// Point HOME at the temp dir so PI_DATA_DIR resolves inside it,
 		// then leave PI_FREE_TELEMETRY_FILE unset (default basename is used).
 		process.env.HOME = tempDir;
@@ -175,5 +237,81 @@ describe("telemetry", () => {
 			authFailures: 2,
 		});
 		expect(counts.get("net-prov")?.network).toBe(1);
+	});
+
+	describe("pi-ai diagnostics (#585)", () => {
+		it("persists one record and reads it back", async () => {
+			const { recordPiAiDiagnostics, getPiAiDiagnostics } =
+				await import("../lib/telemetry.ts");
+			await recordPiAiDiagnostics(shadowedSnapshot());
+
+			const record = getPiAiDiagnostics();
+			expect(record?.shadowed).toBe(true);
+			expect(record?.fastPathVersion).toBe("0.84.2");
+			expect(record?.entries.compat?.source).toBe("on-disk");
+			expect(record?.entries.compat?.via).toBe("host-entry/direct");
+			expect(record?.events).toHaveLength(1);
+			expect(record?.events[0]?.code).toBe("ERR_PACKAGE_PATH_NOT_EXPORTED");
+
+			// Durability, not just the in-memory cache: the point of the record is
+			// that it survives the process that hit the problem.
+			const onDisk = JSON.parse(readFileSync(telemetryFile(), "utf-8"));
+			expect(onDisk.diagnostics.piAi.shadowed).toBe(true);
+		});
+
+		it("overwrites rather than appends (one record per session)", async () => {
+			const { recordPiAiDiagnostics, getPiAiDiagnostics } =
+				await import("../lib/telemetry.ts");
+			const first = shadowedSnapshot();
+			await recordPiAiDiagnostics(first);
+			const second = { ...shadowedSnapshot(), shadowed: false, events: [] };
+			await recordPiAiDiagnostics(second);
+
+			const record = getPiAiDiagnostics();
+			expect(record?.shadowed).toBe(false);
+			expect(record?.events).toEqual([]);
+			// Still one record: a reload storm must not grow the file.
+			const onDisk = JSON.parse(readFileSync(telemetryFile(), "utf-8"));
+			expect(Object.keys(onDisk.diagnostics)).toEqual(["piAi"]);
+		});
+
+		it("keeps model data for a file written before diagnostics existed", async () => {
+			// The old-record parse proof: a v2.8.3 file has no `diagnostics` key,
+			// so the added field must be invisible to it in both directions — the
+			// reader must not crash and must not lose the model data it does have.
+			mkdirSync(join(tempDir, ".pi"), { recursive: true });
+			writeFileSync(
+				telemetryFile(),
+				JSON.stringify({
+					models: {
+						"legacy-prov/legacy-model": {
+							totalCalls: 2,
+							successCalls: 1,
+							errorCalls: 1,
+							totalTokens: 30,
+							totalPromptTokens: 10,
+							totalCompletionTokens: 20,
+							totalLatencyMs: 200,
+							totalCost: 0,
+							avgLatencyMs: 200,
+							avgTokensPerSecond: 150,
+							successRate: 50,
+							recentCalls: [],
+						},
+					},
+					lastUpdated: 1,
+				}),
+			);
+			const { getAllTelemetry, getPiAiDiagnostics, recordPiAiDiagnostics } =
+				await import("../lib/telemetry.ts");
+
+			expect(getPiAiDiagnostics()).toBeUndefined();
+			expect(getAllTelemetry()["legacy-prov/legacy-model"]?.totalCalls).toBe(2);
+
+			// And recording into an old file keeps its model data.
+			await recordPiAiDiagnostics(shadowedSnapshot());
+			expect(getAllTelemetry()["legacy-prov/legacy-model"]?.totalCalls).toBe(2);
+			expect(getPiAiDiagnostics()?.shadowed).toBe(true);
+		});
 	});
 });
