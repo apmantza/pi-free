@@ -74,9 +74,13 @@ jobs:
         # --ignore-scripts: the fixture only needs the package's files on
         # disk for import.meta.resolve; it never runs pi-coding-agent's own
         # lifecycle scripts, so skip them (SonarCloud S6505).
+        # The version travels through step env (shell expansion), never a
+        # `${{ }}` interpolation inside run: — Sonar's injection rule.
+        env:
+          PI_HOST_VERSION: ${{ env.PI_HOST_FLOOR }}
         run: >-
           npm install --no-save --ignore-scripts --no-audit --no-fund
-          @earendil-works/pi-coding-agent@${{ env.PI_HOST_FLOOR }}
+          @earendil-works/pi-coding-agent@${PI_HOST_VERSION}
 
       - name: Pack tarball
         # prepare builds dist/, so the pack that follows ships it.
@@ -144,10 +148,14 @@ jobs:
 
       - name: Install newest-host fixture
         # --ignore-scripts: same fixture rationale as the floor lane above.
+        # The version travels through step env (shell expansion), never a
+        # `${{ }}` interpolation inside run: — Sonar's injection rule.
+        env:
+          PI_HOST_VERSION: ${{ steps.host.outputs.version }}
         shell: bash
         run: >-
           npm install --no-save --ignore-scripts --no-audit --no-fund
-          @earendil-works/pi-coding-agent@${{ steps.host.outputs.version }}
+          @earendil-works/pi-coding-agent@${PI_HOST_VERSION}
 
       - name: Pack tarball
         shell: bash
