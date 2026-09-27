@@ -145,16 +145,17 @@ jobs:
 
       - name: Install newest-host fixture
         # --ignore-scripts: same fixture rationale as the floor lane above.
-        # The version travels through step env (shell expansion), never a
-        # `${{ }}` interpolation inside run: — Sonar's injection rule.
-        # Resolving @latest IS this lane's purpose (the drift signal), so
-        # the unlocked version here is intentional, not an oversight.
+        # --no-audit/--no-fund are dropped so the install stays a single
+        # line: S8543's NOSONAR marker only takes on single-line run:
+        # values, never inside a folded block. The unlocked install is
+        # intentional — resolving @latest IS this lane's drift signal —
+        # and the spec travels through step env (shell expansion), never a
+        # `${{ }}` interpolation inside run:.
         env:
-          PI_HOST_VERSION: ${{ steps.host.outputs.version }}
+          FIXTURE_SPEC: >-
+            @earendil-works/pi-coding-agent@${{ steps.host.outputs.version }}
         shell: bash
-        run: >- # NOSONAR
-          npm install --no-save --ignore-scripts --no-audit --no-fund
-          "@earendil-works/pi-coding-agent@${PI_HOST_VERSION}"
+        run: npm install --no-save --ignore-scripts "$FIXTURE_SPEC" # NOSONAR
 
       - name: Pack tarball
         shell: bash
