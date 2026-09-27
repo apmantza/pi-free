@@ -152,9 +152,9 @@ jobs:
         env:
           PI_HOST_VERSION: ${{ steps.host.outputs.version }}
         shell: bash
-        run: >-
-          npm install --no-save --ignore-scripts --no-audit --no-fund # NOSONAR
-          "@earendil-works/pi-coding-agent@${PI_HOST_VERSION}" # NOSONAR
+        run: >- # NOSONAR
+          npm install --no-save --ignore-scripts --no-audit --no-fund
+          "@earendil-works/pi-coding-agent@${PI_HOST_VERSION}"
 
       - name: Pack tarball
         shell: bash
