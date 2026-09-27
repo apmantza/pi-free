@@ -46,7 +46,36 @@ specs can catch the bug, and document its exact shape):
 
 ## Running
 
-- CI: `.github/workflows/tlc.yml` runs `node scripts/check-tlc.mjs` (toolchain bootstrapped automatically; pinned Temurin JRE 21.0.12.1+1 + tla2tools v1.7.4).
+- CI: `.github/workflows/tlc.yml` runs `node scripts/check-tlc.mjs --coverage` (toolchain bootstrapped automatically; pinned Temurin JRE 21.0.12.1+1 + tla2tools v1.7.4).
 - Locally: same command. With an existing toolchain, skip the download:
   `TLC_JAVA=/path/to/java TLC_JAR=/path/to/tla2tools.jar node scripts/check-tlc.mjs`.
 - `node scripts/check-tlc.mjs --list` prints the planned checks without needing a toolchain.
+
+## Reading action coverage
+
+`--coverage` adds TLC's per-definition evaluation table to the run (parsed by
+`scripts/lib/tlc-coverage.mjs`), which is how a guard that stops firing becomes
+visible: a zero is the signature of the `Audit frames on every variable touch`
+hazard in `agents.md`. Example from `ToggleA`:
+
+```text
+coverage ToggleA: 6 action(s)
+  Toggle.Init: 1:1
+  Toggle.Restart: 1:1
+  Toggle.FetchStart: 8:8
+  Toggle.FetchComplete: 2:8
+  Toggle.FetchAborted: 0:8  <- never fired
+  Toggle.Toggle: 5:16
+  invariants/operators (no count): TypeOK, ViewDisplayAgree, FullDisplayNeedsFetch, FlaggedHonesty
+```
+
+**It is a diagnostic, not a gate.** The pair is `fired:total` as TLC evaluated
+it, which is not the same as "transitions taken" — `ToggleA` reports
+`FetchAborted: 0:8` for an action that is enabled in that config, so a zero
+means *go read the spec*, not *the spec is broken*. Assertions stay with the
+falsifying twins above. Two useful readings it does support:
+
+- `FallbackB`/`FallbackC` show `Fallback.RestoreLand` firing ~6.7k times, so the
+  repair action `FallbackLive` / `CoverRepair` guards is genuinely alive.
+- Definitions without a count are invariants and operators (`TypeOK`), listed
+  separately because they cannot fire.
