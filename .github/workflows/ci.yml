@@ -117,13 +117,21 @@ jobs:
       # longer vendors it (that is the fix) — install it here explicitly, as a
       # standalone test fixture standing in for the host, so this step keeps
       # verifying the real loader instead of depending on incidental vendoring.
+      # The fixture is the peer floor (>=0.86.0) as a literal, never an
+      # arbitrary old release: a 0.84.x pin tested a host pi-free does not
+      # support while no lane booted a supported one below the
+      # devDependency. A literal also satisfies S8543 (locked versions in
+      # install commands). The host-smoke floor lane installs the same
+      # literal — keep them in sync. The full floor/latest install paths
+      # live in host-smoke.yml; this step keeps the --omit=dev tree's
+      # loader check on the oldest supported host.
       - name: Install pi-coding-agent fixture for the loader smoke test
         # --ignore-scripts: this fixture only needs the package's files on
         # disk for import.meta.resolve; it never runs pi-coding-agent's own
         # lifecycle scripts, so skip them (SonarCloud S6505).
         run: >-
-          npm install --no-save --ignore-scripts
-          @earendil-works/pi-coding-agent@0.84.2 --no-audit --no-fund
+          npm install --no-save --ignore-scripts --no-audit --no-fund
+          @earendil-works/pi-coding-agent@0.86.0
 
       - name: Smoke-load compiled entry through Pi's real loader
         run: node scripts/smoke-pi-loader.mjs ./dist/index.js
