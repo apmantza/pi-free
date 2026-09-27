@@ -1,0 +1,173 @@
+name: Host smoke
+
+# Loads pi-free in a REAL pi on both ends of the supported host range — the
+# pi-lens install-smoke shape, adapted to this repo's single-host axis.
+#
+# Every existing lane resolves pi-coding-agent from the devDependency tree
+# (^0.86.0, whatever `npm ci` admits today) or from the source-install-build
+# fixture (the peer floor, loader-only). Neither answers "does pi-free load
+# in the pi users actually run": #547 (Pi 0.86 removed
+# context.systemPrompt/context.tools) and #581 (a shadowing pi-ai copy
+# throwing ERR_PACKAGE_PATH_NOT_EXPORTED under a current host) both arrived
+# as field reports, not CI reds.
+#
+# Two lanes:
+# - host-floor (PR + push): oldest supported host (PI_HOST_FLOOR). Blocking:
+#   claiming support for a host CI never boots is how #547 ships.
+# - host-latest (nightly + dispatch): newest published pi-coding-agent.
+#   Reds on failure but never blocks a PR (a schedule cannot gate): a new pi
+#   release breaking pi-free load is our drift to fix, and this is the lane
+#   that catches it before the issue tracker does.
+#
+# Both lanes pack the CURRENT repo and drive the full production install
+# path — `pi install npm:pi-free@<tarball>` through pi's own installer into
+# an isolated HOME, then the RPC load/session/toggle/restore suites
+# (scripts/pi-install-smoke.mjs) — plus a loader pass through that host's
+# own loadExtensions. No script changes were needed: the drivers resolve pi
+# from the tree, and the fixture install below swaps the tree's host. No
+# model is ever called (dummy keys; registry reads only).
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  schedule:
+    - cron: "30 6 * * *" # nightly 06:30 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+# Oldest pi-coding-agent this repo claims to support (peer range
+# `>=0.86.0`; 0.86 introduced the `TranscriptContext` provider contract).
+# Mirrored in ci.yml's source-install-build fixture (workflow env cannot
+# cross files); a range edit moves both together.
+env:
+  PI_HOST_FLOOR: "0.86.0"
+
+jobs:
+  host-floor:
+    name: Oldest supported host
+    runs-on: ubuntu-latest
+    # The RPC suites allow 660s each; bound a hang well under GitHub's
+    # 360-minute default.
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # zizmor: artipacked - CI never pushes; no credential needed
+        with:
+          persist-credentials: false
+
+      # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      # Swap the tree's host for the floor: every driver below resolves pi
+      # from here, so the whole lane boots the oldest supported release.
+      - name: Install oldest-supported host fixture
+        # --ignore-scripts: the fixture only needs the package's files on
+        # disk for import.meta.resolve; it never runs pi-coding-agent's own
+        # lifecycle scripts, so skip them (SonarCloud S6505).
+        run: >-
+          npm install --no-save --ignore-scripts --no-audit --no-fund
+          @earendil-works/pi-coding-agent@${{ env.PI_HOST_FLOOR }}
+
+      - name: Pack tarball
+        # prepare builds dist/, so the pack that follows ships it.
+        run: npm pack
+
+      # Fast fail before the slow install smoke: this host's loadExtensions
+      # must accept the compiled entry at all (#547 class).
+      - name: Smoke-load compiled entry through the floor host's loader
+        run: node scripts/smoke-pi-loader.mjs ./dist/index.js
+
+      - name: Install through Pi and verify RPC commands
+        shell: bash
+        run: |
+          TARBALL=$(ls pi-free-*.tgz)
+          npm run smoke:pi-install -- "$PWD/$TARBALL"
+
+      # Failure forensics: the smoke scripts preserve free.log/free.json
+      # into .smoke-artifacts/ on failure (the temp HOME is deleted).
+      # Upload them so a red lane is debuggable from the run.
+      - name: Upload smoke failure artifacts
+        if: failure()
+        # v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: host-smoke-floor
+          path: .smoke-artifacts/
+          if-no-files-found: ignore
+
+  host-latest:
+    name: Newest published host (${{ matrix.os }})
+    # Nightly drift lane + manual (see header): a schedule cannot gate.
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # zizmor: artipacked - CI never pushes; no credential needed
+        with:
+          persist-credentials: false
+
+      # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      # Resolve at run time: "newest" is a property of the registry on the
+      # night the lane runs, not of this file. Pinned nowhere by design.
+      - name: Resolve newest published host
+        id: host
+        shell: bash
+        run: |
+          VERSION=$(npm view @earendil-works/pi-coding-agent version)
+          echo "Newest published host: $VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Install newest-host fixture
+        # --ignore-scripts: same fixture rationale as the floor lane above.
+        shell: bash
+        run: >-
+          npm install --no-save --ignore-scripts --no-audit --no-fund
+          @earendil-works/pi-coding-agent@${{ steps.host.outputs.version }}
+
+      - name: Pack tarball
+        shell: bash
+        run: npm pack
+
+      - name: Smoke-load compiled entry through the newest host's loader
+        shell: bash
+        run: node scripts/smoke-pi-loader.mjs ./dist/index.js
+
+      - name: Install through Pi and verify RPC commands
+        shell: bash
+        run: |
+          TARBALL=$(ls pi-free-*.tgz)
+          npm run smoke:pi-install -- "$PWD/$TARBALL"
+
+      - name: Upload smoke failure artifacts
+        if: failure()
+        # v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: host-smoke-latest-${{ matrix.os }}
+          path: .smoke-artifacts/
+          if-no-files-found: ignore
