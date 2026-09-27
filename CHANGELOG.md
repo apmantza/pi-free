@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.4] - 2026-09-27
+
 ### Added
 
 - **pi-ai resolution diagnostics: the doctor, in `/pi-free-health` and the telemetry file** — the install-layout class (#448, #510, #581) was diagnosed by a multi-message interview because nothing could say which pi-ai copy an install resolved. `/pi-free-health` now reports the bare-specifier copy (path, version, and whether its `exports` define each allow-listed entry) separately from the entry-aware result (per entry: `on-disk`/`vendored`, the probe that found it, and the resolved file), plus the session's fast-path failures and how each recovered. The loader's probe order is now traced (`trace` option on `resolvePiAiPackageRoot`) and every rejected candidate carries a reason (`describeRejection`, the single source of truth behind the usability guard), so the report names the defect — `exports do not define "./compat"` — instead of a bare "not found". One record per session is persisted additively into `~/.pi/free-telemetry.json` as `diagnostics.piAi` (flushed immediately: Pi exits right after startup, so a debounced write would be lost); files written before the key existed still parse, model data intact. Filesystem-only, so it never triggers the compat load the loader defers (`refs #585`).
