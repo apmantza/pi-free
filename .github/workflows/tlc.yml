@@ -32,4 +32,8 @@ jobs:
       # Small enough (~55MB) that no cross-run cache is worth another
       # pinned dependency.
       - name: Run TLC model checks
-        run: node scripts/check-tlc.mjs
+        # --coverage adds TLC's per-action evaluation table (parsed by
+        # scripts/lib/tlc-coverage.mjs). Diagnostic only: a zero count is worth
+        # reading, never by itself a failure — the falsifying twins remain the
+        # assertion (tla/README.md, "Reading action coverage").
+        run: node scripts/check-tlc.mjs --coverage

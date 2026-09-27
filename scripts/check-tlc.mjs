@@ -21,6 +21,7 @@ import { homedir, platform } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { get } from "node:https";
+import { formatCoverageReport, parseTlcCoverage } from "./lib/tlc-coverage.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -61,9 +62,14 @@ const FALSIFY = [
 
 function usage(exitCode) {
 	const lines = [
-		"Usage: node scripts/check-tlc.mjs [--list]",
+		"Usage: node scripts/check-tlc.mjs [--list] [--coverage]",
 		"",
 		"Runs TLC over every tla/*.cfg plan (see tla/README.md).",
+		"  --list      print the plan table without a toolchain",
+		"  --coverage  also run the HOLD plans with TLC -coverage and print the",
+		"              per-action evaluation counts. Diagnostic only: a zero count",
+		"              is worth reading, never by itself a failure (see",
+		"              scripts/lib/tlc-coverage.mjs and the note it prints).",
 		"Env: TLC_JAVA, TLC_JAR (toolchain overrides),",
 		"     TLC_CACHE_DIR (default ~/.cache/pi-free-tlc),",
 		"     TLC_NO_DOWNLOAD=1 (fail instead of downloading).",
@@ -152,14 +158,42 @@ async function ensureToolchain() {
 	return { java, jar };
 }
 
-function checkOne(java, jar, { cfg, module }) {
+function checkOne(java, jar, { cfg, module }, extraArgs = []) {
 	const result = run(
 		java,
-		["-cp", jar, "tlc2.TLC", "-config", `tla/${cfg}.cfg`, `tla/${module}.tla`],
+		[
+			"-cp",
+			jar,
+			"tlc2.TLC",
+			...extraArgs,
+			"-config",
+			`tla/${cfg}.cfg`,
+			`tla/${module}.tla`,
+		],
 		{ cwd: REPO_ROOT, timeout: 10 * 60_000, maxBuffer: 16 * 1024 * 1024 },
 	);
 	if (result.error) throw result.error;
 	return `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+}
+
+/**
+ * `--coverage`: run the HOLD plans again with `-coverage` and print TLC's
+ * per-definition evaluation counts. Deliberately non-gating — the counts say
+ * how often TLC evaluated a definition, not how many transitions used it, and
+ * a zero appears in configs whose action set is intentionally partial
+ * (ToggleA's FetchAborted). Its job is to make a silently-dead guard visible to
+ * a human the moment `tla/**` changes; the falsifying twins remain the
+ * assertion (see scripts/lib/tlc-coverage.mjs).
+ */
+async function reportCoverage() {
+	const { java, jar } = await ensureToolchain();
+	for (const { cfg, module } of HOLD) {
+		const output = checkOne(java, jar, { cfg, module }, ["-coverage", "1"]);
+		const coverage = parseTlcCoverage(output);
+		for (const line of formatCoverageReport(coverage, { config: cfg })) {
+			process.stdout.write(`${line}\n`);
+		}
+	}
 }
 
 async function main() {
@@ -167,9 +201,13 @@ async function main() {
 	if (args.includes("--help") || args.includes("-h")) usage(0);
 	if (args.includes("--list")) {
 		listPlans();
-		return;
+		// `--list --coverage` stays toolchain-free and just documents the plan.
+		if (!args.includes("--coverage")) return;
 	}
-	if (args.length > 0) usage(2);
+	const unknown = args.filter(
+		(arg) => arg !== "--list" && arg !== "--coverage",
+	);
+	if (unknown.length > 0) usage(2);
 
 	const { java, jar } = await ensureToolchain();
 	let failed = 0;
@@ -201,6 +239,10 @@ async function main() {
 		throw new Error(`${failed} TLC check(s) failed`);
 	}
 	process.stdout.write(`all ${HOLD.length + FALSIFY.length} TLC checks ok\n`);
+
+	if (args.includes("--coverage")) {
+		await reportCoverage();
+	}
 }
 
 main().catch((error) => {
