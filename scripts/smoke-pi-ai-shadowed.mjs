@@ -167,9 +167,10 @@ try {
 	mkdirSync(join(fixture, "host", "dist"), { recursive: true });
 	writeFileSync(
 		hostCli,
-		`const { loadPiAiEntry } = await import(${JSON.stringify(
+		`const loaderModule = await import(${JSON.stringify(
 			pathToFileURL(join(installed, "dist", "lib", "pi-ai-loader.js")).href,
 		)});
+const { loadPiAiEntry, describePiAiResolution } = loaderModule;
 const loaded = {};
 for (const entry of ["compat", "providers/all"]) {
 	try {
@@ -179,6 +180,10 @@ for (const entry of ["compat", "providers/all"]) {
 		loaded[entry] = { error: error?.code ?? "unknown", message: String(error?.message ?? error) };
 	}
 }
+// #585: the doctor must be able to explain this tree — a stale shadowing copy
+// plus the entry-aware recovery — because that explanation is exactly what the
+// #581 report could not provide.
+loaded.diagnostics = describePiAiResolution();
 process.stdout.write(JSON.stringify(loaded));
 `,
 	);
@@ -233,6 +238,65 @@ process.stdout.write(JSON.stringify(loaded));
 		console.error(
 			"[pi-ai-shadowed] FAIL: the loader must skip an entry-less pi-ai copy " +
 				"(#581) and keep probing toward the running host's own copy.",
+		);
+		process.exit(1);
+	}
+
+	// #585: recovering is only half the story — the doctor must be able to
+	// *explain* this tree, and the loader must have recorded the failure. Those
+	// two are what the #581 report lacked; without them the next report is
+	// another interview rather than a diagnosis.
+	const diagnostics = loaded.diagnostics;
+	const diagnosticChecks = [
+		[
+			"shadowed verdict",
+			diagnostics?.shadowed === true,
+			`shadowed=${JSON.stringify(diagnostics?.shadowed)}`,
+		],
+		[
+			"fast-path copy is the stale one",
+			diagnostics?.fastPath?.version === "0.84.2",
+			`fastPath.version=${JSON.stringify(diagnostics?.fastPath?.version)}`,
+		],
+		[
+			"fast-path copy lacks the entries",
+			diagnostics?.fastPath?.defines?.compat === false &&
+				diagnostics?.fastPath?.defines?.["providers/all"] === false,
+			JSON.stringify(diagnostics?.fastPath?.defines),
+		],
+		[
+			"compat recovered from disk via a host probe",
+			diagnostics?.entries?.compat?.source === "on-disk" &&
+				typeof diagnostics?.entries?.compat?.via === "string" &&
+				diagnostics.entries.compat.via.startsWith("host-entry"),
+			`${diagnostics?.entries?.compat?.source} via ${diagnostics?.entries?.compat?.via}`,
+		],
+		[
+			"failure recorded as a resolution event",
+			Array.isArray(diagnostics?.events) &&
+				diagnostics.events.some(
+					(event) =>
+						event.code === "ERR_PACKAGE_PATH_NOT_EXPORTED" &&
+						event.recovered === "on-disk",
+				),
+			JSON.stringify(diagnostics?.events),
+		],
+	];
+	let diagnosticsFailed = false;
+	for (const [label, ok, detail] of diagnosticChecks) {
+		if (ok) {
+			console.log(`[pi-ai-shadowed] ok: doctor reports ${label}`);
+			continue;
+		}
+		diagnosticsFailed = true;
+		console.error(
+			`[pi-ai-shadowed] FAIL: doctor did not report ${label} — ${detail}`,
+		);
+	}
+	if (diagnosticsFailed) {
+		console.error(
+			"[pi-ai-shadowed] FAIL: the pi-ai doctor must name the shadowing copy and " +
+				"the recovery (#585), and the loader must record the event.",
 		);
 		process.exit(1);
 	}

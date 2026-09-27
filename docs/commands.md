@@ -10,9 +10,9 @@ All slash commands provided by pi-free.
 | --- | --- |
 | `/toggle-free` | Toggle global free-only mode for all providers. |
 | `/free-providers` | Show the current free/paid model view for registered providers. |
-| `/pi-free-health` | Show a credential-free health report, startup/session issues, registered-provider count, and the diagnostic log path. |
+| `/pi-free-health` | Show a credential-free health report, startup/session issues, registered-provider count, the diagnostic log path, and pi-ai resolution (which copy the bare specifier resolves vs. which one serves the entries). |
 | `/free-startup` | Show the latest startup timing summary, including provider timings, cache/network activity, session-start handlers, and detached work. |
-| `/free-telemetry` | Show optional real-world performance data for free models. |
+| `/free-telemetry` | Show optional real-world performance data for free models, plus the pi-ai resolution block (same formatter as `/pi-free-health`). |
 | `/clear-free-telemetry` | Clear stored telemetry data. |
 
 ## Per-Provider Toggles
