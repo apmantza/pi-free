@@ -39,13 +39,6 @@ on:
 permissions:
   contents: read
 
-# Oldest pi-coding-agent this repo claims to support (peer range
-# `>=0.86.0`; 0.86 introduced the `TranscriptContext` provider contract).
-# Mirrored in ci.yml's source-install-build fixture (workflow env cannot
-# cross files); a range edit moves both together.
-env:
-  PI_HOST_FLOOR: "0.86.0"
-
 jobs:
   host-floor:
     name: Oldest supported host
@@ -70,17 +63,17 @@ jobs:
 
       # Swap the tree's host for the floor: every driver below resolves pi
       # from here, so the whole lane boots the oldest supported release.
+      # Literal peer floor (>=0.86.0; 0.86 introduced the `TranscriptContext`
+      # provider contract): S8543 requires locked versions in install
+      # commands, and ci.yml's source-install-build fixture installs the
+      # same literal — keep them in sync.
       - name: Install oldest-supported host fixture
         # --ignore-scripts: the fixture only needs the package's files on
         # disk for import.meta.resolve; it never runs pi-coding-agent's own
         # lifecycle scripts, so skip them (SonarCloud S6505).
-        # The version travels through step env (shell expansion), never a
-        # `${{ }}` interpolation inside run: — Sonar's injection rule.
-        env:
-          PI_HOST_VERSION: ${{ env.PI_HOST_FLOOR }}
         run: >-
           npm install --no-save --ignore-scripts --no-audit --no-fund
-          @earendil-works/pi-coding-agent@${PI_HOST_VERSION}
+          @earendil-works/pi-coding-agent@0.86.0
 
       - name: Pack tarball
         # prepare builds dist/, so the pack that follows ships it.
@@ -150,12 +143,14 @@ jobs:
         # --ignore-scripts: same fixture rationale as the floor lane above.
         # The version travels through step env (shell expansion), never a
         # `${{ }}` interpolation inside run: — Sonar's injection rule.
+        # Resolving @latest IS this lane's purpose (the drift signal), so
+        # the unlocked version here is intentional, not an oversight.
         env:
           PI_HOST_VERSION: ${{ steps.host.outputs.version }}
         shell: bash
-        run: >-
+        run: >- # NOSONAR -- S8543: the newest-host lane exists to install
           npm install --no-save --ignore-scripts --no-audit --no-fund
-          @earendil-works/pi-coding-agent@${PI_HOST_VERSION}
+          "@earendil-works/pi-coding-agent@${PI_HOST_VERSION}"
 
       - name: Pack tarball
         shell: bash

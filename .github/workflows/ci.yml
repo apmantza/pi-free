@@ -9,14 +9,6 @@ on:
 permissions:
   contents: read
 
-# Oldest pi-coding-agent this repo claims to support (peer range
-# `>=0.86.0`; 0.86 introduced the `TranscriptContext` provider contract).
-# The source-install-build fixture and the host-smoke floor lane install
-# exactly this, so a below-floor host never stands in for a supported one
-# and the floor claim itself is proven on every run.
-env:
-  PI_HOST_FLOOR: "0.86.0"
-
 jobs:
   lint-and-typecheck:
     name: Lint & type-check
@@ -125,23 +117,21 @@ jobs:
       # longer vendors it (that is the fix) — install it here explicitly, as a
       # standalone test fixture standing in for the host, so this step keeps
       # verifying the real loader instead of depending on incidental vendoring.
-      # The fixture is the peer floor (PI_HOST_FLOOR), never an arbitrary old
-      # release: a 0.84.x pin predates the >=0.86.0 peer range, so it tested a
-      # host pi-free does not support while no lane booted a supported one
-      # below the devDependency. The full floor/latest install paths live in
-      # host-smoke.yml; this step keeps the --omit=dev tree's loader check on
-      # the oldest supported host.
+      # The fixture is the peer floor (>=0.86.0) as a literal, never an
+      # arbitrary old release: a 0.84.x pin tested a host pi-free does not
+      # support while no lane booted a supported one below the
+      # devDependency. A literal also satisfies S8543 (locked versions in
+      # install commands). The host-smoke floor lane installs the same
+      # literal — keep them in sync. The full floor/latest install paths
+      # live in host-smoke.yml; this step keeps the --omit=dev tree's
+      # loader check on the oldest supported host.
       - name: Install pi-coding-agent fixture for the loader smoke test
         # --ignore-scripts: this fixture only needs the package's files on
         # disk for import.meta.resolve; it never runs pi-coding-agent's own
         # lifecycle scripts, so skip them (SonarCloud S6505).
-        # The version travels through step env (shell expansion), never a
-        # `${{ }}` interpolation inside run: — Sonar's injection rule.
-        env:
-          PI_HOST_VERSION: ${{ env.PI_HOST_FLOOR }}
         run: >-
           npm install --no-save --ignore-scripts --no-audit --no-fund
-          @earendil-works/pi-coding-agent@${PI_HOST_VERSION}
+          @earendil-works/pi-coding-agent@0.86.0
 
       - name: Smoke-load compiled entry through Pi's real loader
         run: node scripts/smoke-pi-loader.mjs ./dist/index.js
