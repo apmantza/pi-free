@@ -82,6 +82,42 @@ const VENDOR_ENTRIES = {
 };
 
 async function buildVendoredPiAi() {
+	// @earendil-works/pi-ai is a peer dependency: npm never installs a
+	// package's own peers into its own node_modules, so under Pi's managed
+	// extension install (`npm install --omit=dev --legacy-peer-deps`, see
+	// pi's package-manager getNpmInstallArgs) no copy is present — the
+	// dev-time transitive copy via @earendil-works/pi-coding-agent is omitted
+	// too. The vendored bundles are a last-resort fallback for Bun-compiled
+	// hosts; at runtime inside Pi the host supplies pi-ai through loader
+	// aliases, and lib/pi-ai-loader.ts already runs without the bundles
+	// (resolveVendoredPiAiEntryFile returns undefined). Failing the whole
+	// install here bricks GitHub updates, so skip with a loud warning
+	// instead. A present-but-incompatible pi-ai (missing subpaths) still
+	// fails loudly below, as it should.
+	// Probe one of the vendored entries' specifiers directly, through the ESM
+	// resolver (await tolerates both the sync-string and legacy Promise
+	// shapes of import.meta.resolve). A CJS require.resolve probe cannot be
+	// used here: pi-ai's exports map only defines `types`/`import`
+	// conditions, so require.resolve always throws ERR_PACKAGE_PATH_NOT_
+	// EXPORTED even when the package is installed and esbuild (ESM mode)
+	// resolves it fine.
+	let piAiResolvable = true;
+	try {
+		await import.meta.resolve("@earendil-works/pi-ai/providers/all");
+	} catch {
+		piAiResolvable = false;
+	}
+	if (!piAiResolvable) {
+		console.warn(
+			"[pi-free] WARNING: skipping dist/vendor/ pi-ai fallback bundles: " +
+				"@earendil-works/pi-ai is not installed (expected under Pi's " +
+				"`npm install --omit=dev --legacy-peer-deps`, which disables " +
+				"peer resolution). " +
+				"Node-based Pi hosts resolve pi-ai from the host at runtime; " +
+				"Bun-compiled hosts need a full install to build the fallback.",
+		);
+		return;
+	}
 	const entryDir = join(root, "node_modules", ".cache", "pi-free-vendor");
 	mkdirSync(entryDir, { recursive: true });
 	const entryPoints = [];
