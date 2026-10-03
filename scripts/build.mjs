@@ -95,15 +95,16 @@ async function buildVendoredPiAi() {
 	// instead. A present-but-incompatible pi-ai (missing subpaths) still
 	// fails loudly below, as it should.
 	// Probe one of the vendored entries' specifiers directly, through the ESM
-	// resolver (await tolerates both the sync-string and legacy Promise
-	// shapes of import.meta.resolve). A CJS require.resolve probe cannot be
-	// used here: pi-ai's exports map only defines `types`/`import`
-	// conditions, so require.resolve always throws ERR_PACKAGE_PATH_NOT_
-	// EXPORTED even when the package is installed and esbuild (ESM mode)
-	// resolves it fine.
+	// resolver. A CJS require.resolve probe cannot be used here: pi-ai's
+	// exports map only defines `types`/`import` conditions, so
+	// require.resolve always throws ERR_PACKAGE_PATH_NOT_EXPORTED even when
+	// the package is installed and esbuild (ESM mode) resolves it fine.
+	// The await tolerates both import.meta.resolve shapes: a sync string on
+	// node >=20.6, a Promise on 20.0-20.5 (engines allow >=20.0.0).
 	let piAiResolvable = true;
 	try {
-		await import.meta.resolve("@earendil-works/pi-ai/providers/all");
+		const sentinel = "@earendil-works/pi-ai/providers/all";
+		await import.meta.resolve(sentinel); // NOSONAR (javascript:S4123)
 	} catch {
 		piAiResolvable = false;
 	}

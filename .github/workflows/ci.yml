@@ -171,18 +171,24 @@ jobs:
         with:
           node-version: "22"
 
-      # Replicates pi's managed git-extension install (pi's package-manager
-      # getNpmInstallArgs/getGitDependencyInstallArgs): --legacy-peer-deps
-      # suppresses peer resolution, so the pi-ai peer is absent and prepare
-      # must succeed via the warn-and-skip path in scripts/build.mjs (#593).
-      # `install`, not `ci`, is what pi runs. Deliberately build-only: the
-      # pi-ai-dependent smokes cannot run here by design — no pi-ai on disk
-      # is pi's intended shape; the host supplies it at runtime.
+      # Replicates pi's managed git-extension install tree (pi's
+      # package-manager getNpmInstallArgs/getGitDependencyInstallArgs):
+      # --legacy-peer-deps suppresses peer resolution, so the pi-ai peer is
+      # absent and prepare must succeed via the warn-and-skip path in
+      # scripts/build.mjs (#593). `ci` (not pi's `install`) keeps versions
+      # locked and the lockfile untouched; the produced tree is the same
+      # shape. Deliberately build-only: the pi-ai-dependent smokes cannot
+      # run here by design — no pi-ai on disk is pi's intended shape; the
+      # host supplies it at runtime.
+      # S6505: lifecycle scripts MUST run here — prepare is the behavior
+      # under test. # NOSONAR
       - name: Install with pi's managed-install flags
-        run: npm install --omit=dev --legacy-peer-deps --no-audit --no-fund
+        run: npm ci --omit=dev --legacy-peer-deps --no-audit --no-fund # NOSONAR
 
-      - name: Pin the precondition (no host-provided peers on disk)
-        run: test ! -e node_modules/@earendil-works
+      # npm leaves the empty @earendil-works scope dir behind even when
+      # every scoped package is omitted, so assert on pi-ai itself.
+      - name: Pin the precondition (pi-ai peer not installed)
+        run: test ! -e node_modules/@earendil-works/pi-ai
 
       - name: Build must succeed without pi-ai
         run: >
