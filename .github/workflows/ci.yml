@@ -156,6 +156,48 @@ jobs:
       - name: Verify pi-ai deps hoist canonically in production tree
         run: node scripts/check-hoisting.mjs .
 
+  managed-install-build:
+    name: Managed-install build (pi flags)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # zizmor: artipacked - CI never pushes; no credential needed
+        with:
+          persist-credentials: false
+
+      # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22"
+
+      # Replicates pi's managed git-extension install tree (pi's
+      # package-manager getNpmInstallArgs/getGitDependencyInstallArgs):
+      # --legacy-peer-deps suppresses peer resolution, so the pi-ai peer is
+      # absent and prepare must succeed via the warn-and-skip path in
+      # scripts/build.mjs (#593). `ci` (not pi's `install`) keeps versions
+      # locked and the lockfile untouched; the produced tree is the same
+      # shape. Deliberately build-only: the pi-ai-dependent smokes cannot
+      # run here by design — no pi-ai on disk is pi's intended shape; the
+      # host supplies it at runtime.
+      # S6505: lifecycle scripts MUST run here — prepare is the behavior
+      # under test. # NOSONAR
+      - name: Install with pi's managed-install flags
+        run: npm ci --omit=dev --legacy-peer-deps --no-audit --no-fund # NOSONAR
+
+      # npm leaves the empty @earendil-works scope dir behind even when
+      # every scoped package is omitted, so assert on pi-ai itself.
+      - name: Pin the precondition (pi-ai peer not installed)
+        run: test ! -e node_modules/@earendil-works/pi-ai
+
+      - name: Build must succeed without pi-ai
+        run: >
+          npm run build 2>&1 | tee build.log &&
+          grep -q "skipping dist/vendor" build.log
+
+      - name: Verify compiled entry exists
+        run: test -f dist/index.js
+
   test:
     name: Unit tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
