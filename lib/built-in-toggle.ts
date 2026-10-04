@@ -55,6 +55,10 @@ import {
 	resolveOpenCodeModelApi,
 } from "../providers/opencode-session.ts";
 import { fetchOpenRouterCompatibleModels } from "../providers/model-fetcher.ts";
+import {
+	loadSyncCacheEntry,
+	persistSyncCacheEntry,
+} from "./opencode-catalog-cache.ts";
 
 const _logger = createLogger("built-in-toggle");
 
@@ -257,6 +261,45 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 			"[built-in-toggle] OpenCode/OpenRouter already registered; skipping capture",
 		);
 		return;
+	}
+
+	// Load-time registrations flush before model resolution, so opencode ids
+	// resolve at spawn (fresh sessions, subagents, --list-models). A cache miss
+	// is a no-op; the async capture persists the cache for the next process.
+	for (const config of activeConfigs) {
+		if (!isOpenCodeProvider(config.id) || providerStates.has(config.id)) {
+			continue;
+		}
+		const cached = loadSyncCacheEntry(config.id);
+		if (!cached) {
+			continue;
+		}
+		try {
+			createProviderState(pi, config, {
+				// Re-stamp session headers; cached entries carry a previous run's ids.
+				allModels: cached.allModels.map((m) => ({
+					...m,
+					// Same cast as modelToProviderConfig: Pi-owned type forbids undefined.
+					headers: createOpenCodeHeaders(
+						getOpenCodeSession(),
+						m.headers,
+					) as Record<string, string>,
+				})),
+				baseUrl: cached.baseUrl ?? config.baseUrl,
+				api: cached.api ?? config.api,
+				// Registry keys are unavailable pre-session; the async capture resolves them.
+				apiKey: getOpencodeApiKey(),
+				source: "cache-sync",
+				modelRegistry: undefined,
+			});
+		} catch (error) {
+			_logger.warn(
+				`[built-in-toggle] ${config.id}: sync cache registration failed; async capture will cover it`,
+				{
+					error: error instanceof Error ? error.message : String(error),
+				},
+			);
+		}
 	}
 
 	// Register commands once per ExtensionAPI instance. A reload creates a new
@@ -635,8 +678,8 @@ function createProviderState(
 		baseUrl: string;
 		api: Api;
 		apiKey?: string | undefined;
-		source: "captured";
-		modelRegistry: CurrentModelRegistry;
+		source: "captured" | "cache-sync";
+		modelRegistry: CurrentModelRegistry | undefined;
 	},
 ): BuiltInProviderState {
 	const { allModels, baseUrl, api, apiKey, source } = options;
@@ -789,6 +832,10 @@ function createProviderState(
 		const current = toggleState.getStored();
 		stored.free = current.free;
 		stored.all = current.all;
+		// Refreshes can discover models the cache predates; keep it fresh.
+		if (isOpenCodeProvider(config.id)) {
+			persistSyncCacheEntry(config.id, baseUrl, api, nextAllModels);
+		}
 	};
 
 	const state: BuiltInProviderState = {
@@ -819,6 +866,11 @@ function createProviderState(
 		},
 		true,
 	);
+
+	// Sync registration re-reads the cache; only captures/refreshes persist.
+	if (source !== "cache-sync" && isOpenCodeProvider(config.id)) {
+		persistSyncCacheEntry(config.id, baseUrl, api, allModels);
+	}
 
 	_logger.info(
 		`[built-in-toggle] ${config.id}: ${source} ${allModels.length} models (${freeModels.length} free)`,

@@ -103,6 +103,12 @@ vi.mock("../lib/registry.ts", () => ({
 		mockRegisterWithGlobalToggle(...args),
 }));
 
+// Force a cache miss: never register from a real ~/.pi cache on dev machines.
+vi.mock("../lib/opencode-catalog-cache.ts", () => ({
+	loadSyncCacheEntry: () => undefined,
+	persistSyncCacheEntry: () => {},
+}));
+
 describe("built-in-toggle stale context (#509)", () => {
 	let mockPi: ExtensionAPI;
 	let handlers: Record<string, Function>;
