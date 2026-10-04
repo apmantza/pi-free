@@ -250,6 +250,45 @@ let sessionStartRegisteredFor: ExtensionAPI | undefined;
 // Setup
 // =============================================================================
 
+function trySyncCacheRegistration(
+	pi: ExtensionAPI,
+	config: BuiltInToggleConfig,
+): void {
+	if (!isOpenCodeProvider(config.id) || providerStates.has(config.id)) {
+		return;
+	}
+	const cached = loadSyncCacheEntry(config.id);
+	if (!cached) {
+		return;
+	}
+	try {
+		createProviderState(pi, config, {
+			// Re-stamp session headers; cached entries carry a previous run's ids.
+			allModels: cached.allModels.map((m) => ({
+				...m,
+				// Same cast as modelToProviderConfig: Pi-owned type forbids undefined.
+				headers: createOpenCodeHeaders(
+					getOpenCodeSession(),
+					m.headers,
+				) as Record<string, string>,
+			})),
+			baseUrl: cached.baseUrl ?? config.baseUrl,
+			api: cached.api ?? config.api,
+			// Registry keys are unavailable pre-session; the async capture resolves them.
+			apiKey: getOpencodeApiKey(),
+			source: "cache-sync",
+			modelRegistry: undefined,
+		});
+	} catch (error) {
+		_logger.warn(
+			`[built-in-toggle] ${config.id}: sync cache registration failed; async capture will cover it`,
+			{
+				error: error instanceof Error ? error.message : String(error),
+			},
+		);
+	}
+}
+
 export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 	const activeConfigs = BUILT_IN_TOGGLE_PROVIDERS.filter(
 		(config) =>
@@ -267,39 +306,7 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 	// resolve at spawn (fresh sessions, subagents, --list-models). A cache miss
 	// is a no-op; the async capture persists the cache for the next process.
 	for (const config of activeConfigs) {
-		if (!isOpenCodeProvider(config.id) || providerStates.has(config.id)) {
-			continue;
-		}
-		const cached = loadSyncCacheEntry(config.id);
-		if (!cached) {
-			continue;
-		}
-		try {
-			createProviderState(pi, config, {
-				// Re-stamp session headers; cached entries carry a previous run's ids.
-				allModels: cached.allModels.map((m) => ({
-					...m,
-					// Same cast as modelToProviderConfig: Pi-owned type forbids undefined.
-					headers: createOpenCodeHeaders(
-						getOpenCodeSession(),
-						m.headers,
-					) as Record<string, string>,
-				})),
-				baseUrl: cached.baseUrl ?? config.baseUrl,
-				api: cached.api ?? config.api,
-				// Registry keys are unavailable pre-session; the async capture resolves them.
-				apiKey: getOpencodeApiKey(),
-				source: "cache-sync",
-				modelRegistry: undefined,
-			});
-		} catch (error) {
-			_logger.warn(
-				`[built-in-toggle] ${config.id}: sync cache registration failed; async capture will cover it`,
-				{
-					error: error instanceof Error ? error.message : String(error),
-				},
-			);
-		}
+		trySyncCacheRegistration(pi, config);
 	}
 
 	// Register commands once per ExtensionAPI instance. A reload creates a new
