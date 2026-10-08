@@ -12,6 +12,10 @@ behind issue #573 and prove the shipped fixes.
 | `RefreshR.tla` | Refresh + session reloads (new runner, same process) vs the nudge epoch guard |
 | `Toggle.tla` | Free/all toggle vs restore-subset / in-flight-fetch interplay |
 | `Capture.tla` | Built-in capture lifecycle: sync-cache registration vs async capture, dedup, reload drops, view-syncing reapply |
+| `FetchJoin.tla` | Shared-catalog fetch join: join-or-start, no consumer cancel, pre-abort issues nothing, detached always resolves |
+| `CacheGuard.tla` | Disk-cache poisoning guards: shrink-gate persist, never-empty, retain-on-failure/empty |
+| `GlobalFilter.tla` | Global free-only filter vs per-provider overrides: fresh resolve per entry, strict empty, toggle TOCTOU |
+| `RestoreOrder.tla` | Deferred saved-model restore: lookup, single refresh join + retry, restore/warn/skip, post-join recheck |
 | `Fallback.tla` | Auto-fallback settled-run orchestration vs the fire-and-forget recovery restore |
 | `Session.tla` | Extension load / session_start / reload ordering vs nudge scope completeness |
 
@@ -29,6 +33,12 @@ Holding configs (must verify clean — the shipped behavior):
 | `CaptureD` | Cold first run: sync no-op, deduped capture resolves, no stranded state |
 | `CaptureE` | Built-in absent: sync registration stands as fallback |
 | `CaptureG` | Cold + built-in absent: miss, toggle retry, honest unregistered |
+| `FJA` | Mixed session: detached + nudge share one request; aborts and failures retain |
+| `FJF` | Pre-aborted-only session issues no request |
+| `CGA` | Seeded steady state: mild shrinks persist, severe/empty/failure retained |
+| `CGB` | Cold boot: first non-empty fetch seeds, empties refused |
+| `GFA` | Toggle/global/loop interleavings: resolved entries agree, empty-free hides |
+| `ROA` | Hit restores, miss+retry, honest give-up, stale skip, post-join recheck |
 | `ToggleC` | `FlaggedHonesty`: a subset shown as "all" is always flagged by the honest notify |
 | `FallbackB` | `BudgetSafe` (auto-continue budget never negative) + `SingleStrike` (every ban count covered by a failure settle or recorded collateral hit) |
 | `FallbackC` | All of the above + `ManualWins` with the #576 fix (generation ticket + landing repair; stale picks stay) |
@@ -49,6 +59,15 @@ specs can catch the bug, and document its exact shape):
 | `CaptureB` | `SingleFlight` (duplicate session_start spawns a second capture) |
 | `CaptureC` | `ViewPreserved` (reapply resurrects the creation-time view over a toggled one) |
 | `CaptureF` | `SingleFlight` (toggle races a second capture without the pending-await) |
+| `FJB` | `AtMostOneLive` (arrivals start their own fetch instead of joining) |
+| `FJC` | `SharedSurvivesAbort` (a joiner's abort cancels the shared fetch) |
+| `FJD` | `DetachedSettlesClean` (detached task rejects on failure) |
+| `FJG` | `QuietWhenPreAborted` (pre-aborted arrival issues a request) |
+| `CGC` | `ShrinkBounded` (severe shrink overwrites a healthy entry) |
+| `CGD` | `NeverEmptyDisk` (empty response persisted) |
+| `CGE` | `NeverEmptyDisk` (failed fetch clobbers the entry) |
+| `GFB` | `FlipParity` (two rapid toggles collapse to one net flip) |
+| `ROB` | `NoClobber` (post-join restore lands over a mid-join user pick) |
 | `FallbackA` | `ManualWins` (in-flight recovery restore overrides an explicit user model selection — trace: fail A→B, clean on B dispatches restore(A), user re-selects B, restore lands A) |
 | `SessionA` | `ScopeComplete` without the emission contract (session_start observing a partial/empty loaded set — documents the Pi-side dependency, not a pi-free bug) |
 
