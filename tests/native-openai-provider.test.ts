@@ -124,8 +124,11 @@ beforeEach(() => {
 });
 
 describe("gateway compat (developer role)", () => {
-	const compatOf = (m: { compat?: unknown }) =>
-		m.compat as { supportsStore?: boolean; supportsDeveloperRole?: boolean };
+	const compatOf = (m: unknown) =>
+		(m as { compat?: unknown }).compat as {
+			supportsStore?: boolean;
+			supportsDeveloperRole?: boolean;
+		};
 
 	it("stamps supportsDeveloperRole:false on ingested models", () => {
 		const handle = createNativeOpenAIProvider(options);

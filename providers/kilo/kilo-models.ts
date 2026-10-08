@@ -4,6 +4,7 @@
 
 import type { Model } from "@earendil-works/pi-ai/compat";
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
+import { isChatModelConfig } from "../../lib/types.ts";
 import { applyHidden } from "../../config.ts";
 import { PROVIDER_KILO } from "../../constants.ts";
 import { isFreeModel } from "../../lib/registry.ts";
@@ -41,17 +42,23 @@ const KILO_COMPAT = {
 	maxTokensField: "max_tokens" as const,
 };
 
-/** Apply Kilo-specific compat overrides while preserving provider/model values. */
-export function applyKiloCompat<
-	T extends { compat?: ProviderModelConfig["compat"] },
->(models: T[]): T[] {
-	return models.map((m) => ({
-		...m,
-		compat: {
-			...KILO_COMPAT,
-			...m.compat,
-		},
-	}));
+/**
+ * Apply Kilo-specific compat overrides while preserving provider/model values.
+ * Chat-only merge: image/classifier entries pass through (pi 1.x union).
+ */
+export function applyKiloCompat(
+	models: ProviderModelConfig[],
+): ProviderModelConfig[] {
+	return models.map((m) => {
+		if (!isChatModelConfig(m)) return m;
+		return {
+			...m,
+			compat: {
+				...KILO_COMPAT,
+				...m.compat,
+			},
+		};
+	});
 }
 
 // =============================================================================
@@ -141,5 +148,7 @@ export function normalizeStoredKiloModels(
 export function toKiloModels(
 	models: ProviderModelConfig[],
 ): Model<"openai-completions">[] {
-	return models.map(toKiloModel);
+	// Chat-only catalog: image/classifier entries cannot be served as chat
+	// models (pi 1.x union).
+	return models.filter(isChatModelConfig).map(toKiloModel);
 }

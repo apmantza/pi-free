@@ -17,6 +17,7 @@ import type {
 	ExtensionContext,
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
+import type { ChatModelConfig } from "./types.ts";
 import {
 	applyHidden,
 	isOhMyPiCompat,
@@ -167,7 +168,7 @@ function nativeCredentialToken(
  * role. Existing compat overrides are preserved.
  */
 export function withGatewayCompat<
-	T extends { compat?: ProviderModelConfig["compat"] },
+	T extends { compat?: ChatModelConfig["compat"] },
 >(model: T): T {
 	return {
 		...model,

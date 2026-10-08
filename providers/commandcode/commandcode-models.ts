@@ -20,6 +20,7 @@
  */
 
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
+import { type ChatModelConfig } from "../../lib/types.ts";
 import type { Api } from "@earendil-works/pi-ai/compat";
 import { applyHidden } from "../../config.ts";
 import {
@@ -74,7 +75,7 @@ function asPositiveNumber(value: unknown): number | undefined {
  */
 export function mapCommandCodeModel(
 	entry: CommandCodeCatalogModel,
-): ProviderModelConfig | undefined {
+): ChatModelConfig | undefined {
 	const id = asString(entry.id);
 	if (!id) return undefined;
 
@@ -106,7 +107,7 @@ export function mapCommandCodeModel(
 		// page); unknown ids keep zero costs WITHOUT the stamp so detection
 		// degrades to Route B instead of trusting fabricated $0 costs.
 		_pricingKnown: cost !== undefined,
-	} as ProviderModelConfig & { _pricingKnown?: boolean };
+	} as ChatModelConfig & { _pricingKnown?: boolean };
 }
 /**
  * Fetch the complete catalog. The endpoint is public (anonymous GET returns

@@ -13,7 +13,7 @@ import { createJSONStore } from "./json-persistence.ts";
 import { createLogger } from "./logger.ts";
 import { resolveSafeDataFile } from "./paths.ts";
 import { recordCacheHit } from "./startup-timing.ts";
-import type { ProviderModelConfig } from "./types.ts";
+import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 
 const _logger = createLogger("provider-cache");
 

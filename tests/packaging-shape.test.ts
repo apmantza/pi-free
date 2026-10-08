@@ -24,6 +24,7 @@ import { describe, expect, it } from "vitest";
 import {
 	OPTIONAL_HOST_PROVIDED_PACKAGES,
 	REQUIRED_HOST_PROVIDED_PACKAGES,
+	TOLERATED_VENDORED_PACKAGES,
 } from "../scripts/lib/host-provided-deps.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -102,5 +103,24 @@ describe("peer-dependency shape guards production vendoring (#447)", () => {
 		// devDependency for it would be dead weight; if this ever needs to
 		// change, a real import should justify it.
 		expect(Object.hasOwn(devDeps, "@earendil-works/pi-tui")).toBe(false);
+	});
+
+	// The install-shape exemption (pi-coding-agent 1.1 hard-depends on pi-tui,
+	// so every valid lockfile vendors it) must stay narrowly scoped: a subset
+	// of the optional peers, never touching the heavy coding-agent package
+	// the #447 gate exists to exclude, and every exempt entry must remain an
+	// optional peer declaration.
+	for (const name of TOLERATED_VENDORED_PACKAGES) {
+		it(`${name} tolerance stays within the optional peers`, () => {
+			expect(OPTIONAL_HOST_PROVIDED_PACKAGES).toContain(name);
+			expect(Object.hasOwn(peers, name)).toBe(true);
+			expect(peerMeta[name]?.optional).toBe(true);
+		});
+	}
+
+	it("tolerance never exempts @earendil-works/pi-coding-agent", () => {
+		expect(TOLERATED_VENDORED_PACKAGES).not.toContain(
+			"@earendil-works/pi-coding-agent",
+		);
 	});
 });

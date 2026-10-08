@@ -15,7 +15,7 @@ import {
 	isLikelyReasoningModel,
 } from "./provider-compat.ts";
 import type { ProviderModelConfig as PiProviderModelConfig } from "@earendil-works/pi-coding-agent";
-import type { ProviderModelConfig } from "./types.ts";
+import type { ChatModelConfig, ProviderModelConfig } from "./types.ts";
 
 /**
  * Optional callbacks that providers can pass to
@@ -37,7 +37,7 @@ export interface OpenAIModelCallbacks {
 	getProxyCompat?: (model: {
 		id: string;
 		name?: string;
-	}) => PiProviderModelConfig["compat"] | undefined;
+	}) => ChatModelConfig["compat"] | undefined;
 }
 
 // =============================================================================
@@ -455,8 +455,8 @@ function mapOpenAIEntry(
 	getCompat: (model: {
 		id: string;
 		name?: string;
-	}) => PiProviderModelConfig["compat"] | undefined,
-): PiProviderModelConfig {
+	}) => ChatModelConfig["compat"] | undefined,
+): ChatModelConfig {
 	const name = m.id.split("/").pop() || m.id;
 	const reasoning = resolveOpenAIReasoning(m, name, detectReasoning);
 	const cost = resolveOpenAIModelCost(m, defaults);
@@ -479,7 +479,7 @@ function mapOpenAIEntry(
 			_freeKnown: true,
 			_isFree: (m.isFree ?? m.is_free) === true,
 		}),
-	} as PiProviderModelConfig & {
+	} as ChatModelConfig & {
 		_pricingKnown?: boolean;
 		_freeKnown?: boolean;
 		_isFree?: boolean;
@@ -493,7 +493,7 @@ export async function fetchOpenAICompatibleModels(
 	defaults: OpenAIModelDefaults = {},
 	callbacks: OpenAIModelCallbacks = {},
 	signal?: AbortSignal,
-): Promise<PiProviderModelConfig[]> {
+): Promise<ChatModelConfig[]> {
 	const logger = createLogger(providerId);
 	const detectReasoning = callbacks.detectReasoning ?? isLikelyReasoningModel;
 	const getCompat = callbacks.getProxyCompat ?? getProxyModelCompat;

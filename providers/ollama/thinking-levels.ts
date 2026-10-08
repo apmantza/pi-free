@@ -21,11 +21,9 @@
  * Reference: https://docs.ollama.com/api/openai-compatibility
  */
 
-import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
+import type { ChatModelConfig } from "../../lib/types.ts";
 
-export type ThinkingLevelMap = NonNullable<
-	ProviderModelConfig["thinkingLevelMap"]
->;
+export type ThinkingLevelMap = NonNullable<ChatModelConfig["thinkingLevelMap"]>;
 
 /** Default: off/low/medium/high/xhigh with minimal hidden. */
 export const DEFAULT: ThinkingLevelMap = {

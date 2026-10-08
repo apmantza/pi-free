@@ -9,6 +9,7 @@
  */
 
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
+import { type ChatModelConfig } from "../../lib/types.ts";
 import { applyHidden } from "../../config.ts";
 import {
 	BASE_URL_REQUESTY,
@@ -50,7 +51,7 @@ function asNumber(value: unknown): number | undefined {
  */
 export function mapRequestyModel(
 	entry: RequestyCatalogModel,
-): ProviderModelConfig | undefined {
+): ChatModelConfig | undefined {
 	if (typeof entry.id !== "string" || entry.id.length === 0) return undefined;
 	// The /models endpoint also serves image-generation and other api types;
 	// only chat completions are usable as an agent model.

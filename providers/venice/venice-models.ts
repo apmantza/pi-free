@@ -21,6 +21,7 @@
  */
 
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
+import { type ChatModelConfig } from "../../lib/types.ts";
 import { applyHidden } from "../../config.ts";
 import {
 	BASE_URL_VENICE,
@@ -85,7 +86,7 @@ function usdPerMillionToPerToken(
  */
 export function mapVeniceModel(
 	entry: VeniceCatalogModel,
-): ProviderModelConfig | undefined {
+): ChatModelConfig | undefined {
 	if (typeof entry.id !== "string" || entry.id.length === 0) return undefined;
 	// The /models endpoint also serves image, audio, video, and embedding
 	// models; only chat-completions ("text") models are usable as agent
@@ -124,7 +125,7 @@ export function mapVeniceModel(
 		// the field is metadata only and never read by pi-ai. Free/paid follows
 		// the published pricing — no free/paid override is applied here.
 		_pricingKnown: true,
-	} as ProviderModelConfig & { _pricingKnown?: boolean };
+	} as ChatModelConfig & { _pricingKnown?: boolean };
 }
 
 /**

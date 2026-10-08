@@ -17,6 +17,7 @@
  */
 
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
+import { type ChatModelConfig } from "../../lib/types.ts";
 import { applyHidden } from "../../config.ts";
 import {
 	BASE_URL_INFRON,
@@ -68,7 +69,7 @@ function asStringArray(value: unknown): string[] {
  */
 export function mapInfronModel(
 	entry: InfronCatalogModel,
-): ProviderModelConfig | undefined {
+): ChatModelConfig | undefined {
 	if (typeof entry.id !== "string" || entry.id.length === 0) return undefined;
 	// Only chat-completion LLMs are usable as agent models; the catalog also
 	// lists embeddings, rerankers, image/video generation, TTS, and search.
@@ -121,7 +122,7 @@ export function mapInfronModel(
 		// trusting fabricated $0 costs. The field is metadata only and never
 		// read by pi-ai.
 		_pricingKnown: pricingKnown,
-	} as ProviderModelConfig & { _pricingKnown?: boolean };
+	} as ChatModelConfig & { _pricingKnown?: boolean };
 }
 
 /**

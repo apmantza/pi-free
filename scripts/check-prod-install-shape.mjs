@@ -27,6 +27,7 @@ import { fileURLToPath } from "node:url";
 import {
 	OPTIONAL_HOST_PROVIDED_PACKAGES,
 	REQUIRED_HOST_PROVIDED_PACKAGES,
+	TOLERATED_VENDORED_PACKAGES,
 } from "./lib/host-provided-deps.mjs";
 
 const scriptRoot = path.resolve(
@@ -50,20 +51,26 @@ if (!existsSync(modules)) {
 const vendoredOptional = OPTIONAL_HOST_PROVIDED_PACKAGES.filter((name) =>
 	existsSync(packagePath(name)),
 );
+const blockingVendored = vendoredOptional.filter(
+	(name) => !TOLERATED_VENDORED_PACKAGES.includes(name),
+);
+const toleratedVendored = vendoredOptional.filter((name) =>
+	TOLERATED_VENDORED_PACKAGES.includes(name),
+);
 const missingRequired = REQUIRED_HOST_PROVIDED_PACKAGES.filter(
 	(name) => !existsSync(packagePath(name)),
 );
 
 let failed = false;
 
-if (vendoredOptional.length > 0) {
+if (blockingVendored.length > 0) {
 	failed = true;
 	console.error(
 		"[install-shape] FAILED: an optional host-provided peer was vendored " +
 			"by the production install, which pi supplies from its own runtime " +
 			"and pi-free never value-imports (#447):",
 	);
-	for (const name of vendoredOptional) console.error(`  - ${name}`);
+	for (const name of blockingVendored) console.error(`  - ${name}`);
 	console.error(
 		"Check peerDependenciesMeta.optional and package-lock.json — this " +
 			"regression usually means the lockfile was regenerated without npm " +
@@ -85,7 +92,19 @@ if (missingRequired.length > 0) {
 
 if (failed) process.exit(1);
 
+for (const name of toleratedVendored) {
+	console.log(
+		`[install-shape] tolerated: ${name} vendored (see TOLERATED_VENDORED_PACKAGES for why; drop the exemption if upstream re-peers it).`,
+	);
+}
+
+const cleanOptional = OPTIONAL_HOST_PROVIDED_PACKAGES.filter(
+	(name) => !TOLERATED_VENDORED_PACKAGES.includes(name),
+);
 console.log(
-	`[install-shape] OK: ${OPTIONAL_HOST_PROVIDED_PACKAGES.join(", ")} not vendored; ` +
-		`${REQUIRED_HOST_PROVIDED_PACKAGES.join(", ")} present, as expected.`,
+	`[install-shape] OK: ${cleanOptional.join(", ")} not vendored; ` +
+		`${REQUIRED_HOST_PROVIDED_PACKAGES.join(", ")} present, as expected.` +
+		(toleratedVendored.length > 0
+			? ` Tolerated vendored: ${toleratedVendored.join(", ")}.`
+			: ""),
 );

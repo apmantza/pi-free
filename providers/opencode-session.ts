@@ -22,6 +22,7 @@ import {
 	PROVIDER_OPENCODE_FREE,
 } from "../constants.ts";
 import { loadPiAiEntry } from "../lib/pi-ai-loader.ts";
+import { isChatModelConfig } from "../lib/types.ts";
 
 export const OPENCODE_DYNAMIC_API = "opencode-dynamic" as const;
 
@@ -235,7 +236,9 @@ export function applyOpenCodeProtocolDefaults(
 	providerId: string,
 	fallbackBaseUrl: string,
 ): ProviderModelConfig[] {
-	return models.map((model) => {
+	// Chat-only catalog: image/classifier entries cannot be served through
+	// the chat stream wrappers (pi 1.x union).
+	return models.filter(isChatModelConfig).map((model) => {
 		const api = resolveOpenCodeModelApi(model.id, providerId, model.api);
 		const compat =
 			api === "openai-responses"
