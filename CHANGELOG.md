@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **opencode providers resolve in fresh sessions, subagents, and `--list-models`** — `opencode-free`/`opencode-go` previously registered only inside the async `session_start` capture, so anything resolving a model before it completed failed with `Model "opencode-free/..." not found`. Every capture/refresh now persists its catalog to `~/.pi/opencode-catalog-cache.json` (overridable via `PI_FREE_OPENCODE_CACHE_FILE`), and extension load registers opencode providers synchronously from that cache — same flush timing as native providers. On a cache miss (first run) the sync step is a no-op and the async path self-heals the cache for the next process. Session headers are re-stamped per process; the async capture still replaces the state seconds later.
+
 ## [2.8.4] - 2026-09-27
 
 ### Added

@@ -89,6 +89,12 @@ vi.mock("../lib/model-metadata.ts", () => ({
 	safeEnrichModelsWithModelsDev: async (models: unknown[]) => models,
 }));
 
+// Force a cache miss: never register from a real ~/.pi cache on dev machines.
+vi.mock("../lib/opencode-catalog-cache.ts", () => ({
+	loadSyncCacheEntry: () => undefined,
+	persistSyncCacheEntry: () => {},
+}));
+
 describe("built-in provider toggles", () => {
 	let mockPi: ExtensionAPI;
 	let handlers: Record<string, Function>;
