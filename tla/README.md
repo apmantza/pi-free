@@ -28,6 +28,7 @@ Holding configs (must verify clean — the shipped behavior):
 | `CaptureA` | Warm-cache steady state: sync registers, capture retired, view preserved, resolve |
 | `CaptureD` | Cold first run: sync no-op, deduped capture resolves, no stranded state |
 | `CaptureE` | Built-in absent: sync registration stands as fallback |
+| `CaptureG` | Cold + built-in absent: miss, toggle retry, honest unregistered |
 | `ToggleC` | `FlaggedHonesty`: a subset shown as "all" is always flagged by the honest notify |
 | `FallbackB` | `BudgetSafe` (auto-continue budget never negative) + `SingleStrike` (every ban count covered by a failure settle or recorded collateral hit) |
 | `FallbackC` | All of the above + `ManualWins` with the #576 fix (generation ticket + landing repair; stale picks stay) |
@@ -47,6 +48,7 @@ specs can catch the bug, and document its exact shape):
 | `ToggleB` | `NoSubsetAsAll` (restored subset displayed as the whole catalog) |
 | `CaptureB` | `SingleFlight` (duplicate session_start spawns a second capture) |
 | `CaptureC` | `ViewPreserved` (reapply resurrects the creation-time view over a toggled one) |
+| `CaptureF` | `SingleFlight` (toggle races a second capture without the pending-await) |
 | `FallbackA` | `ManualWins` (in-flight recovery restore overrides an explicit user model selection — trace: fail A→B, clean on B dispatches restore(A), user re-selects B, restore lands A) |
 | `SessionA` | `ScopeComplete` without the emission contract (session_start observing a partial/empty loaded set — documents the Pi-side dependency, not a pi-free bug) |
 
