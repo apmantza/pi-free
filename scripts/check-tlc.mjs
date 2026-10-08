@@ -65,6 +65,7 @@ const FALSIFY = [
 	},
 	{ cfg: "RefreshR-F", module: "RefreshR", invariant: "EventualRefresh" },
 	{ cfg: "ToggleB", module: "Toggle", invariant: "NoSubsetAsAll" },
+	{ cfg: "ToggleD", module: "Toggle", invariant: "ChatOnlyStored" },
 	{ cfg: "CaptureB", module: "Capture", invariant: "SingleFlight" },
 	{ cfg: "CaptureC", module: "Capture", invariant: "ViewPreserved" },
 	{ cfg: "CaptureF", module: "Capture", invariant: "SingleFlight" },

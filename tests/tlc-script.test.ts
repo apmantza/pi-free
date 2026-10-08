@@ -67,6 +67,7 @@ describe("check-tlc CLI", () => {
 			"RefreshR-A-starve",
 			"RefreshR-F",
 			"ToggleB",
+			"ToggleD",
 			"FallbackA",
 			"FallbackB",
 			"FallbackC",
@@ -77,6 +78,7 @@ describe("check-tlc CLI", () => {
 			expect(result.stdout).toContain(cfg);
 		}
 		expect(result.stdout).toContain("must violate NoSubsetAsAll");
+		expect(result.stdout).toContain("must violate ChatOnlyStored");
 		expect(result.stdout).toContain("must violate SingleFlight");
 		expect(result.stdout).toContain("must violate ViewPreserved");
 	});

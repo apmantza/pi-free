@@ -28,7 +28,7 @@ Holding configs (must verify clean — the shipped behavior):
 | `RefreshB` | Backoff x3 + completion-stamp check + strict logging survive a 3-kill storm |
 | `RefreshR-B` | Full fix + epoch guard hold across reloads |
 | `RefreshR-C` | Retries-without-guard hold at storm 3 (guard is defense-in-depth here, not load-bearing) |
-| `ToggleA` | Display always matches the effective view; full display needs a fetch |
+| `ToggleA` | Display always matches the effective view; full display needs a fetch; chat slots exclude non-chat |
 | `CaptureA` | Warm-cache steady state: sync registers, capture retired, view preserved, resolve |
 | `CaptureD` | Cold first run: sync no-op, deduped capture resolves, no stranded state |
 | `CaptureE` | Built-in absent: sync registration stands as fallback |
@@ -39,7 +39,7 @@ Holding configs (must verify clean — the shipped behavior):
 | `CGB` | Cold boot: first non-empty fetch seeds, empties refused |
 | `GFA` | Toggle/global/loop interleavings: resolved entries agree, empty-free hides |
 | `ROA` | Hit restores, miss+retry, honest give-up, stale skip, post-join recheck |
-| `ToggleC` | `FlaggedHonesty`: a subset shown as "all" is always flagged by the honest notify |
+| `ToggleC` | `FlaggedHonesty`: a subset shown as "all" is always flagged by the honest notify; chat-only holds |
 | `FallbackB` | `BudgetSafe` (auto-continue budget never negative) + `SingleStrike` (every ban count covered by a failure settle or recorded collateral hit) |
 | `FallbackC` | All of the above + `ManualWins` with the #576 fix (generation ticket + landing repair; stale picks stay) |
 | `FallbackLive` | Coverage probe: `CoverRepair` must fire (proves FallbackC's hold is non-vacuous -- caught a dead repair action during development) |
@@ -56,6 +56,7 @@ specs can catch the bug, and document its exact shape):
 | `RefreshR-A-starve` | `EventualRefresh` across reloads |
 | `RefreshR-F` | `EventualRefresh` at storm 4 — the operating boundary: the fix holds iff per-session storm <= 3 (production showed 2) |
 | `ToggleB` | `NoSubsetAsAll` (restored subset displayed as the whole catalog) |
+| `ToggleD` | `ChatOnlyStored` (unfiltered fetch stores image/classifier as chat) |
 | `CaptureB` | `SingleFlight` (duplicate session_start spawns a second capture) |
 | `CaptureC` | `ViewPreserved` (reapply resurrects the creation-time view over a toggled one) |
 | `CaptureF` | `SingleFlight` (toggle races a second capture without the pending-await) |
