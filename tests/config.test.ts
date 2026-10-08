@@ -592,6 +592,60 @@ describe("model view overrides", () => {
 		expect("kilo_show_paid" in written).toBe(false);
 	});
 
+	// #603: read -> compute -> await write let two rapid toggles read the
+	// same pre-write state and collapse to one net flip. The fix resolves
+	// the flip INSIDE the locked read-modify-write.
+	describe("atomic toggle (#603)", () => {
+		it("two rapid toggles flip twice instead of collapsing", async () => {
+			vi.stubEnv("HOME", "/tmp");
+			const fs = await import("node:fs");
+			const { __mockData, writeFileSync } = fs as any;
+			__mockData.set(configPath(), JSON.stringify({ free_only: true }));
+
+			const { toggleModelViewOverride } = await import("../config.ts");
+			const applied = await Promise.all([
+				toggleModelViewOverride("kilo"),
+				toggleModelViewOverride("kilo"),
+			]);
+			// Two toggles must produce two DIFFERENT flips: all then free.
+			expect([...applied].sort()).toEqual(["all", "free"]);
+			const lastCall =
+				writeFileSync.mock.calls[writeFileSync.mock.calls.length - 1];
+			const written = parseMockJson(lastCall[1]);
+			expect(written.model_view_overrides).toEqual({ kilo: "free" });
+		});
+
+		it("pins the pre-fix collapse shape (read-then-write)", async () => {
+			// The shipped pre-fix call pattern, using the same primitives: both
+			// handlers resolve the flip before either awaits its write, so the
+			// second flip is computed from stale state.
+			vi.stubEnv("HOME", "/tmp");
+			const fs = await import("node:fs");
+			const { __mockData, writeFileSync } = fs as any;
+			__mockData.set(configPath(), JSON.stringify({ free_only: true }));
+
+			const { getModelViewOverride, getFreeOnly, setModelViewOverride } =
+				await import("../config.ts");
+			const readFlip = () =>
+				(getModelViewOverride("kilo") ?? (getFreeOnly() ? "free" : "all")) ===
+				"free"
+					? "all"
+					: "free";
+			const first = readFlip();
+			const second = readFlip();
+			await Promise.all([
+				setModelViewOverride("kilo", first),
+				setModelViewOverride("kilo", second),
+			]);
+			// Both read the same stale state: one net flip for two toggles.
+			expect(first).toBe(second);
+			const lastCall =
+				writeFileSync.mock.calls[writeFileSync.mock.calls.length - 1];
+			const written = parseMockJson(lastCall[1]);
+			expect(written.model_view_overrides).toEqual({ kilo: "all" });
+		});
+	});
+
 	it("clearModelViewOverrides removes the map and every legacy key", async () => {
 		vi.stubEnv("HOME", "/tmp");
 		const fs = await import("node:fs");

@@ -599,15 +599,63 @@ export type ModelViewChoice = "free" | "all";
 export function getModelViewOverride(
 	providerId: string,
 ): ModelViewChoice | undefined {
-	const explicit = loadConfigFile().model_view_overrides?.[providerId];
+	return resolveViewOverrideFromConfig(
+		providerId,
+		loadConfigFile(),
+		PROVIDER_META_BY_ID.get(providerId),
+	);
+}
+
+/**
+ * Resolve an explicit per-provider view from a GIVEN config object.
+ * Folded out of getModelViewOverride so the locked read-modify-write
+ * (toggleModelViewOverride) resolves from the freshly-read config
+ * instead of the memoized cache — a stale read is what let two rapid
+ * toggles collapse into one (#603).
+ */
+function resolveViewOverrideFromConfig(
+	providerId: string,
+	cfg: PiFreeConfig,
+	meta: (typeof PROVIDER_META)[number] | undefined,
+): ModelViewChoice | undefined {
+	const explicit = cfg.model_view_overrides?.[providerId];
 	if (explicit === "free" || explicit === "all") return explicit;
-	const meta = PROVIDER_META_BY_ID.get(providerId);
 	if (!meta) return undefined;
 	const envVal = process.env[`${meta.prefix}_SHOW_PAID`];
 	if (envVal === "true") return "all";
 	if (envVal === "false") return "free";
-	if (loadConfigFile()[meta.showPaidKey] === true) return "all";
+	if (cfg[meta.showPaidKey] === true) return "all";
 	return undefined;
+}
+
+/**
+ * Atomic toggle of a provider's catalog view: resolve, flip, and persist
+ * inside ONE locked config read-modify-write, returning the view that was
+ * applied. Both /toggle-<id> paths use this instead of
+ * read -> compute -> setModelViewOverride, which let two rapid toggles
+ * read the same pre-write state and collapse to a single net flip (#603).
+ */
+export async function toggleModelViewOverride(
+	providerId: string,
+): Promise<ModelViewChoice> {
+	const meta = PROVIDER_META_BY_ID.get(providerId);
+	let applied: ModelViewChoice = "free";
+	await updateConfig((current) => {
+		const effective =
+			resolveViewOverrideFromConfig(providerId, current, meta) ??
+			(resolveBool("PI_FREE_ONLY", current.free_only) ? "free" : "all");
+		applied = effective === "free" ? "all" : "free";
+		const patch: ConfigPatch = {
+			model_view_overrides: {
+				...current.model_view_overrides,
+				[providerId]: applied,
+			},
+		};
+		// Same legacy-key erase as setModelViewOverride: one write, one truth.
+		if (meta) patch[meta.showPaidKey] = undefined;
+		return patch;
+	});
+	return applied;
 }
 
 /**
