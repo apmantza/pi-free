@@ -56,6 +56,7 @@ import {
 	DEFAULT_FETCH_TIMEOUT_MS,
 	PROVIDER_TOKENROUTER,
 } from "../../constants.ts";
+import { isChatModelConfig, type ChatModelConfig } from "../../lib/types.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import {
@@ -324,8 +325,8 @@ export function normalizeTokenRouterRequestPayload(
 // =============================================================================
 
 export function withoutReasoningEffort(
-	compat: ProviderModelConfig["compat"],
-): ProviderModelConfig["compat"] {
+	compat: ChatModelConfig["compat"],
+): ChatModelConfig["compat"] {
 	if (!compat || !("supportsReasoningEffort" in compat)) return compat;
 	return { ...compat, supportsReasoningEffort: false };
 }
@@ -339,6 +340,8 @@ export function stripEnrichedTokenRouterCompat<T extends ProviderModelConfig>(
 	models: readonly T[],
 ): T[] {
 	return models.map((model) => {
+		// Chat-only strip: image/classifier entries pass through (pi 1.x union).
+		if (!isChatModelConfig(model)) return model;
 		const compat = withoutReasoningEffort(model.compat);
 		return compat === model.compat ? model : { ...model, compat };
 	});
@@ -385,7 +388,7 @@ function isTextChatModel(model: TokenRouterModel): boolean {
 
 export function mapTokenRouterModel(
 	model: TokenRouterModel,
-): ProviderModelConfig & {
+): ChatModelConfig & {
 	_pricingKnown?: boolean;
 	_freeKnown?: boolean;
 	_isFree?: boolean;
@@ -411,7 +414,7 @@ export function mapTokenRouterModel(
 		_isFree: isKnownFree,
 		// Non-free models signal no pricing data (name-based detection only)
 		_pricingKnown: false,
-	} as ProviderModelConfig & { _pricingKnown?: boolean };
+	} as ChatModelConfig & { _pricingKnown?: boolean };
 }
 
 // =============================================================================

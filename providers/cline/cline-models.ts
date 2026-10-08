@@ -20,7 +20,11 @@ import {
 import { isFreeModel } from "../../lib/registry.ts";
 import { withGatewayCompat } from "../../lib/native-provider.ts";
 import { createLogger } from "../../lib/logger.ts";
-import type { ProviderModelConfig } from "../../lib/types.ts";
+import type { ProviderModelConfig as PiProviderModelConfig } from "@earendil-works/pi-coding-agent";
+import {
+	isChatModelConfig,
+	type ProviderModelConfig,
+} from "../../lib/types.ts";
 import { getClineProviderHeaders } from "./cline-headers.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import { getProxyModelCompat } from "../../lib/provider-compat.ts";
@@ -326,7 +330,9 @@ function toClineModel(m: ProviderModelConfig): Model<"openai-completions"> {
 
 /** Convert a batch of model configs to native Model objects. */
 export function toClineModels(
-	models: ProviderModelConfig[],
+	models: PiProviderModelConfig[],
 ): Model<"openai-completions">[] {
-	return models.map(toClineModel);
+	// Chat-only catalog: image/classifier entries cannot be served as chat
+	// models (pi 1.x union).
+	return models.filter(isChatModelConfig).map(toClineModel);
 }

@@ -3,13 +3,15 @@ import { DEFAULT_FETCH_TIMEOUT_MS, URL_MODELS_DEV } from "../constants.ts";
 import { createLogger } from "./logger.ts";
 import { loadPiAiEntry } from "./pi-ai-loader.ts";
 import { getProxyModelCompat } from "./provider-compat.ts";
-import type {
-	CostConfig,
-	ModelIdentity,
-	ModelMatchHints,
-	ModelsDevEnrichedMetadata,
-	ModelsDevModel,
-	ModelsDevProvider,
+import {
+	isChatModelConfig,
+	type ChatModelConfig,
+	type CostConfig,
+	type ModelIdentity,
+	type ModelMatchHints,
+	type ModelsDevEnrichedMetadata,
+	type ModelsDevModel,
+	type ModelsDevProvider,
 } from "./types.ts";
 
 const DEFAULT_CONTEXT_WINDOW = 128_000;
@@ -24,8 +26,8 @@ const MODELS_DEV_PROVIDER_ALIASES: Record<string, string> = {
 
 const _logger = createLogger("model-metadata");
 
-type ThinkingLevelMap = NonNullable<ProviderModelConfig["thinkingLevelMap"]>;
-type ModelCompat = NonNullable<ProviderModelConfig["compat"]>;
+type ThinkingLevelMap = NonNullable<ChatModelConfig["thinkingLevelMap"]>;
+type ModelCompat = NonNullable<ChatModelConfig["compat"]>;
 type ModelsDevMeta = Record<string, ModelsDevModel>;
 type ModelsDevMetaIndex = Map<string, ModelsDevModel>;
 type CatalogCache = {
@@ -254,9 +256,9 @@ function identityFromMeta(
 }
 
 function mergeCompat(
-	existing: ProviderModelConfig["compat"],
-	derived: ProviderModelConfig["compat"],
-): ProviderModelConfig["compat"] | undefined {
+	existing: ChatModelConfig["compat"],
+	derived: ChatModelConfig["compat"],
+): ChatModelConfig["compat"] | undefined {
 	if (!existing) return derived;
 	if (!derived) return existing;
 	return { ...(derived as ModelCompat), ...(existing as ModelCompat) };
@@ -288,7 +290,7 @@ interface EnrichmentContext {
 	enrichCompat: boolean;
 }
 
-function enrichModel<T extends ProviderModelConfig>(
+function enrichModel<T extends ChatModelConfig>(
 	model: T,
 	ctx: EnrichmentContext,
 ): T & ModelsDevEnrichedMetadata {
@@ -386,6 +388,12 @@ export async function enrichModelsWithModelsDev<T extends ProviderModelConfig>(
 
 	return models.map((model) => {
 		try {
+			// Chat-only enrichment: image/classifier entries pass through
+			// unchanged (pi 1.x union). The cast is safe: ModelsDevEnrichedMetadata
+			// only adds an optional field the entry already satisfies by absence.
+			if (!isChatModelConfig(model)) {
+				return model as T & ModelsDevEnrichedMetadata;
+			}
 			return enrichModel(model, ctx);
 		} catch (error) {
 			_logger.warn("Failed to enrich model from models.dev metadata", {
@@ -415,7 +423,7 @@ export async function safeEnrichModelsWithModelsDev<
 // =============================================================================
 
 type NativeCatalogModel = Pick<
-	ProviderModelConfig,
+	ChatModelConfig,
 	"id" | "api" | "baseUrl" | "compat" | "contextWindow" | "maxTokens" | "cost"
 >;
 
@@ -504,7 +512,7 @@ export async function applyNativeProtocolMetadata<
 
 	return models.map((model) => {
 		const native = nativeById.get(model.id);
-		if (!native) return model;
+		if (!native || !isChatModelConfig(model)) return model;
 
 		const compat =
 			native.compat || model.compat

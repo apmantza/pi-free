@@ -28,6 +28,7 @@
  */
 
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
+import { type ChatModelConfig } from "../../lib/types.ts";
 import { applyHidden } from "../../config.ts";
 import {
 	BASE_URL_MERGE,
@@ -166,7 +167,7 @@ function summarizeVendors(
  */
 export function mapMergeModel(
 	entry: MergeCatalogModel,
-): ProviderModelConfig | undefined {
+): ChatModelConfig | undefined {
 	const id = typeof entry.model === "string" ? entry.model : undefined;
 	if (!id) return undefined;
 	if (!entry.vendors || typeof entry.vendors !== "object") return undefined;
@@ -210,7 +211,7 @@ export function mapMergeModel(
 		// pi-ai) is stamped only when real catalog pricing was parsed; see the
 		// pricingKnown guard above.
 		_pricingKnown: pricingKnown,
-	} as ProviderModelConfig & { _pricingKnown?: boolean };
+	} as ChatModelConfig & { _pricingKnown?: boolean };
 }
 
 interface MergeCatalogPage {

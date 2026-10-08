@@ -36,6 +36,7 @@ import {
 	formatUsageStatusColored,
 } from "./ollama-usage.ts";
 import { enhanceWithCI, type StoredModels } from "../../provider-helper.ts";
+import { isChatModelConfig } from "../../lib/types.ts";
 import { ollamaAuth } from "./ollama-auth.ts";
 
 export interface OllamaProviderDeps {
@@ -80,7 +81,9 @@ function toOllamaModel(model: ProviderModelConfig): OllamaModel {
 }
 
 function toOllamaModels(models: ProviderModelConfig[]): OllamaModel[] {
-	return models.map(toOllamaModel);
+	// Chat-only catalog: image/classifier entries cannot be served as chat
+	// models (pi 1.x union).
+	return models.filter(isChatModelConfig).map(toOllamaModel);
 }
 
 export function createOllamaProvider(

@@ -31,6 +31,7 @@ import { BASE_URL_QODER } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
 import { withSignal } from "../../lib/util.ts";
 import { getCachedModelConfig, staticModels } from "./models.ts";
+import { isChatModelConfig } from "../../lib/types.ts";
 import { ThinkingTagParser } from "./thinking-parser.ts";
 import { transformMessagesForQoder, transformTools } from "./transform.ts";
 
@@ -582,7 +583,9 @@ async function runStream(
 // =============================================================================
 
 const REASONING_MODEL_IDS = new Set(
-	staticModels.filter((m) => m.reasoning).map((m) => m.id),
+	staticModels
+		.filter((m) => isChatModelConfig(m) && m.reasoning)
+		.map((m) => m.id),
 );
 
 function isReasoningModel(modelId: string): boolean {

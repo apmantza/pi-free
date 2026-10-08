@@ -1,20 +1,18 @@
-import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
-import type { ModelIdentity } from "./types.ts";
+import type { ChatModelConfig, ModelIdentity } from "./types.ts";
 
 export type ProviderModelIdentity = ModelIdentity;
 
-export const DEEPSEEK_PROXY_COMPAT: NonNullable<ProviderModelConfig["compat"]> =
-	{
-		supportsStore: false,
-		supportsDeveloperRole: false,
-		supportsReasoningEffort: true,
-		requiresReasoningContentOnAssistantMessages: true,
-		thinkingFormat: "deepseek",
-	};
+export const DEEPSEEK_PROXY_COMPAT: NonNullable<ChatModelConfig["compat"]> = {
+	supportsStore: false,
+	supportsDeveloperRole: false,
+	supportsReasoningEffort: true,
+	requiresReasoningContentOnAssistantMessages: true,
+	thinkingFormat: "deepseek",
+};
 
 /** Kimi K2.6 on OpenRouter needs reasoning_content on assistant messages
  *  (OpenRouter issue #5309) but doesn't use the DeepSeek thinking format. */
-const KIMI_PROXY_COMPAT: NonNullable<ProviderModelConfig["compat"]> = {
+const KIMI_PROXY_COMPAT: NonNullable<ChatModelConfig["compat"]> = {
 	supportsStore: false,
 	supportsDeveloperRole: false,
 	supportsReasoningEffort: true,
@@ -82,7 +80,7 @@ function isKimiModel(model: ProviderModelIdentity): boolean {
  */
 export function getProxyModelCompat(
 	model: ProviderModelIdentity,
-): ProviderModelConfig["compat"] | undefined {
+): ChatModelConfig["compat"] | undefined {
 	if (isDeepSeekStyleModel(model)) {
 		return DEEPSEEK_PROXY_COMPAT;
 	}
