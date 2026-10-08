@@ -33,6 +33,18 @@ vi.mock("../config.ts", () => ({
 	getOpenrouterShowPaid: () => mockGetOpenrouterShowPaid(),
 	setModelViewOverride: (...args: unknown[]) =>
 		mockSetModelViewOverride(...args),
+	// #603: the toggle flips atomically inside config now; mirror the same
+	// intent (flip whatever the mocked effective view reports) so these
+	// tests keep exercising the capture/restore/notify logic.
+	toggleModelViewOverride: async (providerId: string) =>
+		(mockGetModelViewOverride(providerId) ??
+			(mockLegacyShowPaid(providerId)
+				? "all"
+				: mockGetGlobalFreeOnly()
+					? "free"
+					: "all")) === "free"
+			? "all"
+			: "free",
 	saveConfig: (...args: unknown[]) => mockSaveConfig(...args),
 }));
 
@@ -1109,6 +1121,73 @@ describe("built-in provider toggles", () => {
 					}),
 				},
 				model: { provider: "kilo", id: "other-model" },
+			},
+		);
+		await settleDetachedCapture();
+
+		expect(mockPi.setModel).not.toHaveBeenCalled();
+	});
+
+	// #602: the saved choice resolves at restore entry, but the retry only
+	// lands after joining the endpoint refresh. A user switch in that window
+	// must win: the stale pick must not land over the explicit new pick.
+	it("does not clobber a user pick made while joining the refresh", async () => {
+		setupBuiltInProviderToggles(mockPi);
+
+		const capturedModel = {
+			provider: "opencode",
+			id: "other-free",
+			name: "Other Free",
+			api: "openai-completions",
+			reasoning: false,
+			input: ["text"],
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			contextWindow: 128000,
+			maxTokens: 4096,
+			baseUrl: "https://example.com",
+		};
+		const refreshedModel = {
+			...capturedModel,
+			provider: "opencode-free",
+			id: "free-model",
+		};
+		const registryModels = [capturedModel];
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => {
+				// Defer the push past the restore's synchronous initial
+				// lookup: a synchronous push would land before the lookup
+				// runs, turning this into a direct hit that never joins the
+				// refresh (real networks await I/O first).
+				await Promise.resolve();
+				registryModels.push(refreshedModel);
+				return {
+					ok: true,
+					json: async () => ({ data: [{ id: "free-model" }] }),
+				};
+			}),
+		);
+		// First context read: the saved pick. Every later read (notably the
+		// post-join recheck): the user's explicit switch away.
+		let contextReads = 0;
+		const sessionManager = {
+			buildSessionContext: () => {
+				contextReads += 1;
+				return contextReads === 1
+					? { model: { provider: "opencode-free", modelId: "free-model" } }
+					: { model: { provider: "kilo", modelId: "user-pick" } };
+			},
+		};
+
+		await handlers.session_start!(
+			{},
+			{
+				modelRegistry: {
+					getAll: () => registryModels,
+					getAvailable: () => [capturedModel],
+				},
+				sessionManager,
+				model: { provider: "kilo", id: "fallback-model" },
 			},
 		);
 		await settleDetachedCapture();
