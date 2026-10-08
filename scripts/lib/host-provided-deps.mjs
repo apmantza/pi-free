@@ -45,6 +45,24 @@ export const OPTIONAL_HOST_PROVIDED_PACKAGES = Object.freeze([
 ]);
 
 /**
+ * Vendored-but-tolerated: present in `--omit=dev` installs for a documented
+ * reason, so the shape check warns instead of failing on them.
+ *
+ * - `@earendil-works/pi-tui`: pi-coding-agent 1.1 made it a hard dependency
+ *   (it was an optional peer in 0.8x), so every valid lockfile carries it as
+ *   a devOptional entry, and npm retains devOptional entries that satisfy a
+ *   root peer in `--omit=dev` installs (verified identical on npm 9 and 11).
+ *   No manifest formulation keeps `npm ci` (full tree) working while pruning
+ *   it from prod. Unique extra weight is three small packages (pi-tui +
+ *   marked + get-east-asian-width), not the ~140-package coding-agent subtree
+ *   #447 was built to exclude — and pi-free still never value-imports it.
+ *   Revisit if upstream re-peers it or the subtree grows.
+ */
+export const TOLERATED_VENDORED_PACKAGES = Object.freeze([
+	"@earendil-works/pi-tui",
+]);
+
+/**
  * Required peers: intentionally still vendored by `npm install --omit=dev`,
  * because pi-free's own runtime code value-imports them directly and cannot
  * yet tolerate their absence. A production install check that finds these
