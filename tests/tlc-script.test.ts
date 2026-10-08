@@ -39,6 +39,11 @@ describe("check-tlc CLI", () => {
 			"RefreshR-C",
 			"ToggleA",
 			"ToggleC",
+			"CaptureA",
+			"CaptureD",
+			"CaptureE",
+			"CaptureB",
+			"CaptureC",
 			"RefreshA",
 			"RefreshA-starve",
 			"RefreshR-A",
@@ -55,6 +60,8 @@ describe("check-tlc CLI", () => {
 			expect(result.stdout).toContain(cfg);
 		}
 		expect(result.stdout).toContain("must violate NoSubsetAsAll");
+		expect(result.stdout).toContain("must violate SingleFlight");
+		expect(result.stdout).toContain("must violate ViewPreserved");
 	});
 
 	it("rejects unknown flags with usage and exit 2", () => {

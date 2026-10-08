@@ -11,6 +11,7 @@ behind issue #573 and prove the shipped fixes.
 | `Refresh.tla` | One provider's refresh vs Pi's abort-on-reregister semantics + the re-register storm |
 | `RefreshR.tla` | Refresh + session reloads (new runner, same process) vs the nudge epoch guard |
 | `Toggle.tla` | Free/all toggle vs restore-subset / in-flight-fetch interplay |
+| `Capture.tla` | Built-in capture lifecycle: sync-cache registration vs async capture, dedup, reload drops, view-syncing reapply |
 | `Fallback.tla` | Auto-fallback settled-run orchestration vs the fire-and-forget recovery restore |
 | `Session.tla` | Extension load / session_start / reload ordering vs nudge scope completeness |
 
@@ -24,6 +25,9 @@ Holding configs (must verify clean — the shipped behavior):
 | `RefreshR-B` | Full fix + epoch guard hold across reloads |
 | `RefreshR-C` | Retries-without-guard hold at storm 3 (guard is defense-in-depth here, not load-bearing) |
 | `ToggleA` | Display always matches the effective view; full display needs a fetch |
+| `CaptureA` | Warm-cache steady state: sync registers, capture retired, view preserved, resolve |
+| `CaptureD` | Cold first run: sync no-op, deduped capture resolves, no stranded state |
+| `CaptureE` | Built-in absent: sync registration stands as fallback |
 | `ToggleC` | `FlaggedHonesty`: a subset shown as "all" is always flagged by the honest notify |
 | `FallbackB` | `BudgetSafe` (auto-continue budget never negative) + `SingleStrike` (every ban count covered by a failure settle or recorded collateral hit) |
 | `FallbackC` | All of the above + `ManualWins` with the #576 fix (generation ticket + landing repair; stale picks stay) |
@@ -41,6 +45,8 @@ specs can catch the bug, and document its exact shape):
 | `RefreshR-A-starve` | `EventualRefresh` across reloads |
 | `RefreshR-F` | `EventualRefresh` at storm 4 — the operating boundary: the fix holds iff per-session storm <= 3 (production showed 2) |
 | `ToggleB` | `NoSubsetAsAll` (restored subset displayed as the whole catalog) |
+| `CaptureB` | `SingleFlight` (duplicate session_start spawns a second capture) |
+| `CaptureC` | `ViewPreserved` (reapply resurrects the creation-time view over a toggled one) |
 | `FallbackA` | `ManualWins` (in-flight recovery restore overrides an explicit user model selection — trace: fail A→B, clean on B dispatches restore(A), user re-selects B, restore lands A) |
 | `SessionA` | `ScopeComplete` without the emission contract (session_start observing a partial/empty loaded set — documents the Pi-side dependency, not a pi-free bug) |
 
