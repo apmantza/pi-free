@@ -28,8 +28,14 @@
  *)
 EXTENDS Naturals, TLC, FiniteSets
 
-CONSTANTS Catalog, FreeIds
-(* Catalog = {f1, f2, p1, p2}; FreeIds = {f1, f2}; instantiation in .cfg *)
+CONSTANTS Catalog, FreeIds, NonChat, FilterNonChat
+(* Catalog = {f1, f2, p1, p2}; FreeIds = {f1, f2}; NonChat = {p2} (paid
+   image model); FilterNonChat = chat-only catalog filter (the fix);
+   instantiation in .cfg *)
+ASSUME /\ FreeIds \subseteq Catalog
+       /\ NonChat \subseteq Catalog
+       /\ FreeIds \cap NonChat = {}
+       /\ FilterNonChat \in BOOLEAN
 
 VARIABLES
     view,          \* effective view: "free" | "all" (init "free": show_paid default false)
@@ -50,6 +56,10 @@ vars == <<view, storedAll, storedFree, persistedSet, restarted,
           displayedView, displayedSet>>
 
 Slice(v) == IF v = "free" THEN storedFree ELSE storedAll
+
+\* Chat-usable catalog: pi 1.x mixed lists carry image/classifier
+ \* entries (AnyModel); chat slots must exclude them (isModelType).
+ChatCatalog == Catalog \ NonChat
 
 Init ==
     /\ view = "free"
@@ -94,11 +104,11 @@ FetchStart ==
 FetchComplete ==
     /\ inFlight = TRUE
     /\ inFlight' = FALSE
-    /\ storedAll' = Catalog
+    /\ storedAll' = IF FilterNonChat THEN ChatCatalog ELSE Catalog
     /\ storedFree' = FreeIds
     /\ fetchedFull' = TRUE
     /\ complete' = TRUE
-    /\ displayedSet' = (IF view = "free" THEN FreeIds ELSE Catalog)
+    /\ displayedSet' = (IF view = "free" THEN storedFree' ELSE storedAll')
     /\ UNCHANGED <<view, persistedSet, restarted, toggled,
                    displayedView, warned>>
 
@@ -148,9 +158,9 @@ TypeOK ==
     /\ displayedView \in {"free", "all"}
     /\ displayedSet \subseteq Catalog
 
-\* P1: a displayed "all" view is the complete catalog, never a restored
- \* free-view subset masquerading as all.
-NoSubsetAsAll == displayedView = "all" => displayedSet = Catalog
+\* P1: a displayed "all" view is the complete CHAT catalog, never a
+ \* restored subset — or a mixed list — masquerading as all.
+NoSubsetAsAll == displayedView = "all" => displayedSet = ChatCatalog
 
 \* P2: the display always agrees with the effective view over current data.
 ViewDisplayAgree ==
@@ -160,11 +170,14 @@ ViewDisplayAgree ==
 \* P3: the full "all" display is reachable only via a completed fetch
  \* (constructive counterpart of P1: the good path exists).
 FullDisplayNeedsFetch ==
-    displayedSet = Catalog => (fetchedFull \/ ~restarted)
+    displayedSet = ChatCatalog => (fetchedFull \/ ~restarted)
 
 \* P4 (the fix): a subset displayed as "all" is always flagged by the
  \* honest notify -- toggling over incomplete data warns.
 FlaggedHonesty ==
-    (displayedView = "all" /\ displayedSet /= Catalog) => warned
+    (displayedView = "all" /\ displayedSet /= ChatCatalog) => warned
+
+\* P5 (pi 1.x): chat slots never hold image/classifier entries.
+ChatOnlyStored == storedAll \cap NonChat = {}
 
 ====

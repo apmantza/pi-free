@@ -22,6 +22,11 @@ vi.mock("../config.ts", () => ({
 	applyHidden: (models: unknown[]) => models,
 	isOhMyPiCompat: () => false,
 	setModelViewOverride: mockSetModelViewOverride,
+	// #603: the toggle now flips atomically inside config; mirror the same
+	// intent (flip whatever resolveModelView reports) so these tests keep
+	// exercising the notify/complete logic rather than the flip source.
+	toggleModelViewOverride: async (providerId: string) =>
+		mockResolveModelView(providerId) === "free" ? "all" : "free",
 }));
 vi.mock("../lib/registry.ts", () => ({
 	getGlobalFreeOnly: () => true,

@@ -21,7 +21,7 @@ import type { ChatModelConfig } from "./types.ts";
 import {
 	applyHidden,
 	isOhMyPiCompat,
-	setModelViewOverride,
+	toggleModelViewOverride,
 } from "../config.ts";
 import { createLogger } from "./logger.ts";
 import { isStaleContextError } from "./stale-ctx.ts";
@@ -657,15 +657,14 @@ export function registerNativeProviderToggle(
 	pi.registerCommand(`toggle-${providerId}`, {
 		description: `Toggle between free and all ${providerId} models`,
 		handler: async (_args, ctx) => {
-			// Flip the EFFECTIVE view (explicit choice wins, else the global
-			// default) and persist it as the explicit choice — flipping a
-			// stored pref alone would no-op under an opposing global (#510).
-			// Persisted under the provider id, so the old divergent
-			// snake_case keys (e.g. ollama-cloud → ollama_show_paid) are
-			// gone; a legacy explicit `true` still counts as "all".
-			const next = resolveModelView(providerId) === "free" ? "all" : "free";
+			// Flip the EFFECTIVE view atomically (resolve + flip + persist in
+			// one locked read-modify-write), so two rapid toggles cannot read
+			// the same pre-write state and collapse (#603). Persisted under
+			// the provider id, so the old divergent snake_case keys
+			// (e.g. ollama-cloud → ollama_show_paid) are gone; a legacy
+			// explicit `true` still counts as "all".
+			const next = await toggleModelViewOverride(providerId);
 			const showPaid = next === "all";
-			await setModelViewOverride(providerId, next);
 			options.setShowPaid?.(showPaid);
 
 			reRegister();

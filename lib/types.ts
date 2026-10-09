@@ -4,6 +4,7 @@
  */
 
 import type { ProviderModelConfig as PiProviderModelConfig } from "@earendil-works/pi-coding-agent";
+import type { AnyModel } from "@earendil-works/pi-ai/compat";
 
 // =============================================================================
 // Pi 1.x model-config union
@@ -26,6 +27,16 @@ export function isChatModelConfig(
 	model: PiProviderModelConfig,
 ): model is ChatModelConfig {
 	return model.type === undefined || model.type === "chat";
+}
+
+/**
+ * Chat narrow for pi-ai runtime models (AnyModel union). Mirrors pi-ai's
+ * own isModelType(model, "chat") without a static value import: eager
+ * pi-ai/compat value imports cost ~1s of startup (#423), and this is one
+ * line (untagged models are chat, per pi-ai's documented default).
+ */
+export function isChatModel(model: AnyModel): boolean {
+	return (model.type ?? "chat") === "chat";
 }
 
 // =============================================================================

@@ -39,12 +39,35 @@ describe("check-tlc CLI", () => {
 			"RefreshR-C",
 			"ToggleA",
 			"ToggleC",
+			"CaptureA",
+			"CaptureD",
+			"CaptureE",
+			"CaptureG",
+			"CaptureB",
+			"CaptureC",
+			"CaptureF",
+			"FJA",
+			"FJF",
+			"FJB",
+			"FJC",
+			"FJD",
+			"FJG",
+			"CGA",
+			"CGB",
+			"CGC",
+			"CGD",
+			"CGE",
+			"GFA",
+			"GFB",
+			"ROA",
+			"ROB",
 			"RefreshA",
 			"RefreshA-starve",
 			"RefreshR-A",
 			"RefreshR-A-starve",
 			"RefreshR-F",
 			"ToggleB",
+			"ToggleD",
 			"FallbackA",
 			"FallbackB",
 			"FallbackC",
@@ -55,6 +78,9 @@ describe("check-tlc CLI", () => {
 			expect(result.stdout).toContain(cfg);
 		}
 		expect(result.stdout).toContain("must violate NoSubsetAsAll");
+		expect(result.stdout).toContain("must violate ChatOnlyStored");
+		expect(result.stdout).toContain("must violate SingleFlight");
+		expect(result.stdout).toContain("must violate ViewPreserved");
 	});
 
 	it("rejects unknown flags with usage and exit 2", () => {

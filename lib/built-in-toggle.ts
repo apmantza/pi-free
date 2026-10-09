@@ -21,7 +21,8 @@ import type {
 	ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
 import { PROVIDER_OPENCODE_FREE } from "../constants.ts";
-import { getOpencodeApiKey, setModelViewOverride } from "../config.ts";
+import { getOpencodeApiKey, toggleModelViewOverride } from "../config.ts";
+import { isChatModel, isChatModelConfig } from "./types.ts";
 import { recordAction } from "./action-log.ts";
 import { createLogger, withRunId } from "./logger.ts";
 import { isStaleContextError } from "./stale-ctx.ts";
@@ -261,10 +262,17 @@ function trySyncCacheRegistration(
 	if (!cached) {
 		return;
 	}
+	// Chat-only catalog: Pi 1.x lists image/classifier models that must
+	// never be registered as chat (#604). Also heals pre-fix polluted
+	// disk caches on the next load without waiting for a re-capture.
+	const cachedChat = cached.allModels.filter(isChatModelConfig);
+	if (cachedChat.length === 0) {
+		return;
+	}
 	try {
 		createProviderState(pi, config, {
 			// Re-stamp session headers; cached entries carry a previous run's ids.
-			allModels: cached.allModels.map((m) => ({
+			allModels: cachedChat.map((m) => ({
 				...m,
 				// Same cast as modelToProviderConfig: Pi-owned type forbids undefined.
 				headers: createOpenCodeHeaders(
@@ -594,6 +602,31 @@ async function restoreSavedModelInner(
 				model = refreshedCatalog.find(
 					(m: Model<Api>) => m.provider === config.id && m.id === saved.modelId,
 				);
+				if (model) {
+					// The choice may have moved while joining the refresh (a
+					// user switch in that window must win). Re-resolve from
+					// a fresh context read; anything but the same saved pick
+					// stands the restore down (#602).
+					const fresh = resolveSavedModelChoice(
+						config.id,
+						snapshot.sessionManager,
+						snapshot.sessionManager?.buildSessionContext?.()?.model ?? null,
+					);
+					if (
+						!fresh ||
+						fresh.provider !== saved.provider ||
+						fresh.modelId !== saved.modelId
+					) {
+						_logger.info(
+							`[built-in-toggle] ${config.id}: saved choice changed during refresh; keeping current model`,
+						);
+						recordAction(
+							"restore",
+							`${config.id}: saved choice changed during refresh; keeping current`,
+						);
+						return;
+					}
+				}
 			}
 		}
 		if (!model) {
@@ -655,7 +688,8 @@ async function tryCaptureProvider(
 	const catalog =
 		ctx.modelRegistry.getAll?.() ?? ctx.modelRegistry.getAvailable();
 	const providerModels = catalog.filter(
-		(m: Model<Api>) => m.provider === (config.captureFrom ?? config.id),
+		(m: Model<Api>) =>
+			m.provider === (config.captureFrom ?? config.id) && isChatModel(m),
 	);
 	if (providerModels.length === 0) return undefined;
 
@@ -1097,14 +1131,11 @@ function registerToggleCommand(
 			return;
 		}
 
-		// Flip the EFFECTIVE view (explicit choice wins, else the global
-		// default) and persist it as the explicit choice — flipping the
-		// stored mode alone would no-op under an opposing global (#510).
-		// applyMode (unlike toggle) does not persist, so persist here under
-		// the provider id; a legacy explicit `true` still counts as "all".
-		const next = resolveModelView(config.id) === "free" ? "all" : "free";
+		// Flip the EFFECTIVE view atomically: resolve + flip + persist happen
+		// inside one locked config read-modify-write, so two rapid toggles
+		// cannot read the same pre-write state and collapse (#603).
+		const next = await toggleModelViewOverride(config.id);
 		const applied = state.toggleState.applyMode(next, state.reRegister);
-		await setModelViewOverride(config.id, applied.mode);
 		recordAction(
 			"toggle",
 			`${config.id} ${next === applied.mode ? "" : `(asked ${next}, got ${applied.mode}) `}${applied.mode} (${applied.models.length} models)`,
