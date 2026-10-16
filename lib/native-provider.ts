@@ -1011,6 +1011,16 @@ export async function refreshNativeProviderModels<T extends Model<Api>>(
 	stored?: StoredModels,
 ): Promise<void> {
 	await restoreNativeProviderModels<T>(providerId, context, (models) => {
+		// A restore is a fallback for a catalog no network generation has
+		// published yet, never a downgrade of one that has. Pi fires a global
+		// allowNetwork:false refresh on every registerProvider
+		// (model-runtime.registerNativeProvider), and the store snapshot it
+		// carries is whatever the last persist wrote — under a free view that
+		// is the view-filtered subset (#519), e.g. 1 of 92. Applying it would
+		// collapse the complete in-session catalog the moment any toggle /
+		// hide re-registers the provider, so the "all" view the user just
+		// selected would offer the free subset instead of the paid catalog.
+		if (stored?.complete === true) return;
 		// A restore publishes a possibly free-view-only subset, never the
 		// catalog (TLC ToggleB) — mark before delegating so even a
 		// throwing onRestore leaves the safe value.
