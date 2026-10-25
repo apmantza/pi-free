@@ -273,11 +273,12 @@ export function applyOpenCodeProtocolDefaults(
 	});
 }
 
-function resolveOpenCodeStreamApi(model: Model<Api>): string {
-	if (model.api === OPENCODE_DYNAMIC_API) {
-		return resolveOpenCodeModelApi(model.id, model.provider, model.api);
-	}
-	return model.api;
+function resolveOpenCodeStreamApi(
+	model: Model<Api>,
+	getModelApi?: (modelId: string) => Api | undefined,
+): string {
+	const api = getModelApi?.(model.id) ?? model.api;
+	return resolveOpenCodeModelApi(model.id, model.provider, api);
 }
 
 type StreamSimpleFn<TApi extends Api> = (
@@ -650,7 +651,11 @@ async function maybeRelayBaseUrl(original: string): Promise<{
 
 export function createOpenCodeStreamSimple(
 	tracker: OpenCodeSessionTracker,
-	settings?: { anonymous?: boolean },
+	settings?: {
+		anonymous?: boolean;
+		/** Original wire API from the live catalog, before dispatch stamping. */
+		getModelApi?: (modelId: string) => Api | undefined;
+	},
 ): NonNullable<ProviderConfig["streamSimple"]> {
 	// opencode-free must not send the account key: the keyed free-tier lane is
 	// disabled upstream, so every keyed request 403s with "Model access is
@@ -679,7 +684,10 @@ export function createOpenCodeStreamSimple(
 		void (async () => {
 			let releaseRelay: (() => void) | undefined;
 			try {
-				const streamApi = resolveOpenCodeStreamApi(model);
+				const streamApi = resolveOpenCodeStreamApi(
+					model,
+					settings?.getModelApi,
+				);
 				const upstreamBaseUrl = getOpenCodeModelBaseUrl(
 					streamApi as NonNullable<Api>,
 					model.baseUrl,
@@ -819,12 +827,13 @@ export function selectOpenCodeCompatStream<T>(
 export function createOpenCodeCompatStream(
 	tracker: OpenCodeSessionTracker,
 	createStream: typeof createOpenCodeStreamSimple = createOpenCodeStreamSimple,
+	getModelApi?: (model: Model<Api>) => Api | undefined,
 ): NonNullable<ProviderConfig["streamSimple"]> {
 	const freeStream = createStream(tracker, { anonymous: true });
 	const keyedStream = createStream(tracker);
 	return (model, context, options) =>
 		selectOpenCodeCompatStream(freeStream, keyedStream, model.provider)(
-			model,
+			{ ...model, api: getModelApi?.(model) ?? model.api },
 			context,
 			options,
 		);
@@ -841,11 +850,16 @@ export function createOpenCodeCompatStream(
  */
 export function ensureOpenCodeApiProviderRegistered(
 	tracker: OpenCodeSessionTracker,
+	getModelApi?: (model: Model<Api>) => Api | undefined,
 ): void {
 	if (_apiProviderRegistrationSourceId || _apiProviderRegistrationPromise)
 		return;
 
-	const streamFn = createOpenCodeCompatStream(tracker);
+	const streamFn = createOpenCodeCompatStream(
+		tracker,
+		createOpenCodeStreamSimple,
+		getModelApi,
+	);
 	const sourceId = `pi-free-opencode-${randomBytes(4).toString("hex")}`;
 	_apiProviderRegistrationPromise = loadPiAiEntry<{
 		registerApiProvider?: unknown;

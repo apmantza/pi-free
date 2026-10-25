@@ -730,13 +730,20 @@ function createProviderState(
 		isFreeModel({ ...m, provider: config.id }, allModels),
 	);
 
+	// Keep wire APIs in the catalog/cache, but publish one dispatch API so
+	// Pi calls our provider wrapper for every OpenCode model (#635).
+	const currentModels = (
+		models = stateForRefresh?.toggleState.getCurrentModels() ?? allModels,
+	): ProviderModelConfig[] =>
+		isOpenCodeProvider(config.id)
+			? models.map((model) => ({ ...model, api: OPENCODE_DYNAMIC_API }))
+			: models;
+
 	// No return-type annotation: Babel 8 (Stryker's instrumenter parser)
 	// rejects typed arrows in ternary position (UnexpectedTypeAnnotation).
 	// tsc still checks the inferred return at the assignment below.
 	const refreshModels = config.refreshEndpoint
 		? async (context: RefreshModelsContext) => {
-				const currentModels = () =>
-					stateForRefresh?.toggleState.getCurrentModels() ?? allModels;
 				if (!context.allowNetwork) {
 					return currentModels();
 				}
@@ -804,7 +811,7 @@ function createProviderState(
 				}
 				stateForRefresh.updateModels(refreshed);
 				recordNativeRefreshOk(config.id, refreshed.length);
-				return stateForRefresh.toggleState.getCurrentModels();
+				return currentModels();
 			}
 		: undefined;
 
@@ -812,7 +819,13 @@ function createProviderState(
 		// Ensure the opencode-dynamic API is registered in compat's global
 		// registry so fallback code paths (compat streamSimple) can resolve it.
 		if (isOpenCodeProvider(config.id)) {
-			ensureOpenCodeApiProviderRegistered(getOpenCodeSession());
+			ensureOpenCodeApiProviderRegistered(
+				getOpenCodeSession(),
+				(model) =>
+					getProviderRegistry()
+						.get(model.provider)
+						?.stored.all.find((entry) => entry.id === model.id)?.api,
+			);
 		}
 		const providerConfig = {
 			baseUrl,
@@ -822,10 +835,12 @@ function createProviderState(
 				? {
 						streamSimple: createOpenCodeStreamSimple(getOpenCodeSession(), {
 							anonymous: config.id === PROVIDER_OPENCODE_FREE,
+							getModelApi: (id) =>
+								stored.all.find((model) => model.id === id)?.api,
 						}),
 					}
 				: {}),
-			models,
+			models: currentModels(models),
 		};
 		if (refreshModels) {
 			Object.assign(providerConfig, { refreshModels });
@@ -1193,9 +1208,9 @@ function modelToProviderConfig(m: Model<Api>): ProviderModelConfig {
 	const resolvedHeaders = openCodeHeaders ?? m.headers;
 	if (resolvedHeaders) base.headers = resolvedHeaders;
 
-	// The provider-level OpenCode wrapper still regenerates headers, while the
-	// model-level API is preserved so Anthropic/Responses/Google routes remain
-	// protocol-correct.
+	// Keep the wire API in the canonical catalog. Registration/refresh stamp
+	// dispatch copies; the wrapper reads this metadata at request time so
+	// Anthropic/Responses/Google routes remain protocol-correct.
 	return base;
 }
 

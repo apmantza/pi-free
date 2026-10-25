@@ -184,7 +184,7 @@ describeBun("opencode-relay passthrough (real bun)", () => {
 	let sawAuth: string | undefined;
 	let sawCliHeader: string | undefined;
 	const gzipText = `data: ${"compressed SSE ".repeat(100)}\n\n`;
-	const pending: http.ServerResponse[] = [];
+	const pending = new Map<string, http.ServerResponse>();
 	beforeAll(async () => {
 		upstream = http.createServer((req, res) => {
 			let body = "";
@@ -219,7 +219,14 @@ describeBun("opencode-relay passthrough (real bun)", () => {
 							],
 						})}\n\n`,
 					);
-					pending.push(res);
+					const content = JSON.parse(body).messages.at(-1).content;
+					const marker =
+						typeof content === "string"
+							? content
+							: content
+									.map((part: { text?: string }) => part.text ?? "")
+									.join("");
+					pending.set(marker, res);
 				} else if (req.url?.endsWith("/streaming")) {
 					res.writeHead(200, { "content-type": "text/plain" });
 					res.write("chunk-1\n");
@@ -261,7 +268,8 @@ describeBun("opencode-relay passthrough (real bun)", () => {
 
 	afterEach(() => {
 		resetOpenCodeRelayForTest();
-		for (const response of pending.splice(0)) response.destroy();
+		for (const response of pending.values()) response.destroy();
+		pending.clear();
 		vi.useRealTimers();
 	});
 
@@ -388,19 +396,33 @@ describeBun("opencode-relay passthrough (real bun)", () => {
 				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 			} as Model<Api>;
 			const context = normalizeContext({
-				messages: [{ role: "user", content: "hello", timestamp: Date.now() }],
+				messages: [
+					{ role: "user", content: "first-stream", timestamp: Date.now() },
+				],
 			});
 			const controller = new AbortController();
+			// #635 Windows CI: arrival order is not caller identity. Start the
+			// stream that finishes last first, and key responses by request data.
+			const second = streamSimple(
+				model,
+				normalizeContext({
+					messages: [
+						{ role: "user", content: "second-stream", timestamp: Date.now() },
+					],
+				}),
+				{
+					maxTokens: 10,
+					signal: controller.signal,
+				},
+			);
 			const first = streamSimple(model, context, { maxTokens: 10 });
-			const second = streamSimple(model, context, {
-				maxTokens: 10,
-				signal: controller.signal,
-			});
-			// Await the actual upstream requests before advancing beyond the idle TTL.
-			await vi.waitUntil(() => pending.length === 2, {
-				timeout: 5000,
-				interval: 10,
-			});
+			await vi.waitUntil(
+				() => pending.has("first-stream") && pending.has("second-stream"),
+				{
+					timeout: 5000,
+					interval: 10,
+				},
+			);
 			const finish = (response: http.ServerResponse) =>
 				response.end(
 					`data: ${JSON.stringify({
@@ -408,13 +430,22 @@ describeBun("opencode-relay passthrough (real bun)", () => {
 						choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
 					})}\n\ndata: [DONE]\n\n`,
 				);
-			finish(pending[0]!);
+			finish(pending.get("first-stream")!);
 			expect((await first.result()).stopReason).toBe("stop");
+			// The failure must be midstream, not a race with response startup.
+			let receivedText: string | undefined;
+			for await (const event of second) {
+				if (event.type === "text_delta") {
+					receivedText = event.delta;
+					break;
+				}
+			}
+			expect(receivedText).toBe("hello");
 			await vi.advanceTimersByTimeAsync(51);
 			await expect(active.ready(100)).resolves.toBeGreaterThan(0);
 			if (last === "abort") controller.abort();
-			else if (last === "error") pending[1]!.destroy();
-			else finish(pending[1]!);
+			else if (last === "error") pending.get("second-stream")!.destroy();
+			else finish(pending.get("second-stream")!);
 			expect((await second.result()).stopReason).toBe(
 				last === "abort" ? "aborted" : last === "error" ? "error" : "stop",
 			);
