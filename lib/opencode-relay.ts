@@ -16,6 +16,7 @@
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
+import type { Socket } from "node:net";
 import { createLogger } from "./logger.ts";
 
 const _logger = createLogger("opencode-relay");
@@ -142,7 +143,9 @@ class Relay implements OpenCodeRelay {
 					// the relay elsewhere) must not be pinned to import-time.
 					PI_FREE_OPENCODE_RELAY_UPSTREAM: relayUpstream(),
 				},
-				stdio: ["ignore", "pipe", "pipe"],
+				// The child's stdin is a lifetime fence: parent death closes the
+				// pipe even when an exit hook cannot run (e.g. SIGKILL).
+				stdio: ["pipe", "pipe", "pipe"],
 			});
 		} catch (error) {
 			this.fail(error instanceof Error ? error : new Error(String(error)));
@@ -175,7 +178,7 @@ class Relay implements OpenCodeRelay {
 				),
 			);
 			if (!this.stopped) {
-				this.stopped = true;
+				this.stop();
 				_singleton = undefined;
 				// One record per session: the next getOpenCodeRelay() call starts
 				// a fresh child; repeated exits in a loop stay one line.
@@ -184,6 +187,11 @@ class Relay implements OpenCodeRelay {
 				);
 			}
 		});
+		// Pipes/child must not keep an otherwise idle parent alive. The child
+		// watches stdin EOF, so normal drain and abrupt parent death stop it.
+		child.unref();
+		(child.stdout as Socket | null)?.unref();
+		(child.stderr as Socket | null)?.unref();
 	}
 
 	private fail(error: Error): void {
@@ -227,7 +235,8 @@ class Relay implements OpenCodeRelay {
 					),
 				);
 			}, timeoutMs);
-			timer.unref?.();
+			// A readiness caller is active work: keep this bounded deadline
+			// referenced until the child reports a port or failure.
 			const waiter: Waiter = {
 				resolve: (port) => {
 					clearTimeout(timer);
@@ -303,5 +312,8 @@ const server = Bun.serve({
     );
   },
 });
+// The OS closes this parent-owned pipe on every kind of parent termination.
+process.stdin.on("end", () => { server.stop(true); process.exit(0); });
+process.stdin.resume();
 console.log("PORT=" + server.port);
 `;

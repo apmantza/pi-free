@@ -17,7 +17,14 @@ import {
 	it,
 	vi,
 } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
+import { pathToFileURL } from "node:url";
 import { gzipSync } from "node:zlib";
 import {
 	normalizeContext,
@@ -257,6 +264,71 @@ describeBun("opencode-relay passthrough (real bun)", () => {
 		for (const response of pending.splice(0)) response.destroy();
 		vi.useRealTimers();
 	});
+
+	// #631: a real parent process is required to prove both event-loop drain
+	// and its exit hook. In-process mocks cannot observe an orphan Bun child.
+	it.each(["natural", "explicit", "killed"])(
+		"stops the child on %s parent exit",
+		async (mode) => {
+			const home = mkdtempSync(join(fixtures, "parent-"));
+			const statePath = join(home, "child.json");
+			const entry = pathToFileURL(
+				process.env.PI_FREE_RELAY_TEST_ENTRY ??
+					join(process.cwd(), "lib/opencode-relay.ts"),
+			).href;
+			const observe = `require("node:fs").writeFileSync(${JSON.stringify(statePath)}, JSON.stringify({ pid: process.pid, port: server.port }));`;
+			const script = `
+			const {getOpenCodeRelay, OPENCODE_RELAY_SCRIPT} = await import(${JSON.stringify(entry)});
+			// Observe the real child's identity before its readiness publication.
+			const childScript = OPENCODE_RELAY_SCRIPT.replace('console.log("PORT=" + server.port);', ${JSON.stringify(observe)} + '\\nconsole.log("PORT=" + server.port);');
+			await getOpenCodeRelay({childArgs: ["-e", childScript]}).ready(4000);
+			${mode === "explicit" ? "process.exit(0);" : mode === "killed" ? 'process.kill(process.pid, "SIGKILL");' : ""}
+		`;
+			let pid: number | undefined;
+			try {
+				const parent = spawnSync(
+					process.execPath,
+					["--import", "tsx", "--input-type=module", "-e", script],
+					{
+						env: {
+							...process.env,
+							HOME: home,
+							USERPROFILE: home,
+							XDG_DATA_HOME: join(home, "data"),
+							XDG_CACHE_HOME: join(home, "cache"),
+						},
+						encoding: "utf8",
+						timeout: 8000,
+					},
+				);
+				const state = JSON.parse(readFileSync(statePath, "utf8")) as {
+					pid: number;
+					port: number;
+				};
+				pid = state.pid;
+				expect(parent.error, parent.stderr).toBeUndefined();
+				if (mode === "killed") expect(parent.status).not.toBe(0);
+				else expect(parent.status, parent.stderr).toBe(0);
+				await vi.waitFor(async () => {
+					await expect(
+						fetch(`http://127.0.0.1:${state.port}/nope`, {
+							signal: AbortSignal.timeout(250),
+						}),
+					).rejects.toThrow();
+				});
+			} finally {
+				// Failed pre-fix probes must not themselves leave an orphan process.
+				if (pid !== undefined) {
+					try {
+						process.kill(pid);
+					} catch {
+						/* already gone */
+					}
+				}
+			}
+		},
+		15000,
+	);
 
 	// #631: an idle stop left the stopped singleton cached forever.
 	it("restarts a real relay after idle expiry", async () => {
