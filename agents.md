@@ -272,6 +272,7 @@ Screen against these BEFORE writing code — each one cost a real incident:
 - **Drive pi-ai directly:** `npm run drive -- --provider <id> [--model <sub>] [--prompt "..."] [--anonymous] | --list` — realistic turn through `streamSimple` on Pi's native store (stored auth first, then `<PROVIDER>_API_KEY`); non-zero exit on errors, doubles as wire-behavior smoke.
 - **Startup perf:** `npx tsx scripts/bench-startup.ts <warm|cold|fastcold> [source|compiled]` (sandboxed `HOME`, mocked `fetch`; build first for `compiled`). Reports `importMs`/`factoryMs`/total; refresh + detached work separately.
 - **Tests:** `tests/*.test.ts` (registry, toggle, config, detection, compat; `vi.fn()` ExtensionAPI doubles)
+- **Windows OpenCode relay smoke:** CI's `windows-opencode-relay` job installs Bun 1.4.4 explicitly and runs the relay, session-integration, and compat-stream suites. The ordinary unit lane may skip real-Bun cases when Bun is absent; the dedicated lane requires it. The relay upstream is a local HTTP fixture, not the live service: this proves Windows process/forwarding compatibility, not upstream TLS acceptance.
 - **Design the state space before coding.** For stateful/ordered/resource-mutating work, write invariants, transitions, and a cross-product matrix (order, failure atomicity, aborts) first — the refresh-supersede and restore bugs came from unmodeled orderings.
 - **Wait on the right clock.** Poll for conditions (`waitFor`/`waitSettled`, bounded loops) — never fixed sleeps. Detached tasks mutating polled state get a targeted lint disable with reason.
 
