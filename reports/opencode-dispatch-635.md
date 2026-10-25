@@ -156,6 +156,35 @@ substituting another harness's identity/instructions. No such substitution,
 quota/account rotation, retries, or prompt changes are included in the fix.
 The live free-tier acceptance problem remains open under #628.
 
+## Windows CI fixture correction (test-only scope growth)
+
+On initial head0ec285e, Windows passed both dispatcher cases but timed out in
+#631's existing overlapping-stream socket-error test (28 cases passed, one
+failed). The fixture treated `pending[0]` as the first caller, although network
+arrival order is not caller identity. A throwaway reversal of that collection
+reproduced the same failure locally:
+
+```text
+keeps overlapping streams alive until the last error
+Error: Test timed out in 10000ms.
+```
+
+The corrected fixture keys its existing pending-response collection by
+distinct user-message markers, starts the last-finishing stream first, and
+waits for its actual decoded `hello` text before injecting the socket drop.
+It retains real socket failure coverage and does not extend the timeout or
+replace the failure with an easier response. Relay+dispatcher targeted tests
+then pass19/19 locally. A compile-valid built mutation removing the stream's
+finally release still fails the strengthened error case:
+
+```text
+AssertionError: expected Relay ... not to be Relay
+```
+
+No production lifecycle code changed in this follow-up. Exact-head Windows CI
+must rerun before merge; the initial timeout is not represented as green or
+written off as environmental.
+
 ## Detection retrospective
 
 The user's continued-session GLM report exposed the gap. The earlier tests
