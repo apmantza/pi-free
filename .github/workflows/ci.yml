@@ -262,7 +262,8 @@ jobs:
           npx --no-install vitest run `
             tests/opencode-relay.test.ts `
             tests/opencode-session-integration.test.ts `
-            tests/opencode-compat-stream.test.ts
+            tests/opencode-compat-stream.test.ts `
+            tests/opencode-dispatch.test.ts
 
   install-test:
     name: Install test (${{ matrix.os }})

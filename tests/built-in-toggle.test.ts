@@ -327,11 +327,13 @@ describe("built-in provider toggles", () => {
 			"minimax-m2.7",
 			"mimo-v2-pro",
 		]);
-		// Known ID keeps Pi's curated metadata and wire protocol.
+		// Curated metadata survives, while every published model uses the
+		// provider dispatch tag (#635). Actual wire protocols are exercised
+		// independently through ModelRuntime in opencode-dispatch.test.ts.
 		expect(lastModels[0]!.name).toBe("MiniMax M2.7");
-		expect(lastModels[0]!.api).toBe("anthropic-messages");
-		// Discovered ID gets the Go protocol defaults.
-		expect(lastModels[1]!.api).toBe("openai-completions");
+		expect(lastModels.every((model) => model.api === "opencode-dynamic")).toBe(
+			true,
+		);
 		expect(lastModels[1]!.baseUrl).toBe("https://opencode.ai/zen/go/v1");
 	});
 

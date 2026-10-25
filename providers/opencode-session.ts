@@ -273,11 +273,12 @@ export function applyOpenCodeProtocolDefaults(
 	});
 }
 
-function resolveOpenCodeStreamApi(model: Model<Api>): string {
-	if (model.api === OPENCODE_DYNAMIC_API) {
-		return resolveOpenCodeModelApi(model.id, model.provider, model.api);
-	}
-	return model.api;
+function resolveOpenCodeStreamApi(
+	model: Model<Api>,
+	getModelApi?: (modelId: string) => Api | undefined,
+): string {
+	const api = getModelApi?.(model.id) ?? model.api;
+	return resolveOpenCodeModelApi(model.id, model.provider, api);
 }
 
 type StreamSimpleFn<TApi extends Api> = (
@@ -650,7 +651,11 @@ async function maybeRelayBaseUrl(original: string): Promise<{
 
 export function createOpenCodeStreamSimple(
 	tracker: OpenCodeSessionTracker,
-	settings?: { anonymous?: boolean },
+	settings?: {
+		anonymous?: boolean;
+		/** Original wire API from the live catalog, before dispatch stamping. */
+		getModelApi?: (modelId: string) => Api | undefined;
+	},
 ): NonNullable<ProviderConfig["streamSimple"]> {
 	// opencode-free must not send the account key: the keyed free-tier lane is
 	// disabled upstream, so every keyed request 403s with "Model access is
@@ -679,7 +684,10 @@ export function createOpenCodeStreamSimple(
 		void (async () => {
 			let releaseRelay: (() => void) | undefined;
 			try {
-				const streamApi = resolveOpenCodeStreamApi(model);
+				const streamApi = resolveOpenCodeStreamApi(
+					model,
+					settings?.getModelApi,
+				);
 				const upstreamBaseUrl = getOpenCodeModelBaseUrl(
 					streamApi as NonNullable<Api>,
 					model.baseUrl,
