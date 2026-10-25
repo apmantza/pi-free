@@ -228,6 +228,42 @@ jobs:
       - name: Smoke auto-fallback status surface
         run: npm run smoke:auto-fallback
 
+  windows-opencode-relay:
+    name: Windows OpenCode Bun relay smoke
+    runs-on: windows-latest
+    timeout-minutes: 10
+    env:
+      HOME: ${{ github.workspace }}/.smoke-artifacts/relay-home
+      USERPROFILE: ${{ github.workspace }}/.smoke-artifacts/relay-home
+      XDG_DATA_HOME: ${{ github.workspace }}/.smoke-artifacts/relay-home/data
+      XDG_CACHE_HOME: ${{ github.workspace }}/.smoke-artifacts/relay-home/cache
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # v7.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: "22"
+
+      # Without Bun, the real relay cases silently skip in the unit lane.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: "1.4.4"
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Require real Bun and exercise the relay
+        run: |
+          bun --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npx --no-install vitest run `
+            tests/opencode-relay.test.ts `
+            tests/opencode-session-integration.test.ts `
+            tests/opencode-compat-stream.test.ts
+
   install-test:
     name: Install test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

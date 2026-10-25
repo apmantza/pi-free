@@ -22,6 +22,10 @@ import {
 	PROVIDER_OPENCODE_FREE,
 } from "../constants.ts";
 import { loadPiAiEntry } from "../lib/pi-ai-loader.ts";
+import {
+	getOpenCodeRelay,
+	getOpenCodeRelayBaseUrl,
+} from "../lib/opencode-relay.ts";
 import { isChatModelConfig } from "../lib/types.ts";
 
 export const OPENCODE_DYNAMIC_API = "opencode-dynamic" as const;
@@ -605,6 +609,45 @@ async function pipeStream(
  * provider-specific stream keeps the normal Pi parsers but refreshes headers for
  * every LLM call.
  */
+/**
+ * PI_FREE_OPENCODE_RELAY="0" turns the bun TLS relay off (anonymous direct
+ * lane only). Default on: the anonymous free lane rejects non-bun TLS
+ * fingerprints upstream (~2 req/day), and bun restores full service.
+ */
+const relaysAnonymousLane = (): boolean =>
+	process.env.PI_FREE_OPENCODE_RELAY !== "0";
+
+/**
+ * The relay cannot start synchronously (the child reports its port from
+ * stdout), but the stream plumbing already runs inside an async body — so
+ * awaiting the bind here keeps the streaming contract intact. When the relay
+ * is unavailable (missing bun, bind failure) the request falls through to the
+ * direct anonymous lane untouched: the failure is the upstream's own
+ * fingerprint gate, never a new error class we invent.
+ */
+export const relayWindowMs = 2000;
+
+async function maybeRelayBaseUrl(original: string): Promise<{
+	baseUrl: string;
+	release?: () => void;
+}> {
+	if (!relaysAnonymousLane()) {
+		return { baseUrl: original };
+	}
+	const relay = getOpenCodeRelay();
+	const release = relay.acquire();
+	try {
+		const port = await relay.ready(relayWindowMs);
+		return {
+			baseUrl: getOpenCodeRelayBaseUrl(original, port) ?? original,
+			release,
+		};
+	} catch {
+		release();
+		return { baseUrl: original }; // direct lane; startup failure is already logged
+	}
+}
+
 export function createOpenCodeStreamSimple(
 	tracker: OpenCodeSessionTracker,
 	settings?: { anonymous?: boolean },
@@ -634,17 +677,20 @@ export function createOpenCodeStreamSimple(
 		};
 
 		void (async () => {
+			let releaseRelay: (() => void) | undefined;
 			try {
 				const streamApi = resolveOpenCodeStreamApi(model);
-				// Normalize here as well as during catalog conversion because Pi can
-				// supply a previously persisted model with the pre-/v1 URL.
-				const normalizedModel = {
-					...model,
-					baseUrl: getOpenCodeModelBaseUrl(
-						streamApi as NonNullable<Api>,
-						model.baseUrl,
-					),
-				};
+				const upstreamBaseUrl = getOpenCodeModelBaseUrl(
+					streamApi as NonNullable<Api>,
+					model.baseUrl,
+				);
+				const relayed = anonymous
+					? await maybeRelayBaseUrl(upstreamBaseUrl)
+					: { baseUrl: upstreamBaseUrl };
+				releaseRelay = relayed.release;
+				// Normalize persisted URLs too; keep the relay held across protocol
+				// loading and the entire stream, not just until headers arrive.
+				const normalizedModel = { ...model, baseUrl: relayed.baseUrl };
 				if (streamApi === "anthropic-messages") {
 					const streamSimpleAnthropic = getStreamSimple(
 						await importPiAiSubpath<AnthropicStreamModule>(
@@ -729,6 +775,8 @@ export function createOpenCodeStreamSimple(
 				const errorMessage = createErrorMessage(model, error);
 				stream.push({ type: "start", partial: errorMessage });
 				stream.push({ type: "error", reason: "error", error: errorMessage });
+			} finally {
+				releaseRelay?.();
 			}
 		})();
 
