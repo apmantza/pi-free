@@ -492,8 +492,9 @@ export function streamQoder(
 		timestamp: Date.now(),
 	};
 
-	// Run async — AssistantMessageEventStream is a push-based pull stream
-	runStream(output, stream, model, context, options);
+	// Detached by design: return the push-based shell synchronously while
+	// runStream owns completion/error events for the asynchronous producer.
+	void runStream(output, stream, model, context, options);
 
 	// SAFETY: stream is the local push-based shell (compat's
 	// AssistantMessageEventStream); runStream drives it through the same
