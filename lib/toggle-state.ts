@@ -54,7 +54,8 @@ export function createToggleState<T>({
 	}
 
 	function persist(mode: ToggleMode): void {
-		save({ [configKey]: mode === "all" });
+		// The toggle API is synchronous; persistence runs independently.
+		void save({ [configKey]: mode === "all" });
 	}
 
 	function applyMode(
