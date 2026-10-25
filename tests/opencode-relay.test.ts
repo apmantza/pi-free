@@ -15,9 +15,19 @@ import {
 	describe,
 	expect,
 	it,
+	vi,
 } from "vitest";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { gzipSync } from "node:zlib";
+import {
+	normalizeContext,
+	type Api,
+	type Model,
+} from "@earendil-works/pi-ai/compat";
+import {
+	createOpenCodeSessionTracker,
+	createOpenCodeStreamSimple,
+} from "../providers/opencode-session.ts";
 import { join } from "node:path";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
@@ -34,6 +44,9 @@ const {
 } = await import("../lib/opencode-relay.js");
 
 const BUN_AVAILABLE = spawnSync("bun", ["--version"]).status === 0;
+mkdirSync(".smoke-artifacts", { recursive: true });
+const fixtures = mkdtempSync(join(process.cwd(), ".smoke-artifacts/oc-relay-"));
+afterAll(() => rmSync(fixtures, { recursive: true, force: true }));
 
 describe("opencode-relay URL mapping", () => {
 	const PORT = 12345;
@@ -86,7 +99,7 @@ describe("opencode-relay child lifecycle (stub bun)", () => {
 	});
 
 	it("parses PORT from the child, resolves ready(), and stops the child", async () => {
-		const dir = mkdtempSync(join(tmpdir(), "oc-relay-stub-"));
+		const dir = mkdtempSync(join(fixtures, "stub-"));
 		const stub = join(dir, "stub-bun.mjs");
 		// Ignore the "-e <script>" arg pair and print a fixed port.
 		writeFileSync(
@@ -103,21 +116,49 @@ describe("opencode-relay child lifecycle (stub bun)", () => {
 			idleTtlMs: 60_000,
 		});
 		// The stub ignores -e, so argv is [stub]; its print gives us the port.
-		const port = await relay.ready(4000);
+		// The same generation must serve overlapping first turns, not reject
+		// the earlier caller as "superseded" while Bun is still starting (#631).
+		const [port, concurrentPort] = await Promise.all([
+			relay.ready(4000),
+			relay.ready(4000),
+		]);
 		expect(port).toBe(19853);
+		expect(concurrentPort).toBe(port);
 		relay.stop();
+		expect(relay.port()).toBeUndefined();
 		await expect(relay.ready(100)).rejects.toThrow(/not running|stopped/);
 	});
 
+	// #631: ENOENT used to leave a running-looking singleton; every later
+	// anonymous turn then waited the full readiness window before falling back.
+	it("fails consecutive readiness calls immediately after missing Bun", async () => {
+		const relay = getOpenCodeRelay({
+			bunCommand: join(fixtures, "definitely-missing-bun"),
+		});
+		await expect(relay.ready(4000)).rejects.toThrow(/ENOENT/);
+		await expect(relay.ready(20)).rejects.toThrow("not running");
+		expect(getOpenCodeRelay()).toBe(relay);
+	});
+
 	it("reports unavailability when the bun command cannot spawn", async () => {
-		const dir = mkdtempSync(join(tmpdir(), "oc-relay-stub-"));
+		const dir = mkdtempSync(join(fixtures, "stub-"));
 		const stub = join(dir, "exiting.mjs");
 		writeFileSync(stub, `process.exit(7);`);
-		const relay = getOpenCodeRelay({
-			bunCommand: process.execPath,
-			childArgs: [stub, "-e", "unused"],
-		});
-		await expect(relay.ready(4000)).rejects.toThrow();
+		vi.useFakeTimers();
+		try {
+			const relay = getOpenCodeRelay({
+				bunCommand: process.execPath,
+				childArgs: [stub, "-e", "unused"],
+			});
+			// #631: a stream's finally must not resurrect an idle timer after
+			// its child exits during acquisition.
+			const release = relay.acquire();
+			await expect(relay.ready(4000)).rejects.toThrow();
+			release();
+			expect(vi.getTimerCount()).toBe(0);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
 
@@ -135,6 +176,8 @@ describeBun("opencode-relay passthrough (real bun)", () => {
 	let sawPath: string | undefined;
 	let sawAuth: string | undefined;
 	let sawCliHeader: string | undefined;
+	const gzipText = `data: ${"compressed SSE ".repeat(100)}\n\n`;
+	const pending: http.ServerResponse[] = [];
 	beforeAll(async () => {
 		upstream = http.createServer((req, res) => {
 			let body = "";
@@ -147,7 +190,30 @@ describeBun("opencode-relay passthrough (real bun)", () => {
 					typeof req.headers["x-opencode-client"] === "string"
 						? req.headers["x-opencode-client"]
 						: undefined;
-				if (req.url?.endsWith("/streaming")) {
+				if (req.url?.endsWith("/gzip")) {
+					const compressed = gzipSync(gzipText);
+					res.writeHead(200, {
+						"content-type": "text/event-stream",
+						"content-encoding": "gzip",
+						"content-length": compressed.length,
+					});
+					res.end(compressed);
+				} else if (body.includes('"model":"relay-lifecycle"')) {
+					res.writeHead(200, { "content-type": "text/event-stream" });
+					res.write(
+						`data: ${JSON.stringify({
+							id: "relay-test",
+							choices: [
+								{
+									index: 0,
+									delta: { role: "assistant", content: "hello" },
+									finish_reason: null,
+								},
+							],
+						})}\n\n`,
+					);
+					pending.push(res);
+				} else if (req.url?.endsWith("/streaming")) {
 					res.writeHead(200, { "content-type": "text/plain" });
 					res.write("chunk-1\n");
 					setTimeout(() => {
@@ -175,18 +241,115 @@ describeBun("opencode-relay passthrough (real bun)", () => {
 		});
 	}, 5000);
 	afterAll(async () => {
+		upstream.closeAllConnections();
 		await new Promise<void>((resolve) => upstream.close(() => resolve()));
 	});
 
 	let relay: OpenCodeRelay | undefined;
 
-	beforeAll(async () => {
+	beforeEach(() => {
+		resetOpenCodeRelayForTest();
 		relay = getOpenCodeRelay({ bunCommand: "bun" });
-	}, 5000);
-
-	afterAll(() => {
-		relay?.stop();
 	});
+
+	afterEach(() => {
+		resetOpenCodeRelayForTest();
+		for (const response of pending.splice(0)) response.destroy();
+		vi.useRealTimers();
+	});
+
+	// #631: an idle stop left the stopped singleton cached forever.
+	it("restarts a real relay after idle expiry", async () => {
+		resetOpenCodeRelayForTest();
+		vi.useFakeTimers();
+		const expired = getOpenCodeRelay({ idleTtlMs: 50 });
+		await expired.ready(8000);
+		await vi.advanceTimersByTimeAsync(51);
+		const replacement = getOpenCodeRelay();
+		expect(replacement).not.toBe(expired);
+		await expect(replacement.ready(8000)).resolves.toBeGreaterThan(0);
+	});
+
+	// #631: Bun decoded gzip but kept its encoding header (double decode).
+	// Preserve the encoded wire bytes instead of rewriting body metadata.
+	it("forwards compressed SSE without mismatched encoding or length", async () => {
+		const port = await relay!.ready(8000);
+		const response = await fetch(`http://127.0.0.1:${port}/inference/v1/gzip`);
+		expect(response.headers.get("content-encoding")).toBe("gzip");
+		await expect(response.text()).resolves.toBe(gzipText);
+		const wire = await new Promise<Buffer>((resolve, reject) => {
+			http
+				.get(`http://127.0.0.1:${port}/inference/v1/gzip`, (raw) => {
+					const chunks: Buffer[] = [];
+					raw.on("data", (chunk: Buffer) => chunks.push(chunk));
+					raw.on("end", () => resolve(Buffer.concat(chunks)));
+					raw.on("error", reject);
+				})
+				.on("error", reject);
+		});
+		expect(wire).toEqual(gzipSync(gzipText));
+	});
+
+	// #631: the start-only idle timer killed a live stream. Drive the actual
+	// provider stream and real Bun; only the parent's idle clock is virtual.
+	it.each(["finish", "abort", "error"])(
+		"keeps overlapping streams alive until the last %s",
+		async (last) => {
+			resetOpenCodeRelayForTest();
+			vi.useFakeTimers();
+			const active = getOpenCodeRelay({ idleTtlMs: 50 });
+			await active.ready(8000);
+			const streamSimple = createOpenCodeStreamSimple(
+				createOpenCodeSessionTracker(),
+				{ anonymous: true },
+			);
+			const model = {
+				id: "relay-lifecycle",
+				name: "relay lifecycle",
+				provider: "opencode-free",
+				api: "openai-completions",
+				baseUrl: "https://opencode.ai/inference/v1",
+				reasoning: false,
+				input: ["text"],
+				contextWindow: 10000,
+				maxTokens: 100,
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			} as Model<Api>;
+			const context = normalizeContext({
+				messages: [{ role: "user", content: "hello", timestamp: Date.now() }],
+			});
+			const controller = new AbortController();
+			const first = streamSimple(model, context, { maxTokens: 10 });
+			const second = streamSimple(model, context, {
+				maxTokens: 10,
+				signal: controller.signal,
+			});
+			// Await the actual upstream requests before advancing beyond the idle TTL.
+			await vi.waitUntil(() => pending.length === 2, {
+				timeout: 5000,
+				interval: 10,
+			});
+			const finish = (response: http.ServerResponse) =>
+				response.end(
+					`data: ${JSON.stringify({
+						id: "relay-test",
+						choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+					})}\n\ndata: [DONE]\n\n`,
+				);
+			finish(pending[0]!);
+			expect((await first.result()).stopReason).toBe("stop");
+			await vi.advanceTimersByTimeAsync(51);
+			await expect(active.ready(100)).resolves.toBeGreaterThan(0);
+			if (last === "abort") controller.abort();
+			else if (last === "error") pending[1]!.destroy();
+			else finish(pending[1]!);
+			expect((await second.result()).stopReason).toBe(
+				last === "abort" ? "aborted" : last === "error" ? "error" : "stop",
+			);
+			await vi.advanceTimersByTimeAsync(51);
+			expect(getOpenCodeRelay()).not.toBe(active);
+		},
+	);
 
 	it("forwards byte-identical bodies/headers and streams SSE chunks incrementally", async () => {
 		const port = await relay!.ready(8000);

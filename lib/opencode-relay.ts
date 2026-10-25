@@ -63,8 +63,10 @@ export interface OpenCodeRelay {
 	ready(timeoutMs: number): Promise<number>;
 	/** Stop the child (idle TTL or process shutdown). Idempotent. */
 	stop(): void;
-	/** Notify activity, resetting the idle TTL. */
+	/** Notify activity, resetting the idle TTL when no stream is active. */
 	touch(): void;
+	/** Hold the child through a stream; call the returned release exactly once. */
+	acquire(): () => void;
 }
 
 interface RelayStartOptions {
@@ -106,8 +108,9 @@ class Relay implements OpenCodeRelay {
 	private readonly idleTtlMs: number;
 	private readonly bunCommand: string;
 	private readonly childArgs: string[];
-	private waiter: Waiter | undefined;
+	private readonly waiters = new Set<Waiter>();
 	private stopped = false;
+	private activeRequests = 0;
 
 	constructor(options: RelayStartOptions) {
 		this.idleTtlMs = options.idleTtlMs ?? 5 * 60_000;
@@ -118,14 +121,14 @@ class Relay implements OpenCodeRelay {
 	}
 
 	private settleWaiter(port: number | undefined, error?: Error): void {
-		const waiter = this.waiter;
-		this.waiter = undefined;
-		if (!waiter) return;
-		if (error !== undefined) {
-			waiter.reject(error);
-		} else if (port !== undefined) {
-			waiter.resolve(port);
+		for (const waiter of this.waiters) {
+			if (error !== undefined) {
+				waiter.reject(error);
+			} else if (port !== undefined) {
+				waiter.resolve(port);
+			}
 		}
+		this.waiters.clear();
 	}
 
 	private spawnChild(): void {
@@ -189,11 +192,19 @@ class Relay implements OpenCodeRelay {
 			{ error: error.message },
 		);
 		this.settleWaiter(undefined, error);
+		// Cache the unavailable generation: later turns fall back immediately,
+		// rather than retrying a missing executable and logging on every turn.
+		this.stop();
 	}
 
 	private armIdleTimer(): void {
 		if (this.idleTimer) clearTimeout(this.idleTimer);
-		this.idleTimer = setTimeout(() => this.stop(), this.idleTtlMs);
+		this.idleTimer = undefined;
+		if (this.stopped || this.activeRequests > 0) return;
+		this.idleTimer = setTimeout(() => {
+			this.stop();
+			if (_singleton === this) _singleton = undefined;
+		}, this.idleTtlMs);
 		// Unref: a TTL'd relay must never hold pi's process open.
 		this.idleTimer.unref?.();
 	}
@@ -208,11 +219,8 @@ class Relay implements OpenCodeRelay {
 		}
 		if (this.boundPort !== undefined) return Promise.resolve(this.boundPort);
 		return new Promise<number>((resolve, reject) => {
-			if (this.waiter) {
-				this.waiter.reject(new Error("superseded"));
-			}
 			const timer = setTimeout(() => {
-				this.waiter = undefined;
+				this.waiters.delete(waiter);
 				reject(
 					new Error(
 						`opencode-relay did not become ready within ${timeoutMs}ms`,
@@ -220,7 +228,7 @@ class Relay implements OpenCodeRelay {
 				);
 			}, timeoutMs);
 			timer.unref?.();
-			this.waiter = {
+			const waiter: Waiter = {
 				resolve: (port) => {
 					clearTimeout(timer);
 					resolve(port);
@@ -230,6 +238,7 @@ class Relay implements OpenCodeRelay {
 					reject(error);
 				},
 			};
+			this.waiters.add(waiter);
 		});
 	}
 
@@ -237,8 +246,19 @@ class Relay implements OpenCodeRelay {
 		if (this.boundPort !== undefined) this.armIdleTimer();
 	}
 
+	acquire(): () => void {
+		this.activeRequests += 1;
+		if (this.idleTimer) clearTimeout(this.idleTimer);
+		this.idleTimer = undefined;
+		return () => {
+			this.activeRequests -= 1;
+			this.armIdleTimer();
+		};
+	}
+
 	stop(): void {
 		this.stopped = true;
+		this.boundPort = undefined;
 		if (this.idleTimer) clearTimeout(this.idleTimer);
 		this.idleTimer = undefined;
 		this.settleWaiter(undefined, new Error("opencode-relay stopped"));
@@ -271,20 +291,16 @@ const server = Bun.serve({
     req.headers.forEach((v, k) => {
       if (k !== "host" && k !== "connection") h.set(k, v);
     });
-				const r = await fetch(UP + u.pathname + u.search, {
+    return fetch(UP + u.pathname + u.search, {
       method: req.method,
       headers: h,
       body: req.method === "GET" || req.method === "HEAD" ? undefined : await req.arrayBuffer(),
       redirect: "manual",
+      // This is a byte pipe: retain encoded bytes and their encoding header.
+      decompress: false,
     }).catch((e) =>
       new Response(JSON.stringify({ type: "error", error: { type: "relay", message: String(e && e.message || e) } }), { status: 502, headers: { "content-type": "application/json" } })
     );
-    if (r instanceof Response) return r;
-    const out = new Headers();
-    r.headers.forEach((v, k) => {
-      if (k !== "content-length") out.set(k, v);
-    });
-    return new Response(r.body, { status: r.status, statusText: r.statusText, headers: out });
   },
 });
 console.log("PORT=" + server.port);

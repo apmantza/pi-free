@@ -627,14 +627,24 @@ const relaysAnonymousLane = (): boolean =>
  */
 export const relayWindowMs = 2000;
 
-async function maybeRelayBaseUrl(original: string): Promise<string> {
-	if (!relaysAnonymousLane()) return original;
+async function maybeRelayBaseUrl(original: string): Promise<{
+	baseUrl: string;
+	release?: () => void;
+}> {
+	if (!relaysAnonymousLane()) {
+		return { baseUrl: original };
+	}
+	const relay = getOpenCodeRelay();
+	const release = relay.acquire();
 	try {
-		const relay = getOpenCodeRelay();
 		const port = await relay.ready(relayWindowMs);
-		return getOpenCodeRelayBaseUrl(original, port) ?? original;
+		return {
+			baseUrl: getOpenCodeRelayBaseUrl(original, port) ?? original,
+			release,
+		};
 	} catch {
-		return original; // direct lane; the relay module already logged once
+		release();
+		return { baseUrl: original }; // direct lane; startup failure is already logged
 	}
 }
 
@@ -667,20 +677,20 @@ export function createOpenCodeStreamSimple(
 		};
 
 		void (async () => {
+			let releaseRelay: (() => void) | undefined;
 			try {
 				const streamApi = resolveOpenCodeStreamApi(model);
 				const upstreamBaseUrl = getOpenCodeModelBaseUrl(
 					streamApi as NonNullable<Api>,
 					model.baseUrl,
 				);
-				// Normalize here as well as during catalog conversion because Pi can
-				// supply a previously persisted model with the pre-/v1 URL.
-				const normalizedModel = {
-					...model,
-					baseUrl: anonymous
-						? await maybeRelayBaseUrl(upstreamBaseUrl)
-						: upstreamBaseUrl,
-				};
+				const relayed = anonymous
+					? await maybeRelayBaseUrl(upstreamBaseUrl)
+					: { baseUrl: upstreamBaseUrl };
+				releaseRelay = relayed.release;
+				// Normalize persisted URLs too; keep the relay held across protocol
+				// loading and the entire stream, not just until headers arrive.
+				const normalizedModel = { ...model, baseUrl: relayed.baseUrl };
 				if (streamApi === "anthropic-messages") {
 					const streamSimpleAnthropic = getStreamSimple(
 						await importPiAiSubpath<AnthropicStreamModule>(
@@ -765,6 +775,8 @@ export function createOpenCodeStreamSimple(
 				const errorMessage = createErrorMessage(model, error);
 				stream.push({ type: "start", partial: errorMessage });
 				stream.push({ type: "error", reason: "error", error: errorMessage });
+			} finally {
+				releaseRelay?.();
 			}
 		})();
 
