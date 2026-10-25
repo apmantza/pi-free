@@ -22,7 +22,7 @@ jobs:
           # Full history so the whitespace check can diff against the base.
           fetch-depth: 0
 
-      # v7.0.0
+      # v7.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: "22"
@@ -86,7 +86,7 @@ jobs:
         with:
           persist-credentials: false
 
-      # v7.0.0
+      # v7.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: "22"
@@ -166,7 +166,7 @@ jobs:
         with:
           persist-credentials: false
 
-      # v7.0.0
+      # v7.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: "22"
@@ -212,7 +212,7 @@ jobs:
         with:
           persist-credentials: false
 
-      # v7.0.0
+      # v7.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: "22"
@@ -243,7 +243,7 @@ jobs:
         with:
           persist-credentials: false
 
-      # v7.0.0
+      # v7.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: "22"
