@@ -75,7 +75,7 @@
 		"@vitest/coverage-v8": "^5.0.0",
 		"@vitest/ui": "^5.0.0",
 		"esbuild": "^0.28.1",
-		"knip": "6.39.0",
+		"knip": "6.41.0",
 		"oxfmt": "0.72.0",
 		"oxlint": "1.87.0",
 		"publint": "0.3.25",
