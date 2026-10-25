@@ -185,6 +185,34 @@ No production lifecycle code changed in this follow-up. Exact-head Windows CI
 must rerun before merge; the initial timeout is not represented as green or
 written off as environmental.
 
+## Real compat-registry follow-up
+
+A final strict-consumer probe found a gap before merge: auxiliary callers use
+compat's actual API registry instead of the provider callback. On head1a2ca7c,
+registered Grok models sent through real `compat.streamSimple` failed:
+
+```text
+Expected: /responses
+Received: /inference/v1/chat/completions
+```
+
+The existing compat wrapper/registration now accepts an optional live catalog
+resolver, injected by the project layer. It recovers each model's original API
+from the same registry catalog before entering the existing free/keyed stream.
+No import cycle, extra cache, persisted field, state writer or helper module.
+The provider callback and compat resolver use one-line reads in their respective
+provider scopes; another shared module would merely relocate those reads.
+
+The new real-registry regression passes for both free and Go with their original
+authentication behavior. Targeted follow-up:58 tests passed in six files;
+final full suite:1028 passed, two opt-in live tests skipped. All
+original seven built mutations still red, plus two new compile-valid mutations
+(removing resolver forwarding or consumption) independently reproduce the exact
+Responses/Completions mismatch above. Original wire APIs are retained through
+both the real host provider dispatcher and real compat dispatcher. `agents.md`
+now explicitly includes both consumers. This runtime follow-up requires fresh
+review and exact-head CI; earlier green checks are not substituted for it.
+
 ## Detection retrospective
 
 The user's continued-session GLM report exposed the gap. The earlier tests

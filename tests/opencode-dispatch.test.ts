@@ -238,6 +238,28 @@ it("dispatches every registered OpenCode model through its wrapper across refres
 	).toBe(true);
 }, 20000);
 
+// #635: auxiliary callers use compat's real API registry, not the provider
+// callback. Dispatch-tagged models must retain their authoritative wire API.
+it("preserves catalog protocols through the real compat dispatcher", async () => {
+	const { streamSimple } = await import("@earendil-works/pi-ai/compat");
+	for (const provider of ["opencode-free", "opencode-go"]) {
+		requests.length = 0;
+		const model = runtime.getModel(provider, "grok-4.7")!;
+		await streamSimple(
+			model,
+			{
+				messages: [{ role: "user", content: "hello", timestamp: Date.now() }],
+			},
+			{ apiKey: "stored-go-fixture", maxTokens: 1 },
+		).result();
+		expect(requests).toHaveLength(1);
+		expect(requests[0]!.path).toMatch(/\/responses$/);
+		expect(requests[0]!.token).toBe(
+			provider === "opencode-free" ? "public" : "stored-go-fixture",
+		);
+	}
+});
+
 // #635: a real Bun process is required to observe the dispatcher reaching the
 // actual workaround, not merely constructing/initializing its callback.
 it.skipIf(!hasBun)(

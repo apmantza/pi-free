@@ -827,12 +827,13 @@ export function selectOpenCodeCompatStream<T>(
 export function createOpenCodeCompatStream(
 	tracker: OpenCodeSessionTracker,
 	createStream: typeof createOpenCodeStreamSimple = createOpenCodeStreamSimple,
+	getModelApi?: (model: Model<Api>) => Api | undefined,
 ): NonNullable<ProviderConfig["streamSimple"]> {
 	const freeStream = createStream(tracker, { anonymous: true });
 	const keyedStream = createStream(tracker);
 	return (model, context, options) =>
 		selectOpenCodeCompatStream(freeStream, keyedStream, model.provider)(
-			model,
+			{ ...model, api: getModelApi?.(model) ?? model.api },
 			context,
 			options,
 		);
@@ -849,11 +850,16 @@ export function createOpenCodeCompatStream(
  */
 export function ensureOpenCodeApiProviderRegistered(
 	tracker: OpenCodeSessionTracker,
+	getModelApi?: (model: Model<Api>) => Api | undefined,
 ): void {
 	if (_apiProviderRegistrationSourceId || _apiProviderRegistrationPromise)
 		return;
 
-	const streamFn = createOpenCodeCompatStream(tracker);
+	const streamFn = createOpenCodeCompatStream(
+		tracker,
+		createOpenCodeStreamSimple,
+		getModelApi,
+	);
 	const sourceId = `pi-free-opencode-${randomBytes(4).toString("hex")}`;
 	_apiProviderRegistrationPromise = loadPiAiEntry<{
 		registerApiProvider?: unknown;

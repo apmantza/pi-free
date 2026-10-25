@@ -819,7 +819,13 @@ function createProviderState(
 		// Ensure the opencode-dynamic API is registered in compat's global
 		// registry so fallback code paths (compat streamSimple) can resolve it.
 		if (isOpenCodeProvider(config.id)) {
-			ensureOpenCodeApiProviderRegistered(getOpenCodeSession());
+			ensureOpenCodeApiProviderRegistered(
+				getOpenCodeSession(),
+				(model) =>
+					getProviderRegistry()
+						.get(model.provider)
+						?.stored.all.find((entry) => entry.id === model.id)?.api,
+			);
 		}
 		const providerConfig = {
 			baseUrl,
