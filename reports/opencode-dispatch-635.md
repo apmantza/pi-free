@@ -135,7 +135,10 @@ fixture reply=OK
 
 Native OpenCode2.1.4, private standalone server and isolated HOME, returned
 `OK` from the live GLM model. Its captured request replayed through the same
-installed Bun1.4.4 also returned200/OK. Bounded differential probes observed:
+installed Bun1.4.4 also returned200/OK. All Pi-body differential rows below
+use the same captured native headers; the system-field result is not a claim
+that changing only that field in the unmodified Pi request is sufficient.
+Bounded differential probes observed:
 
 | Request variant, same Bun transport | Result |
 | --- | --- |
