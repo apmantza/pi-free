@@ -26,14 +26,14 @@ FastRouter and Qoder now use the native provider lifecycle alongside the other m
 
 ## `glob` tool and OpenCode Zen free-tier compatibility
 
-OpenCode Zen's free tier refuses requests that do not look like its own client: it requires the request's `tools[]` to contain the lowercase names `bash`, `edit`, `glob`, `grep`, `read`. Pi's built-in tools are `read`, `bash`, `powershell`, `edit`, `write`, `grep`, `find`, `ls` — its file finder is **`find`**, and `grep` is not in the default roster — so an `opencode-free` turn would present fewer than five of those names and be rejected with `403 FreeTierError` ("OpenCode's free tier can only be used from within OpenCode").
+OpenCode Zen applies client-compatibility checks that can change over time. pi-free supplies familiar lowercase tool names such as `bash`, `edit`, `glob`, `grep`, and `read`; Pi's file finder is named `find`, and `grep` is not in its default roster. Tool/header compatibility alone is insufficient for the free inference path.
 
 pi-free therefore:
 
 - registers Pi's built-in `find` definition under the name **`glob`** (`createFindToolDefinition`), so the tool keeps Pi's own implementation — schema, `.gitignore` handling, truncation, and the host's search backend. pi-free adds no dependency and spawns nothing itself, so this stays OS-agnostic; and
 - adds `glob` and `grep` to that run's selected tools when the selected model is on `opencode-free` (`event.systemPromptOptions.selectedTools`). The change is per-turn, so no other provider's request changes and nothing is activated globally.
 
-The `glob` tool is registered for every session but only selected on `opencode-free` turns. `opencode-free` inference also sends Zen's anonymous `public` bearer instead of the stored account credential (the keyed free-tier lane is rejected upstream); `opencode-go` keeps its credential. See [providers](providers.md#opencode-and-opencode-go).
+The `glob` tool is registered for every session but only selected on `opencode-free` turns. All free models additionally receive the default 31-character system metadata frame `<env>Working directory: .</env>`. This context-relative frame keeps Pi's own instructions and tool state intact; it does not copy OpenCode's persona or native tool instructions, alter persisted transcripts, or require the OpenCode CLI. The keyed Go stream is unchanged. `opencode-free` inference also sends Zen's anonymous `public` bearer instead of the stored account credential (the keyed free-tier lane is rejected upstream); `opencode-go` keeps its credential. See [providers](providers.md#opencode-and-opencode-go).
 
 ## Coding Index (CI) scores
 

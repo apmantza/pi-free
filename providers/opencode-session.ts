@@ -12,6 +12,7 @@ import type {
 	Model,
 	ProviderHeaders,
 	SimpleStreamOptions,
+	TranscriptContext,
 } from "@earendil-works/pi-ai/compat";
 import type {
 	ProviderConfig,
@@ -38,6 +39,11 @@ export const OPENCODE_DYNAMIC_API = "opencode-dynamic" as const;
  * constructed with `{ anonymous: true }` (the opencode-free provider).
  */
 const OPENCODE_ANONYMOUS_API_KEY = "public";
+
+// #628: live subset probes require an env frame with a working-directory line,
+// not OpenCode's persona/tools/skills prompt. Dot is relative to Pi's tool cwd;
+// keep the complete Pi instructions after this small request-only metadata.
+const OPENCODE_FREE_SYSTEM_ENVELOPE = "<env>Working directory: .</env>";
 
 const OPENCODE_STATIC_HEADERS = {
 	"User-Agent": "opencode/1.19.0",
@@ -186,11 +192,8 @@ export function createOpenCodeHeaders(
 		"x-opencode-session": tracker.getSessionId(),
 		"x-opencode-request": tracker.nextRequestId(),
 		// The CLI sends the project id when present (schema default "global").
-		// Note: the deployed Zen backend's checkHeaders gate is currently
-		// disabled (production ipRateLimiter.ts hardcodes headersExist=true),
-		// so these headers are log/forward-compat only — the daily freeze is
-		// IP-based. Keep them faithful to the CLI wire format in case the gate
-		// is re-enabled.
+		// Headers alone do not establish free-tier acceptance; the anonymous
+		// path also supplies request-only environment metadata and Bun transport.
 		"x-opencode-project": "global",
 	};
 }
@@ -676,7 +679,7 @@ export function createOpenCodeStreamSimple(
 		const sanitizedMessages = sanitizeMessagesForOpenCode(
 			context.messages as unknown[],
 		);
-		const sanitizedContext: Context = {
+		let sanitizedContext: Context = {
 			...context,
 			messages: sanitizedMessages as Context["messages"],
 		};
@@ -684,6 +687,37 @@ export function createOpenCodeStreamSimple(
 		void (async () => {
 			let releaseRelay: (() => void) | undefined;
 			try {
+				if (anonymous) {
+					const { normalizeContext } = await loadPiAiEntry<{
+						normalizeContext(context: Context): TranscriptContext;
+					}>("compat");
+					// The sanitizer already owns a fresh request array; normalization
+					// may also fold legacy prompt/tools into a fresh leading message.
+					const messages = normalizeContext(sanitizedContext).messages;
+					const initial = messages[0];
+					if (initial?.role === "system") {
+						messages[0] = {
+							...initial,
+							content:
+								typeof initial.content === "string"
+									? `${OPENCODE_FREE_SYSTEM_ENVELOPE}\n\n${initial.content}`
+									: [
+											{
+												type: "text",
+												text: `${OPENCODE_FREE_SYSTEM_ENVELOPE}\n\n`,
+											},
+											...initial.content,
+										],
+						};
+					} else {
+						messages.unshift({
+							role: "system",
+							content: OPENCODE_FREE_SYSTEM_ENVELOPE,
+							timestamp: 0,
+						});
+					}
+					sanitizedContext = { messages };
+				}
 				const streamApi = resolveOpenCodeStreamApi(
 					model,
 					settings?.getModelApi,
