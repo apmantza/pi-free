@@ -1,5 +1,7 @@
 # Free Models Catalog
 
+> **2026-10-26 — 2.8.6 scoped audit / carry-over:** OpenCode's public feed was fetched live (85 IDs); its eight generative free candidates are listed below. They returned text on 2026-10-25; GLM text/tool was repeated on 2026-10-26. Other providers are **not audited for this release**: their 2026-08-26 lists/counts remain historical and promotions are not renewed. This patch's Requesty pricing-provenance and Requesty/Novita modality fixes can change classification relative to those lists. No fresh full-provider total is claimed. See [catalog audit](catalog-audit.md#2026-10-26--286-scoped-audit-and-explicit-carry-over).
+
 > **2026-09-22 — 2.8.2 carry-over:** this patch (auth routing, host compat, logging, picker-level modality filter, dep floors) leaves free/paid price classification unchanged. The 2026-08-26 snapshot is carried forward, not freshly audited. Counts and promotional windows remain historical; expired promotions are not renewed by this note. See [catalog audit](catalog-audit.md#2026-09-22--282-carry-over).
 
 > **Audit date: 2026-08-26.** Every list below was pulled live from the provider's real endpoint and classified with pi-free's own detection semantics (cost-based Route A, name-based Route B, authoritative stamps). Provider catalogs change constantly — treat this as a verified point-in-time snapshot, not a guarantee. Re-check before relying on any single model.
@@ -9,6 +11,30 @@
 > **Visibility:** these lists describe what each provider *offers*, not what `/model` shows. Providers you have not logged into are hidden (only the keyless allowlist — Cline, FastRouter, LLM7 — appears logged out); see [Model visibility](providers.md#model-visibility).
 
 ---
+
+## OpenCode Free — 2026-10-26 scoped snapshot
+
+The anonymous public feed lists these eight generative free candidates. Its
+85-entry response supplies no prices, protocol, or capabilities; candidacy uses
+Pi's known metadata/name rules. Default Pi inference uses Bun and the minimal
+request-only environment frame while retaining Pi's instructions and tools.
+Public/free access still has upstream quotas and availability limits.
+
+| Model ID | Dated verification |
+| --- | --- |
+| `big-pickle` | Pi text response, 2026-10-25 |
+| `beam-free` | Pi text response, 2026-10-25 |
+| `flint-40b-free` | Pi text response, 2026-10-25; initial transient 503 also recorded |
+| `mimo-v2.6-flash-free` | Pi text response, 2026-10-25 |
+| `nemotron-3.5-super-vl-free` | Pi text response, 2026-10-25 |
+| `nemotron-3.5-lightning-free` | Pi text response, 2026-10-25 |
+| `deepseek-v4.1-flash-free` | Pi text response, 2026-10-25 |
+| `glm-5.3-flash-free` | Pi text and nonce-tool cycle, repeated 2026-10-26 |
+
+The feed also lists `jev-1.13-free`, a **non-generative decision model**, not a
+usable chat model. Its chat-picker exposure remains [#637](https://github.com/apmantza/pi-free/issues/637).
+These observations are not a new all-provider price audit or an unlimited-usage
+promise. [Method and limits](catalog-audit.md#2026-10-26--286-scoped-audit-and-explicit-carry-over).
 
 ## Cross-cutting conditions
 
@@ -292,7 +318,7 @@ These registered providers exposed **no free-classified chat models** at audit t
 - **AnyAPI** — credential expired at audit time (HTTP 401); mapper parses pricing/isFree but live state unknown. Re-auth to restore.
 - **Ollama Cloud** — usage-based tier makes the whole catalog effectively free with quotas; classification is handled by its own probing path.
 - **Qoder** — basic Community tier vs premium credits; static curated catalog.
-- **Pi built-ins** (OpenRouter, OpenCode, OpenCode Go) — wrapped for filtering only; see Pi's own docs. OpenRouter's `:free` variants follow the cross-cutting conditions above.
+- **Other Pi built-ins** (OpenRouter, OpenCode Go) — no fresh audit in this release; see Pi's own docs. OpenRouter's `:free` variants follow the cross-cutting conditions above. OpenCode Free has the scoped dated snapshot above.
 
 ---
 

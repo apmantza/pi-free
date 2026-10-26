@@ -13,6 +13,33 @@ Each provider's live `/models` endpoint is fetched (stored credential from `~/.p
 
 Counts drift as providers change their catalogs — treat every audit below as a verified snapshot, never a guarantee. Providers whose credentials are unavailable are listed as "not audited" rather than guessed. Never print or commit API keys during an audit.
 
+## 2026-10-26 — 2.8.6 scoped audit and explicit carry-over
+
+The production `fetchOpenCodeModelIds` path fetched the anonymous public
+`https://opencode.ai/inference/v1/models` endpoint on 2026-10-26: **85 IDs**.
+Entries expose only `id`, `object`, `created`, and `owned_by`; there is no price,
+operation, capability, or wire-protocol metadata. Free candidacy therefore comes
+from Pi's known metadata/name rules, not a freshly verified endpoint price.
+
+Nine IDs are free candidates (eight free-named IDs plus curated `big-pickle`).
+Eight are generative models: Big Pickle, Beam, Flint, MiMo Flash, Nemotron Super VL,
+Nemotron Lightning, DeepSeek Flash, and GLM Flash. Actual Pi inference returned text
+for all eight on **2026-10-25**; GLM text and a Pi-owned nonce tool round-trip were
+repeated successfully on **2026-10-26**, through the default Bun/envelope path.
+Jev is a non-generative decision model and returns `ModelProtocolUnsupported` on
+chat; its incorrect chat-picker registration remains [#637](https://github.com/apmantza/pi-free/issues/637).
+The exact eight generative IDs are regenerated in [free_models.md](free_models.md#opencode-free--2026-10-26-scoped-snapshot).
+Method, controls, and limitations: [envelope report](../reports/opencode-free-envelope-628.md).
+
+**Explicit carry-over:** no fresh all-provider audit was performed for 2.8.6.
+All other registered providers are **not audited for this release**; the
+2026-08-26 counts and per-model lists below remain historical, not current
+classification or availability guarantees. No maintainer provider credentials were used.
+Requesty pricing-provenance and Requesty/Novita output-modality fixes in this patch
+can change classification relative to that snapshot. Promotions are not renewed.
+The same dated exception is recorded in CHANGELOG and free_models.md; historical
+lists are deliberately retained rather than relabeled as a successful re-audit.
+
 ## 2026-09-25 — upstream-wrapper probe (KTibow-style)
 
 Prompted by the CrofAI precedent (an OpenRouter wrapper removed from this catalog after KTibow's fact-check), all less-known registered gateways holding a stored credential were probed black-box for upstream-resale tells. Methodology per provider, all with `max_tokens: 5`:

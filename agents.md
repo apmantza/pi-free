@@ -18,7 +18,7 @@ Durable context for every agent on pi-free. **Update it in the same commit that 
 
 A **Pi extension** that registers free and paid AI model providers with Pi's model picker: free models by default, per-provider free↔all toggles via `/toggle-{provider}`.
 
-**Package:** `pi-free` v2.8.5 · MIT · Apostolos Mantzaris · `github.com/apmantza/pi-free`
+**Package:** `pi-free` v2.8.6 · MIT · Apostolos Mantzaris · `github.com/apmantza/pi-free`
 **Peer deps:** `@earendil-works/pi-ai` (`^1.1.0` — floor tracks pi-coding-agent's minor, defect shape 10), `@earendil-works/pi-coding-agent` (`>=0.86.0`; 0.86 introduced the `TranscriptContext` provider contract), `@earendil-works/pi-tui` (`>=0.81.0`; the native `createProvider` / `registerProvider(provider)` surface)
 
 ---
