@@ -31,6 +31,7 @@ type RequestRecord = {
 	token: string | null;
 	client: string | null;
 	requestId?: string | null;
+	payload?: unknown;
 };
 let home: string;
 let runtime: ModelRuntime;
@@ -39,6 +40,26 @@ let requests: RequestRecord[];
 let upstream: http.Server | undefined;
 let relayRequests: RequestRecord[];
 let resetRelay: (() => void) | undefined;
+
+// Inspect only system/developer locations, never a user quoting the envelope.
+function wireSystemText(payload: unknown): string {
+	const body = payload as Record<string, unknown>;
+	const direct =
+		body.system ??
+		body.system_instruction ??
+		body.systemInstruction ??
+		body.instructions;
+	if (direct !== undefined) return JSON.stringify(direct);
+	const messages = (body.messages ?? body.input ?? []) as {
+		role?: string;
+		content?: unknown;
+	}[];
+	return JSON.stringify(
+		messages.filter(
+			(message) => message.role === "system" || message.role === "developer",
+		),
+	);
+}
 
 beforeEach(async () => {
 	vi.resetModules();
@@ -75,9 +96,9 @@ beforeEach(async () => {
 			if (url.hostname === "pi.dev") return new Response(null, { status: 404 });
 			if (url.pathname.endsWith("/models"))
 				return Response.json({ data: ids.map((id) => ({ id })) });
-			const headers = new Headers(
-				init?.headers ?? (input instanceof Request ? input.headers : undefined),
-			);
+			const request = new Request(input, init);
+			const headers = request.headers;
+			const payload: unknown = await request.json();
 			requests.push({
 				path: url.pathname,
 				token:
@@ -89,6 +110,7 @@ beforeEach(async () => {
 					)?.replace(/^Bearer /, "") ?? null,
 				client: headers.get("x-opencode-client"),
 				requestId: headers.get("x-opencode-request"),
+				payload,
 			});
 			// A terminal HTTP boundary result is sufficient: assertions inspect the
 			// actual wire path/auth emitted by Pi, not a fabricated stream callback.
@@ -187,17 +209,32 @@ it("dispatches every registered OpenCode model through its wrapper across refres
 			for (const model of runtime.getModels(provider)) {
 				const id = model.id;
 				requests.length = 0;
-				await runtime
-					.streamSimple(
-						model,
-						{
-							messages: [
-								{ role: "user", content: "hello", timestamp: Date.now() },
-							],
-						},
-						{ maxTokens: 1 },
-					)
-					.result();
+				const context = {
+					systemPrompt: "PI_INSTRUCTIONS_MUST_SURVIVE",
+					tools: session.agent.state.tools.map(
+						({ name, description, parameters }) => ({
+							name,
+							description,
+							parameters,
+						}),
+					),
+					messages: [
+						{ role: "user" as const, content: "hello", timestamp: Date.now() },
+					],
+				};
+				const before = JSON.stringify(context);
+				await runtime.streamSimple(model, context, { maxTokens: 1 }).result();
+				const wire = JSON.stringify(requests[0]?.payload);
+				// #628: Bun alone still429s; the live-proven small env frame is
+				// default for every free model, not a copied native agent prompt.
+				expect(wire).toContain("PI_INSTRUCTIONS_MUST_SURVIVE");
+				expect(
+					wireSystemText(requests[0]?.payload).includes(
+						"<env>Working directory: .</env>",
+					),
+				).toBe(provider === "opencode-free");
+				expect(wire).toContain('"read"');
+				expect(JSON.stringify(context)).toBe(before);
 				expect(requests, `${phase}: ${provider}/${id}`).toHaveLength(1);
 				expect(requests[0]!.client).toBe("cli");
 				expect(requests[0]!.token).toBe(
@@ -238,6 +275,81 @@ it("dispatches every registered OpenCode model through its wrapper across refres
 	).toBe(true);
 }, 20000);
 
+// #628: adding a new leading system message can demote Pi's original system
+// instructions/tools on protocols with in-place system/tool changes. Merge into
+// a copied leading message, preserve sections/text blocks, and never accumulate.
+it("preserves rich system messages and tools without mutating or accumulating", async () => {
+	for (const id of [
+		"glm-5.3-flash-free",
+		"grok-4.7",
+		"claude-haiku-5-5",
+		"gemini-3.8-flash",
+	]) {
+		const context = {
+			messages: [
+				{
+					role: "system" as const,
+					content: [{ type: "text" as const, text: "PI_INITIAL_BLOCK" }],
+					sections: { policy: "PI_SECTION_KEEP" },
+					toolsAdded: session.agent.state.tools.map(
+						({ name, description, parameters }) => ({
+							name,
+							description,
+							parameters,
+						}),
+					),
+					timestamp: 0,
+				},
+				{ role: "user" as const, content: "hello", timestamp: 1 },
+				{ role: "system" as const, content: "PI_LATER_BLOCK", timestamp: 2 },
+				{ role: "user" as const, content: "continue", timestamp: 3 },
+			],
+		};
+		const before = JSON.stringify(context);
+		const registered = runtime.getModel("opencode-free", id)!;
+		// Supported SDK model overrides can enable in-place Anthropic system
+		// and tool deltas; Pi's original leading system must stay authoritative.
+		const model =
+			id === "claude-haiku-5-5"
+				? {
+						...registered,
+						compat: {
+							...registered.compat,
+							supportsMidConvoSystemMessages: true,
+							supportsMidConvoToolChanges: true,
+						},
+					}
+				: registered;
+		for (const dispatch of [
+			runtime,
+			await import("@earendil-works/pi-ai/compat"),
+		]) {
+			requests.length = 0;
+			await dispatch
+				.streamSimple(model, context, {
+					maxTokens: 1,
+					apiKey: "public",
+				})
+				.result();
+			expect(requests).toHaveLength(1);
+			const payload = requests[0]!.payload as Record<string, unknown>;
+			const wire = JSON.stringify(payload);
+			const system = wireSystemText(payload);
+			expect(system).toContain("PI_INITIAL_BLOCK");
+			expect(system).toContain("PI_SECTION_KEEP");
+			expect(system.split("<env>Working directory: .</env>")).toHaveLength(2);
+			for (const marker of [
+				"PI_INITIAL_BLOCK",
+				"PI_SECTION_KEEP",
+				"PI_LATER_BLOCK",
+				'"read"',
+			])
+				expect(wire).toContain(marker);
+			expect(JSON.stringify(context)).toBe(before);
+		}
+	}
+});
+
 // #635: auxiliary callers use compat's real API registry, not the provider
 // callback. Dispatch-tagged models must retain their authoritative wire API.
 it("preserves catalog protocols through the real compat dispatcher", async () => {
@@ -254,6 +366,11 @@ it("preserves catalog protocols through the real compat dispatcher", async () =>
 		).result();
 		expect(requests).toHaveLength(1);
 		expect(requests[0]!.path).toMatch(/\/responses$/);
+		expect(
+			wireSystemText(requests[0]!.payload).includes(
+				"<env>Working directory: .</env>",
+			),
+		).toBe(provider === "opencode-free");
 		expect(requests[0]!.token).toBe(
 			provider === "opencode-free" ? "public" : "stored-go-fixture",
 		);
