@@ -19,13 +19,13 @@ function retryDelay(error: string | undefined): number | undefined {
 	return ms;
 }
 
-/** Keep timed recovery inside Pi's abort-aware boundary, ahead of auto-fallback. */
+/** Wait while Pi still exposes cancellation; decide continuation at final settlement. */
 export function registerInfronRateLimitContinuation(pi: ExtensionAPI): void {
-	let lastAssistant: AssistantMessage | undefined;
+	let readyFailure: AssistantMessage | undefined;
 	let cancelWait: (() => void) | undefined;
 	const cancel = () => {
 		cancelWait?.();
-		lastAssistant = undefined;
+		readyFailure = undefined;
 	};
 	pi.on("before_agent_start", cancel);
 	pi.on("input", () => {
@@ -34,21 +34,19 @@ export function registerInfronRateLimitContinuation(pi: ExtensionAPI): void {
 	pi.on("model_select", cancel);
 	pi.on("session_start", cancel);
 	pi.on("session_shutdown", cancel);
-	pi.on("message_end", (event) => {
-		if (event.message.role === "assistant") lastAssistant = event.message;
-	});
-	pi.on("agent_before_settle", async (event, ctx) => {
-		const message = lastAssistant;
-		lastAssistant = undefined;
+	pi.on("message_end", async (event, ctx) => {
+		const message = event.message;
+		if (message.role !== "assistant") return;
+		cancel();
+		const signal = ctx.signal;
 		if (
-			event.outcome !== "error" ||
-			event.continue ||
-			!message ||
 			message.stopReason !== "error" ||
 			message.provider !== PROVIDER_INFRON ||
 			ctx.model?.provider !== PROVIDER_INFRON ||
 			ctx.model.id !== message.model ||
-			ctx.hasPendingMessages()
+			ctx.hasPendingMessages() ||
+			!signal ||
+			signal.aborted
 		)
 			return;
 		const delay = retryDelay(message.errorMessage);
@@ -58,34 +56,46 @@ export function registerInfronRateLimitContinuation(pi: ExtensionAPI): void {
 			`Infron TPM limit: continuing in ${delay / 1_000} seconds. Escape cancels continuation.`,
 			"info",
 		);
-		const signal = ctx.signal;
+		// agent_before_settle has no active signal on supported hosts. message_end
+		// is still inside the low-level run, so Escape can release this wait.
 		const elapsed = await new Promise<boolean>((resolve) => {
 			const finish = (completed: boolean) => {
 				clearTimeout(timer);
-				signal?.removeEventListener("abort", onAbort);
+				signal.removeEventListener("abort", onAbort);
 				cancelWait = undefined;
 				resolve(completed);
 			};
 			const onAbort = () => finish(false);
 			const timer = setTimeout(() => finish(true), delay);
 			cancelWait = onAbort;
-			signal?.addEventListener("abort", onAbort, { once: true });
-			if (signal?.aborted) onAbort();
+			signal.addEventListener("abort", onAbort, { once: true });
+			if (signal.aborted) onAbort();
 		});
-		// No ctx access after await: model/session/input transitions cancel the wait.
-		// Pi also refuses boundary continuation after Escape, even without a signal.
-		if (elapsed)
-			return {
-				entries: [
-					{
-						type: "custom_message" as const,
-						customType: "infron-rate-limit-continue",
-						content: "Continue the interrupted task.",
-						display: true,
-					},
-				],
-				continue: true,
-			};
-		return;
+		// No ctx access after await; transitions release the timer without arming.
+		if (elapsed) readyFailure = message;
+	});
+	pi.on("agent_before_settle", (event, ctx) => {
+		const message = readyFailure;
+		readyFailure = undefined;
+		if (
+			!message ||
+			event.outcome !== "error" ||
+			event.continue ||
+			ctx.model?.provider !== message.provider ||
+			ctx.model.id !== message.model ||
+			ctx.hasPendingMessages()
+		)
+			return;
+		return {
+			entries: [
+				{
+					type: "custom_message" as const,
+					customType: "infron-rate-limit-continue",
+					content: "Continue the interrupted task.",
+					display: true,
+				},
+			],
+			continue: true,
+		};
 	});
 }

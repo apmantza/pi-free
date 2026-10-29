@@ -4,7 +4,9 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
 	createAgentSession,
-	DefaultResourceLoader,
+	createAgentSessionRuntime,
+	createAgentSessionServices,
+	createAgentSessionFromServices,
 	ModelRuntime,
 	SessionManager,
 	SettingsManager,
@@ -16,8 +18,11 @@ const reportedError =
 let home: string;
 let session: Awaited<ReturnType<typeof createAgentSession>>["session"];
 let runtime: ModelRuntime;
+let owner: Awaited<ReturnType<typeof createAgentSessionRuntime>>;
+let settingsManager: SettingsManager;
 let requests: number;
 let error: string;
+let followUpError: string | undefined;
 let failures: number;
 let notices: string[];
 let noticeAt: number;
@@ -41,6 +46,7 @@ beforeEach(async () => {
 	);
 	requests = 0;
 	error = reportedError;
+	followUpError = undefined;
 	failures = 1;
 	notices = [];
 	noticeAt = 0;
@@ -66,7 +72,11 @@ beforeEach(async () => {
 			// error text seen in the field through Pi's real assistant message path.
 			const chunk =
 				requests <= failures
-					? { error: { message: error } }
+					? {
+							error: {
+								message: requests > 1 && followUpError ? followUpError : error,
+							},
+						}
 					: {
 							id: "fixture",
 							choices: [
@@ -84,7 +94,7 @@ beforeEach(async () => {
 		}),
 	);
 	const { default: infron } = await import("../providers/infron/infron.ts");
-	const settingsManager = SettingsManager.inMemory({
+	settingsManager = SettingsManager.inMemory({
 		retry: { enabled: false },
 		compaction: { enabled: false },
 	});
@@ -93,35 +103,47 @@ beforeEach(async () => {
 		modelsPath: resolve(agentDir, "models.json"),
 		modelsStorePath: resolve(agentDir, "models-store.json"),
 	});
-	const loader = new DefaultResourceLoader({
-		cwd: home,
-		agentDir,
-		settingsManager,
-		noExtensions: true,
-		noSkills: true,
-		noPromptTemplates: true,
-		noThemes: true,
-		extensionFactories: [infron],
-		agentsFilesOverride: () => ({ agentsFiles: [] }),
-	});
-	await loader.reload();
-	expect(loader.getExtensions().errors).toEqual([]);
-	({ session } = await createAgentSession({
-		cwd: home,
-		agentDir,
-		resourceLoader: loader,
-		settingsManager,
-		modelRuntime: runtime,
-		sessionManager: SessionManager.inMemory(home),
-	}));
-	await session.bindExtensions({
-		uiContext: {
-			notify: (message: string) => {
-				notices.push(message);
-				noticeAt = Date.now();
-			},
-		} as never,
-	});
+	owner = await createAgentSessionRuntime(
+		async (options) => {
+			const services = await createAgentSessionServices({
+				cwd: home,
+				agentDir,
+				settingsManager,
+				modelRuntime: runtime,
+				resourceLoaderOptions: {
+					noExtensions: true,
+					noSkills: true,
+					noPromptTemplates: true,
+					noThemes: true,
+					extensionFactories: [infron],
+					agentsFilesOverride: () => ({ agentsFiles: [] }),
+				},
+			});
+			expect(services.resourceLoader.getExtensions().errors).toEqual([]);
+			const result = await createAgentSessionFromServices({
+				services,
+				sessionManager: options.sessionManager,
+				...(options.sessionStartEvent
+					? { sessionStartEvent: options.sessionStartEvent }
+					: {}),
+			});
+			return { ...result, services, diagnostics: services.diagnostics };
+		},
+		{ cwd: home, agentDir, sessionManager: SessionManager.inMemory(home) },
+	);
+	const bind = async (next: typeof session) => {
+		session = next;
+		await session.bindExtensions({
+			uiContext: {
+				notify: (message: string) => {
+					notices.push(message);
+					noticeAt = Date.now();
+				},
+			} as never,
+		});
+	};
+	owner.setRebindSession(bind);
+	await bind(owner.session);
 	await runtime.refresh({
 		allowNetwork: true,
 		force: true,
@@ -134,7 +156,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-	session?.dispose();
+	await owner?.dispose();
 	(await import("../lib/logger.ts")).flushLogsSync();
 	vi.useRealTimers();
 	vi.unstubAllGlobals();
@@ -142,33 +164,39 @@ afterEach(async () => {
 	if (home) rmSync(home, { recursive: true, force: true });
 });
 
-async function startAtWait() {
+async function startAtWait(seconds = 11) {
 	const run = session.prompt("finish the task");
 	await vi.waitFor(() =>
 		expect(
-			notices.some((message) => message.includes("11")),
+			notices.some((message) => message.includes(`${seconds} seconds`)),
 			JSON.stringify(session.messages.at(-1)),
 		).toBe(true),
 	);
 	return { run };
 }
 
-it("continues the real failed request only after the advertised 11 seconds", async () => {
-	const { run } = await startAtWait();
-	expect(requests).toBe(1);
-	await vi.advanceTimersByTimeAsync(noticeAt + 11_000 - Date.now() - 1);
-	expect(requests).toBe(1);
-	await vi.advanceTimersByTimeAsync(1);
-	await run;
-	expect(requests).toBe(2);
-	expect(session.messages.at(-1)).toMatchObject({
-		role: "assistant",
-		stopReason: "stop",
-	});
-	expect(
-		session.messages.filter((message) => message.role === "user"),
-	).toHaveLength(1);
-});
+it.each([11, 86400, 2_147_483])(
+	"continues the real failed request only after the advertised %i seconds",
+	async (seconds) => {
+		error = reportedError.replace("11 seconds", `${seconds} seconds`);
+		const { run } = await startAtWait(seconds);
+		expect(requests).toBe(1);
+		await vi.advanceTimersByTimeAsync(
+			noticeAt + seconds * 1_000 - Date.now() - 1,
+		);
+		expect(requests).toBe(1);
+		await vi.advanceTimersByTimeAsync(1);
+		await run;
+		expect(requests).toBe(2);
+		expect(session.messages.at(-1)).toMatchObject({
+			role: "assistant",
+			stopReason: "stop",
+		});
+		expect(
+			session.messages.filter((message) => message.role === "user"),
+		).toHaveLength(1);
+	},
+);
 
 it.each([
 	// Only exhausted retry errors qualify; a raw 429 or an embedded quote must not arm a timer.
@@ -242,12 +270,63 @@ it("arms a fresh cooldown again on a later user turn in the same session", async
 	}
 });
 
-it("does not continue after Escape aborts the boundary", async () => {
+it.each(["Escape", "session replacement"])(
+	"releases a day-long cooldown promptly on %s, without advancing its deadline",
+	async (action) => {
+		// CodeRabbit #645: the old test advanced the entire cooldown, hiding that abort() was stuck.
+		error = reportedError.replace("11 seconds", "86400 seconds");
+		const { run } = await startAtWait(86400);
+		const started = Date.now();
+		let stopped = false;
+		const previous = session;
+		const abort = (
+			action === "Escape" ? session.abort() : owner.newSession()
+		).then(() => {
+			stopped = true;
+		});
+		try {
+			await vi.waitFor(() => expect(stopped).toBe(true), { timeout: 200 });
+			expect(Date.now() - started).toBeLessThan(86400_000);
+			expect(requests).toBe(1);
+			expect(
+				previous.messages.some((message) => message.role === "custom"),
+			).toBe(false);
+		} finally {
+			await vi.runAllTimersAsync();
+			await Promise.all([run, abort]);
+		}
+	},
+);
+
+it("clears an armed nudge when Pi's own retry succeeds after the cooldown", async () => {
+	// Moving the wait into the active message hook must not replay after host retry recovery.
+	settingsManager.setRetryEnabled(true);
 	const { run } = await startAtWait();
-	const abort = session.abort();
 	await vi.runAllTimersAsync();
-	await Promise.all([run, abort]);
-	expect(requests).toBe(1);
+	await run;
+	expect(requests).toBe(2);
+	expect(session.messages.at(-1)).toMatchObject({ stopReason: "stop" });
+	expect(session.messages.some((message) => message.role === "custom")).toBe(
+		false,
+	);
+});
+
+it("does not carry a ready TPM nudge into a different error from Pi's retry", async () => {
+	// A later nonqualifying failure must supersede the earlier cooled-down TPM failure.
+	settingsManager.setRetryEnabled(true);
+	failures = 2;
+	followUpError = "401 unauthorized fixture";
+	const { run } = await startAtWait();
+	await vi.runAllTimersAsync();
+	await run;
+	expect(requests).toBe(2);
+	expect(session.messages.at(-1)).toMatchObject({
+		stopReason: "error",
+		errorMessage: followUpError,
+	});
+	expect(session.messages.some((message) => message.role === "custom")).toBe(
+		false,
+	);
 });
 
 it("cancels a pending wait when the selected model changes", async () => {
