@@ -34,8 +34,10 @@ import { BASE_URL_INFRON, PROVIDER_INFRON } from "../../constants.ts";
 import { registerNativeOpenAIProvider } from "../../lib/native-provider.ts";
 import { infronAuth } from "./infron-auth.ts";
 import { fetchInfronModels } from "./infron-models.ts";
+import { registerInfronRateLimitContinuation } from "./infron-continuation.ts";
 
 export default function infronProvider(pi: ExtensionAPI): Promise<void> {
+	registerInfronRateLimitContinuation(pi);
 	registerNativeOpenAIProvider(pi, {
 		providerId: PROVIDER_INFRON,
 		name: "Infron AI",

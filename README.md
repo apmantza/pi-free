@@ -77,6 +77,10 @@ First run creates `~/.pi/free.json`. Add extension-provider keys there or use th
 }
 ```
 
+## Infron rate-limit continuation
+
+Infron TPM errors (`tpm_rate_limit_exceeded`) that say “Please try again after N seconds” automatically wait that long, then nudge the **same model** to continue. This is enabled independently of auto-fallback: after the transport's exhausted-retry error, the cooldown is awaited while Pi's abort signal is active. Pi's higher-level retries can then run; a continuation nudge is added only if the final result is still that failure. Only errors starting with `Retry failed after 3 attempts: 429:` (or `3 times`, optionally prefixed by `Error: `) qualify. Every qualifying error throughout the session gets its own cooldown and continuation; there is no nudge limit. Model/session changes or fresh input cancel a pending wait. Escape promptly cancels the wait and prevents continuation; session replacement does not have to wait for the cooldown.
+
 ## Auto-fallback
 
 When enabled and the current free model errors, pi-free automatically switches to another free model so the conversation keeps moving. The switch fires from `agent_settled` — the point in Pi's run lifecycle where no further automatic retry, compaction, or queued continuation will run — so pi-free never races Pi's own same-model retries. **Off by default** (a switch rewrites the active model for the session): opt in with `/toggle-auto-fallback`, `auto_fallback: true`, or `AUTO_FALLBACK=true`.
