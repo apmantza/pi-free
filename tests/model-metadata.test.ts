@@ -232,7 +232,15 @@ describe("models.dev metadata enrichment", () => {
 		const model = enriched4[0]!;
 
 		expect(model.api).toBe("openai-responses");
-		expect(model.baseUrl).toBe("https://opencode.ai/zen/v1");
+		// #647: Pi 1.3 moved Zen to /inference; preserve the installed host's
+		// authoritative endpoint rather than pinning Pi 1.1's /zen URL.
+		const { getBuiltinModels } =
+			await import("@earendil-works/pi-ai/providers/all");
+		const native = getBuiltinModels("opencode").find(
+			(entry) => entry.id === model.id,
+		);
+		expect(native?.baseUrl).toBeTruthy();
+		expect(model.baseUrl).toBe(native!.baseUrl);
 		expect(model.compat).toMatchObject({
 			sessionAffinityFormat: "openai-nosession",
 		});
