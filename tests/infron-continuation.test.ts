@@ -19,6 +19,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
+/** Body Infron actually returns for a TPM limit, as an HTTP 429 JSON error. */
 function tpmError(seconds: number) {
 	return {
 		message: `TPM rate limit exceeded (1M tokens per minute). Please try again after ${seconds} seconds. (request id: fixture)`,
@@ -206,6 +207,11 @@ afterEach(async () => {
 	if (home) rmSync(home, { recursive: true, force: true });
 });
 
+/**
+ * Prompt until Pi has exhausted its retries on the advertised delay and the
+ * cooldown notice is out, i.e. the automatic continuation is parked in its
+ * wait. Returns the still-pending run so the caller controls the clock.
+ */
 async function startAtWait(seconds = 3) {
 	const run = session.prompt("finish the task");
 	await vi.waitFor(
