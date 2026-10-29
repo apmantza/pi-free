@@ -15,6 +15,22 @@ All slash commands provided by pi-free.
 | `/free-telemetry` | Show optional real-world performance data for free models, plus the pi-ai resolution block (same formatter as `/pi-free-health`). |
 | `/clear-free-telemetry` | Clear stored telemetry data. |
 
+## Auto-Fallback
+
+| Command | Description |
+| --- | --- |
+| `/toggle-auto-fallback` | Toggle automatic fallback to another free model when the current one errors. |
+| `/free-fallback-history` | Show auto-fallback switch history for the current session. |
+| `/reset-fallback-blacklist` | Clear the auto-fallback in-memory blacklist (unban every model). |
+
+## Infron Rate-Limit Continuation
+
+| Command | Description |
+| --- | --- |
+| `/free-infron-retry` | Show credential-free Infron cooldown lifecycle diagnostics: current phase and bounded per-reason counters. |
+
+The command never prints error text, payloads, headers or credentials. See [the rate-limit continuation section](../README.md#infron-rate-limit-continuation).
+
 ## Per-Provider Toggles
 
 Run `/toggle-{provider}` to switch between a provider's free/basic view and its full catalog. The preference is saved in `~/.pi/free.json`.
@@ -71,6 +87,7 @@ Qoder PAT authentication can also use `QODER_PERSONAL_ACCESS_TOKEN` or its `QODE
 | Command | Description |
 | --- | --- |
 | `/ollama-cloud-refresh` | Re-fetch Ollama Cloud's catalog and update the provider live. Requires `OLLAMA_API_KEY`. |
+| `/ollama-cloud-usage` | Show Ollama Cloud session and weekly usage limits. |
 
 Ollama Cloud is a native provider, but this compatibility command and `/api/show` capability reuse continue to use `~/.pi/provider-cache.json`.
 
