@@ -9,11 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Infron timed continuation** — honor explicit TPM cooldown messages after exhausted transport retries with promptly abortable waits, then nudge the same model to continue on every qualifying exhausted-retry 429 throughout the session, without enabling auto-fallback.
+- **Infron timed continuation** — after Pi's automatic retries finish, wait the last TPM response's advertised delay on an abortable native continuation, then resume the same model with no nudge cap or auto-fallback requirement. `/free-infron-retry` exposes credential-free lifecycle diagnostics, including `notify-failed` when a host UI callback throws: a broken toast never skips the cooldown.
 
 ### Fixed
 
-- **Infron cooldown matching** — accept separator whitespace such as `429 :` in exhausted-retry errors so qualifying TPM cooldowns still trigger continuation (refs #646).
+- **Infron cooldown matching** — parse actual HTTP 429 error bodies and use Pi's final-settlement lifecycle instead of requiring the UI-only `Retry failed after …` wrapper. Regression tests drive real HTTP failures and Pi's complete retry sequence (refs #646).
+- **Canonical formatting gate on master** — `npm run format:check` reports `providers/infron/infron-continuation.ts` on the merged master head (a long regex call oxfmt wraps); PR #648 merged with that check red, so every push since has carried a failing `Lint & type-check`. The rewritten file lands in oxfmt-canonical form and the gate is green locally on the exact head (refs [#646](https://github.com/apmantza/pi-free/issues/646)).
+- **Slash-command reference is now complete** — `docs/commands.md` omitted five registered commands (`/free-infron-retry`, `/toggle-auto-fallback`, `/free-fallback-history`, `/reset-fallback-blacklist`, `/ollama-cloud-usage`); swept against every `registerCommand` call site, so the advertised list matches what users can actually run.
 
 ## [2.8.6] - 2026-10-26
 

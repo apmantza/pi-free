@@ -79,7 +79,9 @@ First run creates `~/.pi/free.json`. Add extension-provider keys there or use th
 
 ## Infron rate-limit continuation
 
-Infron TPM errors (`tpm_rate_limit_exceeded`) that say “Please try again after N seconds” automatically wait that long, then nudge the **same model** to continue. This is enabled independently of auto-fallback: after the transport's exhausted-retry error, the cooldown is awaited while Pi's abort signal is active. Pi's higher-level retries can then run; a continuation nudge is added only if the final result is still that failure. Only errors starting with `Retry failed after 3 attempts: 429:` (or `3 times`, optionally prefixed by `Error: `) qualify; separator spacing such as `429 :` is accepted. Every qualifying error throughout the session gets its own cooldown and continuation; there is no nudge limit. Model/session changes or fresh input cancel a pending wait. Escape promptly cancels the wait and prevents continuation; session replacement does not have to wait for the cooldown.
+After Pi's automatic retries and recovery finish, a final Infron HTTP 429 with code `tpm_rate_limit_exceeded` and “Please try again after N seconds” queues a native continuation on the **same model**. Its next active run waits the **last response's** advertised delay before sending a request (for example, responses advertising 20/17/12/3 seconds result in one 3-second cooldown after retry exhaustion). The displayed “Retry failed after …” summary is UI text, not something the error matcher requires.
+
+This works independently of auto-fallback and has no nudge limit. Escape, model/session changes or fresh input cancel the automatic request promptly. A queued continuation entry may remain visible after cancellation, but no stale HTTP request is sent. `/free-infron-retry` shows lifecycle counters and the current phase; file logs record each known decision reason once per session, without error payloads or credentials.
 
 ## Auto-fallback
 
