@@ -1,17 +1,22 @@
-import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { PROVIDER_INFRON } from "../../constants.ts";
+import { createLogger } from "../../lib/logger.ts";
 import { safeNotify } from "../../lib/stale-ctx.ts";
 
-/** Infron's explicit TPM cooldown only; never guess a delay from a generic 429. */
+/** Parse the real assistant error, not Pi's UI-only exhausted-retry summary. */
 function retryDelay(error: string | undefined): number | undefined {
-	if (
-		!error ||
-		!/^(?:Error:[ \t]*)?Retry failed after 3 (?:attempts|times):[ \t]*429[ \t]*:/.test(error) ||
-		!/"code"\s*:\s*"tpm_rate_limit_exceeded"/.test(error)
-	)
+	const json = error?.match(/^429[ \t]*:[ \t]*(\{[\s\S]*\})$/)?.[1];
+	if (!json) return;
+	let body: unknown;
+	try {
+		body = JSON.parse(json);
+	} catch {
 		return;
-	const seconds = error.match(/Please try again after (\d+) seconds?\./)?.[1];
+	}
+	if (typeof body !== "object" || body === null) return;
+	const { code, message } = body as { code?: unknown; message?: unknown };
+	if (code !== "tpm_rate_limit_exceeded" || typeof message !== "string") return;
+	const seconds = message.match(/Please try again after (\d+) seconds?\./)?.[1];
 	if (!seconds) return;
 	const ms = Number(seconds) * 1_000;
 	// Node silently clamps overflowing timers to 1ms, defeating the cooldown.
@@ -19,73 +24,115 @@ function retryDelay(error: string | undefined): number | undefined {
 	return ms;
 }
 
-/** Wait while Pi still exposes cancellation; decide continuation at final settlement. */
+type Decision =
+	| "observed"
+	| "unrecognized-error"
+	| "superseded"
+	| "suppressed"
+	| "continuation-armed"
+	| "waiting"
+	| "elapsed"
+	| "cancelled"
+	| "missing-signal";
+interface Cooldown {
+	provider: string;
+	model: string;
+	delayMs: number;
+	phase: "observed" | "armed" | "waiting";
+	cancelled: boolean;
+	finish?: () => void;
+}
+
+/** Let Pi exhaust retries first, then hold its native continuation on an active signal. */
 export function registerInfronRateLimitContinuation(pi: ExtensionAPI): void {
-	let readyFailure: AssistantMessage | undefined;
-	let cancelWait: (() => void) | undefined;
-	const cancel = () => {
-		cancelWait?.();
-		readyFailure = undefined;
+	const logger = createLogger("infron-retry");
+	// Finite reason keys: bounded counters, and at most one file-log record per reason/session.
+	const decisions = new Map<Decision, number>();
+	let cooldown: Cooldown | undefined;
+	const record = (decision: Decision) => {
+		const count = (decisions.get(decision) ?? 0) + 1;
+		decisions.set(decision, count);
+		if (count === 1) logger.info("Infron retry lifecycle", { decision });
 	};
-	pi.on("before_agent_start", cancel);
+	const cancel = () => {
+		const ticket = cooldown;
+		if (!ticket || ticket.cancelled) return;
+		ticket.cancelled = true;
+		ticket.finish?.();
+		// Armed/waiting tickets must survive until their automatic run can abort.
+		if (ticket.phase === "observed") cooldown = undefined;
+		if (ticket.phase !== "waiting") record("cancelled");
+	};
+	pi.registerCommand("free-infron-retry", {
+		description: "Show credential-free Infron cooldown lifecycle diagnostics",
+		handler: async (_args, ctx) => {
+			safeNotify(
+				ctx,
+				[
+					"Infron retry lifecycle v2",
+					`state: ${cooldown?.phase ?? "idle"}${cooldown?.cancelled ? " (cancelled)" : ""}`,
+					...Array.from(decisions, ([reason, count]) => `${reason}: ${count}`),
+				].join("\n"),
+				"info",
+			);
+		},
+	});
+	pi.on("before_agent_start", () => {
+		cancel();
+		cooldown = undefined;
+	});
 	pi.on("input", () => {
 		cancel();
 	});
 	pi.on("model_select", cancel);
-	pi.on("session_start", cancel);
+	pi.on("session_start", () => {
+		cancel();
+		cooldown = undefined;
+		decisions.clear();
+	});
 	pi.on("session_shutdown", cancel);
-	pi.on("message_end", async (event, ctx) => {
+	pi.on("message_end", (event) => {
 		const message = event.message;
 		if (message.role !== "assistant") return;
-		cancel();
-		const signal = ctx.signal;
-		if (
-			message.stopReason !== "error" ||
-			message.provider !== PROVIDER_INFRON ||
-			ctx.model?.provider !== PROVIDER_INFRON ||
-			ctx.model.id !== message.model ||
-			ctx.hasPendingMessages() ||
-			!signal ||
-			signal.aborted
-		)
+		if (cooldown) {
+			cooldown.finish?.();
+			cooldown = undefined;
+			record("superseded");
+		}
+		if (message.provider !== PROVIDER_INFRON || message.stopReason !== "error")
 			return;
-		const delay = retryDelay(message.errorMessage);
-		if (delay === undefined) return;
-		safeNotify(
-			ctx,
-			`Infron TPM limit: continuing in ${delay / 1_000} seconds. Escape cancels continuation.`,
-			"info",
-		);
-		// agent_before_settle has no active signal on supported hosts. message_end
-		// is still inside the low-level run, so Escape can release this wait.
-		const elapsed = await new Promise<boolean>((resolve) => {
-			const finish = (completed: boolean) => {
-				clearTimeout(timer);
-				signal.removeEventListener("abort", onAbort);
-				cancelWait = undefined;
-				resolve(completed);
-			};
-			const onAbort = () => finish(false);
-			const timer = setTimeout(() => finish(true), delay);
-			cancelWait = onAbort;
-			signal.addEventListener("abort", onAbort, { once: true });
-			if (signal.aborted) onAbort();
-		});
-		// No ctx access after await; transitions release the timer without arming.
-		if (elapsed) readyFailure = message;
+		const delayMs = retryDelay(message.errorMessage);
+		if (delayMs === undefined) {
+			record("unrecognized-error");
+			return;
+		}
+		cooldown = {
+			provider: message.provider,
+			model: message.model,
+			delayMs,
+			phase: "observed",
+			cancelled: false,
+		};
+		record("observed");
 	});
 	pi.on("agent_before_settle", (event, ctx) => {
-		const message = readyFailure;
-		readyFailure = undefined;
+		const ticket = cooldown;
+		if (!ticket || ticket.phase !== "observed") return;
 		if (
-			!message ||
+			ticket.cancelled ||
 			event.outcome !== "error" ||
 			event.continue ||
-			ctx.model?.provider !== message.provider ||
-			ctx.model.id !== message.model ||
+			ctx.model?.provider !== ticket.provider ||
+			ctx.model.id !== ticket.model ||
 			ctx.hasPendingMessages()
-		)
+		) {
+			cooldown = undefined;
+			record("suppressed");
 			return;
+		}
+		// This boundary is the native exhaustion authority; it must not await a timer.
+		ticket.phase = "armed";
+		record("continuation-armed");
 		return {
 			entries: [
 				{
@@ -97,5 +144,46 @@ export function registerInfronRateLimitContinuation(pi: ExtensionAPI): void {
 			],
 			continue: true,
 		};
+	});
+	pi.on("agent_start", async (_event, ctx) => {
+		const ticket = cooldown;
+		// Pi's ordinary retry runs only have an observed ticket: never delay them.
+		if (!ticket || ticket.phase !== "armed") return;
+		const signal = ctx.signal;
+		const abort = ctx.abort;
+		if (!signal || signal.aborted || ticket.cancelled) {
+			if (!signal) record("missing-signal");
+			cooldown = undefined;
+			abort();
+			return;
+		}
+		ticket.phase = "waiting";
+		record("waiting");
+		safeNotify(
+			ctx,
+			`Infron TPM limit: continuing in ${ticket.delayMs / 1_000} seconds. Escape cancels continuation.`,
+			"info",
+		);
+		const elapsed = await new Promise<boolean>((resolve) => {
+			const finish = (completed: boolean) => {
+				clearTimeout(timer);
+				signal.removeEventListener("abort", onAbort);
+				delete ticket.finish;
+				resolve(completed);
+			};
+			const onAbort = () => finish(false);
+			const timer = setTimeout(() => finish(true), ticket.delayMs);
+			ticket.finish = onAbort;
+			signal.addEventListener("abort", onAbort, { once: true });
+			// Host notification callbacks can re-enter input before finish is installed.
+			if (signal.aborted || ticket.cancelled) onAbort();
+		});
+		if (cooldown === ticket) cooldown = undefined;
+		if (elapsed && !ticket.cancelled) record("elapsed");
+		else {
+			record("cancelled");
+			// A model/input change releases the timer but must also stop this stale request.
+			if (!signal.aborted) abort();
+		}
 	});
 }
