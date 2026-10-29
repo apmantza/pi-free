@@ -40,6 +40,7 @@ let noticeAt: number;
 let retryEnds: { attempt: number; success: boolean; at: number }[];
 let changeModelAfterArming: boolean;
 let onCooldownNotice: (() => void) | undefined;
+let breakCooldownNotice: boolean;
 let holdFirstResponse: Promise<void> | undefined;
 
 beforeEach(async () => {
@@ -69,6 +70,7 @@ beforeEach(async () => {
 	retryEnds = [];
 	changeModelAfterArming = false;
 	onCooldownNotice = undefined;
+	breakCooldownNotice = false;
 	holdFirstResponse = undefined;
 	vi.stubGlobal(
 		"fetch",
@@ -163,6 +165,8 @@ beforeEach(async () => {
 		await session.bindExtensions({
 			uiContext: {
 				notify: (message: string) => {
+					if (breakCooldownNotice && message.startsWith("Infron TPM limit:"))
+						throw new Error("host UI is down");
 					notices.push(message);
 					noticeAt = Date.now();
 					if (message.startsWith("Infron TPM limit:")) onCooldownNotice?.();
@@ -385,6 +389,30 @@ it("suppresses an armed continuation when a later boundary handler changes the m
 	expect(requests).toHaveLength(4);
 	expect(session.model?.id).toBe("other-model");
 	expect(notices).toEqual([]);
+});
+
+it("holds the cooldown when the host notification callback throws", async () => {
+	// Recurrence this prevents: a throwing host UI made agent_start reject before the
+	// timer/abort listener existed, so the nudge skipped the cooldown and hit the
+	// rate-limited endpoint immediately (review of #650, probe A).
+	failures[3] = { status: 429, body: tpmError(3) };
+	breakCooldownNotice = true;
+	const run = session.prompt("finish the task");
+	await vi.waitFor(() => expect(requests.length).toBeGreaterThanOrEqual(4), {
+		timeout: 1000,
+	});
+	let finished = false;
+	void run.then(() => {
+		finished = true;
+	});
+	await vi.advanceTimersByTimeAsync(2000);
+	expect(requests).toHaveLength(4);
+	expect(finished).toBe(false);
+	await vi.advanceTimersByTimeAsync(1000);
+	await run;
+	expect(requests).toHaveLength(5);
+	await session.prompt("/free-infron-retry");
+	expect(notices.at(-1)).toContain("notify-failed: 1");
 });
 
 it("cancels when a host notification callback submits input before timer setup completes", async () => {

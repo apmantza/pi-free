@@ -33,6 +33,7 @@ type Decision =
 	| "waiting"
 	| "elapsed"
 	| "cancelled"
+	| "notify-failed"
 	| "missing-signal";
 interface Cooldown {
 	provider: string;
@@ -159,11 +160,17 @@ export function registerInfronRateLimitContinuation(pi: ExtensionAPI): void {
 		}
 		ticket.phase = "waiting";
 		record("waiting");
-		safeNotify(
-			ctx,
-			`Infron TPM limit: continuing in ${ticket.delayMs / 1_000} seconds. Escape cancels continuation.`,
-			"info",
-		);
+		try {
+			safeNotify(
+				ctx,
+				`Infron TPM limit: continuing in ${ticket.delayMs / 1_000} seconds. Escape cancels continuation.`,
+				"info",
+			);
+		} catch {
+			// The wait is the point: a host UI failure must not reject this handler
+			// before the timer and abort listener exist and skip the cooldown.
+			record("notify-failed");
+		}
 		const elapsed = await new Promise<boolean>((resolve) => {
 			const finish = (completed: boolean) => {
 				clearTimeout(timer);
