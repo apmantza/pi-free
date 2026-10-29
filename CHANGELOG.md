@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Infron timed continuation** — honor explicit TPM cooldown messages after built-in retries, then nudge the same model to continue on every qualifying exhausted-retry 429 throughout the session, without enabling auto-fallback.
+
 ## [2.8.6] - 2026-10-26
 
 ### Changed

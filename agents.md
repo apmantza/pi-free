@@ -147,6 +147,10 @@ One rule (`resolveModelView` in `lib/registry.ts`): **explicit per-provider choi
 
 `lib/quota-monitor.ts` passively extracts rate-limit headers from provider responses. Tries 5 header pair formats in priority order. Shows quota in status bar with warning icons when < 25%.
 
+### Infron Timed Continuation
+
+`providers/infron/infron-continuation.ts` registers with the provider: observe the last assistant error, then use `agent_before_settle` after Pi's retries to wait the explicit `tpm_rate_limit_exceeded` cooldown. Append one custom continuation nudge and return `continue:true`; no user-prompt replay or model switching. Independent of auto-fallback, with no nudge limit: every qualifying failure in the session gets a fresh wait. Require the anchored exhausted-retry prefix `Retry failed after 3 attempts: 429:` (`times` and optional leading `Error: ` also accepted), TPM code, and valid delay. Model/session/input transitions cancel the timer; Pi's boundary abort gate prevents continuation after Escape (without an active `ctx.signal`, idle may wait until the deadline). Never use `agent_end` for this decision or admit generic 429s. Test through the real loader/AgentSession/ModelRuntime (`tests/infron-continuation.test.ts`), not just a callback.
+
 ### Auto-Fallback
 
 `lib/auto-fallback/` switches to another free model when the current one errors. **Opt-in** (`auto_fallback: false` by default — a switch rewrites the session's active model).
