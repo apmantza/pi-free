@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Infron timed continuation** — honor explicit TPM cooldown messages after exhausted transport retries with promptly abortable waits, then nudge the same model to continue on every qualifying exhausted-retry 429 throughout the session, without enabling auto-fallback.
 
+### Fixed
+
+- **Infron cooldown matching** — accept separator whitespace such as `429 :` in exhausted-retry errors so qualifying TPM cooldowns still trigger continuation (refs #646).
+
 ## [2.8.6] - 2026-10-26
 
 ### Changed

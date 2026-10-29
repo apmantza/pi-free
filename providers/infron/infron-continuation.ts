@@ -7,7 +7,7 @@ import { safeNotify } from "../../lib/stale-ctx.ts";
 function retryDelay(error: string | undefined): number | undefined {
 	if (
 		!error ||
-		!/^(?:Error: )?Retry failed after 3 (?:attempts|times): 429:/.test(error) ||
+		!/^(?:Error:[ \t]*)?Retry failed after 3 (?:attempts|times):[ \t]*429[ \t]*:/.test(error) ||
 		!/"code"\s*:\s*"tpm_rate_limit_exceeded"/.test(error)
 	)
 		return;

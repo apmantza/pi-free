@@ -204,6 +204,7 @@ it.each([
 	`Other error: ${reportedError}`,
 	reportedError.replace("after 3 attempts", "after 2 attempts"),
 	reportedError.replace(": 429:", ": 500:"),
+	reportedError.replace(": 429:", ": 4290 :"),
 	reportedError.replace("tpm_rate_limit_exceeded", "other_rate_limit"),
 	reportedError.replace("11 seconds", "soon"),
 	reportedError.replace("11 seconds", "0 seconds"),
@@ -243,10 +244,13 @@ it("continues beyond three cooldowns when each exhausted retry explicitly asks t
 });
 
 it.each([
-	"Error: Retry failed after 3 times:",
-	"Error: Retry failed after 3 attempts:",
+	"Error: Retry failed after 3 times: 429:",
+	"Error: Retry failed after 3 attempts: 429:",
+	// #646 field recurrence: the displayed `429 :` delimiter silently missed the nudge.
+	"Error: Retry failed after 3 attempts: 429 :",
+	"Error:\tRetry failed after 3 attempts:\t429\t:",
 ])("accepts the displayed exhausted-retry prefix %s", async (prefix) => {
-	error = reportedError.replace("Retry failed after 3 attempts:", prefix);
+	error = reportedError.replace("Retry failed after 3 attempts: 429:", prefix);
 	const { run } = await startAtWait();
 	await vi.runAllTimersAsync();
 	await run;
