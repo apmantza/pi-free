@@ -83,6 +83,7 @@ import bai from "./providers/bai/bai.ts";
 import anyapi from "./providers/anyapi/anyapi.ts";
 import orcarouter from "./providers/orcarouter/orcarouter.ts";
 import xkiro from "./providers/xkiro/xkiro.ts";
+import inferx from "./providers/inferx/inferx.ts";
 import qoder from "./providers/qoder/qoder.ts";
 
 /**
@@ -119,6 +120,7 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 	orcarouter,
 	xkiro,
 	qoder,
+	inferx,
 ];
 
 const _logger = createLogger("pi-free");
