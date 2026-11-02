@@ -351,6 +351,7 @@ describe("API key getters", () => {
 	});
 
 	it("getOpenrouterApiKey returns undefined when no env var set", async () => {
+		vi.stubEnv("OPENROUTER_API_KEY", undefined);
 		vi.stubEnv("HOME", "/tmp");
 		const { getOpenrouterApiKey } = await import("../config.ts");
 		expect(getOpenrouterApiKey()).toBeUndefined();
