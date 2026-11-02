@@ -23,6 +23,7 @@ import {
 	PROVIDER_BAI,
 	PROVIDER_ORCAROUTER,
 	PROVIDER_XKIRO,
+	PROVIDER_INFERX,
 	PROVIDER_CLINE,
 	PROVIDER_FASTROUTER,
 	PROVIDER_REQUESTY,
@@ -156,6 +157,8 @@ interface PiFreeConfig {
 	bai_show_paid?: boolean;
 	orcarouter_show_paid?: boolean;
 	xkiro_show_paid?: boolean;
+	inferx_api_key?: string;
+	inferx_show_paid?: boolean;
 	openrouter_show_paid?: boolean;
 	opencode_show_paid?: boolean;
 	opencode_free_show_paid?: boolean;
@@ -245,6 +248,8 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	bai_show_paid: false,
 	orcarouter_show_paid: false,
 	xkiro_show_paid: false,
+	inferx_api_key: "",
+	inferx_show_paid: false,
 	openrouter_show_paid: false,
 	opencode_show_paid: false,
 	opencode_free_show_paid: false,
@@ -501,6 +506,7 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 		showPaidKey: "orcarouter_show_paid",
 	},
 	{ id: PROVIDER_XKIRO, prefix: "XKIRO", showPaidKey: "xkiro_show_paid" },
+	{ id: PROVIDER_INFERX, prefix: "INFERX", showPaidKey: "inferx_show_paid" },
 	{
 		id: PROVIDER_FASTROUTER,
 		prefix: "FASTROUTER",
@@ -953,6 +959,14 @@ export function getOrcarouterApiKey(): string | undefined {
 
 export function getXkiroApiKey(): string | undefined {
 	return resolve("XKIRO_API_KEY", loadConfigFile().xkiro_api_key);
+}
+
+export function getInferxApiKey(): string | undefined {
+	return resolve("INFERX_API_KEY", loadConfigFile().inferx_api_key);
+}
+
+export function getInferxShowPaid(): boolean {
+	return resolveBool("INFERX_SHOW_PAID", loadConfigFile().inferx_show_paid);
 }
 
 export function getKiloApiKey(): string | undefined {
