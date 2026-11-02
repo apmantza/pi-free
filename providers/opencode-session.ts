@@ -689,6 +689,19 @@ async function maybeRelayBaseUrl(original: string): Promise<RelayRoute> {
 	}
 }
 
+/**
+ * Start the relay ahead of the first turn, so a cold start does not delay that
+ * turn and a missing Bun is known before its 429. Resolves with why the relay
+ * cannot serve, if anything. The idle TTL bounds a child no turn ever uses.
+ */
+export async function prewarmOpenCodeRelay(): Promise<string | undefined> {
+	const { release, relayFailure } = await maybeRelayBaseUrl(
+		`${OPENCODE_INFERENCE_ROOT}/v1`,
+	);
+	release?.();
+	return relayFailure;
+}
+
 export function createOpenCodeStreamSimple(
 	tracker: OpenCodeSessionTracker,
 	settings?: {
