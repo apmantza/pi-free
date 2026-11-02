@@ -40,7 +40,7 @@ pi install git:github.com/apmantza/pi-free
 
 Press `Ctrl+L` to open the model picker. The global free-only setting is enabled by default.
 
-`opencode-free` models also need [Bun](https://bun.sh): without it, OpenCode answers with `429 FreeUsageLimitError` even when your quota is fine. pi-free finds Bun on `PATH` or in its default install locations. If yours is elsewhere, set `PI_FREE_OPENCODE_BUN` to its full path. Other providers do not need Bun, and Bun-compiled Pi binaries already include it.
+`opencode-free` models also need [Bun](https://bun.sh): without it, OpenCode answers with `429 FreeUsageLimitError` even when your quota is fine. pi-free finds Bun on `PATH` or in its default install locations. If yours is elsewhere, set `PI_FREE_OPENCODE_BUN` to its full path. Other providers do not need Bun. As a last resort, a Bun-compiled Pi tries its own runtime.
 
 ## Quick Start
 

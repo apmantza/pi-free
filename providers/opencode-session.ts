@@ -656,7 +656,8 @@ const relaysAnonymousLane = (): boolean =>
  * direct anonymous lane untouched: the failure is the upstream's own
  * fingerprint gate, never a new error class we invent. A missing executable
  * rejects at once, so this window only bounds a slow or hung start, where
- * waiting beats the direct lane's 429.
+ * waiting beats the direct lane's 429. A start that misses it is retired, so
+ * later turns do not wait again.
  */
 export const relayWindowMs = 10_000;
 

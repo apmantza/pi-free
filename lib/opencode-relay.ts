@@ -278,9 +278,12 @@ class Relay implements OpenCodeRelay {
 		if (this.boundPort !== undefined) return Promise.resolve(this.boundPort);
 		return new Promise<number>((resolve, reject) => {
 			const timer = setTimeout(() => {
-				this.waiters.delete(waiter);
-				_lastFailure = `opencode-relay did not become ready within ${timeoutMs}ms`;
-				reject(new Error(_lastFailure));
+				// Retire it like a missing executable: only one turn pays this wait.
+				this.fail(
+					new Error(
+						`opencode-relay did not become ready within ${timeoutMs}ms`,
+					),
+				);
 			}, timeoutMs);
 			// A readiness caller is active work: keep this bounded deadline
 			// referenced until the child reports a port or failure.

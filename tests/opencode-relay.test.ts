@@ -51,6 +51,7 @@ import type { OpenCodeRelay } from "../lib/opencode-relay.js";
 const {
 	getOpenCodeRelay,
 	getOpenCodeRelayBaseUrl,
+	getOpenCodeRelayFailure,
 	resetOpenCodeRelayForTest,
 	resolveBunCommand,
 	OPENCODE_RELAY_PATH_RE,
@@ -353,6 +354,21 @@ describe("opencode-relay child lifecycle (stub bun)", () => {
 		});
 		await expect(relay.ready(4000)).rejects.toThrow(/ENOENT/);
 		await expect(relay.ready(20)).rejects.toThrow("not running");
+		expect(getOpenCodeRelay()).toBe(relay);
+	});
+
+	// A hung start charged the whole readiness window on every later turn, and
+	// the child survived: a host binary that ignores BUN_BE_BUN never binds.
+	it("retires a start that misses the readiness window", async () => {
+		const stub = join(mkdtempSync(join(fixtures, "stub-")), "hung.mjs");
+		writeFileSync(stub, `setInterval(() => {}, 1 << 30);`);
+		const relay = getOpenCodeRelay({
+			bunCommand: process.execPath,
+			childArgs: [stub],
+		});
+		await expect(relay.ready(50)).rejects.toThrow("did not become ready");
+		await expect(relay.ready(4000)).rejects.toThrow("not running");
+		expect(getOpenCodeRelayFailure()).toContain("did not become ready");
 		expect(getOpenCodeRelay()).toBe(relay);
 	});
 
