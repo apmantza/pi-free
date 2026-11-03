@@ -32,6 +32,7 @@ These are the pi-free config keys and their environment variables:
 | `infron_api_key` | `INFRON_API_KEY` |
 | `merge_api_key` | `MERGE_API_KEY` |
 | `commandcode_api_key` | `COMMAND_CODE_API_KEY` |
+| `inferx_api_key` | `INFERX_API_KEY` |
 
 ```bash
 export FASTROUTER_API_KEY="..."
@@ -136,6 +137,15 @@ PI_FREE_TELEMETRY_FILE=/tmp/free-telemetry.json
 ```
 
 The telemetry file defaults to `~/.pi/free-telemetry.json`. `free.log` rotates asynchronously at the configured size (10 MiB by default) and keeps three backups (`free.log.1` through `.3`). Rotation and the initial log-file check are lazy and do not block extension startup. `PI_FREE_LOG_PATH` accepts a filename within `~/.pi`; it does not accept an arbitrary directory path.
+
+### OpenCode Bun relay
+
+```bash
+PI_FREE_OPENCODE_BUN=/full/path/to/bun
+PI_FREE_OPENCODE_RELAY=0
+```
+
+`PI_FREE_OPENCODE_BUN` sets the Bun executable when automatic lookup cannot find it. `PI_FREE_OPENCODE_RELAY=0` turns the relay off, which makes `opencode-free` requests get `429 FreeUsageLimitError`. See [the Bun requirement](providers.md#opencode-and-opencode-go).
 
 The telemetry file carries a second, additive section: `diagnostics.piAi`, one record per session, holding what the install resolved — the bare-specifier pi-ai copy (`fastPathRoot`/`fastPathVersion`), its per-entry export coverage, the entry-aware resolution per allow-listed entry, whether `dist/vendor` is present, and the session's fast-path failures with how each recovered. It is written at `session_start` and refreshed by `/pi-free-health`, flushed immediately (Pi calls `process.exit(0)` right after startup, so a debounced write would be lost). Files written before this section existed simply lack the key; their model data still parses. `/clear-free-telemetry` removes it with everything else.
 

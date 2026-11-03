@@ -27,6 +27,32 @@ describe("health report", () => {
 		expect(report).toContain("Pi-Free Startup:");
 	});
 
+	// #654: the only other trace of this failure was a line in free.log.
+	it("reports a relay that could not start, and never starts one itself", async () => {
+		const {
+			getOpenCodeRelay,
+			getOpenCodeRelayFailure,
+			resetOpenCodeRelayForTest,
+		} = await import("../lib/opencode-relay.ts");
+		const { formatHealthReport } = await import("../lib/health.ts");
+		resetOpenCodeRelayForTest();
+
+		expect(formatHealthReport()).not.toContain("OpenCode Bun relay");
+		expect(getOpenCodeRelayFailure()).toBeUndefined();
+
+		const relay = getOpenCodeRelay({
+			bunCommand: join(tempHome, "definitely-missing-bun"),
+		});
+		await expect(relay.ready(4000)).rejects.toThrow(/ENOENT/);
+		const report = formatHealthReport();
+		expect(report).toContain("Pi-Free health: WARN");
+		expect(report).toContain("OpenCode Bun relay:");
+		// Missing executable: the install advice belongs in the report.
+		expect(report).toContain("PI_FREE_OPENCODE_BUN");
+		expect(report).toContain("https://bun.sh");
+		resetOpenCodeRelayForTest();
+	});
+
 	it("flags empty stored catalogs after a completed refresh (Mn1)", async () => {
 		const { registerWithGlobalToggle } = await import("../lib/registry.ts");
 		const startup = await import("../lib/startup-timing.ts");

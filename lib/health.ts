@@ -13,6 +13,7 @@ import {
 import { getAllResponseCounters } from "./quota-monitor.ts";
 import { getRecentActions } from "./action-log.ts";
 import { getAutoFallback } from "./auto-fallback-status.ts";
+import { getOpenCodeRelayFailure, relayRemedy } from "./opencode-relay.ts";
 import { describePiAiResolution } from "./pi-ai-loader.ts";
 import type {
 	PiAiEntryResolution,
@@ -98,6 +99,7 @@ export function formatHealthReport(): string {
 	const emptyCatalogs = emptyCatalogFlags();
 	const responseIssues = responseOutcomeLines();
 	const logWriteFailures = getLogWriteFailures();
+	const relayFailure = getOpenCodeRelayFailure();
 	// pi-ai resolution (the doctor). This is the only section that can see the
 	// #581 shape: the fast path resolving a name+version-valid copy that cannot
 	// serve the entry, while every other line still reads healthy.
@@ -112,6 +114,7 @@ export function formatHealthReport(): string {
 		emptyCatalogs.length +
 		responseIssues.length +
 		(logWriteFailures > 0 ? 1 : 0) +
+		(relayFailure ? 1 : 0) +
 		(piAiBroken ? 1 : 0);
 	const status = registry.size === 0 || problemCount > 0 ? "WARN" : "OK";
 	const logSuffix = isFileLoggingEnabled() ? "" : " (file logging disabled)";
@@ -137,6 +140,11 @@ export function formatHealthReport(): string {
 	}
 	if (failures.length > 0) {
 		lines.push(`Recorded failures: ${failures.join(", ")}`);
+	}
+	if (relayFailure) {
+		lines.push(
+			`OpenCode Bun relay: ${relayFailure}. opencode-free returns 429 without it; ${relayRemedy(relayFailure)}`,
+		);
 	}
 	if (logWriteFailures > 0) {
 		const lastError = getLastLogWriteError();

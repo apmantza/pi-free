@@ -58,6 +58,7 @@ import {
 	registerWithGlobalToggle,
 } from "./lib/registry.ts";
 import { addOpenCodeFreeGateTools, registerGlobTool } from "./lib/glob-tool.ts";
+import { setupOpenCodeReadiness } from "./lib/opencode-readiness.ts";
 // Import unique provider extensions (only providers NOT built into pi)
 import cline from "./providers/cline/cline.ts";
 import kilo from "./providers/kilo/kilo.ts";
@@ -83,6 +84,7 @@ import bai from "./providers/bai/bai.ts";
 import anyapi from "./providers/anyapi/anyapi.ts";
 import orcarouter from "./providers/orcarouter/orcarouter.ts";
 import xkiro from "./providers/xkiro/xkiro.ts";
+import inferx from "./providers/inferx/inferx.ts";
 import qoder from "./providers/qoder/qoder.ts";
 
 /**
@@ -119,6 +121,7 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 	orcarouter,
 	xkiro,
 	qoder,
+	inferx,
 ];
 
 const _logger = createLogger("pi-free");
@@ -655,6 +658,9 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 
 		// Setup auto-fallback (event-driven model switching on errors)
 		setupAutoFallback(pi);
+
+		// Start the OpenCode relay, or warn, when a free OpenCode model is selected.
+		setupOpenCodeReadiness(pi);
 
 		// Expose Pi's file finder as `glob`, and present the OpenCode Zen
 		// free-tier gate tool names on opencode-free turns only (issue #544).

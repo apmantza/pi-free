@@ -18,19 +18,25 @@ import {
 	vi,
 } from "vitest";
 import {
+	copyFileSync,
+	chmodSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
 	rmSync,
+	symlinkSync,
 	writeFileSync,
 } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { gzipSync } from "node:zlib";
 import {
+	isRetryableAssistantError,
 	normalizeContext,
 	type Api,
+	type AssistantMessage,
 	type Model,
 } from "@earendil-works/pi-ai/compat";
+import { classifyErrorMessage } from "../lib/auto-fallback/classifier.ts";
 import {
 	createOpenCodeSessionTracker,
 	createOpenCodeStreamSimple,
@@ -46,7 +52,10 @@ import type { OpenCodeRelay } from "../lib/opencode-relay.js";
 const {
 	getOpenCodeRelay,
 	getOpenCodeRelayBaseUrl,
+	getOpenCodeRelayFailure,
 	resetOpenCodeRelayForTest,
+	resolveBunCommand,
+	relayRemedy,
 	OPENCODE_RELAY_PATH_RE,
 } = await import("../lib/opencode-relay.js");
 
@@ -54,6 +63,76 @@ const BUN_AVAILABLE = spawnSync("bun", ["--version"]).status === 0;
 mkdirSync(".smoke-artifacts", { recursive: true });
 const fixtures = mkdtempSync(join(process.cwd(), ".smoke-artifacts/oc-relay-"));
 afterAll(() => rmSync(fixtures, { recursive: true, force: true }));
+
+const FREE_LIMIT_BODY = JSON.stringify({
+	type: "FreeUsageLimitError",
+	message: "Free usage limit reached.",
+});
+
+function freeTurn(): Promise<AssistantMessage> {
+	const model = {
+		id: "relay-failure",
+		name: "relay failure",
+		provider: "opencode-free",
+		api: "openai-completions",
+		baseUrl: "https://opencode.ai/inference/v1",
+		reasoning: false,
+		input: ["text"],
+		contextWindow: 10000,
+		maxTokens: 100,
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+	} as Model<Api>;
+	return createOpenCodeStreamSimple(createOpenCodeSessionTracker(), {
+		anonymous: true,
+	})(
+		model,
+		normalizeContext({
+			messages: [{ role: "user", content: "hi", timestamp: 0 }],
+		}),
+		{ maxTokens: 10 },
+	).result();
+}
+
+/** The upstream hop is the only fixture; loopback still reaches a real relay child. */
+function stubDirectLane(status: number, body: string) {
+	const realFetch = globalThis.fetch;
+	const direct = vi.fn(
+		async () =>
+			new Response(body, {
+				status,
+				headers: { "content-type": "application/json" },
+			}),
+	);
+	vi.stubGlobal("fetch", (input: string | URL | Request, init?: RequestInit) =>
+		new URL(input instanceof Request ? input.url : String(input)).hostname ===
+		"127.0.0.1"
+			? realFetch(input, init)
+			: direct(),
+	);
+	return direct;
+}
+
+/** A relay child that binds, waits, then reports its port and answers every request. */
+function startStubRelay(delayMs: number, status: number, body: string) {
+	const stub = join(mkdtempSync(join(fixtures, "stub-")), "relay.mjs");
+	writeFileSync(
+		stub,
+		[
+			`import http from "node:http";`,
+			`const server = http.createServer((_req, res) => {`,
+			`  res.writeHead(${status}, { "content-type": "application/json" });`,
+			`  res.end(${JSON.stringify(body)});`,
+			`});`,
+			`server.listen(0, "127.0.0.1", () => {`,
+			`  setTimeout(() => console.log("PORT=" + server.address().port), ${delayMs});`,
+			`});`,
+		].join("\n"),
+	);
+	return getOpenCodeRelay({
+		bunCommand: process.execPath,
+		childArgs: [stub],
+	});
+}
 
 describe("opencode-relay URL mapping", () => {
 	const PORT = 12345;
@@ -97,12 +176,199 @@ describe("opencode-relay URL mapping", () => {
 	});
 });
 
+// #654: pure lookup, so the Windows branch is pinned on every platform.
+describe("resolveBunCommand", () => {
+	const resolveWith = (
+		present: string[],
+		env: NodeJS.ProcessEnv,
+		platform: NodeJS.Platform = "linux",
+		hostBun?: string,
+	) =>
+		resolveBunCommand({
+			env,
+			platform,
+			hostBun,
+			exists: (path) => present.includes(path),
+		});
+
+	it("lets the explicit override win without checking it exists", () => {
+		expect(
+			resolveWith(["/path/bun"], {
+				PI_FREE_OPENCODE_BUN: "/custom/bun",
+				PATH: "/path",
+			}),
+		).toBe("/custom/bun");
+	});
+
+	it("prefers PATH over install locations and the host binary", () => {
+		expect(
+			resolveWith(
+				["/path/bun", "/home/me/.bun/bin/bun"],
+				{ PATH: "/path", HOME: "/home/me" },
+				"linux",
+				"/opt/pi",
+			),
+		).toBe("/path/bun");
+	});
+
+	it("checks BUN_INSTALL before the default home install", () => {
+		expect(
+			resolveWith(["/custom/bin/bun", "/home/me/.bun/bin/bun"], {
+				BUN_INSTALL: "/custom",
+				HOME: "/home/me",
+			}),
+		).toBe("/custom/bin/bun");
+		expect(resolveWith(["/home/me/.bun/bin/bun"], { HOME: "/home/me" })).toBe(
+			"/home/me/.bun/bin/bun",
+		);
+	});
+
+	it("does not resolve a bun from a relative PATH entry", () => {
+		expect(resolveWith(["bun", "./bun"], { PATH: ":.:" })).toBe("bun");
+		expect(resolveWith(["bun.exe"], { PATH: ";.;" }, "win32")).toBe("bun");
+	});
+
+	it("skips npm's Windows shim and finds the real bun.exe", () => {
+		const npm = "C:\\Users\\me\\AppData\\Roaming\\npm";
+		expect(
+			resolveWith(
+				[`${npm}\\bun.cmd`, `${npm}\\node_modules\\bun\\bin\\bun.exe`],
+				{ PATH: npm, APPDATA: "C:\\Users\\me\\AppData\\Roaming" },
+				"win32",
+			),
+		).toBe(`${npm}\\node_modules\\bun\\bin\\bun.exe`);
+	});
+
+	it("finds the Windows installer's default location", () => {
+		expect(
+			resolveWith(
+				["C:\\Users\\me\\.bun\\bin\\bun.exe"],
+				{ USERPROFILE: "C:\\Users\\me" },
+				"win32",
+			),
+		).toBe("C:\\Users\\me\\.bun\\bin\\bun.exe");
+	});
+
+	it("falls back to the Bun host's binary, then to bare bun for a clear ENOENT", () => {
+		expect(resolveWith([], { PATH: "/path" }, "linux", "/opt/pi")).toBe(
+			"/opt/pi",
+		);
+		expect(resolveWith([], { PATH: "/path" })).toBe("bun");
+	});
+});
+
 describe("opencode-relay child lifecycle (stub bun)", () => {
 	beforeEach(() => {
 		resetOpenCodeRelayForTest();
 	});
 	afterEach(() => {
 		resetOpenCodeRelayForTest();
+		vi.unstubAllEnvs();
+		vi.unstubAllGlobals();
+	});
+
+	// #654: the 429 was all a user saw, and it reads as an exhausted quota.
+	it("explains the upstream 429 when Bun cannot start, keeping its classification", async () => {
+		const relay = getOpenCodeRelay({
+			bunCommand: join(fixtures, "definitely-missing-bun"),
+		});
+		// Wait for the spawn error before the turn: the recorded failure is what
+		// the hint explains, and racing the error event would test the timing.
+		await expect(relay.ready(4000)).rejects.toThrow(/ENOENT/);
+		const direct = stubDirectLane(429, FREE_LIMIT_BODY);
+		const message = await freeTurn();
+		expect(direct).toHaveBeenCalledOnce();
+		expect(message.errorMessage).toContain(`429: ${FREE_LIMIT_BODY}`);
+		expect(message.errorMessage).toContain("ENOENT");
+		expect(message.errorMessage).toContain("PI_FREE_OPENCODE_BUN");
+		// Pi must not start retrying a limit error, and auto-fallback still switches.
+		expect(isRetryableAssistantError(message)).toBe(false);
+		expect(classifyErrorMessage(message.errorMessage)).toBe("recoverable");
+	});
+
+	// #656 review: only a missing executable means Bun is absent; an
+	// executable that refuses to launch, a child that exits and a readiness
+	// timeout all happen with Bun installed.
+	describe("relayRemedy", () => {
+		it("names the install when the executable is missing", () => {
+			const remedy = relayRemedy("spawn bun ENOENT");
+			expect(remedy).toContain("https://bun.sh");
+			expect(remedy).toContain("PI_FREE_OPENCODE_BUN");
+		});
+
+		it("does not tell a user who has Bun to install it", () => {
+			for (const failure of [
+				"spawn /usr/local/bin/bun EACCES",
+				"opencode-relay child exited (code 1, signal ?)",
+				"opencode-relay did not become ready within 10000ms",
+			]) {
+				const remedy = relayRemedy(failure);
+				expect(remedy).not.toContain("bun.sh");
+				expect(remedy).toContain("can run");
+			}
+		});
+
+		it("says nothing when no failure is recorded", () => {
+			expect(relayRemedy(undefined)).toBe("");
+		});
+	});
+
+	// The 429 hint must match the cause too, not just the helper: a Bun that
+	// exists but cannot launch is not a missing install. POSIX-only: Windows has
+	// no execute bit, so a chmod-644 file spawns instead of failing EACCES; the
+	// derivation itself is covered by the relayRemedy cases above.
+	it.runIf(process.platform !== "win32")(
+		"advises checking Bun when it exists but cannot launch",
+		async () => {
+			const notExecutable = join(fixtures, "bun-without-exec-bit");
+			writeFileSync(notExecutable, "#!/bin/sh\nexit 0\n", { mode: 0o644 });
+			chmodSync(notExecutable, 0o644);
+			const relay = getOpenCodeRelay({ bunCommand: notExecutable });
+			// Same order as a real turn: the spawn error is recorded first, so the
+			// hint explains that cause rather than a stopped singleton.
+			await expect(relay.ready(4000)).rejects.toThrow(/EACCES/);
+			stubDirectLane(429, FREE_LIMIT_BODY);
+			const message = await freeTurn();
+			expect(message.errorMessage).toContain("EACCES");
+			expect(message.errorMessage).not.toContain("bun.sh");
+			expect(message.errorMessage).toContain("can run");
+		},
+	);
+
+	it("does not blame Bun when the user turned the relay off", async () => {
+		vi.stubEnv("PI_FREE_OPENCODE_RELAY", "0");
+		stubDirectLane(429, FREE_LIMIT_BODY);
+		const message = await freeTurn();
+		expect(message.errorMessage).toContain("FreeUsageLimitError");
+		expect(message.errorMessage).not.toContain("PI_FREE_OPENCODE_BUN");
+	});
+
+	it("does not blame Bun for an unrelated upstream error", async () => {
+		getOpenCodeRelay({ bunCommand: join(fixtures, "definitely-missing-bun") });
+		stubDirectLane(400, JSON.stringify({ error: { message: "bad request" } }));
+		const message = await freeTurn();
+		expect(message.stopReason).toBe("error");
+		expect(message.errorMessage).not.toContain("PI_FREE_OPENCODE_BUN");
+	});
+
+	// A real limit reached through a working relay is honest upstream truth.
+	it("does not blame Bun when the 429 came through a running relay", async () => {
+		startStubRelay(0, 429, FREE_LIMIT_BODY);
+		const direct = stubDirectLane(500, "{}");
+		const message = await freeTurn();
+		expect(direct).not.toHaveBeenCalled();
+		expect(message.errorMessage).toContain("FreeUsageLimitError");
+		expect(message.errorMessage).not.toContain("PI_FREE_OPENCODE_BUN");
+	});
+
+	// A cold start past the old 2 s window sent the turn to the direct lane's 429.
+	it("waits for a slow Bun start instead of falling through to the direct lane", async () => {
+		const body = JSON.stringify({ error: { message: "reached-the-relay" } });
+		startStubRelay(2500, 400, body);
+		const direct = stubDirectLane(429, FREE_LIMIT_BODY);
+		const message = await freeTurn();
+		expect(direct).not.toHaveBeenCalled();
+		expect(message.errorMessage).toContain("reached-the-relay");
 	});
 
 	it("parses PORT from the child, resolves ready(), and stops the child", async () => {
@@ -144,6 +410,21 @@ describe("opencode-relay child lifecycle (stub bun)", () => {
 		});
 		await expect(relay.ready(4000)).rejects.toThrow(/ENOENT/);
 		await expect(relay.ready(20)).rejects.toThrow("not running");
+		expect(getOpenCodeRelay()).toBe(relay);
+	});
+
+	// A hung start charged the whole readiness window on every later turn, and
+	// the child survived: a host binary that ignores BUN_BE_BUN never binds.
+	it("retires a start that misses the readiness window", async () => {
+		const stub = join(mkdtempSync(join(fixtures, "stub-")), "hung.mjs");
+		writeFileSync(stub, `setInterval(() => {}, 1 << 30);`);
+		const relay = getOpenCodeRelay({
+			bunCommand: process.execPath,
+			childArgs: [stub],
+		});
+		await expect(relay.ready(50)).rejects.toThrow("did not become ready");
+		await expect(relay.ready(4000)).rejects.toThrow("not running");
+		expect(getOpenCodeRelayFailure()).toContain("did not become ready");
 		expect(getOpenCodeRelay()).toBe(relay);
 	});
 
@@ -197,7 +478,16 @@ describeBun("opencode-relay passthrough (real bun)", () => {
 					typeof req.headers["x-opencode-client"] === "string"
 						? req.headers["x-opencode-client"]
 						: undefined;
-				if (req.url?.endsWith("/gzip")) {
+				if (req.url?.endsWith("/slow-first-byte")) {
+					setTimeout(() => {
+						res.writeHead(200, { "content-type": "text/event-stream" });
+						res.end("late");
+					}, 14_000);
+				} else if (req.url?.endsWith("/slow-gap")) {
+					res.writeHead(200, { "content-type": "text/event-stream" });
+					res.write("early,");
+					setTimeout(() => res.end("late"), 14_000);
+				} else if (req.url?.endsWith("/gzip")) {
 					const compressed = gzipSync(gzipText);
 					res.writeHead(200, {
 						"content-type": "text/event-stream",
@@ -271,7 +561,71 @@ describeBun("opencode-relay passthrough (real bun)", () => {
 		for (const response of pending.values()) response.destroy();
 		pending.clear();
 		vi.useRealTimers();
+		vi.unstubAllEnvs();
 	});
+
+	// Bun.serve closes a connection idle for 10 s by default, swept up to a few
+	// seconds late. A slow model is silent that long before its first byte and
+	// between chunks.
+	it("keeps a response open through 14 s of upstream silence", async () => {
+		const port = await relay!.ready(8000);
+		const [firstByte, gap] = await Promise.all(
+			["slow-first-byte", "slow-gap"].map(async (path) => {
+				const response = await fetch(
+					`http://127.0.0.1:${port}/inference/v1/${path}`,
+				);
+				return response.text();
+			}),
+		);
+		expect(firstByte).toBe("late");
+		expect(gap).toBe("early,late");
+	}, 20_000);
+
+	// #654: npm's global bin holds a bun.cmd shim that Node cannot spawn without
+	// a shell, so the terminal finds Bun while the relay gets ENOENT.
+	it("starts from Bun's install location when PATH holds only npm's shim", async () => {
+		const realBun = spawnSync("bun", ["-e", "console.log(process.execPath)"], {
+			encoding: "utf8",
+		}).stdout.trim();
+		const home = mkdtempSync(join(fixtures, "install-"));
+		const npmBin = join(home, "npm");
+		const isWindows = process.platform === "win32";
+		const bunBin = isWindows
+			? join(npmBin, "node_modules", "bun", "bin")
+			: join(home, "bun-install", "bin");
+		mkdirSync(bunBin, { recursive: true });
+		mkdirSync(npmBin, { recursive: true });
+		if (isWindows) copyFileSync(realBun, join(bunBin, "bun.exe"));
+		else symlinkSync(realBun, join(bunBin, "bun"));
+		writeFileSync(join(npmBin, "bun.cmd"), "@echo off\r\n");
+		vi.stubEnv("PATH", npmBin);
+		vi.stubEnv("APPDATA", home);
+		vi.stubEnv(
+			"BUN_INSTALL",
+			isWindows ? undefined : join(home, "bun-install"),
+		);
+		resetOpenCodeRelayForTest();
+		await expect(getOpenCodeRelay().ready(8000)).resolves.toBeGreaterThan(0);
+	}, 20_000);
+
+	// Pi's standalone builds are Bun-compiled, so they carry the relay's runtime.
+	// Without BUN_BE_BUN the binary would run its own entry and never bind.
+	it("runs the relay from a Bun-compiled host binary", async () => {
+		const dir = mkdtempSync(join(fixtures, "compiled-"));
+		const entry = join(dir, "entry.ts");
+		writeFileSync(entry, `console.log("compiled-app-entry");`);
+		const built = spawnSync(
+			"bun",
+			["build", "--compile", entry, "--outfile", join(dir, "app")],
+			{ encoding: "utf8" },
+		);
+		expect(built.status, built.stderr).toBe(0);
+		resetOpenCodeRelayForTest();
+		const hosted = getOpenCodeRelay({
+			bunCommand: join(dir, process.platform === "win32" ? "app.exe" : "app"),
+		});
+		await expect(hosted.ready(8000)).resolves.toBeGreaterThan(0);
+	}, 20_000);
 
 	// #631: a real parent process is required to prove both event-loop drain
 	// and its exit hook. In-process mocks cannot observe an orphan Bun child.

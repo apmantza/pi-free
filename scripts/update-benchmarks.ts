@@ -7,8 +7,9 @@
  * catalog used by provider-failover/hardcoded-benchmarks.ts.
  */
 
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { assessBenchmarkUpdate } from "./lib/benchmark-update-guard.ts";
 
 const API_KEY = process.env.ARTIFICIAL_ANALYSIS_API_KEY;
 
@@ -134,6 +135,19 @@ function generateBenchmarkJson(models: AAModel[]): Record<string, unknown> {
 	return benchmarks;
 }
 
+function readPreviousBenchmarks(jsonFile: string): Record<string, unknown> {
+	try {
+		const parsed: unknown = JSON.parse(readFileSync(jsonFile, "utf-8"));
+		return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+			? (parsed as Record<string, unknown>)
+			: {};
+	} catch {
+		// Missing or unparsable previous catalog: only the shrink rule is
+		// disabled. The shape rules still apply to the new response.
+		return {};
+	}
+}
+
 function writeBenchmarksJson(models: AAModel[]): void {
 	// Filter to models with intelligence scores (allow 0, reject null/undefined)
 	const scoredModels = models.filter(
@@ -145,11 +159,26 @@ function writeBenchmarksJson(models: AAModel[]): void {
 	);
 
 	const jsonFile = join(OUTPUT_DIR, "benchmarks.json");
-	writeFileSync(
-		jsonFile,
-		`${JSON.stringify(generateBenchmarkJson(scoredModels), null, "\t")}\n`,
-		"utf-8",
+	const catalog = generateBenchmarkJson(scoredModels);
+	// Fail closed on a response shape this script does not recognize, instead
+	// of overwriting the catalog the coding-index lookup depends on.
+	const assessment = assessBenchmarkUpdate(
+		catalog,
+		readPreviousBenchmarks(jsonFile),
 	);
+	if (!assessment.ok) {
+		for (const problem of assessment.problems) {
+			console.error(
+				`❌ Refusing to write benchmarks.json: ${sanitizeForLog(problem)}`,
+			);
+		}
+		console.error(
+			"   Update scripts/lib/benchmark-update-guard.ts and the API mapping deliberately.",
+		);
+		process.exit(1);
+	}
+
+	writeFileSync(jsonFile, `${JSON.stringify(catalog, null, "\t")}\n`, "utf-8");
 	console.log(`\n✅ Generated ${jsonFile}`);
 }
 

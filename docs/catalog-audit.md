@@ -13,6 +13,34 @@ Each provider's live `/models` endpoint is fetched (stored credential from `~/.p
 
 Counts drift as providers change their catalogs — treat every audit below as a verified snapshot, never a guarantee. Providers whose credentials are unavailable are listed as "not audited" rather than guessed. Never print or commit API keys during an audit.
 
+## 2026-11-02 — InferX registered (not audited)
+
+InferX (`inferx`, `https://model.inferx.net/endpoints/v1`) is registered as a
+native provider. **No credential was available, so its authenticated `/models`
+catalog was not audited** — this section records the checks that were possible
+without one, not a classification guarantee:
+
+- `GET /endpoints/v1/models` answers HTTP 401 `service failure: no tenant
+  context: set a default tenant or use a tenant-restricted API key` with and
+  without an `Authorization` header, i.e. the catalog is keyed.
+- The public endpoint catalog (`/catalog/endpoints`, 12 published endpoints on
+  2026-11-02) renders every price cell as `—`; no endpoint publishes a price.
+  Each endpoint page states the endpoint "is served on the shared, token-billed
+  `/endpoints/v1` surface … usage is billed per token".
+- By pi-free's own semantics the registration is **zero-free**: the catalog
+  exposes no price (Route A cannot fire; entries carry `_pricingKnown: false`)
+  and no id or display name contains "free" (Route B cannot fire). models.dev's
+  `inferx` provider also lists all 12 endpoints at `$0/$0` — absent pricing,
+  not a free tier — which pi-free deliberately does not trust.
+- InferX's published "InferX Free" plan advertises free access to hosted models
+  as a plan-level entitlement; nothing in the catalog or the endpoint pages maps
+  that entitlement onto specific endpoint ids, so no model is stamped free.
+
+Not verified: authenticated catalog contents, per-endpoint availability, and
+per-model context/capability metadata beyond models.dev's published values.
+Re-run this audit with a stored `INFERX_API_KEY` before relying on any InferX
+free-model claim.
+
 ## 2026-10-26 — 2.8.6 scoped audit and explicit carry-over
 
 The production `fetchOpenCodeModelIds` path fetched the anonymous public
