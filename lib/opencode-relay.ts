@@ -74,6 +74,21 @@ export function getOpenCodeRelayFailure(): string | undefined {
 }
 
 /**
+ * The remedy that matches a recorded relay failure.
+ *
+ * Only a missing executable means Bun is absent. An executable that cannot be
+ * launched (EACCES/EPERM), a child that exits, and a readiness timeout all
+ * happen with Bun installed, so telling those users to install it sends them
+ * the wrong way (PR #656 review).
+ */
+export function relayRemedy(failure: string | undefined): string {
+	if (!failure) return "";
+	return failure.includes("ENOENT")
+		? "Install Bun from https://bun.sh or set PI_FREE_OPENCODE_BUN to its full path, then restart Pi."
+		: "Check that the Bun executable named in the failure can run, then restart Pi.";
+}
+
+/**
  * Map an upstream model baseUrl to the relay's loopback form. Returns
  * undefined when the URL is not an opencode.ai https URL under an allowlisted
  * path (other hosts or paths pass through untouched by callers).

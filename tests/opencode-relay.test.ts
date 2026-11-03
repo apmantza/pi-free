@@ -19,6 +19,7 @@ import {
 } from "vitest";
 import {
 	copyFileSync,
+	chmodSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
@@ -54,6 +55,7 @@ const {
 	getOpenCodeRelayFailure,
 	resetOpenCodeRelayForTest,
 	resolveBunCommand,
+	relayRemedy,
 	OPENCODE_RELAY_PATH_RE,
 } = await import("../lib/opencode-relay.js");
 
@@ -267,7 +269,12 @@ describe("opencode-relay child lifecycle (stub bun)", () => {
 
 	// #654: the 429 was all a user saw, and it reads as an exhausted quota.
 	it("explains the upstream 429 when Bun cannot start, keeping its classification", async () => {
-		getOpenCodeRelay({ bunCommand: join(fixtures, "definitely-missing-bun") });
+		const relay = getOpenCodeRelay({
+			bunCommand: join(fixtures, "definitely-missing-bun"),
+		});
+		// Wait for the spawn error before the turn: the recorded failure is what
+		// the hint explains, and racing the error event would test the timing.
+		await expect(relay.ready(4000)).rejects.toThrow(/ENOENT/);
 		const direct = stubDirectLane(429, FREE_LIMIT_BODY);
 		const message = await freeTurn();
 		expect(direct).toHaveBeenCalledOnce();
@@ -278,6 +285,55 @@ describe("opencode-relay child lifecycle (stub bun)", () => {
 		expect(isRetryableAssistantError(message)).toBe(false);
 		expect(classifyErrorMessage(message.errorMessage)).toBe("recoverable");
 	});
+
+	// #656 review: only a missing executable means Bun is absent; an
+	// executable that refuses to launch, a child that exits and a readiness
+	// timeout all happen with Bun installed.
+	describe("relayRemedy", () => {
+		it("names the install when the executable is missing", () => {
+			const remedy = relayRemedy("spawn bun ENOENT");
+			expect(remedy).toContain("https://bun.sh");
+			expect(remedy).toContain("PI_FREE_OPENCODE_BUN");
+		});
+
+		it("does not tell a user who has Bun to install it", () => {
+			for (const failure of [
+				"spawn /usr/local/bin/bun EACCES",
+				"opencode-relay child exited (code 1, signal ?)",
+				"opencode-relay did not become ready within 10000ms",
+			]) {
+				const remedy = relayRemedy(failure);
+				expect(remedy).not.toContain("bun.sh");
+				expect(remedy).toContain("can run");
+			}
+		});
+
+		it("says nothing when no failure is recorded", () => {
+			expect(relayRemedy(undefined)).toBe("");
+		});
+	});
+
+	// The 429 hint must match the cause too, not just the helper: a Bun that
+	// exists but cannot launch is not a missing install. POSIX-only: Windows has
+	// no execute bit, so a chmod-644 file spawns instead of failing EACCES; the
+	// derivation itself is covered by the relayRemedy cases above.
+	it.runIf(process.platform !== "win32")(
+		"advises checking Bun when it exists but cannot launch",
+		async () => {
+			const notExecutable = join(fixtures, "bun-without-exec-bit");
+			writeFileSync(notExecutable, "#!/bin/sh\nexit 0\n", { mode: 0o644 });
+			chmodSync(notExecutable, 0o644);
+			const relay = getOpenCodeRelay({ bunCommand: notExecutable });
+			// Same order as a real turn: the spawn error is recorded first, so the
+			// hint explains that cause rather than a stopped singleton.
+			await expect(relay.ready(4000)).rejects.toThrow(/EACCES/);
+			stubDirectLane(429, FREE_LIMIT_BODY);
+			const message = await freeTurn();
+			expect(message.errorMessage).toContain("EACCES");
+			expect(message.errorMessage).not.toContain("bun.sh");
+			expect(message.errorMessage).toContain("can run");
+		},
+	);
 
 	it("does not blame Bun when the user turned the relay off", async () => {
 		vi.stubEnv("PI_FREE_OPENCODE_RELAY", "0");
