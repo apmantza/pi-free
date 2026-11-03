@@ -207,6 +207,16 @@ export ORCAROUTER_API_KEY="sk-orca-..."
 
 Or set `orcarouter_api_key`. Toggle with `/toggle-orcarouter`. Free models include `orcarouter/free`, `deepseek/deepseek-v4-flash-free`, `tencent/hy3-free`, and `z-ai/glm-5.3-flash-free`; the gateway prices them per-request at zero, which pi-free detects explicitly.
 
+### InferX
+
+InferX is a serverless GPU inference platform whose shared, token-billed OpenAI-compatible surface is `https://model.inferx.net/endpoints/v1`:
+
+```bash
+export INFERX_API_KEY="ix-..."
+```
+
+Or set `inferx_api_key`. Toggle with `/toggle-inferx`. The catalog endpoint is keyed (anonymous requests answer 401 `no tenant context`), so models appear only after a credential resolves. It is vLLM-shaped — entries carry only `id`, `object`, `created`, and `owned_by` — so context windows, output limits, modalities, and reasoning come from models.dev enrichment over the same endpoint ids, with 128K/16K fallbacks. Two catalog facts are not in the payload: the embedding endpoint (`Qwen3-Embedding-8B`) is dropped by id, and the `-no-thinking` variants are excluded from the reasoning-family heuristic (their ids contain the literal "thinking"). No price is published anywhere in the public catalog (each endpoint page states usage is billed per token), so entries are stamped pricing-unknown and **no InferX model classifies as free** — the catalog appears in the paid view. InferX's own "InferX Free" plan is a billing-layer tier the catalog does not expose.
+
 ### Xkiro
 
 Xkiro is an OpenAI-compatible gateway with a catalog `access_tier` (free, paid, premium) per model:

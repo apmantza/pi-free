@@ -76,7 +76,7 @@ index.ts                          ← Extension entry (piFreeEntry)
       kilo/ cline/ (native reference ports) novita venice ollama-cloud routeway
       opengateway sambanova zenmux llm7 deepinfra tokenrouter anyapi
       model-fetcher.ts (shared OpenRouter fetching) opencode-session.ts qoder/
-      bai agnes commandcode infron merge/ fastrouter/ requesty stepfun/
+      bai agnes commandcode infron inferx merge/ fastrouter/ requesty stepfun/
       (gmi/ mirrors this structure for GMI Cloud; full per-file map under
       "Native `Provider` providers" below)
 
@@ -170,7 +170,7 @@ One rule (`resolveModelView` in `lib/registry.ts`): **explicit per-provider choi
 | ----------- | -------------------------------------------------- | ----------------- | -------------------------------- |
 | ✅ Free / free-tier | kilo, cline, llm7, tokenrouter, agnes, qoder basic | OAuth, key, or none | Toggles can expose paid |
 | 🔄 Freemium | anyapi, ollama-cloud, sambanova, requesty | API key | Free allowance with limits |
-| 💳 Paid / trial | zenmux, deepinfra, novita, routeway, opengateway, bai, stepfun, gmi, venice, merge, qoder premium | API key, OAuth, or credits | Trial credit or premium tier |
+| 💳 Paid / trial | zenmux, deepinfra, novita, routeway, opengateway, bai, stepfun, gmi, venice, merge, inferx, qoder premium | API key, OAuth, or credits | Trial credit or premium tier |
 | 🔧 Native | (all above except built-ins) | API key, OAuth, or none | Pi owns catalog refresh + native stores |
 
 | 🔧 Built-in | opencode-free, opencode-go, openrouter | Built-in Pi auth | Built-in toggles; Pi owns catalogs |

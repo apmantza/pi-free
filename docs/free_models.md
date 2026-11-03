@@ -1,5 +1,7 @@
 # Free Models Catalog
 
+> **2026-11-02 — InferX added, not audited:** the new `inferx` provider publishes no prices and no free-named endpoints, so it is listed under [Zero-free providers](#zero-free-providers) as **not audited** (no credential). Nothing about InferX below is a verified claim. See [catalog audit](catalog-audit.md#2026-11-02--inferx-registered-not-audited).
+
 > **2026-10-26 — 2.8.6 scoped audit / carry-over:** OpenCode's public feed was fetched live (85 IDs); its eight generative free candidates are listed below. They returned text on 2026-10-25; GLM text/tool was repeated on 2026-10-26. Other providers are **not audited for this release**: their 2026-08-26 lists/counts remain historical and promotions are not renewed. This patch's Requesty pricing-provenance and Requesty/Novita modality fixes can change classification relative to those lists. No fresh full-provider total is claimed. See [catalog audit](catalog-audit.md#2026-10-26--286-scoped-audit-and-explicit-carry-over).
 
 > **2026-09-22 — 2.8.2 carry-over:** this patch (auth routing, host compat, logging, picker-level modality filter, dep floors) leaves free/paid price classification unchanged. The 2026-08-26 snapshot is carried forward, not freshly audited. Counts and promotional windows remain historical; expired promotions are not renewed by this note. See [catalog audit](catalog-audit.md#2026-09-22--282-carry-over).
@@ -310,6 +312,7 @@ These registered providers exposed **no free-classified chat models** at audit t
 
 | Provider | Catalog | Why nothing is free |
 | --- | --- | --- |
+| InferX (**not audited**, 2026-11-02) | 12 published endpoints on the public catalog page; authenticated `/models` returned HTTP 401 (no credential) | No price is published (each endpoint page states per-token billing only), so cost-based detection cannot fire, and no id or display name contains "free". The "InferX Free" plan is a plan-level entitlement the catalog does not map onto endpoint ids |
 | DeepInfra | 188 models | 60 zero-priced entries exist but are all media-generation (image/video/TTS/STT) — filtered out; chat models are priced. Access is via the $5 trial credit instead |
 | SambaNova | 7 models | All carry real per-token pricing; the free tier is rate-limited access *at listed prices* (billing-layer, invisible to the catalog) |
 
