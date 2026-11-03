@@ -16,13 +16,62 @@
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
+import { existsSync } from "node:fs";
 import type { Socket } from "node:net";
+import { posix, win32 } from "node:path";
 import { createLogger } from "./logger.ts";
 
 const _logger = createLogger("opencode-relay");
 
 /** Only these path roots may be relayed. Gates fail closed (PRINCIPLES #8). */
 export const OPENCODE_RELAY_PATH_RE = /^\/(zen|inference)\/v1(\/|$)/u;
+
+interface BunLookup {
+	env?: NodeJS.ProcessEnv;
+	platform?: NodeJS.Platform;
+	exists?: (path: string) => boolean;
+	/** A Bun host's own executable; set only when Pi itself runs on Bun. */
+	hostBun?: string | undefined;
+}
+
+/**
+ * Find the Bun executable: explicit override, PATH, installer defaults, then a
+ * Bun-hosted Pi's own binary. Only a real executable counts: Node cannot spawn
+ * npm's bun.cmd shim without a shell (#654). Relative PATH entries are skipped
+ * so a ./bun in the project directory cannot outrank a real install.
+ */
+export function resolveBunCommand({
+	env = process.env,
+	platform = process.platform,
+	exists = existsSync,
+	hostBun = process.versions.bun ? process.execPath : undefined,
+}: BunLookup = {}): string {
+	if (env.PI_FREE_OPENCODE_BUN) return env.PI_FREE_OPENCODE_BUN;
+	const isWindows = platform === "win32";
+	const path = isWindows ? win32 : posix;
+	const home = isWindows ? env.USERPROFILE : env.HOME;
+	const dirs = [
+		...(env.PATH ?? "").split(path.delimiter),
+		env.BUN_INSTALL && path.join(env.BUN_INSTALL, "bin"),
+		home && path.join(home, ".bun", "bin"),
+		isWindows &&
+			env.APPDATA &&
+			path.join(env.APPDATA, "npm", "node_modules", "bun", "bin"),
+	];
+	for (const dir of dirs) {
+		if (!dir || !path.isAbsolute(dir)) continue;
+		const candidate = path.join(dir, isWindows ? "bun.exe" : "bun");
+		if (exists(candidate)) return candidate;
+	}
+	return hostBun ?? "bun";
+}
+
+let _lastFailure: string | undefined;
+
+/** Why the relay last failed to serve, or undefined. Never starts the relay. */
+export function getOpenCodeRelayFailure(): string | undefined {
+	return _lastFailure;
+}
 
 /**
  * Map an upstream model baseUrl to the relay's loopback form. Returns
@@ -71,7 +120,7 @@ export interface OpenCodeRelay {
 }
 
 interface RelayStartOptions {
-	/** Bun executable override (tests set this; default: `PI_FREE_OPENCODE_BUN` env or "bun"). */
+	/** Bun executable override (tests set this; default: `resolveBunCommand`). */
 	bunCommand?: string;
 	/** Child args override: tests substitute a stub script for the real relay. */
 	childArgs?: string[];
@@ -100,6 +149,7 @@ export function getOpenCodeRelay(options?: RelayStartOptions): OpenCodeRelay {
 export function resetOpenCodeRelayForTest(): void {
 	_singleton?.stop();
 	_singleton = undefined;
+	_lastFailure = undefined;
 }
 
 class Relay implements OpenCodeRelay {
@@ -115,8 +165,7 @@ class Relay implements OpenCodeRelay {
 
 	constructor(options: RelayStartOptions) {
 		this.idleTtlMs = options.idleTtlMs ?? 5 * 60_000;
-		this.bunCommand =
-			options.bunCommand ?? process.env.PI_FREE_OPENCODE_BUN ?? "bun";
+		this.bunCommand = options.bunCommand ?? resolveBunCommand();
 		this.childArgs = options.childArgs ?? ["-e", OPENCODE_RELAY_SCRIPT];
 		this.spawnChild();
 	}
@@ -142,6 +191,8 @@ class Relay implements OpenCodeRelay {
 					// Read the upstream override live: tests (and a user pointing
 					// the relay elsewhere) must not be pinned to import-time.
 					PI_FREE_OPENCODE_RELAY_UPSTREAM: relayUpstream(),
+					// A Bun-compiled host runs as plain Bun instead of its own entry.
+					BUN_BE_BUN: "1",
 				},
 				// The child's stdin is a lifetime fence: parent death closes the
 				// pipe even when an exit hook cannot run (e.g. SIGKILL).
@@ -159,6 +210,7 @@ class Relay implements OpenCodeRelay {
 			const match = /PORT=(\d+)/u.exec(stdoutBuf);
 			if (match && this.boundPort === undefined) {
 				this.boundPort = Number(match[1]);
+				_lastFailure = undefined;
 				this.armIdleTimer();
 				this.settleWaiter(this.boundPort);
 			}
@@ -171,13 +223,10 @@ class Relay implements OpenCodeRelay {
 		child.on("error", (error) => this.fail(error));
 		child.on("exit", (code, signal) => {
 			this.boundPort = undefined;
-			this.settleWaiter(
-				undefined,
-				new Error(
-					`opencode-relay child exited (code ${code ?? "?"}, signal ${signal ?? "?"})`,
-				),
-			);
+			const exit = `opencode-relay child exited (code ${code ?? "?"}, signal ${signal ?? "?"})`;
+			this.settleWaiter(undefined, new Error(exit));
 			if (!this.stopped) {
+				_lastFailure = exit;
 				this.stop();
 				_singleton = undefined;
 				// One record per session: the next getOpenCodeRelay() call starts
@@ -195,9 +244,10 @@ class Relay implements OpenCodeRelay {
 	}
 
 	private fail(error: Error): void {
+		_lastFailure = error.message;
 		_logger.warn(
-			"[opencode-relay] cannot start bun relay; opencode-free uses the direct anonymous lane",
-			{ error: error.message },
+			"[opencode-relay] cannot start bun relay; opencode-free uses the direct anonymous lane, which upstream answers with 429. Install Bun or set PI_FREE_OPENCODE_BUN to its full path.",
+			{ command: this.bunCommand, error: error.message },
 		);
 		this.settleWaiter(undefined, error);
 		// Cache the unavailable generation: later turns fall back immediately,
@@ -228,8 +278,8 @@ class Relay implements OpenCodeRelay {
 		if (this.boundPort !== undefined) return Promise.resolve(this.boundPort);
 		return new Promise<number>((resolve, reject) => {
 			const timer = setTimeout(() => {
-				this.waiters.delete(waiter);
-				reject(
+				// Retire it like a missing executable: only one turn pays this wait.
+				this.fail(
 					new Error(
 						`opencode-relay did not become ready within ${timeoutMs}ms`,
 					),
@@ -291,6 +341,8 @@ const ALLOW = /^\\/(zen|inference)\\/v1(\\/|$)/;
 const server = Bun.serve({
   hostname: "127.0.0.1",
   port: 0,
+  // The default 10 s closes a slow model's silent response. pi owns deadlines.
+  idleTimeout: 0,
   async fetch(req) {
     const u = new URL(req.url);
     if (!ALLOW.test(u.pathname)) {

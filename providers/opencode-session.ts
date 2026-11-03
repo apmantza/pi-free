@@ -26,6 +26,7 @@ import { loadPiAiEntry } from "../lib/pi-ai-loader.ts";
 import {
 	getOpenCodeRelay,
 	getOpenCodeRelayBaseUrl,
+	getOpenCodeRelayFailure,
 } from "../lib/opencode-relay.ts";
 import { isChatModelConfig } from "../lib/types.ts";
 
@@ -585,13 +586,39 @@ function createErrorMessage(
 	};
 }
 
+/**
+ * Upstream's 429 reads as an exhausted quota when the real cause is a relay that
+ * never started (#654). Keep the original text so Pi and auto-fallback classify
+ * it the same way; a limit reached through a working relay stays untouched.
+ */
+function explainRelayFailure(
+	message: AssistantMessage,
+	relayFailure: string | undefined,
+): AssistantMessage {
+	if (!relayFailure || !message.errorMessage?.includes("FreeUsageLimitError")) {
+		return message;
+	}
+	return {
+		...message,
+		errorMessage: `${message.errorMessage}\n\npi-free: this is probably not your free quota. The Bun relay did not start (${relayFailure}), so the request used a lane OpenCode rejects from non-Bun clients. Install Bun from https://bun.sh or set PI_FREE_OPENCODE_BUN to its full path, then restart Pi.`,
+	};
+}
+
 async function pipeStream(
 	stream: DeferredAssistantMessageEventStream,
 	upstream: AssistantMessageEventStream,
+	relayFailure?: string,
 ): Promise<void> {
 	let finalMessage: AssistantMessage | undefined;
 	try {
-		for await (const event of upstream) {
+		for await (const received of upstream) {
+			const event =
+				received.type === "error"
+					? {
+							...received,
+							error: explainRelayFailure(received.error, relayFailure),
+						}
+					: received;
 			stream.push(event);
 			if (event.type === "done") finalMessage = event.message;
 			if (event.type === "error") finalMessage = event.error;
@@ -627,14 +654,20 @@ const relaysAnonymousLane = (): boolean =>
  * awaiting the bind here keeps the streaming contract intact. When the relay
  * is unavailable (missing bun, bind failure) the request falls through to the
  * direct anonymous lane untouched: the failure is the upstream's own
- * fingerprint gate, never a new error class we invent.
+ * fingerprint gate, never a new error class we invent. A missing executable
+ * rejects at once, so this window only bounds a slow or hung start, where
+ * waiting beats the direct lane's 429. A start that misses it is retired, so
+ * later turns do not wait again.
  */
-export const relayWindowMs = 2000;
+export const relayWindowMs = 10_000;
 
-async function maybeRelayBaseUrl(original: string): Promise<{
+interface RelayRoute {
 	baseUrl: string;
 	release?: () => void;
-}> {
+	relayFailure?: string;
+}
+
+async function maybeRelayBaseUrl(original: string): Promise<RelayRoute> {
 	if (!relaysAnonymousLane()) {
 		return { baseUrl: original };
 	}
@@ -646,10 +679,27 @@ async function maybeRelayBaseUrl(original: string): Promise<{
 			baseUrl: getOpenCodeRelayBaseUrl(original, port) ?? original,
 			release,
 		};
-	} catch {
+	} catch (error) {
 		release();
-		return { baseUrl: original }; // direct lane; startup failure is already logged
+		// Direct lane. A repeat caller's rejection only says "not running".
+		return {
+			baseUrl: original,
+			relayFailure: getOpenCodeRelayFailure() ?? String(error),
+		};
 	}
+}
+
+/**
+ * Start the relay ahead of the first turn, so a cold start does not delay that
+ * turn and a missing Bun is known before its 429. Resolves with why the relay
+ * cannot serve, if anything. The idle TTL bounds a child no turn ever uses.
+ */
+export async function prewarmOpenCodeRelay(): Promise<string | undefined> {
+	const { release, relayFailure } = await maybeRelayBaseUrl(
+		`${OPENCODE_INFERENCE_ROOT}/v1`,
+	);
+	release?.();
+	return relayFailure;
 }
 
 export function createOpenCodeStreamSimple(
@@ -726,7 +776,7 @@ export function createOpenCodeStreamSimple(
 					streamApi as NonNullable<Api>,
 					model.baseUrl,
 				);
-				const relayed = anonymous
+				const relayed: RelayRoute = anonymous
 					? await maybeRelayBaseUrl(upstreamBaseUrl)
 					: { baseUrl: upstreamBaseUrl };
 				releaseRelay = relayed.release;
@@ -750,6 +800,7 @@ export function createOpenCodeStreamSimple(
 							sanitizedContext,
 							{ ...requestOptions, headers },
 						),
+						relayed.relayFailure,
 					);
 					return;
 				}
@@ -771,6 +822,7 @@ export function createOpenCodeStreamSimple(
 							sanitizedContext,
 							{ ...requestOptions, headers },
 						),
+						relayed.relayFailure,
 					);
 					return;
 				}
@@ -792,6 +844,7 @@ export function createOpenCodeStreamSimple(
 							sanitizedContext,
 							{ ...requestOptions, headers },
 						),
+						relayed.relayFailure,
 					);
 					return;
 				}
@@ -812,6 +865,7 @@ export function createOpenCodeStreamSimple(
 						sanitizedContext,
 						{ ...requestOptions, headers },
 					),
+					relayed.relayFailure,
 				);
 			} catch (error) {
 				const errorMessage = createErrorMessage(model, error);
