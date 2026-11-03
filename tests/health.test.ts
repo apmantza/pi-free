@@ -47,7 +47,9 @@ describe("health report", () => {
 		const report = formatHealthReport();
 		expect(report).toContain("Pi-Free health: WARN");
 		expect(report).toContain("OpenCode Bun relay:");
+		// Missing executable: the install advice belongs in the report.
 		expect(report).toContain("PI_FREE_OPENCODE_BUN");
+		expect(report).toContain("https://bun.sh");
 		resetOpenCodeRelayForTest();
 	});
 

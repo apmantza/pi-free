@@ -11,6 +11,7 @@ import type {
 import { PROVIDER_OPENCODE, PROVIDER_OPENCODE_FREE } from "../constants.ts";
 import { prewarmOpenCodeRelay } from "../providers/opencode-session.ts";
 import { createLogger } from "./logger.ts";
+import { relayRemedy } from "./opencode-relay.ts";
 import { isFreeModel } from "./registry.ts";
 import { wrapSessionStartHandler } from "./session-start-metrics.ts";
 import { safeNotify } from "./stale-ctx.ts";
@@ -41,7 +42,7 @@ export function setupOpenCodeReadiness(pi: ExtensionAPI): void {
 		warnedRelay = true;
 		safeNotify(
 			ctx,
-			`opencode-free cannot use its Bun relay (${failure}), so requests will get 429 FreeUsageLimitError. Install Bun from https://bun.sh or set PI_FREE_OPENCODE_BUN to its full path, then restart Pi.`,
+			`opencode-free cannot use its Bun relay (${failure}), so requests will get 429 FreeUsageLimitError. ${relayRemedy(failure)}`,
 			"warning",
 		);
 	};

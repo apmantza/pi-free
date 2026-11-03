@@ -27,6 +27,7 @@ import {
 	getOpenCodeRelay,
 	getOpenCodeRelayBaseUrl,
 	getOpenCodeRelayFailure,
+	relayRemedy,
 } from "../lib/opencode-relay.ts";
 import { isChatModelConfig } from "../lib/types.ts";
 
@@ -600,7 +601,7 @@ function explainRelayFailure(
 	}
 	return {
 		...message,
-		errorMessage: `${message.errorMessage}\n\npi-free: this is probably not your free quota. The Bun relay did not start (${relayFailure}), so the request used a lane OpenCode rejects from non-Bun clients. Install Bun from https://bun.sh or set PI_FREE_OPENCODE_BUN to its full path, then restart Pi.`,
+		errorMessage: `${message.errorMessage}\n\npi-free: this is probably not your free quota. The Bun relay did not start (${relayFailure}), so the request used a lane OpenCode rejects from non-Bun clients. ${relayRemedy(relayFailure)}`,
 	};
 }
 

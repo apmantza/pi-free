@@ -13,7 +13,7 @@ import {
 import { getAllResponseCounters } from "./quota-monitor.ts";
 import { getRecentActions } from "./action-log.ts";
 import { getAutoFallback } from "./auto-fallback-status.ts";
-import { getOpenCodeRelayFailure } from "./opencode-relay.ts";
+import { getOpenCodeRelayFailure, relayRemedy } from "./opencode-relay.ts";
 import { describePiAiResolution } from "./pi-ai-loader.ts";
 import type {
 	PiAiEntryResolution,
@@ -143,7 +143,7 @@ export function formatHealthReport(): string {
 	}
 	if (relayFailure) {
 		lines.push(
-			`OpenCode Bun relay: ${relayFailure}. opencode-free returns 429 without it; install Bun or set PI_FREE_OPENCODE_BUN to its full path, then restart Pi.`,
+			`OpenCode Bun relay: ${relayFailure}. opencode-free returns 429 without it; ${relayRemedy(relayFailure)}`,
 		);
 	}
 	if (logWriteFailures > 0) {
