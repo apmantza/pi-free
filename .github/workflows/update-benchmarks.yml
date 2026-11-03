@@ -53,8 +53,12 @@ jobs:
         with:
           token: ${{ secrets.PAT_TOKEN }}
           commit-message: >-
-            chore: update benchmark data from Artificial Analysis
-          title: "chore: update benchmark data from Artificial Analysis"
+            chore: update benchmark data from Artificial Analysis (refs #660)
+          # scripts/check-pr-title.mjs gates on the PR title: conventional
+          # prefix plus an issue ref. #660 is the standing tracker a
+          # scheduled run can name.
+          title: >-
+            chore: update benchmark data from Artificial Analysis (refs #660)
           body: |
             ## Automated Benchmark Update
 
