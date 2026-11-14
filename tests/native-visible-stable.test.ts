@@ -21,7 +21,14 @@
  * Drives Pi's real loader, session, models store and refresh dispatcher;
  * only the catalog fetch (the host network boundary) is substituted.
  */
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+	chmodSync,
+	mkdtempSync,
+	mkdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { resolve } from "node:path";
 import {
 	createAgentSession,
@@ -42,6 +49,7 @@ afterEach(async () => {
 	const { flushLogsSync } = await import("../lib/logger.ts");
 	flushLogsSync();
 	vi.unstubAllEnvs();
+	vi.unstubAllGlobals();
 	if (home) rmSync(home, { recursive: true, force: true });
 	home = undefined;
 });
@@ -260,4 +268,245 @@ it("a shared native OpenAI provider never shows paid models and restores a non-e
 		first: ["alpha,beta"],
 		second: ["alpha,beta"],
 	});
+});
+
+// ---------------------------------------------------------------------------
+// #690: state the native lifecycle reads must be the CURRENT state, judged by
+// the provider that owns it. Same real loader / session / models store /
+// refresh dispatcher; only HTTP (the host network boundary) is substituted.
+// ---------------------------------------------------------------------------
+
+type HttpCall = {
+	url: string;
+	model?: string | undefined;
+	auth?: string | undefined;
+};
+
+/**
+ * Stub the network boundary: a Routeway-shaped catalog and chat probe.
+ * `net.online = false` fails the catalog, so only Pi's store can answer.
+ */
+function stubRoutewayHttp(): { calls: HttpCall[]; net: { online: boolean } } {
+	const calls: HttpCall[] = [];
+	const net = { online: true };
+	vi.stubGlobal("fetch", async (input: unknown, init?: RequestInit) => {
+		const url = String(input instanceof Request ? input.url : input);
+		const headers = new Headers(init?.headers);
+		const body =
+			typeof init?.body === "string"
+				? (JSON.parse(init.body) as { model?: string })
+				: {};
+		calls.push({
+			url,
+			model: body.model,
+			auth: headers.get("authorization") ?? undefined,
+		});
+		if (url === "https://api.routeway.ai/v1/models" && net.online) {
+			const price = (usd: number) => ({ price_per_million_t: usd });
+			return Response.json({
+				data: [
+					{
+						id: "free-a",
+						name: "Free A",
+						type: "chat.completions",
+						pricing: { input: price(0), output: price(0) },
+					},
+					{
+						id: "paid-b",
+						name: "Paid B",
+						type: "chat.completions",
+						pricing: { input: price(1), output: price(2) },
+					},
+				],
+			});
+		}
+		if (url === "https://api.routeway.ai/v1/chat/completions") {
+			return Response.json({ choices: [] });
+		}
+		return new Response("unavailable", { status: 503 });
+	});
+	return { calls, net };
+}
+
+const probesOf = (calls: HttpCall[]) =>
+	calls
+		.filter((call) => call.url.endsWith("/chat/completions"))
+		.map((call) => `${call.model} ${call.auth}`);
+
+async function until(check: () => boolean, ms = 3_000): Promise<void> {
+	const deadline = Date.now() + ms;
+	while (!check() && Date.now() < deadline) {
+		await new Promise((r) => setTimeout(r, 10));
+	}
+}
+
+it("routeway's session-start auto-probe checks the free models fetched or restored this session, not the empty list from registration (#690)", async () => {
+	// Recurrence: registerNativeAvailabilityProbe captured `handle.stored.free`
+	// by reference at registration; every restore/refresh replaces that array,
+	// so the auto-probe always judged the initial [] and never probed.
+	const agentDir = pinHome();
+	vi.stubEnv("ROUTEWAY_API_KEY", "env-key");
+	const { calls, net } = stubRoutewayHttp();
+
+	// Session 1: the catalog arrives from the network after session_start.
+	vi.resetModules();
+	const { default: routeway } =
+		await import("../providers/routeway/routeway.ts");
+	const runtime = await boot(agentDir, routeway);
+	await runtime.refresh({ allowNetwork: true, providers: ["routeway"] });
+	await until(() => probesOf(calls).length > 0);
+	const fetched = probesOf(calls);
+
+	// Session 2, offline, probe cache cleared: only the store restore can
+	// supply the free list, and it lands after session_start.
+	net.online = false;
+	calls.length = 0;
+	rmSync(resolve(home as string, ".pi/probe-cache.json"), { force: true });
+	vi.resetModules();
+	const { default: routewayAgain } =
+		await import("../providers/routeway/routeway.ts");
+	await boot(agentDir, routewayAgain);
+	await until(() => probesOf(calls).length > 0);
+	expect({ fetched, restored: probesOf(calls) }).toEqual({
+		fetched: ["free-a Bearer env-key"],
+		restored: ["free-a Bearer env-key"],
+	});
+});
+
+it("/probe-routeway probes with the credential current when it runs, logged in after startup (#690)", async () => {
+	// Recurrence: the probe was registered only when a key existed at startup
+	// and used that captured key, so a /login during the session left
+	// `/probe-routeway` unregistered (or probing with a stale key).
+	const agentDir = pinHome();
+	const { calls } = stubRoutewayHttp();
+	vi.resetModules();
+	const { default: routeway } =
+		await import("../providers/routeway/routeway.ts");
+	const runtime = await boot(agentDir, routeway);
+	const session = sessions.at(-1) as unknown as {
+		prompt(text: string): Promise<void>;
+		extensionRunner: { getCommand(name: string): unknown };
+	};
+	// Registered keyless: otherwise the prompt would go to a chat model.
+	expect(session.extensionRunner.getCommand("probe-routeway")).toBeDefined();
+	const login = (key: string) =>
+		runtime.login("routeway", "api_key", {
+			prompt: async () => key,
+			notify: () => {},
+		} as unknown as Parameters<ModelRuntime["login"]>[2]);
+
+	// A catalog lands under one key, then the key goes away.
+	await login("first-key");
+	await runtime.refresh({ allowNetwork: true, providers: ["routeway"] });
+	await new Promise((r) => setTimeout(r, 100));
+	await runtime.logout("routeway");
+	await session.prompt("/probe-routeway");
+	// Keyless, neither the command nor this keyless session's auto-probe
+	// sends a probe (no "Bearer undefined" once the catalog is there).
+	const keyless = probesOf(calls);
+
+	calls.length = 0;
+	await login("logged-in-key");
+	await session.prompt("/probe-routeway");
+	expect({ keyless, loggedIn: probesOf(calls).sort() }).toEqual({
+		keyless: [],
+		loggedIn: ["free-a Bearer logged-in-key", "paid-b Bearer logged-in-key"],
+	});
+});
+
+/** A keyed native OpenAI provider over a stubbed catalog fetch. */
+async function nativeFactory(
+	providerId: string,
+	fetchModels: () => Promise<ProviderModelConfig[]>,
+): Promise<Factory> {
+	vi.resetModules();
+	const { registerNativeOpenAIProvider, createNativeApiKeyAuth } =
+		await import("../lib/native-provider.ts");
+	return (pi: ExtensionAPI) => {
+		const getApiKey = () => "probe-only";
+		registerNativeOpenAIProvider(pi, {
+			providerId,
+			name: providerId,
+			baseUrl: "https://example.invalid/v1",
+			auth: createNativeApiKeyAuth({
+				name: providerId,
+				prompt: "key",
+				source: "test",
+				getApiKey,
+			}),
+			getApiKey,
+			getShowPaid: () => false,
+			fetchModels,
+		});
+	};
+}
+
+async function persistWarnings(): Promise<string[]> {
+	const { flushLogsSync } = await import("../lib/logger.ts");
+	flushLogsSync();
+	const log = readFileSync(resolve(home as string, ".pi/free.log"), "utf8");
+	return log
+		.split("\n")
+		.filter((l) => l.includes("[WARN]") && l.includes("Failed to persist"));
+}
+
+it("a refresh superseded mid-persist is counted as an abort, not warned as a store failure (#690)", async () => {
+	// Recurrence (live): "Failed to persist qoder models to store {error:
+	// This operation was aborted}" 12 times in 13 s. Pi aborting a superseded
+	// generation is a normal transition, not a failure.
+	const agentDir = pinHome();
+	const PROVIDER = "supersede-probe";
+	let runtime: ModelRuntime | undefined;
+	let supersedes = 0;
+	const factory = await nativeFactory(PROVIDER, async () => {
+		if (supersedes < 3) {
+			supersedes++;
+			// Supersede while this generation's store write is in flight.
+			setImmediate(() => {
+				void runtime?.refresh({ allowNetwork: true, providers: [PROVIDER] });
+			});
+		}
+		return [cfg("alpha", 0), cfg("gamma", 2)];
+	});
+	const { getStartupSummary } = await import("../lib/startup-timing.ts");
+	runtime = await boot(agentDir, factory);
+	await runtime.refresh({ allowNetwork: true, providers: [PROVIDER] });
+	await until(() => supersedes >= 3);
+	await new Promise((r) => setTimeout(r, 200));
+	const aborts =
+		getStartupSummary().cacheNetwork.find((e) => e.provider === PROVIDER)
+			?.aborts ?? 0;
+	expect({
+		warned: await persistWarnings(),
+		abortsCounted: aborts > 0,
+	}).toEqual({ warned: [], abortsCounted: true });
+});
+
+it("a real models-store write failure is warned once per provider per session, not per refresh (#690)", async () => {
+	// Recurrence: the persist warning fired on every refresh generation, so a
+	// store that stays unwritable floods free.log with one line per refresh.
+	const agentDir = pinHome();
+	const PROVIDER = "store-fail-probe";
+	const factory = await nativeFactory(PROVIDER, async () => [
+		cfg("alpha", 0),
+		cfg("gamma", 2),
+	]);
+	const runtime = await boot(agentDir, factory);
+	await runtime.refresh({ allowNetwork: true, providers: [PROVIDER] });
+	// Every later write now fails for real: a read-only store file.
+	const storePath = resolve(agentDir, "models-store.json");
+	chmodSync(storePath, 0o444);
+	try {
+		for (let i = 0; i < 3; i++) {
+			await runtime.refresh({
+				allowNetwork: true,
+				providers: [PROVIDER],
+				force: true,
+			});
+		}
+	} finally {
+		// Writable again so the temp home can be removed on every platform.
+		chmodSync(storePath, 0o644);
+	}
+	expect((await persistWarnings()).length).toBe(1);
 });

@@ -57,6 +57,9 @@ const STALE_STORE_WARN_MS = 7 * 24 * 60 * 60 * 1000;
 /** Providers that already emitted their one-time stale-store warn (Mn2). */
 const _staleWarnedProviders = new Set<string>();
 
+/** Providers that already warned a models-store write failure (#690). */
+const _persistWarnedProviders = new Set<string>();
+
 /** Compatibility bridge for the native single-argument registrar. */
 type NativeRegistrar = {
 	registerProvider(provider: Provider): void;
@@ -145,6 +148,12 @@ export interface NativeOpenAIProviderHandle {
 	setShowPaid: (showPaid: boolean) => void;
 	getShowPaid: () => boolean;
 	ingest: (all: ProviderModelConfig[], free: ProviderModelConfig[]) => void;
+	/**
+	 * Settles once the provider first holds a catalog (seeded, restored from
+	 * Pi's store, or fetched). Pi restores asynchronously after
+	 * registration, so session_start alone still sees the empty lists.
+	 */
+	firstCatalog: Promise<void>;
 }
 
 function nativeCredentialToken(
@@ -242,6 +251,13 @@ export function createNativeOpenAIProvider(
 	// records the live value while the toggle is running, but it must never
 	// seed the boot state or a persisted toggle would be lost on restart.
 	let showPaidOverride: boolean | undefined;
+	let markCatalog!: () => void;
+	const firstCatalog = new Promise<void>((resolve) => {
+		markCatalog = resolve;
+	});
+	const noteCatalog = () => {
+		if (stored.all.length > 0 || stored.free.length > 0) markCatalog();
+	};
 
 	function classifyFree(
 		models: Model<"openai-completions">[],
@@ -279,6 +295,7 @@ export function createNativeOpenAIProvider(
 				options.apiForModel,
 			),
 		);
+		noteCatalog();
 	}
 
 	const initialModels = options.initialModels ?? [];
@@ -295,6 +312,7 @@ export function createNativeOpenAIProvider(
 		// SAFETY: classification only reads id/name/cost fields; per-model
 		// transports (apiForModel) widen the nominal type parameter only.
 		stored.free = classifyFree(all as Model<"openai-completions">[]);
+		noteCatalog();
 	}
 
 	async function refreshModels(context: RefreshModelsContext): Promise<void> {
@@ -333,6 +351,7 @@ export function createNativeOpenAIProvider(
 			},
 			stored,
 		);
+		noteCatalog();
 	}
 
 	const provider: Provider<"openai-completions"> = {
@@ -362,6 +381,7 @@ export function createNativeOpenAIProvider(
 		setShowPaid,
 		getShowPaid,
 		ingest,
+		firstCatalog,
 	};
 }
 
@@ -404,21 +424,36 @@ export function registerNativeOpenAIProvider(
 	return handle;
 }
 
-/** Register a standard availability probe for a native OpenAI provider. */
+/**
+ * Register a standard availability probe for a native OpenAI provider.
+ *
+ * Everything the probe needs is read when it runs, never captured at
+ * registration (defect shape 2, #690): the key is the one Pi resolves now
+ * (a stored `/login` credential, else the ambient key), and the models are
+ * the provider's current lists, which every restore and refresh replaces.
+ */
 export function registerNativeAvailabilityProbe(
 	pi: ExtensionAPI,
 	options: {
 		providerId: string;
 		label: string;
-		apiKey: string;
+		getApiKey: () => string | undefined;
 		probe: ProviderProbe;
 		handle: NativeOpenAIProviderHandle;
 	},
 ): void {
-	const { providerId, label, apiKey, probe, handle } = options;
+	const { providerId, label, getApiKey, probe, handle } = options;
+	const currentKey = async (ctx: ExtensionContext) =>
+		(await ctx.modelRegistry?.getApiKeyForProvider?.(providerId)) ??
+		getApiKey();
 	pi.registerCommand(`probe-${providerId}`, {
 		description: `Test all ${label} models for availability`,
 		handler: async (_args, ctx) => {
+			const apiKey = await currentKey(ctx);
+			if (!apiKey) {
+				ctx.ui.notify(`No ${label} API key configured`, "warning");
+				return;
+			}
 			const models = handle.stored.all;
 			ctx.ui.notify(`Probing ${models.length} ${label} models…`, "info");
 			const broken = await probe.run(apiKey, models, {
@@ -435,13 +470,25 @@ export function registerNativeAvailabilityProbe(
 			}
 		},
 	});
+	// Built at the first keyed session_start, from the state current once
+	// the catalog lands; the handler's own latch keeps it once per process.
+	let autoProbe: (() => void | Promise<void>) | undefined;
 	pi.on(
 		"session_start",
 		wrapSessionStartHandler(
 			`${providerId}-auto-probe`,
-			probe.autoProbeHandler(apiKey, handle.stored.free, () =>
-				registerNativeProvider(pi, handle.provider),
-			),
+			async (_event: unknown, ctx: ExtensionContext) => {
+				if (autoProbe) return autoProbe();
+				// Key first, while this session's ctx is current; the free list
+				// only once Pi has restored or fetched it.
+				const apiKey = await currentKey(ctx);
+				if (!apiKey) return;
+				await handle.firstCatalog;
+				autoProbe ??= probe.autoProbeHandler(apiKey, handle.stored.free, () =>
+					registerNativeProvider(pi, handle.provider),
+				);
+				await autoProbe();
+			},
 			{ detached: true },
 		),
 	);
@@ -1170,7 +1217,19 @@ export async function persistNativeProviderModels(
 		});
 		return true;
 	} catch (err) {
-		_logger.warn(`Failed to persist ${providerId} models to store`, {
+		// Pi aborts a superseded generation's store write: a normal
+		// transition, counted like every other native abort (#690).
+		if (context.signal?.aborted) {
+			recordNativeAbort(providerId);
+			return false;
+		}
+		// A store that stays unwritable fails on every refresh: one warning
+		// per provider per session, the rest at debug.
+		const log = _persistWarnedProviders.has(providerId)
+			? _logger.debug
+			: _logger.warn;
+		_persistWarnedProviders.add(providerId);
+		log(`Failed to persist ${providerId} models to store`, {
 			error: err instanceof Error ? err.message : String(err),
 		});
 		return false;

@@ -192,15 +192,13 @@ export default function novitaProvider(pi: ExtensionAPI): Promise<void> {
 		fetchModels: (apiKey, signal) => fetchNovitaModels(apiKey, signal),
 		tosUrl: "https://novita.ai/terms",
 	});
-	const apiKey = getNovitaApiKey();
-	if (!apiKey) return Promise.resolve();
-
-	const probe = createOpenAIAvailabilityProbe(PROVIDER_NOVITA, BASE_URL_NOVITA);
+	// Registered keyless too: the probe resolves the key when it runs, so a
+	// /login during the session is honored (#690).
 	registerNativeAvailabilityProbe(pi, {
 		providerId: PROVIDER_NOVITA,
 		label: "Novita AI",
-		apiKey,
-		probe,
+		getApiKey: getNovitaApiKey,
+		probe: createOpenAIAvailabilityProbe(PROVIDER_NOVITA, BASE_URL_NOVITA),
 		handle,
 	});
 	return Promise.resolve();

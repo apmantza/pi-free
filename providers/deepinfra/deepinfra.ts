@@ -174,19 +174,17 @@ export default function deepinfraProvider(pi: ExtensionAPI): Promise<void> {
 		tosUrl: "https://deepinfra.com/pricing",
 	});
 
-	const apiKey = getDeepinfraApiKey();
-	if (apiKey) {
-		const probe = createOpenAIAvailabilityProbe(
+	// Registered keyless too: the probe resolves the key when it runs, so a
+	// /login during the session is honored (#690).
+	registerNativeAvailabilityProbe(pi, {
+		providerId: PROVIDER_DEEPINFRA,
+		label: "DeepInfra",
+		getApiKey: getDeepinfraApiKey,
+		probe: createOpenAIAvailabilityProbe(
 			PROVIDER_DEEPINFRA,
 			BASE_URL_DEEPINFRA,
-		);
-		registerNativeAvailabilityProbe(pi, {
-			providerId: PROVIDER_DEEPINFRA,
-			label: "DeepInfra",
-			apiKey,
-			probe,
-			handle,
-		});
-	}
+		),
+		handle,
+	});
 	return Promise.resolve();
 }

@@ -66,18 +66,16 @@ export default function sambanovaProvider(pi: ExtensionAPI): Promise<void> {
 		},
 		tosUrl: "https://sambanova.ai/terms",
 	});
-	const apiKey = getSambanovaApiKey();
-	if (!apiKey) return Promise.resolve();
-
-	const probe = createOpenAIAvailabilityProbe(
-		PROVIDER_SAMBANOVA,
-		BASE_URL_SAMBANOVA,
-	);
+	// Registered keyless too: the probe resolves the key when it runs, so a
+	// /login during the session is honored (#690).
 	registerNativeAvailabilityProbe(pi, {
 		providerId: PROVIDER_SAMBANOVA,
 		label: "SambaNova",
-		apiKey,
-		probe,
+		getApiKey: getSambanovaApiKey,
+		probe: createOpenAIAvailabilityProbe(
+			PROVIDER_SAMBANOVA,
+			BASE_URL_SAMBANOVA,
+		),
 		handle,
 	});
 	return Promise.resolve();
