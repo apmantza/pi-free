@@ -58,7 +58,8 @@ export interface OllamaProviderDeps {
 export interface OllamaNativeProvider {
 	provider: Provider<"openai-completions">;
 	stored: StoredModels;
-	ingest: (all: ProviderModelConfig[], free: ProviderModelConfig[]) => void;
+	/** Republish a catalog; the free view is classified, never supplied. */
+	ingest: (models: ProviderModelConfig[]) => void;
 }
 
 type OllamaModel = Model<"openai-completions">;
@@ -93,19 +94,12 @@ export function createOllamaProvider(
 	const streams = lazyOpenAICompletionsApi();
 	const stored: StoredModels = { free: [], all: [] };
 
-	function ingest(
-		all: ProviderModelConfig[],
-		free: ProviderModelConfig[],
-	): void {
-		stored.all = toOllamaModels(enhanceWithCI(all, PROVIDER_OLLAMA));
-		stored.free = toOllamaModels(enhanceWithCI(free, PROVIDER_OLLAMA));
-	}
-
 	/**
 	 * Publish a catalog with its free view classified like every other custom
 	 * native provider. A blind `stored.free = models` showed paid models in the
-	 * free view after a store restore, and for the startup fallback seed until
-	 * the first refresh (#675): Ollama Cloud bills every cloud model per token.
+	 * free view after a store restore, for the startup fallback seed until the
+	 * first refresh, and after every probe republish (#675): Ollama Cloud bills
+	 * every cloud model per token.
 	 */
 	function publishModels(models: OllamaModel[]): void {
 		stored.all = models;
@@ -114,7 +108,11 @@ export function createOllamaProvider(
 		);
 	}
 
-	publishModels(toOllamaModels(enhanceWithCI(initialModels, PROVIDER_OLLAMA)));
+	function ingest(models: ProviderModelConfig[]): void {
+		publishModels(toOllamaModels(enhanceWithCI(models, PROVIDER_OLLAMA)));
+	}
+
+	ingest(initialModels);
 
 	async function refreshOllamaModels(
 		context: RefreshModelsContext,
@@ -184,7 +182,7 @@ export function registerOllamaProvider(
 		registerNativeProvider(pi, provider);
 	};
 	const applyModelList = (models: ProviderModelConfig[]) => {
-		ingest(models, models);
+		ingest(models);
 		registerNativeProvider(pi, provider);
 	};
 	const currentModels = () => stored.all;

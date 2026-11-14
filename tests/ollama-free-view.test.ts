@@ -83,3 +83,18 @@ it("classifies the startup seed like a refreshed catalog", async () => {
 	]);
 	expect(handle.stored.free).toEqual([]);
 });
+
+// `/probe-ollama` and the session-start probe republish the surviving models
+// through `ingest` (registerOllamaProvider's applyModelList), which pre-fix
+// passed the same list as the free view: one probe made every model "free".
+it("classifies a probe-filtered catalog republished through ingest", async () => {
+	const { createOllamaProvider } =
+		await import("../providers/ollama/ollama.ts");
+	const handle = createOllamaProvider();
+	const survivors = handle.stored.all.slice(1);
+	handle.ingest(survivors);
+	expect(handle.stored.all.map((m) => m.id)).toEqual(
+		survivors.map((m) => m.id),
+	);
+	expect(handle.stored.free).toEqual([]);
+});
