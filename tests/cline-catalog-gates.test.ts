@@ -136,9 +136,11 @@ describe("Cline catalog: abort signal (#676, convention 15)", () => {
 					new Promise<Response>((_resolve, reject) => {
 						const signal = init?.signal;
 						if (signal) seen.push(signal);
-						signal?.addEventListener("abort", () =>
-							reject(new DOMException("aborted", "AbortError")),
-						);
+						// Like real fetch: reject at once on an aborted signal.
+						const abort = () =>
+							reject(new DOMException("aborted", "AbortError"));
+						if (signal?.aborted) abort();
+						signal?.addEventListener("abort", abort);
 					}),
 			),
 		);

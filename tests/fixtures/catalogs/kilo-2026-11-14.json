@@ -1,0 +1,577 @@
+{
+	"_captured": "2026-11-14, public /models endpoint, rows verbatim (#676)",
+	"data": [
+		{
+			"id": "google/lyria-3-pro-preview",
+			"name": "Google: Lyria 3 Pro Preview",
+			"created": 1774907286,
+			"description": "Full-length songs are priced at $0.08 per song. Lyria 3 is Google's family of music generation models, available through the Gemini API. With Lyria 3, you can generate high-quality, 48kHz...",
+			"architecture": {
+				"modality": "text+image->text+audio",
+				"input_modalities": ["text", "image"],
+				"output_modalities": ["text", "audio"],
+				"tokenizer": "Other"
+			},
+			"top_provider": {
+				"is_moderated": false,
+				"context_length": 1048576,
+				"max_completion_tokens": 65536
+			},
+			"pricing": {
+				"prompt": "0",
+				"completion": "0",
+				"discount": 0
+			},
+			"context_length": 1048576,
+			"per_request_limits": null,
+			"supported_parameters": [
+				"max_tokens",
+				"response_format",
+				"seed",
+				"temperature",
+				"top_p"
+			],
+			"expiration_date": null,
+			"inference_provider_ids": ["google-ai-studio"],
+			"isFree": false,
+			"mayTrainOnYourPrompts": false,
+			"opencode": {}
+		},
+		{
+			"id": "google/gemini-2.5-flash-image",
+			"name": "Google: Nano Banana (Gemini 2.5 Flash Image)",
+			"created": 1759870431,
+			"description": "Gemini 2.5 Flash Image, a.k.a. \"Nano Banana,\" is now generally available. It is a state of the art image generation model with contextual understanding. It is capable of image generation,...",
+			"architecture": {
+				"modality": "text+image->text+image",
+				"input_modalities": ["image", "text", "pdf"],
+				"output_modalities": ["image", "text"],
+				"tokenizer": "Gemini"
+			},
+			"top_provider": {
+				"is_moderated": false,
+				"context_length": 32768,
+				"max_completion_tokens": 8192
+			},
+			"pricing": {
+				"prompt": "0.0000003",
+				"completion": "0.0000025",
+				"image": "0.0000003",
+				"input_cache_read": "0.00000003",
+				"input_cache_write": "0.0000000833333333333333",
+				"web_search": "0.014",
+				"internal_reasoning": "0.0000025",
+				"discount": 0
+			},
+			"context_length": 32768,
+			"per_request_limits": null,
+			"supported_parameters": [
+				"max_tokens",
+				"response_format",
+				"seed",
+				"stop",
+				"structured_outputs",
+				"temperature",
+				"top_p"
+			],
+			"expiration_date": null,
+			"inference_provider_ids": ["google-vertex", "google-ai-studio"],
+			"isFree": false,
+			"mayTrainOnYourPrompts": false,
+			"opencode": {}
+		},
+		{
+			"id": "openai/gpt-5-image",
+			"name": "OpenAI: GPT-5 Image ($$$$)",
+			"created": 1760447986,
+			"description": "[GPT-5](https://openrouter.ai/openai/gpt-5) Image combines OpenAI's GPT-5 model with state-of-the-art image generation capabilities. It offers major improvements in reasoning, code quality, and user experience while incorporating GPT Image 1's superior instruction following,...",
+			"architecture": {
+				"modality": "text+image+file->text+image",
+				"input_modalities": ["image", "text", "file", "pdf"],
+				"output_modalities": ["image", "text"],
+				"tokenizer": "GPT"
+			},
+			"top_provider": {
+				"is_moderated": true,
+				"context_length": 400000,
+				"max_completion_tokens": 128000
+			},
+			"pricing": {
+				"prompt": "0.00001",
+				"completion": "0.00001",
+				"input_cache_read": "0.00000125",
+				"web_search": "0.01",
+				"discount": 0
+			},
+			"context_length": 400000,
+			"per_request_limits": null,
+			"supported_parameters": [
+				"include_reasoning",
+				"logprobs",
+				"max_tokens",
+				"reasoning",
+				"response_format",
+				"seed",
+				"structured_outputs",
+				"temperature",
+				"top_logprobs",
+				"top_p",
+				"verbosity"
+			],
+			"expiration_date": "2026-12-11",
+			"inference_provider_ids": ["openai"],
+			"isFree": false,
+			"mayTrainOnYourPrompts": false,
+			"opencode": {
+				"ai_sdk_provider": "openai",
+				"variants": {
+					"thinking": {
+						"reasoning": {
+							"enabled": true,
+							"effort": "high"
+						}
+					}
+				},
+				"reasoning_options": []
+			}
+		},
+		{
+			"id": "openai/gpt-audio",
+			"name": "OpenAI: GPT Audio",
+			"created": 1768862569,
+			"description": "The gpt-audio model is OpenAI's first generally available audio model. The new snapshot features an upgraded decoder for more natural sounding voices and maintains better voice consistency. Audio is priced...",
+			"architecture": {
+				"modality": "text+audio->text+audio",
+				"input_modalities": ["text", "audio", "pdf"],
+				"output_modalities": ["text", "audio"],
+				"tokenizer": "GPT"
+			},
+			"top_provider": {
+				"is_moderated": true,
+				"context_length": 128000,
+				"max_completion_tokens": 16384
+			},
+			"pricing": {
+				"prompt": "0.0000025",
+				"completion": "0.00001",
+				"discount": 0
+			},
+			"context_length": 128000,
+			"per_request_limits": null,
+			"supported_parameters": [
+				"frequency_penalty",
+				"logit_bias",
+				"logprobs",
+				"max_tokens",
+				"presence_penalty",
+				"response_format",
+				"seed",
+				"stop",
+				"structured_outputs",
+				"temperature",
+				"tool_choice",
+				"tools",
+				"top_logprobs",
+				"top_p"
+			],
+			"expiration_date": null,
+			"inference_provider_ids": ["openai"],
+			"isFree": false,
+			"mayTrainOnYourPrompts": false,
+			"opencode": {
+				"ai_sdk_provider": "openai"
+			}
+		},
+		{
+			"id": "google/gemini-omni-flash-preview",
+			"name": "Google: Gemini Omni Flash Preview",
+			"created": 1782777600,
+			"description": "Gemini Omni Flash (Preview) is a multimodal model designed for video, image, and text tasks. It is optimized for video generation, offering video output alongside text responses in a single model.",
+			"architecture": {
+				"input_modalities": ["text", "image", "pdf", "video"],
+				"output_modalities": ["text", "video"],
+				"tokenizer": "Other"
+			},
+			"top_provider": {
+				"is_moderated": false,
+				"context_length": 1000000,
+				"max_completion_tokens": 57920
+			},
+			"pricing": {
+				"prompt": "0.0000015",
+				"completion": "0.000009"
+			},
+			"context_length": 1000000,
+			"supported_parameters": [
+				"max_tokens",
+				"temperature",
+				"stop",
+				"reasoning",
+				"include_reasoning",
+				"response_format",
+				"structured_outputs"
+			],
+			"inference_provider_ids": ["google-vertex"],
+			"isFree": false,
+			"mayTrainOnYourPrompts": false,
+			"opencode": {
+				"variants": {
+					"minimal": {
+						"reasoning": {
+							"enabled": true,
+							"effort": "minimal"
+						}
+					},
+					"low": {
+						"reasoning": {
+							"enabled": true,
+							"effort": "low"
+						}
+					},
+					"medium": {
+						"reasoning": {
+							"enabled": true,
+							"effort": "medium"
+						}
+					},
+					"high": {
+						"reasoning": {
+							"enabled": true,
+							"effort": "high"
+						}
+					}
+				},
+				"reasoning_options": [
+					{
+						"type": "effort",
+						"values": ["minimal", "low", "medium", "high"]
+					}
+				]
+			}
+		},
+		{
+			"id": "openrouter/auto",
+			"name": "OpenRouter Auto Router",
+			"created": 1793885889,
+			"description": "Auto is OpenRouter’s flagship model router, built for general-purpose usage. It adapts to each request, choosing cost-optimal models and adjusting reasoning effort. It balances task difficulty, benchmark results, live prices,...",
+			"architecture": {
+				"modality": "text+image+file+audio+video->text+image",
+				"input_modalities": ["text", "image", "audio", "file", "video"],
+				"output_modalities": ["text", "image"],
+				"tokenizer": "Router"
+			},
+			"top_provider": {
+				"is_moderated": false,
+				"context_length": null,
+				"max_completion_tokens": null
+			},
+			"pricing": {
+				"prompt": "-1",
+				"completion": "-1"
+			},
+			"context_length": 2000000,
+			"per_request_limits": null,
+			"supported_parameters": [
+				"frequency_penalty",
+				"include_reasoning",
+				"logit_bias",
+				"logprobs",
+				"max_tokens",
+				"min_p",
+				"prediction",
+				"presence_penalty",
+				"reasoning",
+				"reasoning_effort",
+				"repetition_penalty",
+				"response_format",
+				"seed",
+				"stop",
+				"structured_outputs",
+				"temperature",
+				"tool_choice",
+				"tools",
+				"top_a",
+				"top_k",
+				"top_logprobs",
+				"top_p",
+				"web_search_options"
+			],
+			"expiration_date": null,
+			"inference_provider_ids": ["virtual"],
+			"isFree": false,
+			"mayTrainOnYourPrompts": false,
+			"opencode": {}
+		},
+		{
+			"id": "kilo-auto/balanced",
+			"name": "Auto Balanced",
+			"created": 0,
+			"description": "Great balance of price and capability.",
+			"architecture": {
+				"input_modalities": ["text", "image"],
+				"output_modalities": ["text"],
+				"tokenizer": "Other"
+			},
+			"top_provider": {
+				"is_moderated": false,
+				"context_length": 1000000,
+				"max_completion_tokens": 65536
+			},
+			"pricing": {
+				"prompt": "-1",
+				"completion": "-1",
+				"request": "0",
+				"image": "0",
+				"web_search": "0",
+				"internal_reasoning": "0"
+			},
+			"context_length": 1000000,
+			"supported_parameters": [
+				"max_tokens",
+				"temperature",
+				"tools",
+				"reasoning",
+				"include_reasoning"
+			],
+			"opencode": {},
+			"inference_provider_ids": [],
+			"isFree": false,
+			"mayTrainOnYourPrompts": false,
+			"autoRouting": {
+				"models": [
+					"anthropic/claude-haiku-5.5",
+					"deepseek/deepseek-v4.1-flash-1017",
+					"google/gemini-3.8-flash",
+					"inclusionai/ling-3.1-flash",
+					"mistralai/mistral-large-4-0",
+					"moonshotai/kimi-k3",
+					"openai/gpt-6-luna",
+					"qwen/qwen3.8-flash",
+					"qwen/qwen3.8-max-0902",
+					"stepfun/step-5-preview",
+					"x-ai/grok-4.7",
+					"xiaomi/mimo-v2.6-pro",
+					"z-ai/glm-5.3",
+					"z-ai/glm-5.3-flash"
+				]
+			}
+		},
+		{
+			"id": "openrouter/fusion",
+			"name": "OpenRouter: Fusion",
+			"created": 1781371647,
+			"description": "Fusion turns your prompt into a small multi-model deliberation. A panel of expert models (see below) analyzes your prompt in parallel with web search and web fetch enabled, then a...",
+			"architecture": {
+				"modality": "text->text",
+				"input_modalities": ["text"],
+				"output_modalities": ["text"],
+				"tokenizer": "Router"
+			},
+			"top_provider": {
+				"is_moderated": false,
+				"context_length": null,
+				"max_completion_tokens": null
+			},
+			"pricing": {
+				"prompt": "-1",
+				"completion": "-1"
+			},
+			"context_length": 1000000,
+			"per_request_limits": null,
+			"supported_parameters": [],
+			"expiration_date": null,
+			"inference_provider_ids": ["virtual"],
+			"isFree": false,
+			"mayTrainOnYourPrompts": false,
+			"opencode": {}
+		},
+		{
+			"id": "kilo-auto/free",
+			"name": "Auto Free",
+			"created": 0,
+			"description": "Rotates through available free models. Limited capability and no credits required. [Learn more](https://kilo.ai/docs/code-with-ai/agents/auto-model)\n\n**Warning** Prompts may be logged by the upstream provider and used to improve their services. Not suitable for production or sensitive data workloads.",
+			"architecture": {
+				"input_modalities": ["text"],
+				"output_modalities": ["text"],
+				"tokenizer": "Other"
+			},
+			"top_provider": {
+				"is_moderated": false,
+				"context_length": 256000,
+				"max_completion_tokens": 32768
+			},
+			"pricing": {
+				"prompt": "0",
+				"completion": "0",
+				"input_cache_read": "0",
+				"input_cache_write": "0",
+				"request": "0",
+				"image": "0",
+				"web_search": "0",
+				"internal_reasoning": "0"
+			},
+			"context_length": 256000,
+			"supported_parameters": [
+				"max_tokens",
+				"temperature",
+				"tools",
+				"reasoning",
+				"include_reasoning"
+			],
+			"opencode": {},
+			"inference_provider_ids": [],
+			"preferredIndex": 1,
+			"isFree": true,
+			"mayTrainOnYourPrompts": true,
+			"autoRouting": {
+				"models": [
+					"baidu/ernie-5.5-flash-preview:free",
+					"dots-studio/dots-3-note-preview:free",
+					"nvidia/nemotron-3-ultra-550b-a55b:free",
+					"nvidia/nemotron-3.5-super-vl:free",
+					"stealth/glyph-cluster"
+				]
+			}
+		},
+		{
+			"id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+			"name": "NVIDIA: Nemotron 3 Nano Omni (free)",
+			"created": 1777393095,
+			"description": "NVIDIA Nemotron™ 3 Nano Omni is a 30B-A3B open multimodal model designed to function as a perception and context sub-agent in enterprise agent systems. It accepts text, image, video, and...\n\n**Terms of service** For NVIDIA free endpoints (Super/Ultra/etc): Trial use only - do not submit personal or confidential data. Your use is logged for security purposes and to improve NVIDIA products and services. The logged session data for improvement purposes is not linked to your identity or any persistent identifier. For more information about our data processing practices, see our [Privacy Policy](https://www.nvidia.com/en-us/about-nvidia/privacy-policy/). By interacting with this endpoint, you consent to our collection, recording, and use of such information and the [NVIDIA API Trial Terms of Service](https://assets.ngc.nvidia.com/products/api-catalog/legal/NVIDIA%20API%20Trial%20Terms%20of%20Service.pdf).",
+			"architecture": {
+				"modality": "text+image+audio+video->text",
+				"input_modalities": ["text", "audio", "image", "video"],
+				"output_modalities": ["text"],
+				"tokenizer": "Other"
+			},
+			"top_provider": {
+				"is_moderated": false,
+				"context_length": 256000,
+				"max_completion_tokens": 65536
+			},
+			"pricing": {
+				"prompt": "0",
+				"completion": "0",
+				"discount": 0
+			},
+			"context_length": 256000,
+			"per_request_limits": null,
+			"supported_parameters": [
+				"include_reasoning",
+				"max_tokens",
+				"reasoning",
+				"seed",
+				"temperature",
+				"tool_choice",
+				"tools",
+				"top_p"
+			],
+			"expiration_date": null,
+			"inference_provider_ids": ["nvidia"],
+			"isFree": true,
+			"mayTrainOnYourPrompts": true,
+			"opencode": {
+				"variants": {
+					"instant": {
+						"reasoning": {
+							"enabled": false,
+							"effort": "none"
+						}
+					},
+					"thinking": {
+						"reasoning": {
+							"enabled": true,
+							"effort": "high"
+						}
+					}
+				},
+				"reasoning_options": [
+					{
+						"type": "toggle"
+					}
+				]
+			}
+		},
+		{
+			"id": "google/gemini-4-hydrogen",
+			"name": "Google: Gemini 4 Hydrogen",
+			"created": 1794506460,
+			"description": "Gemini 4 Hydrogen is the high-efficiency workhorse model of the Gemini 4 family from Google, built for high-throughput agentic workflows, coding and multi-model routing at lower cost and latency than...",
+			"architecture": {
+				"modality": "text+image+file+audio+video->text",
+				"input_modalities": ["audio", "file", "image", "text", "video", "pdf"],
+				"output_modalities": ["text"],
+				"tokenizer": "Gemini"
+			},
+			"top_provider": {
+				"is_moderated": false,
+				"context_length": 1048576,
+				"max_completion_tokens": 943718
+			},
+			"pricing": {
+				"prompt": "0.00000075",
+				"completion": "0.00000375",
+				"image": "0.00000075",
+				"input_cache_read": "0.0000000375",
+				"input_cache_write": "0.0000000416666666666667",
+				"web_search": "0.014",
+				"internal_reasoning": "0.00000375",
+				"discount": 0
+			},
+			"context_length": 1048576,
+			"per_request_limits": null,
+			"supported_parameters": [
+				"include_reasoning",
+				"max_tokens",
+				"reasoning",
+				"reasoning_effort",
+				"response_format",
+				"seed",
+				"stop",
+				"structured_outputs",
+				"temperature",
+				"tool_choice",
+				"tools",
+				"top_p"
+			],
+			"expiration_date": null,
+			"inference_provider_ids": ["google-vertex", "google-ai-studio"],
+			"isFree": false,
+			"mayTrainOnYourPrompts": false,
+			"opencode": {
+				"variants": {
+					"low": {
+						"reasoning": {
+							"enabled": true,
+							"effort": "low"
+						}
+					},
+					"medium": {
+						"reasoning": {
+							"enabled": true,
+							"effort": "medium"
+						}
+					},
+					"high": {
+						"reasoning": {
+							"enabled": true,
+							"effort": "high"
+						}
+					},
+					"xhigh": {
+						"reasoning": {
+							"enabled": true,
+							"effort": "xhigh"
+						}
+					}
+				},
+				"reasoning_options": [
+					{
+						"type": "effort",
+						"values": ["low", "medium", "high", "xhigh"]
+					}
+				]
+			}
+		}
+	]
+}
