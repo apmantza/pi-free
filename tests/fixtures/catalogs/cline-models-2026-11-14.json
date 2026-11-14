@@ -1,0 +1,526 @@
+{
+	"_captured": "2026-11-14, public /models endpoint, rows verbatim (#676)",
+	"data": [
+		{
+			"id": "google/lyria-3-pro-preview",
+			"canonical_slug": "google/lyria-3-pro-preview-20260330",
+			"hugging_face_id": "",
+			"name": "Google: Lyria 3 Pro Preview",
+			"created": 1774907286,
+			"description": "Full-length songs are priced at $0.08 per song. Lyria 3 is Google's family of music generation models, available through the Gemini API. With Lyria 3, you can generate high-quality, 48kHz...",
+			"context": 0,
+			"context_length": 1048576,
+			"architecture": {
+				"modality": "text+image->text+audio",
+				"input_modalities": ["text", "image"],
+				"output_modalities": ["text", "audio"],
+				"tokenizer": "Other",
+				"instruct_type": null
+			},
+			"pricing": {
+				"prompt": "0",
+				"completion": "0"
+			},
+			"top_provider": {
+				"context_length": 1048576,
+				"max_completion_tokens": 65536,
+				"is_moderated": false
+			},
+			"per_request_limits": null,
+			"supported_parameters": [
+				"max_tokens",
+				"response_format",
+				"seed",
+				"temperature",
+				"top_p"
+			],
+			"default_parameters": {
+				"temperature": null,
+				"top_p": null,
+				"frequency_penalty": null
+			},
+			"expiration_date": null,
+			"model_provider": "",
+			"provider_human_id": "",
+			"capabilities": null
+		},
+		{
+			"id": "google/lyria-3-clip-preview",
+			"canonical_slug": "google/lyria-3-clip-preview-20260330",
+			"hugging_face_id": "",
+			"name": "Google: Lyria 3 Clip Preview",
+			"created": 1774907255,
+			"description": "30 second duration clips are priced at $0.04 per clip. Lyria 3 is Google's family of music generation models, available through the Gemini API. With Lyria 3, you can generate...",
+			"context": 0,
+			"context_length": 1048576,
+			"architecture": {
+				"modality": "text+image->text+audio",
+				"input_modalities": ["text", "image"],
+				"output_modalities": ["text", "audio"],
+				"tokenizer": "Other",
+				"instruct_type": null
+			},
+			"pricing": {
+				"prompt": "0",
+				"completion": "0"
+			},
+			"top_provider": {
+				"context_length": 1048576,
+				"max_completion_tokens": 65536,
+				"is_moderated": false
+			},
+			"per_request_limits": null,
+			"supported_parameters": [
+				"max_tokens",
+				"response_format",
+				"seed",
+				"temperature",
+				"top_p"
+			],
+			"default_parameters": {
+				"temperature": null,
+				"top_p": null,
+				"frequency_penalty": null
+			},
+			"expiration_date": null,
+			"model_provider": "",
+			"provider_human_id": "",
+			"capabilities": null
+		},
+		{
+			"id": "google/gemini-2.5-flash-image",
+			"canonical_slug": "google/gemini-2.5-flash-image",
+			"hugging_face_id": "",
+			"name": "Google: Nano Banana (Gemini 2.5 Flash Image)",
+			"created": 1759870431,
+			"description": "Gemini 2.5 Flash Image, a.k.a. \"Nano Banana,\" is now generally available. It is a state of the art image generation model with contextual understanding. It is capable of image generation,...",
+			"context": 0,
+			"context_length": 32768,
+			"architecture": {
+				"modality": "text+image->text+image",
+				"input_modalities": ["image", "text"],
+				"output_modalities": ["image", "text"],
+				"tokenizer": "Gemini",
+				"instruct_type": null
+			},
+			"pricing": {
+				"prompt": "0.0000003",
+				"completion": "0.0000025",
+				"web_search": "0.014",
+				"input_cache_read": "0.00000003"
+			},
+			"top_provider": {
+				"context_length": 32768,
+				"max_completion_tokens": 8192,
+				"is_moderated": false
+			},
+			"per_request_limits": null,
+			"supported_parameters": [
+				"max_tokens",
+				"response_format",
+				"seed",
+				"stop",
+				"structured_outputs",
+				"temperature",
+				"top_p"
+			],
+			"default_parameters": {
+				"temperature": null,
+				"top_p": null,
+				"frequency_penalty": null
+			},
+			"expiration_date": null,
+			"model_provider": "",
+			"provider_human_id": "",
+			"capabilities": null
+		},
+		{
+			"id": "openai/gpt-5-image",
+			"canonical_slug": "openai/gpt-5-image",
+			"hugging_face_id": "",
+			"name": "OpenAI: GPT-5 Image",
+			"created": 1760447986,
+			"description": "[GPT-5](https://openrouter.ai/openai/gpt-5) Image combines OpenAI's GPT-5 model with state-of-the-art image generation capabilities. It offers major improvements in reasoning, code quality, and user experience while incorporating GPT Image 1's superior instruction following,...",
+			"context": 0,
+			"context_length": 400000,
+			"architecture": {
+				"modality": "text+image+file->text+image",
+				"input_modalities": ["image", "text", "file"],
+				"output_modalities": ["image", "text"],
+				"tokenizer": "GPT",
+				"instruct_type": null
+			},
+			"pricing": {
+				"prompt": "0.00001",
+				"completion": "0.00001",
+				"web_search": "0.01",
+				"input_cache_read": "0.00000125"
+			},
+			"top_provider": {
+				"context_length": 400000,
+				"max_completion_tokens": 128000,
+				"is_moderated": true
+			},
+			"per_request_limits": null,
+			"supported_parameters": [
+				"include_reasoning",
+				"logprobs",
+				"max_tokens",
+				"reasoning",
+				"response_format",
+				"seed",
+				"structured_outputs",
+				"temperature",
+				"top_logprobs",
+				"top_p",
+				"verbosity"
+			],
+			"default_parameters": {
+				"temperature": null,
+				"top_p": null,
+				"frequency_penalty": null
+			},
+			"expiration_date": "2026-12-11",
+			"model_provider": "",
+			"provider_human_id": "",
+			"capabilities": null
+		},
+		{
+			"id": "google/gemini-omni-1.2-flash",
+			"canonical_slug": "google/gemini-omni-1.2-flash-20261105",
+			"hugging_face_id": "",
+			"name": "Google: Gemini Omni 1.2 Flash",
+			"created": 1793898961,
+			"description": "Gemini Omni 1.2 Flash is Google's native multimodal video generation and editing model, the successor to Gemini Omni 1.1 Flash. It generates clips up to 15 seconds long with native...",
+			"context": 0,
+			"context_length": 131072,
+			"architecture": {
+				"modality": "text+image+video->text+video",
+				"input_modalities": ["text", "image", "video"],
+				"output_modalities": ["text", "video"],
+				"tokenizer": "Gemini",
+				"instruct_type": null
+			},
+			"pricing": {
+				"prompt": "0.0000015",
+				"completion": "0.000009",
+				"web_search": "0.014"
+			},
+			"top_provider": {
+				"context_length": 131072,
+				"max_completion_tokens": 65536,
+				"is_moderated": false
+			},
+			"per_request_limits": null,
+			"supported_parameters": [
+				"include_reasoning",
+				"max_tokens",
+				"reasoning",
+				"reasoning_effort",
+				"seed",
+				"temperature",
+				"top_p"
+			],
+			"default_parameters": {
+				"temperature": null,
+				"top_p": null,
+				"frequency_penalty": null
+			},
+			"expiration_date": null,
+			"model_provider": "",
+			"provider_human_id": "",
+			"capabilities": null
+		},
+		{
+			"id": "openai/gpt-audio",
+			"canonical_slug": "openai/gpt-audio",
+			"hugging_face_id": "",
+			"name": "OpenAI: GPT Audio",
+			"created": 1768862569,
+			"description": "The gpt-audio model is OpenAI's first generally available audio model. The new snapshot features an upgraded decoder for more natural sounding voices and maintains better voice consistency. Audio is priced...",
+			"context": 0,
+			"context_length": 128000,
+			"architecture": {
+				"modality": "text+audio->text+audio",
+				"input_modalities": ["text", "audio"],
+				"output_modalities": ["text", "audio"],
+				"tokenizer": "GPT",
+				"instruct_type": null
+			},
+			"pricing": {
+				"prompt": "0.0000025",
+				"completion": "0.00001"
+			},
+			"top_provider": {
+				"context_length": 128000,
+				"max_completion_tokens": 16384,
+				"is_moderated": true
+			},
+			"per_request_limits": null,
+			"supported_parameters": [
+				"frequency_penalty",
+				"logit_bias",
+				"logprobs",
+				"max_tokens",
+				"presence_penalty",
+				"response_format",
+				"seed",
+				"stop",
+				"structured_outputs",
+				"temperature",
+				"tool_choice",
+				"tools",
+				"top_logprobs",
+				"top_p"
+			],
+			"default_parameters": {
+				"temperature": null,
+				"top_p": null,
+				"frequency_penalty": null
+			},
+			"expiration_date": null,
+			"model_provider": "",
+			"provider_human_id": "",
+			"capabilities": null
+		},
+		{
+			"id": "openrouter/auto",
+			"canonical_slug": "openrouter/auto",
+			"hugging_face_id": "",
+			"name": "Auto Router",
+			"created": 1793885889,
+			"description": "Auto is OpenRouter’s flagship model router, built for general-purpose usage. It adapts to each request, choosing cost-optimal models and adjusting reasoning effort. It balances task difficulty, benchmark results, live prices,...",
+			"context": 0,
+			"context_length": 2000000,
+			"architecture": {
+				"modality": "text+image+file+audio+video->text+image",
+				"input_modalities": ["text", "image", "audio", "file", "video"],
+				"output_modalities": ["text", "image"],
+				"tokenizer": "Router",
+				"instruct_type": null
+			},
+			"pricing": {
+				"prompt": "-1",
+				"completion": "-1"
+			},
+			"top_provider": {
+				"context_length": 0,
+				"max_completion_tokens": 0,
+				"is_moderated": false
+			},
+			"per_request_limits": null,
+			"supported_parameters": [
+				"frequency_penalty",
+				"include_reasoning",
+				"logit_bias",
+				"logprobs",
+				"max_tokens",
+				"min_p",
+				"prediction",
+				"presence_penalty",
+				"reasoning",
+				"reasoning_effort",
+				"repetition_penalty",
+				"response_format",
+				"seed",
+				"stop",
+				"structured_outputs",
+				"temperature",
+				"tool_choice",
+				"tools",
+				"top_a",
+				"top_k",
+				"top_logprobs",
+				"top_p",
+				"web_search_options"
+			],
+			"default_parameters": {
+				"temperature": null,
+				"top_p": null,
+				"frequency_penalty": null
+			},
+			"expiration_date": null,
+			"model_provider": "",
+			"provider_human_id": "",
+			"capabilities": null
+		},
+		{
+			"id": "openrouter/fusion",
+			"canonical_slug": "openrouter/fusion",
+			"hugging_face_id": "",
+			"name": "OpenRouter: Fusion",
+			"created": 1781371647,
+			"description": "Fusion turns your prompt into a small multi-model deliberation. A panel of expert models (see below) analyzes your prompt in parallel with web search and web fetch enabled, then a...",
+			"context": 0,
+			"context_length": 1000000,
+			"architecture": {
+				"modality": "text->text",
+				"input_modalities": ["text"],
+				"output_modalities": ["text"],
+				"tokenizer": "Router",
+				"instruct_type": null
+			},
+			"pricing": {
+				"prompt": "-1",
+				"completion": "-1"
+			},
+			"top_provider": {
+				"context_length": 0,
+				"max_completion_tokens": 0,
+				"is_moderated": false
+			},
+			"per_request_limits": null,
+			"supported_parameters": [],
+			"default_parameters": {
+				"temperature": null,
+				"top_p": null,
+				"frequency_penalty": null
+			},
+			"expiration_date": null,
+			"model_provider": "",
+			"provider_human_id": "",
+			"capabilities": null
+		},
+		{
+			"id": "nvidia/switchyard",
+			"canonical_slug": "nvidia/switchyard",
+			"hugging_face_id": "",
+			"name": "NVIDIA: Switchyard",
+			"created": 1790025947,
+			"description": "Switchyard is an open-source model routing system that switches between multiple models to optimize the cost of requests. By default it will use OpenRouter market data to select the most...",
+			"context": 0,
+			"context_length": 1000000,
+			"architecture": {
+				"modality": "text->text",
+				"input_modalities": ["text"],
+				"output_modalities": ["text"],
+				"tokenizer": "Router",
+				"instruct_type": null
+			},
+			"pricing": {
+				"prompt": "-1",
+				"completion": "-1"
+			},
+			"top_provider": {
+				"context_length": 0,
+				"max_completion_tokens": 0,
+				"is_moderated": false
+			},
+			"per_request_limits": null,
+			"supported_parameters": [],
+			"default_parameters": {
+				"temperature": null,
+				"top_p": null,
+				"frequency_penalty": null
+			},
+			"expiration_date": null,
+			"model_provider": "",
+			"provider_human_id": "",
+			"capabilities": null
+		},
+		{
+			"id": "inclusionai/ling-3.2-flash:free",
+			"canonical_slug": "inclusionai/ling-3.2-flash-20261113",
+			"hugging_face_id": "inclusionAI/Ling-3.2-flash",
+			"name": "inclusionAI: Ling 3.2 Flash (free)",
+			"created": 1794591958,
+			"description": "Ling 3.2 Flash is a hybrid reasoning model from inclusionAI that accepts text and image input, with a 1M-token context window and up to 200 images per request. Thinking can...",
+			"context": 0,
+			"context_length": 1048576,
+			"architecture": {
+				"modality": "text+image->text",
+				"input_modalities": ["text", "image"],
+				"output_modalities": ["text"],
+				"tokenizer": "Other",
+				"instruct_type": null
+			},
+			"pricing": {
+				"prompt": "0",
+				"completion": "0"
+			},
+			"top_provider": {
+				"context_length": 1048576,
+				"max_completion_tokens": 262144,
+				"is_moderated": false
+			},
+			"per_request_limits": null,
+			"supported_parameters": [
+				"frequency_penalty",
+				"include_reasoning",
+				"max_tokens",
+				"presence_penalty",
+				"reasoning",
+				"response_format",
+				"seed",
+				"stop",
+				"structured_outputs",
+				"temperature",
+				"tool_choice",
+				"tools",
+				"top_k",
+				"top_p"
+			],
+			"default_parameters": {
+				"temperature": null,
+				"top_p": null,
+				"frequency_penalty": null
+			},
+			"expiration_date": null,
+			"model_provider": "",
+			"provider_human_id": "",
+			"capabilities": null
+		},
+		{
+			"id": "google/gemini-4-hydrogen",
+			"canonical_slug": "google/gemini-4-hydrogen-20261112",
+			"hugging_face_id": "",
+			"name": "Google: Gemini 4 Hydrogen",
+			"created": 1794506460,
+			"description": "Gemini 4 Hydrogen is the high-efficiency workhorse model of the Gemini 4 family from Google, built for high-throughput agentic workflows, coding and multi-model routing at lower cost and latency than...",
+			"context": 0,
+			"context_length": 1048576,
+			"architecture": {
+				"modality": "text+image+file+audio+video->text",
+				"input_modalities": ["audio", "file", "image", "text", "video"],
+				"output_modalities": ["text"],
+				"tokenizer": "Gemini",
+				"instruct_type": null
+			},
+			"pricing": {
+				"prompt": "0.0000015",
+				"completion": "0.0000075",
+				"web_search": "0.014",
+				"input_cache_read": "0.000000075"
+			},
+			"top_provider": {
+				"context_length": 1048576,
+				"max_completion_tokens": 943718,
+				"is_moderated": false
+			},
+			"per_request_limits": null,
+			"supported_parameters": [
+				"include_reasoning",
+				"max_tokens",
+				"reasoning",
+				"reasoning_effort",
+				"response_format",
+				"seed",
+				"stop",
+				"structured_outputs",
+				"temperature",
+				"tool_choice",
+				"tools",
+				"top_p"
+			],
+			"default_parameters": {
+				"temperature": null,
+				"top_p": null,
+				"frequency_penalty": null
+			},
+			"expiration_date": null,
+			"model_provider": "",
+			"provider_human_id": "",
+			"capabilities": null
+		}
+	]
+}
