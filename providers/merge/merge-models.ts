@@ -17,8 +17,8 @@
  * CHEAPEST available route's price and the LARGEST context/output limits so
  * no capability is understated.
  *
- * Pricing units: pi-free Model.cost fields are USD per token (OpenRouter
- * convention) -> divide per-million values by 1e6. Route A authority is
+ * Pricing units: Model.cost fields are USD per million tokens (pi-ai's
+ * calculateCost divides by 1e6), so the per-million values publish unchanged. Route A authority is
  * stamped (_pricingKnown) ONLY when both standard-tier prices arrived as
  * genuine non-negative finite numbers on at least one available vendor;
  * otherwise costs stay 0 without the stamp and detection degrades to Route B.
@@ -199,10 +199,10 @@ export function mapMergeModel(
 			? (["text", "image"] as const)
 			: (["text"] as const),
 		cost: {
-			input: pricingKnown ? (summary.inputPerMillion ?? 0) / 1_000_000 : 0,
-			output: pricingKnown ? (summary.outputPerMillion ?? 0) / 1_000_000 : 0,
+			input: pricingKnown ? (summary.inputPerMillion ?? 0) : 0,
+			output: pricingKnown ? (summary.outputPerMillion ?? 0) : 0,
 			// Clamp: a malformed negative cache price must not publish negative cost.
-			cacheRead: Math.max(0, summary.cacheReadPerMillion ?? 0) / 1_000_000,
+			cacheRead: Math.max(0, summary.cacheReadPerMillion ?? 0),
 			cacheWrite: 0,
 		},
 		contextWindow: summary.contextWindow ?? FALLBACK_CONTEXT_WINDOW,

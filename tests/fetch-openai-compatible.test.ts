@@ -183,8 +183,9 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 			"sk-test",
 		);
 
-		expect(models[0]!.cost.input).toBe(0.000003);
-		expect(models[0]!.cost.output).toBe(0.000015);
+		// USD per token in, USD per million tokens out (#678).
+		expect(models[0]!.cost.input).toBe(3);
+		expect(models[0]!.cost.output).toBe(15);
 	});
 
 	it("reads per-model pricing from API (string)", async () => {
@@ -203,8 +204,8 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 			"sk-test",
 		);
 
-		expect(models[0]!.cost.input).toBe(0.0000045);
-		expect(models[0]!.cost.output).toBe(0.000009);
+		expect(models[0]!.cost.input).toBe(4.5);
+		expect(models[0]!.cost.output).toBe(9);
 	});
 
 	it("per-model pricing overrides defaults", async () => {
@@ -212,7 +213,7 @@ describe("fetchOpenAICompatibleModels — extended fields", () => {
 			data: [
 				{
 					id: "test-model",
-					pricing: { prompt: 1.5, completion: 4.0 },
+					pricing: { prompt: 0.0000015, completion: 0.000004 },
 				},
 			],
 		});

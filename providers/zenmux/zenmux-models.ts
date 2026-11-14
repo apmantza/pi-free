@@ -31,7 +31,7 @@ interface ZenMuxModel {
 	};
 }
 
-/** Extract ZenMux's per-million-token price as a per-token Pi cost. */
+/** Extract ZenMux's USD-per-million price, the unit of `Model.cost`. */
 function extractZenmuxPrice(
 	pricings: ZenMuxModel["pricings"],
 	key: "prompt" | "completion" | "input_cache_read",
@@ -39,7 +39,7 @@ function extractZenmuxPrice(
 	const entries = pricings?.[key];
 	if (!entries || entries.length === 0) return 0;
 	// Length check above proves defined.
-	return (entries[0]!.value ?? 0) / 1_000_000;
+	return entries[0]!.value ?? 0;
 }
 
 /**

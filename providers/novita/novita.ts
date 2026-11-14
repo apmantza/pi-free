@@ -47,6 +47,9 @@ import { novitaAuth } from "./novita-auth.ts";
 
 const _logger = createLogger("novita");
 
+/** Novita's integer `*_price_per_m` units per USD (3000 = $0.30/M). */
+const NOVITA_PRICE_UNITS_PER_USD = 10_000;
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -143,9 +146,13 @@ export async function fetchNovitaModels(
 				isLikelyReasoningModel({ id: m.id, name });
 			const hasVision = m.input_modalities?.includes("image") ?? false;
 
-			// Novita pricing is per-MILLION tokens. Divide for per-token (Pi convention).
-			const inputCost = (m.input_token_price_per_m ?? 0) / 1_000_000;
-			const outputCost = (m.output_token_price_per_m ?? 0) / 1_000_000;
+			// `*_price_per_m` is in 1/10,000 USD per million tokens: 3000 is
+			// listed beside `price_per_m_decimal: "0.3"` ($0.30/M). `Model.cost`
+			// is USD per million.
+			const inputCost =
+				(m.input_token_price_per_m ?? 0) / NOVITA_PRICE_UNITS_PER_USD;
+			const outputCost =
+				(m.output_token_price_per_m ?? 0) / NOVITA_PRICE_UNITS_PER_USD;
 			const hasPricing =
 				m.input_token_price_per_m !== undefined ||
 				m.output_token_price_per_m !== undefined;

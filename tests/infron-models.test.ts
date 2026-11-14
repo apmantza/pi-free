@@ -46,7 +46,7 @@ describe("mapInfronModel", () => {
 		expect(model?.maxTokens).toBe(65_536);
 	});
 
-	it("converts per-million USD min prices to per-token cost", () => {
+	it("publishes per-million USD min prices unchanged", () => {
 		const model = mapInfronModel(
 			catalogEntry({
 				id: "google/gemini-3.1-flash-lite",
@@ -57,8 +57,8 @@ describe("mapInfronModel", () => {
 		);
 		// Live-verified unit: catalog reports USD per million tokens
 		// (0.125/0.75 matches Google's list pricing for this model).
-		expect(model?.cost.input).toBeCloseTo(0.125e-6, 12);
-		expect(model?.cost.output).toBeCloseTo(0.75e-6, 12);
+		expect(model?.cost.input).toBe(0.125);
+		expect(model?.cost.output).toBe(0.75);
 		expect(model?.cost.cacheRead).toBe(0);
 		expect(model?.cost.cacheWrite).toBe(0);
 		expect(

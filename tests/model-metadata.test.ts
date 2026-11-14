@@ -150,10 +150,10 @@ describe("models.dev metadata enrichment", () => {
 		const model = enriched2[0]!;
 
 		expect(model.cost).toEqual({
-			input: 0.000002,
-			output: 0.000008,
-			cacheRead: 0.0000005,
-			cacheWrite: 0.000001,
+			input: 2,
+			output: 8,
+			cacheRead: 0.5,
+			cacheWrite: 1,
 		});
 	});
 

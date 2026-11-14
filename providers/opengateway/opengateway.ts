@@ -25,6 +25,7 @@ import {
 	PROVIDER_OPENGATEWAY,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
+import { perMillionFromPerToken } from "../../lib/model-map.ts";
 import { registerNativeOpenAIProvider } from "../../lib/native-provider.ts";
 import {
 	getProxyModelCompat,
@@ -172,9 +173,12 @@ function normalizeModelId(id: string): string {
 	return id;
 }
 
+/** OpenGateway quotes USD per token; `Model.cost` is USD per million. */
 function parsePrice(value: string | number | null | undefined): number {
 	const parsed = typeof value === "number" ? value : Number(value);
-	return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+	return Number.isFinite(parsed) && parsed >= 0
+		? perMillionFromPerToken(parsed)
+		: 0;
 }
 
 function hasCompletePricing(

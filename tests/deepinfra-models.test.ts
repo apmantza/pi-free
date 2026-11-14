@@ -84,7 +84,8 @@ describe("fetchDeepinfraModels — non-chat filtering", () => {
 
 		const models = await fetchDeepinfraModels("sk-test");
 		expect(models.map((m) => m.id)).toEqual(["Qwen/Qwen3.5-9B"]);
-		expect(models[0]?.cost.input).toBeCloseTo(1e-7);
+		// USD per million tokens, published unchanged (#678).
+		expect(models[0]?.cost.input).toBe(0.1);
 	});
 
 	it("keeps a zero-priced chat-tagged model (legitimate free chat)", async () => {

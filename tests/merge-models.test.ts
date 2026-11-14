@@ -102,8 +102,8 @@ describe("mapMergeModel", () => {
 			}),
 		);
 		// Price comes from the cheap vendor; window/caps take the widest/ORed.
-		expect(model?.cost.input).toBeCloseTo(1e-6, 12);
-		expect(model?.cost.output).toBeCloseTo(4e-6, 12);
+		expect(model?.cost.input).toBe(1);
+		expect(model?.cost.output).toBe(4);
 		expect(model?.contextWindow).toBe(2_000_000);
 		expect(model?.maxTokens).toBe(32_768);
 		expect(model?.input).toEqual(["text", "image"]);
@@ -126,7 +126,7 @@ describe("mapMergeModel", () => {
 		);
 		expect(model).toBeDefined();
 		// The $0 deprecated route must not leak into the published price.
-		expect(model?.cost.input).toBeCloseTo(2e-6, 12);
+		expect(model?.cost.input).toBe(2);
 	});
 
 	it("rejects models with no available text-chat vendor route", () => {

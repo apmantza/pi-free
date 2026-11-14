@@ -29,6 +29,7 @@ import {
 	PROVIDER_ROUTEWAY,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
+import { perMillionFromPerToken } from "../../lib/model-map.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import {
 	getProxyModelCompat,
@@ -72,14 +73,15 @@ interface RoutewayModel {
 	};
 }
 
-function parsePricePerToken(price: RoutewayPrice | undefined): number {
+/** Routeway quotes per-token or per-million; `Model.cost` is per million. */
+function parsePricePerMillion(price: RoutewayPrice | undefined): number {
 	if (!price) return 0;
 	if (typeof price.price_per_token_usd === "string") {
 		const parsed = Number.parseFloat(price.price_per_token_usd);
-		if (!Number.isNaN(parsed)) return parsed;
+		if (!Number.isNaN(parsed)) return perMillionFromPerToken(parsed);
 	}
 	if (typeof price.price_per_million_t === "number") {
-		return price.price_per_million_t / 1_000_000;
+		return price.price_per_million_t;
 	}
 	return 0;
 }
@@ -97,10 +99,10 @@ function mapRoutewayModel(
 ): ProviderModelConfig & { _pricingKnown?: boolean } {
 	const rawName = model.short_name || model.name || model.id;
 	const name = cleanModelName(rawName);
-	const inputCost = parsePricePerToken(model.pricing?.input);
-	const outputCost = parsePricePerToken(model.pricing?.output);
-	const cacheRead = parsePricePerToken(model.pricing?.caching?.read);
-	const cacheWrite = parsePricePerToken(model.pricing?.caching?.write);
+	const inputCost = parsePricePerMillion(model.pricing?.input);
+	const outputCost = parsePricePerMillion(model.pricing?.output);
+	const cacheRead = parsePricePerMillion(model.pricing?.caching?.read);
+	const cacheWrite = parsePricePerMillion(model.pricing?.caching?.write);
 	const hasPricing = Boolean(model.pricing?.input || model.pricing?.output);
 	const reasoning =
 		model.capabilities?.reasoning === true ||

@@ -42,15 +42,15 @@ function catalogEntry(overrides: Record<string, unknown> = {}) {
 }
 
 describe("mapVeniceModel", () => {
-	it("maps paid pricing from per-million USD to per-token cost", () => {
+	it("publishes per-million USD pricing unchanged", () => {
 		const model = mapVeniceModel(catalogEntry());
 		expect(model).toBeDefined();
 		expect(model?.id).toBe("claude-sonnet-4-6");
-		// Venice reports USD per million tokens; pi-free stores per token.
-		expect(model?.cost.input).toBeCloseTo(3.6e-6, 12);
-		expect(model?.cost.output).toBeCloseTo(1.8e-5, 12);
-		expect(model?.cost.cacheRead).toBeCloseTo(3.6e-7, 12);
-		expect(model?.cost.cacheWrite).toBeCloseTo(4.5e-6, 12);
+		// Venice reports USD per million tokens, the unit of Model.cost (#678).
+		expect(model?.cost.input).toBe(3.6);
+		expect(model?.cost.output).toBe(18);
+		expect(model?.cost.cacheRead).toBe(0.36);
+		expect(model?.cost.cacheWrite).toBe(4.5);
 	});
 
 	it("maps capability flags to reasoning and vision input", () => {

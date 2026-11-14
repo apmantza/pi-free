@@ -170,11 +170,12 @@ describe("fetchOpenRouterCompatibleModels", () => {
 			name: "Reasoning Model",
 			reasoning: true,
 			thinkingLevelMap: { off: "none" },
+			// USD per token in, USD per million tokens out (#678).
 			cost: {
-				input: 0.000001,
-				output: 0.000002,
-				cacheRead: 0.0000001,
-				cacheWrite: 0.0000003,
+				input: 1,
+				output: 2,
+				cacheRead: 0.1,
+				cacheWrite: 0.3,
 			},
 			contextWindow: 256000,
 			maxTokens: 32768,

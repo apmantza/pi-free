@@ -101,11 +101,11 @@ export function mapCommandCodeModel(
 			? (["text", "image"] as const)
 			: (["text"] as const),
 		cost: {
-			// Catalog prices are USD per million tokens -> pi-free stores per token.
-			input: (cost?.input ?? 0) / 1_000_000,
-			output: (cost?.output ?? 0) / 1_000_000,
-			cacheRead: (cost?.cacheRead ?? 0) / 1_000_000,
-			cacheWrite: (cost?.cacheWrite ?? 0) / 1_000_000,
+			// Table prices are USD per million tokens, the unit of `Model.cost`.
+			input: cost?.input ?? 0,
+			output: cost?.output ?? 0,
+			cacheRead: cost?.cacheRead ?? 0,
+			cacheWrite: cost?.cacheWrite ?? 0,
 		},
 		contextWindow:
 			asPositiveNumber(entry.context_length) ?? FALLBACK_CONTEXT_WINDOW,

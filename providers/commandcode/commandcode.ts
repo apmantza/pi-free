@@ -23,7 +23,7 @@
  *
  * Pricing: curated USD-per-M table ported from patlux/pi-commandcode-provider
  * (MIT), verified against CommandCode's official pricing page 2026-08-25;
- * converted to pi-free's per-token cost unit at mapping time.
+ * published unchanged (`Model.cost` is USD per million tokens).
  *
  * Setup:
  *   COMMAND_CODE_API_KEY=user_...

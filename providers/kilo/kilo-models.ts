@@ -65,23 +65,6 @@ export function applyKiloCompat(
 // Fetch
 // =============================================================================
 
-/**
- * Routers (kilo-auto/*, openrouter/fusion, nvidia/switchyard, ...) list
- * prompt/completion "-1": billed at the routed model's rate. That is not a
- * price, so it must not become a negative cost; the model is stamped
- * pricing-unknown instead. Free/paid still comes from Kilo's `isFree` flag.
- */
-function unpriceRoutedModel(model: ProviderModelConfig): ProviderModelConfig {
-	if (!isChatModelConfig(model)) return model;
-	if (model.cost.input >= 0 && model.cost.output >= 0) return model;
-	const unpriced: typeof model & { _pricingKnown: false } = {
-		...model,
-		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		_pricingKnown: false,
-	};
-	return unpriced;
-}
-
 async function fetchKiloModels(options?: {
 	token?: string | undefined;
 	freeOnly?: boolean;
@@ -99,7 +82,9 @@ async function fetchKiloModels(options?: {
 		excludeOutputModalities: ["image", "audio", "video", "speech"],
 	});
 
-	return applyHidden(models.map(unpriceRoutedModel), PROVIDER_KILO);
+	// Router rows ("-1" prices) arrive pricing-unknown from the shared mapper;
+	// free/paid comes from Kilo's `isFree` flag.
+	return applyHidden(models, PROVIDER_KILO);
 }
 
 /**

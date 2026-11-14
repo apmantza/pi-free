@@ -4,34 +4,12 @@
  */
 
 import { DEFAULT_FETCH_TIMEOUT_MS } from "../constants.ts";
+import type { OpenRouterCatalogRow } from "../lib/model-map.ts";
 import { safeEnrichModelsWithModelsDev } from "../lib/model-metadata.ts";
 import type { ProviderModelConfig } from "../lib/types.ts";
 import { fetchWithRetry, mapOpenRouterModel } from "../lib/util.ts";
 
-interface OpenRouterCompatibleModel {
-	id: string;
-	name: string;
-	context_length: number;
-	max_completion_tokens?: number | null;
-	pricing?: {
-		prompt?: string | null;
-		completion?: string | null;
-		input_cache_read?: string | null;
-		input_cache_write?: string | null;
-	};
-	architecture?: {
-		input_modalities?: string[] | null;
-		output_modalities?: string[] | null;
-	};
-	top_provider?: {
-		context_length?: number | null;
-		max_completion_tokens?: number | null;
-	};
-	supported_parameters?: string[];
-	isFree?: boolean;
-}
-
-interface FetchModelsOptions {
+interface FetchModelsOptions<Row extends OpenRouterCatalogRow> {
 	/** Provider id for scoped models.dev enrichment (e.g., openrouter, kilo). */
 	providerId?: string | undefined;
 	/** Base URL for the API (e.g., https://api.openrouter.ai/api/v1) */
@@ -47,6 +25,13 @@ interface FetchModelsOptions {
 	 * this never keeps such models for chat use.
 	 */
 	excludeOutputModalities?: string[];
+	/**
+	 * Read the gateway's own fields from each raw row before the shared
+	 * filter and mapping run: return the row to map (for example with
+	 * `isFree` taken from a gateway-specific flag), or `undefined` to drop it.
+	 * `Row` names the extra fields the adapter reads.
+	 */
+	adaptRow?: (row: Row) => OpenRouterCatalogRow | undefined;
 	/** Additional headers to include */
 	extraHeaders?: Record<string, string>;
 	/** Abort signal owned by the native provider refresh lifecycle. */
@@ -61,14 +46,15 @@ interface FetchModelsOptions {
  * Fetch models from an OpenRouter-compatible API.
  * Handles response parsing, filtering, and mapping to ProviderModelConfig.
  */
-export async function fetchOpenRouterCompatibleModels(
-	options: FetchModelsOptions,
-): Promise<ProviderModelConfig[]> {
+export async function fetchOpenRouterCompatibleModels<
+	Row extends OpenRouterCatalogRow = OpenRouterCatalogRow,
+>(options: FetchModelsOptions<Row>): Promise<ProviderModelConfig[]> {
 	const {
 		baseUrl,
 		apiKey,
 		freeOnly = false,
 		excludeOutputModalities,
+		adaptRow,
 		extraHeaders = {},
 		retries = 3,
 		retryDelay = 1000,
@@ -102,15 +88,17 @@ export async function fetchOpenRouterCompatibleModels(
 		);
 	}
 
-	const json = (await response.json()) as {
-		data?: OpenRouterCompatibleModel[];
-	};
+	const json = (await response.json()) as { data?: Row[] };
 
 	if (!json.data || !Array.isArray(json.data)) {
 		throw new Error("Invalid models response: missing data array");
 	}
 
-	const models = json.data
+	const rows: OpenRouterCatalogRow[] = adaptRow
+		? json.data.flatMap((row) => adaptRow(row) ?? [])
+		: json.data;
+
+	const models = rows
 		.filter((m) => {
 			// Filter out models that cannot produce text output (image/video/audio
 			// generation, embedding-only, etc.). Keep models with no output

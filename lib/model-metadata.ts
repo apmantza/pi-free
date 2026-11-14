@@ -212,15 +212,16 @@ function costLooksLikeFallback(cost: CostConfig): boolean {
 	);
 }
 
+/** models.dev quotes USD per million tokens, the unit of `Model.cost`. */
 function costFromModelsDev(
 	cost: ModelsDevModel["cost"],
 ): CostConfig | undefined {
 	if (!cost) return undefined;
 	return {
-		input: cost.input / 1_000_000,
-		output: cost.output / 1_000_000,
-		cacheRead: (cost.cache_read ?? 0) / 1_000_000,
-		cacheWrite: (cost.cache_write ?? 0) / 1_000_000,
+		input: cost.input,
+		output: cost.output,
+		cacheRead: cost.cache_read ?? 0,
+		cacheWrite: cost.cache_write ?? 0,
 	};
 }
 

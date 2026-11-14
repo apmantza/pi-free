@@ -131,9 +131,9 @@ export async function fetchDeepinfraModels(
 				meta?.tags?.includes("reasoning") ??
 				isLikelyReasoningModel({ id: m.id, name });
 
-			// Pricing is per-MILLION tokens. Divide to get per-token (Pi convention).
-			const inputCost = (meta?.pricing?.input_tokens ?? 0.3) / 1_000_000;
-			const outputCost = (meta?.pricing?.output_tokens ?? 0.9) / 1_000_000;
+			// Pricing is USD per million tokens, the unit of `Model.cost`.
+			const inputCost = meta?.pricing?.input_tokens ?? 0.3;
+			const outputCost = meta?.pricing?.output_tokens ?? 0.9;
 
 			return {
 				id: m.id,

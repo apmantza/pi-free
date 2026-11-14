@@ -27,6 +27,10 @@ import {
 } from "../../lib/types.ts";
 import { getClineProviderHeaders } from "./cline-headers.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
+import {
+	hasRouterPricing,
+	perMillionFromPerToken,
+} from "../../lib/model-map.ts";
 import { getProxyModelCompat } from "../../lib/provider-compat.ts";
 import { cleanModelName, fetchWithRetry, withSignal } from "../../lib/util.ts";
 
@@ -89,13 +93,13 @@ function extractNameFromId(id: string): string {
 }
 
 /**
- * Parse pricing string to cost per million tokens.
+ * Parse a pricing string to USD per million tokens.
  * Cline returns pricing as string per token (e.g. "0.0001" or "0").
  */
 function parsePricing(pricingStr: string | null | undefined): number {
 	if (!pricingStr || pricingStr === "0") return 0;
 	const parsed = Number.parseFloat(pricingStr);
-	return Number.isNaN(parsed) ? 0 : parsed * 1_000_000;
+	return Number.isNaN(parsed) ? 0 : perMillionFromPerToken(parsed);
 }
 
 function modalityIncludes(
@@ -120,17 +124,6 @@ function hasTextOnlyOutput(info: ClineRaw): boolean {
 	}
 	const modality = info.architecture?.modality;
 	return typeof modality === "string" && modality.endsWith("->text");
-}
-
-/**
- * Routers (openrouter/fusion, nvidia/switchyard, ...) list "-1": billed at
- * the routed model's rate. That is not a price, so it must not become a
- * negative cost; the row is stamped pricing-unknown instead.
- */
-function hasRoutedPricing(info: ClineRaw): boolean {
-	return [info.pricing?.prompt, info.pricing?.completion].some(
-		(price) => Number.parseFloat(price ?? "") < 0,
-	);
 }
 
 function supportsImages(info: ClineRaw): boolean {
@@ -175,7 +168,8 @@ function modelFromCatalog(
 		info.supported_parameters?.includes("reasoning"),
 	);
 	const isFreeToTry = freeToTryIds.has(info.id);
-	const isRouted = !isFreeToTry && hasRoutedPricing(info);
+	// Router rows ("-1") are not priced: stamped pricing-unknown, never $0.
+	const isRouted = !isFreeToTry && hasRouterPricing(info.pricing);
 	const listed = !isFreeToTry && !isRouted;
 	const inputCost = listed ? parsePricing(info.pricing?.prompt) : 0;
 	const outputCost = listed ? parsePricing(info.pricing?.completion) : 0;
