@@ -12,11 +12,7 @@
 			"owned_by": "anthropic",
 			"available": true,
 			"hallucination_rate": 0,
-			"endpoints": [
-				"/v1/chat/completions",
-				"/v1/responses",
-				"/v1/messages"
-			],
+			"endpoints": ["/v1/chat/completions", "/v1/responses", "/v1/messages"],
 			"pricing": {
 				"input": {
 					"unit": "1M tokens",
@@ -60,13 +56,7 @@
 				"vision": true,
 				"function_call": true,
 				"reasoning": true,
-				"supported_reasoning_efforts": [
-					"low",
-					"medium",
-					"high",
-					"xhigh",
-					"max"
-				]
+				"supported_reasoning_efforts": ["low", "medium", "high", "xhigh", "max"]
 			},
 			"sub": false
 		},
@@ -80,11 +70,7 @@
 			"owned_by": "openai",
 			"available": true,
 			"hallucination_rate": 0,
-			"endpoints": [
-				"/v1/chat/completions",
-				"/v1/responses",
-				"/v1/messages"
-			],
+			"endpoints": ["/v1/chat/completions", "/v1/responses", "/v1/messages"],
 			"pricing": {
 				"input": {
 					"unit": "1M tokens",
@@ -132,11 +118,7 @@
 					"xhigh",
 					"max"
 				],
-				"service_tiers": [
-					"default",
-					"flex",
-					"priority"
-				]
+				"service_tiers": ["default", "flex", "priority"]
 			},
 			"benchmarks": {
 				"artificial_analysis_intelligence_index": 54.5,
@@ -158,10 +140,7 @@
 				"tau2": null,
 				"tau_banking": null
 			},
-			"use_case": [
-				"coding",
-				"math"
-			],
+			"use_case": ["coding", "math"],
 			"service_tiers": {
 				"flex": {
 					"price_multiplier": 0.5,
@@ -183,11 +162,7 @@
 			"owned_by": "deepseek-ai",
 			"available": true,
 			"hallucination_rate": 0,
-			"endpoints": [
-				"/v1/chat/completions",
-				"/v1/responses",
-				"/v1/messages"
-			],
+			"endpoints": ["/v1/chat/completions", "/v1/responses", "/v1/messages"],
 			"pricing": {
 				"input": {
 					"unit": "1M tokens",
@@ -240,11 +215,7 @@
 				"tau2": null,
 				"tau_banking": null
 			},
-			"use_case": [
-				"coding",
-				"math",
-				"daily_use"
-			]
+			"use_case": ["coding", "math", "daily_use"]
 		},
 		{
 			"id": "qwen3.5-27b",
@@ -256,11 +227,7 @@
 			"owned_by": "qwen",
 			"available": true,
 			"hallucination_rate": 0,
-			"endpoints": [
-				"/v1/chat/completions",
-				"/v1/responses",
-				"/v1/messages"
-			],
+			"endpoints": ["/v1/chat/completions", "/v1/responses", "/v1/messages"],
 			"pricing": {
 				"input": {
 					"unit": "1M tokens",
@@ -316,9 +283,7 @@
 				"tau_banking": null
 			},
 			"sub": true,
-			"use_case": [
-				"roleplay"
-			]
+			"use_case": ["roleplay"]
 		}
 	]
 }

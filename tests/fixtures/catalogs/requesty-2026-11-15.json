@@ -8,16 +8,16 @@
 			"created": 1792195200,
 			"updated": 1792266280,
 			"owned_by": "system",
-			"input_price": 9.8e-08,
-			"cached_price": 2.94e-09,
-			"output_price": 2.94e-07,
+			"input_price": 9.8e-8,
+			"cached_price": 2.94e-9,
+			"output_price": 2.94e-7,
 			"discount_percentage": 51,
 			"pricing": [
 				{
 					"prompt_tokens_threshold": 0,
-					"input_price": 9.8e-08,
-					"cached_price": 2.94e-09,
-					"output_price": 2.94e-07
+					"input_price": 9.8e-8,
+					"cached_price": 2.94e-9,
+					"output_price": 2.94e-7
 				}
 			],
 			"max_output_tokens": 0,
@@ -29,14 +29,7 @@
 			"supports_computer_use": false,
 			"supports_reasoning": true,
 			"reasoning": {
-				"supported_efforts": [
-					"none",
-					"low",
-					"medium",
-					"high",
-					"xhigh",
-					"max"
-				]
+				"supported_efforts": ["none", "low", "medium", "high", "xhigh", "max"]
 			},
 			"supports_image_generation": false,
 			"supports_tool_calling": true,
@@ -84,9 +77,7 @@
 			"supports_computer_use": false,
 			"supports_reasoning": true,
 			"reasoning": {
-				"supported_efforts": [
-					"high"
-				]
+				"supported_efforts": ["high"]
 			},
 			"supports_image_generation": false,
 			"supports_tool_calling": true,
@@ -114,15 +105,15 @@
 			"created": 1744654985,
 			"updated": 1791792762,
 			"owned_by": "system",
-			"input_price": 2e-06,
-			"cached_price": 5e-07,
-			"output_price": 8e-06,
+			"input_price": 2e-6,
+			"cached_price": 5e-7,
+			"output_price": 8e-6,
 			"pricing": [
 				{
 					"prompt_tokens_threshold": 0,
-					"input_price": 2e-06,
-					"cached_price": 5e-07,
-					"output_price": 8e-06
+					"input_price": 2e-6,
+					"cached_price": 5e-7,
+					"output_price": 8e-6
 				}
 			],
 			"max_output_tokens": 32768,
@@ -158,15 +149,15 @@
 			"created": 1750172488,
 			"updated": 1787843415,
 			"owned_by": "system",
-			"input_price": 3e-07,
-			"cached_price": 7.5e-08,
-			"output_price": 2.5e-06,
+			"input_price": 3e-7,
+			"cached_price": 7.5e-8,
+			"output_price": 2.5e-6,
 			"pricing": [
 				{
 					"prompt_tokens_threshold": 0,
-					"input_price": 3e-07,
-					"cached_price": 7.5e-08,
-					"output_price": 2.5e-06
+					"input_price": 3e-7,
+					"cached_price": 7.5e-8,
+					"output_price": 2.5e-6
 				}
 			],
 			"max_output_tokens": 65535,
@@ -202,15 +193,15 @@
 			"created": 1735241320,
 			"updated": 1791474259,
 			"owned_by": "system",
-			"input_price": 1.4e-07,
-			"cached_price": 2.8e-08,
-			"output_price": 2.8e-07,
+			"input_price": 1.4e-7,
+			"cached_price": 2.8e-8,
+			"output_price": 2.8e-7,
 			"pricing": [
 				{
 					"prompt_tokens_threshold": 0,
-					"input_price": 1.4e-07,
-					"cached_price": 2.8e-08,
-					"output_price": 2.8e-07
+					"input_price": 1.4e-7,
+					"cached_price": 2.8e-8,
+					"output_price": 2.8e-7
 				}
 			],
 			"max_output_tokens": 384000,
@@ -222,14 +213,7 @@
 			"supports_computer_use": false,
 			"supports_reasoning": true,
 			"reasoning": {
-				"supported_efforts": [
-					"none",
-					"low",
-					"medium",
-					"high",
-					"xhigh",
-					"max"
-				]
+				"supported_efforts": ["none", "low", "medium", "high", "xhigh", "max"]
 			},
 			"supports_image_generation": false,
 			"supports_tool_calling": true,
@@ -258,15 +242,15 @@
 			"created": 1738013808,
 			"updated": 1787843415,
 			"owned_by": "system",
-			"input_price": 1e-06,
-			"cached_price": 1e-06,
-			"output_price": 1e-06,
+			"input_price": 1e-6,
+			"cached_price": 1e-6,
+			"output_price": 1e-6,
 			"pricing": [
 				{
 					"prompt_tokens_threshold": 0,
-					"input_price": 1e-06,
-					"cached_price": 1e-06,
-					"output_price": 1e-06
+					"input_price": 1e-6,
+					"cached_price": 1e-6,
+					"output_price": 1e-6
 				}
 			],
 			"max_output_tokens": 8192,
@@ -301,12 +285,12 @@
 			"created": 1792594083,
 			"updated": 1792594083,
 			"owned_by": "system",
-			"input_price": 2.4e-07,
+			"input_price": 2.4e-7,
 			"output_price": 0,
 			"pricing": [
 				{
 					"prompt_tokens_threshold": 0,
-					"input_price": 2.4e-07,
+					"input_price": 2.4e-7,
 					"output_price": 0
 				}
 			],

@@ -7,14 +7,8 @@
 			"display_name": "Anthropic: Claude Fable 5.2",
 			"created": 1794277290,
 			"owned_by": "anthropic",
-			"input_modalities": [
-				"text",
-				"image",
-				"file"
-			],
-			"output_modalities": [
-				"text"
-			],
+			"input_modalities": ["text", "image", "file"],
+			"output_modalities": ["text"],
 			"capabilities": {
 				"reasoning": true
 			},
@@ -72,16 +66,8 @@
 			"display_name": "Google: Gemini 4 Hydrogen",
 			"created": 1794541125,
 			"owned_by": "google",
-			"input_modalities": [
-				"file",
-				"image",
-				"text",
-				"video",
-				"audio"
-			],
-			"output_modalities": [
-				"text"
-			],
+			"input_modalities": ["file", "image", "text", "video", "audio"],
+			"output_modalities": ["text"],
 			"capabilities": {
 				"reasoning": true
 			},
@@ -132,14 +118,8 @@
 			"display_name": "ByteDance: Doubao-Seed-2.1-turbo",
 			"created": 1782194215,
 			"owned_by": "bytedance",
-			"input_modalities": [
-				"text",
-				"image",
-				"video"
-			],
-			"output_modalities": [
-				"text"
-			],
+			"input_modalities": ["text", "image", "video"],
+			"output_modalities": ["text"],
 			"capabilities": {
 				"reasoning": true
 			},
@@ -201,14 +181,8 @@
 			"display_name": "OpenAI: o4 Mini",
 			"created": 1755177196,
 			"owned_by": "openai",
-			"input_modalities": [
-				"image",
-				"text",
-				"file"
-			],
-			"output_modalities": [
-				"text"
-			],
+			"input_modalities": ["image", "text", "file"],
+			"output_modalities": ["text"],
 			"capabilities": {},
 			"context_length": 200000,
 			"publish_time": "2025-04-16"
@@ -219,12 +193,8 @@
 			"display_name": "Z.AI: GLM 4.7 Flash (Free)",
 			"created": 1768877763,
 			"owned_by": "z-ai",
-			"input_modalities": [
-				"text"
-			],
-			"output_modalities": [
-				"text"
-			],
+			"input_modalities": ["text"],
+			"output_modalities": ["text"],
 			"capabilities": {
 				"reasoning": true
 			},

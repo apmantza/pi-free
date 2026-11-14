@@ -46,18 +46,9 @@
 				"structured-outputs",
 				"reasoning"
 			],
-			"endpoints": [
-				"chat/completions",
-				"anthropic",
-				"responses"
-			],
-			"input_modalities": [
-				"text",
-				"image"
-			],
-			"output_modalities": [
-				"text"
-			]
+			"endpoints": ["chat/completions", "anthropic", "responses"],
+			"input_modalities": ["text", "image"],
+			"output_modalities": ["text"]
 		},
 		{
 			"created": 1792803395,
@@ -116,19 +107,9 @@
 				"structured-outputs",
 				"reasoning"
 			],
-			"endpoints": [
-				"chat/completions",
-				"anthropic",
-				"responses"
-			],
-			"input_modalities": [
-				"text",
-				"image",
-				"video"
-			],
-			"output_modalities": [
-				"text"
-			]
+			"endpoints": ["chat/completions", "anthropic", "responses"],
+			"input_modalities": ["text", "image", "video"],
+			"output_modalities": ["text"]
 		},
 		{
 			"created": 1793083113,
@@ -155,18 +136,9 @@
 				"structured-outputs",
 				"reasoning"
 			],
-			"endpoints": [
-				"chat/completions",
-				"anthropic",
-				"responses"
-			],
-			"input_modalities": [
-				"text",
-				"image"
-			],
-			"output_modalities": [
-				"text"
-			]
+			"endpoints": ["chat/completions", "anthropic", "responses"],
+			"input_modalities": ["text", "image"],
+			"output_modalities": ["text"]
 		},
 		{
 			"created": 1793082715,
@@ -193,18 +165,9 @@
 				"structured-outputs",
 				"reasoning"
 			],
-			"endpoints": [
-				"chat/completions",
-				"anthropic",
-				"responses"
-			],
-			"input_modalities": [
-				"text",
-				"image"
-			],
-			"output_modalities": [
-				"text"
-			]
+			"endpoints": ["chat/completions", "anthropic", "responses"],
+			"input_modalities": ["text", "image"],
+			"output_modalities": ["text"]
 		},
 		{
 			"created": 1775817236,
@@ -225,20 +188,10 @@
 			"display_name": "Bunny",
 			"model_type": "chat",
 			"max_output_tokens": 32768,
-			"features": [
-				"serverless",
-				"function-calling",
-				"structured-outputs"
-			],
-			"endpoints": [
-				"chat/completions"
-			],
-			"input_modalities": [
-				"text"
-			],
-			"output_modalities": [
-				"text"
-			]
+			"features": ["serverless", "function-calling", "structured-outputs"],
+			"endpoints": ["chat/completions"],
+			"input_modalities": ["text"],
+			"output_modalities": ["text"]
 		},
 		{
 			"created": 1790824276,
@@ -265,17 +218,9 @@
 				"structured-outputs",
 				"reasoning"
 			],
-			"endpoints": [
-				"chat/completions",
-				"anthropic",
-				"responses"
-			],
-			"input_modalities": [
-				"text"
-			],
-			"output_modalities": [
-				"text"
-			]
+			"endpoints": ["chat/completions", "anthropic", "responses"],
+			"input_modalities": ["text"],
+			"output_modalities": ["text"]
 		},
 		{
 			"created": 1763607567,
@@ -296,21 +241,10 @@
 			"display_name": "dev/glm46",
 			"model_type": "chat",
 			"max_output_tokens": 256000,
-			"features": [
-				"function-calling",
-				"structured-outputs",
-				"serverless"
-			],
-			"endpoints": [
-				"chat/completions",
-				"anthropic"
-			],
-			"input_modalities": [
-				"text"
-			],
-			"output_modalities": [
-				"text"
-			]
+			"features": ["function-calling", "structured-outputs", "serverless"],
+			"endpoints": ["chat/completions", "anthropic"],
+			"input_modalities": ["text"],
+			"output_modalities": ["text"]
 		},
 		{
 			"created": 1721801867,
@@ -345,20 +279,10 @@
 			"display_name": "Llama 3.1 8B Instruct",
 			"model_type": "chat",
 			"max_output_tokens": 16384,
-			"features": [
-				"structured-outputs",
-				"serverless"
-			],
-			"endpoints": [
-				"chat/completions",
-				"completions"
-			],
-			"input_modalities": [
-				"text"
-			],
-			"output_modalities": [
-				"text"
-			]
+			"features": ["structured-outputs", "serverless"],
+			"endpoints": ["chat/completions", "completions"],
+			"input_modalities": ["text"],
+			"output_modalities": ["text"]
 		}
 	]
 }
