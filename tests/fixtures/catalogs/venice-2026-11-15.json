@@ -1,0 +1,320 @@
+{
+	"_captured": "2026-11-15, public api.venice.ai/api/v1/models?type=text, rows verbatim (#690)",
+	"data": [
+		{
+			"context_length": 200000,
+			"created": 1775520000,
+			"id": "zai-org-glm-5-1",
+			"model_spec": {
+				"pricing": {
+					"input": {
+						"usd": 1.54,
+						"diem": 1.54
+					},
+					"cache_input": {
+						"usd": 0.286,
+						"diem": 0.286
+					},
+					"output": {
+						"usd": 4.84,
+						"diem": 4.84
+					}
+				},
+				"availableContextTokens": 200000,
+				"maxCompletionTokens": 80000,
+				"capabilities": {
+					"optimizedForCode": false,
+					"quantization": "fp8",
+					"supportsAudioInput": false,
+					"supportsFunctionCalling": true,
+					"supportsLogProbs": false,
+					"supportsMultipleImages": false,
+					"supportsReasoning": true,
+					"supportsReasoningEffort": true,
+					"reasoningEffortOptions": ["none", "low", "medium", "high"],
+					"defaultReasoningEffort": "low",
+					"supportsResponseSchema": true,
+					"supportsTeeAttestation": false,
+					"supportsE2EE": false,
+					"supportsVideoInput": false,
+					"supportsVision": false,
+					"supportsWebSearch": true,
+					"supportsXSearch": false
+				},
+				"description": "GLM-5.1, the successor to GLM-5, is a large language model developed by Z.ai, featuring significantly enhanced reasoning capabilities, improved instruction following, and support for multiple languages. Supports large context windows for processing extensive text and detailed analysis with fast inference speed.",
+				"name": "GLM 5.1",
+				"modelSource": "https://huggingface.co/zai-org/GLM-5.1",
+				"offline": false,
+				"privacy": "private",
+				"traits": []
+			},
+			"object": "model",
+			"owned_by": "venice.ai",
+			"type": "text"
+		},
+		{
+			"context_length": 1000000,
+			"created": 1794182400,
+			"id": "claude-fable-5-2",
+			"model_spec": {
+				"pricing": {
+					"input": {
+						"usd": 8,
+						"diem": 8
+					},
+					"cache_input": {
+						"usd": 0.2,
+						"diem": 0.2
+					},
+					"cache_write": {
+						"usd": 10,
+						"diem": 10
+					},
+					"output": {
+						"usd": 40,
+						"diem": 40
+					}
+				},
+				"availableContextTokens": 1000000,
+				"maxCompletionTokens": 128000,
+				"capabilities": {
+					"optimizedForCode": true,
+					"quantization": "not-available",
+					"supportsAudioInput": false,
+					"supportsFunctionCalling": true,
+					"supportsLogProbs": false,
+					"supportsMultipleImages": true,
+					"maxImages": 10,
+					"supportsReasoning": true,
+					"supportsReasoningEffort": true,
+					"reasoningEffortOptions": ["low", "medium", "high", "xhigh", "max"],
+					"defaultReasoningEffort": "high",
+					"supportsResponseSchema": true,
+					"supportsTeeAttestation": false,
+					"supportsE2EE": false,
+					"supportsVideoInput": false,
+					"supportsVision": true,
+					"supportsWebSearch": true,
+					"supportsXSearch": false
+				},
+				"description": "Claude Fable 5.2 improves on Claude Fable 5.1 across the board, with the biggest gains in agentic coding, long-running agentic workflows, and knowledge work such as long code refactors, front-end development, and finance and analysis tasks. It features a 1M token context window, 128K max output tokens, always-on adaptive thinking, and strong multimodal capabilities, and tends to be more concise in its plans and summaries.",
+				"name": "Claude Fable 5.2",
+				"modelSource": "",
+				"offline": false,
+				"privacy": "anonymized",
+				"traits": []
+			},
+			"object": "model",
+			"owned_by": "venice.ai",
+			"type": "text"
+		},
+		{
+			"context_length": 1000000,
+			"created": 1794268800,
+			"id": "gemini-4-carbon",
+			"model_spec": {
+				"pricing": {
+					"input": {
+						"usd": 2.5,
+						"diem": 2.5
+					},
+					"cache_input": {
+						"usd": 0.125,
+						"diem": 0.125
+					},
+					"output": {
+						"usd": 12.5,
+						"diem": 12.5
+					}
+				},
+				"availableContextTokens": 1000000,
+				"maxCompletionTokens": 65536,
+				"capabilities": {
+					"optimizedForCode": false,
+					"quantization": "not-available",
+					"supportsAudioInput": true,
+					"supportsFunctionCalling": true,
+					"supportsLogProbs": false,
+					"supportsMultipleImages": false,
+					"supportsReasoning": true,
+					"supportsReasoningEffort": false,
+					"supportsResponseSchema": true,
+					"supportsTeeAttestation": false,
+					"supportsE2EE": false,
+					"supportsVideoInput": true,
+					"supportsVision": true,
+					"supportsWebSearch": true,
+					"supportsXSearch": false
+				},
+				"description": "Gemini 4 Carbon is Google's frontier model for long-horizon agentic work across software engineering, scientific reasoning, and cybersecurity defense, with a unified 1M token context window and deeper tunable thinking than Gemini 4 Argon.",
+				"name": "Gemini 4 Carbon",
+				"offline": false,
+				"privacy": "anonymized",
+				"traits": []
+			},
+			"object": "model",
+			"owned_by": "venice.ai",
+			"type": "text"
+		},
+		{
+			"context_length": 128000,
+			"created": 1775001600,
+			"id": "venice-uncensored-1-2",
+			"model_spec": {
+				"pricing": {
+					"input": {
+						"usd": 0.2,
+						"diem": 0.2
+					},
+					"output": {
+						"usd": 0.9,
+						"diem": 0.9
+					}
+				},
+				"model_sets": ["venice_recommendations"],
+				"availableContextTokens": 128000,
+				"maxCompletionTokens": 8192,
+				"capabilities": {
+					"optimizedForCode": false,
+					"quantization": "fp16",
+					"supportsAudioInput": false,
+					"supportsFunctionCalling": true,
+					"supportsLogProbs": false,
+					"supportsMultipleImages": true,
+					"maxImages": 10,
+					"supportsReasoning": false,
+					"supportsReasoningEffort": false,
+					"supportsResponseSchema": true,
+					"supportsTeeAttestation": false,
+					"supportsE2EE": false,
+					"supportsVideoInput": false,
+					"supportsVision": true,
+					"supportsWebSearch": true,
+					"supportsXSearch": false
+				},
+				"description": "Venice Uncensored 1.2 is designed for maximum creative freedom and authentic interaction. Built for open-ended exploration, roleplay, and unfiltered dialogue with improved capabilities over 1.1.",
+				"name": "Venice Uncensored 1.2",
+				"modelSource": "https://huggingface.co/cognitivecomputations/Dolphin-Mistral-24B-Venice-Edition",
+				"offline": false,
+				"privacy": "private",
+				"traits": ["most_uncensored"],
+				"uncensored": true
+			},
+			"object": "model",
+			"owned_by": "venice.ai",
+			"type": "text"
+		},
+		{
+			"context_length": 2000000,
+			"created": 1773273600,
+			"id": "grok-4-20-multi-agent",
+			"model_spec": {
+				"pricing": {
+					"input": {
+						"usd": 1.42,
+						"diem": 1.42
+					},
+					"cache_input": {
+						"usd": 0.23,
+						"diem": 0.23
+					},
+					"output": {
+						"usd": 2.83,
+						"diem": 2.83
+					},
+					"extended": {
+						"context_token_threshold": 200000,
+						"input": {
+							"usd": 2.83,
+							"diem": 2.83
+						},
+						"output": {
+							"usd": 5.67,
+							"diem": 5.67
+						},
+						"cache_input": {
+							"usd": 0.45,
+							"diem": 0.45
+						}
+					}
+				},
+				"availableContextTokens": 2000000,
+				"maxCompletionTokens": 128000,
+				"capabilities": {
+					"optimizedForCode": false,
+					"quantization": "not-available",
+					"supportsAudioInput": false,
+					"supportsFunctionCalling": false,
+					"supportsLogProbs": false,
+					"supportsMultipleImages": true,
+					"maxImages": 10,
+					"supportsReasoning": true,
+					"supportsReasoningEffort": false,
+					"supportsResponseSchema": true,
+					"supportsTeeAttestation": false,
+					"supportsE2EE": false,
+					"supportsVideoInput": false,
+					"supportsVision": true,
+					"supportsWebSearch": true,
+					"supportsXSearch": true
+				},
+				"description": "Grok 4.20 Multi-Agent is a variant of xAI Grok 4.20 designed for collaborative, agent-based workflows. Multiple agents operate in parallel to conduct deep research, coordinate tool use, and synthesize information across complex tasks.",
+				"name": "Grok 4.20 Multi-Agent",
+				"modelSource": "https://x.ai/api",
+				"offline": false,
+				"privacy": "private",
+				"traits": []
+			},
+			"object": "model",
+			"owned_by": "venice.ai",
+			"type": "text"
+		},
+		{
+			"context_length": 128000,
+			"created": 1773792000,
+			"id": "e2ee-gpt-oss-120b-p",
+			"model_spec": {
+				"pricing": {
+					"input": {
+						"usd": 0.13,
+						"diem": 0.13
+					},
+					"output": {
+						"usd": 0.65,
+						"diem": 0.65
+					}
+				},
+				"availableContextTokens": 128000,
+				"maxCompletionTokens": 32768,
+				"capabilities": {
+					"optimizedForCode": false,
+					"quantization": "not-available",
+					"supportsAudioInput": false,
+					"supportsFunctionCalling": false,
+					"supportsLogProbs": false,
+					"supportsMultipleImages": false,
+					"supportsReasoning": true,
+					"supportsReasoningEffort": true,
+					"reasoningEffortOptions": ["low", "medium", "high"],
+					"defaultReasoningEffort": "low",
+					"supportsResponseSchema": false,
+					"supportsTeeAttestation": true,
+					"supportsE2EE": true,
+					"supportsVideoInput": false,
+					"supportsVision": false,
+					"supportsWebSearch": true,
+					"supportsXSearch": false
+				},
+				"description": "GPT OSS 120B running in a Trusted Execution Environment (TEE). OpenAI's open-weight 117B-parameter MoE model with configurable reasoning depth and native tool use, with hardware attestation evidence available for independent verification.",
+				"name": "GPT OSS 120B",
+				"modelSource": "https://huggingface.co/openai/gpt-oss-120b",
+				"offline": false,
+				"privacy": "private",
+				"traits": []
+			},
+			"object": "model",
+			"owned_by": "venice.ai",
+			"type": "text"
+		}
+	]
+}
