@@ -1,10 +1,11 @@
 /**
  * Qoder custom streaming handler.
  *
- * Qoder's current production API is OpenAI-compatible and lives at
- * `api2-v2.qoder.sh/model/v1/chat/completions` with standard Bearer auth.
- * The legacy proprietary SSE/protocol endpoint at api3.qoder.sh has been
- * decommissioned and returns 500 Internal Server Error.
+ * Targets the OpenAI-compatible Bearer endpoint
+ * `api2-v2.qoder.sh/model/v1/chat/completions`. That host lost its DNS record
+ * on 2026-11-14 (#689); no live Qoder host serves the path with Bearer auth,
+ * and the official CLI and third-party clients use the COSY/WASM-signed
+ * `algo/api/v2/service/pro/sse/agent_chat_generation` route instead.
  *
  * This module implements the `streamSimple` interface that Pi expects,
  * translating Qoder's response format to Pi's `AssistantMessageEventStream`.
@@ -56,6 +57,8 @@ interface StreamState {
 	toolCallsState: ToolCallState[];
 	thinkingParser: ThinkingTagParser | null;
 	hasReasoningContent: boolean;
+	/** Raw OpenAI finish_reason of the last choice that carried one. */
+	finishReason?: string;
 }
 
 // =============================================================================
@@ -249,6 +252,10 @@ function handleSSELine(state: StreamState, line: string): boolean {
 		);
 	}
 
+	if (parsed.usage && typeof parsed.usage === "object") {
+		applyUsage(state.output, parsed.usage as OpenAIUsage);
+	}
+
 	if (
 		parsed.choices &&
 		Array.isArray(parsed.choices) &&
@@ -258,11 +265,56 @@ function handleSSELine(state: StreamState, line: string): boolean {
 		if (choice.delta) {
 			processDelta(state, choice.delta as Record<string, unknown>);
 		}
-		if (choice.finish_reason) {
-			state.output.stopReason = choice.finish_reason as StopReason;
+		if (typeof choice.finish_reason === "string") {
+			state.finishReason = choice.finish_reason;
 		}
 	}
 	return false;
+}
+
+interface OpenAIUsage {
+	prompt_tokens?: number;
+	completion_tokens?: number;
+	prompt_tokens_details?: { cached_tokens?: number };
+}
+
+/** OpenAI `prompt_tokens` includes cached tokens; Pi counts them separately. */
+function applyUsage(output: AssistantMessage, usage: OpenAIUsage): void {
+	const prompt = usage.prompt_tokens || 0;
+	const cacheRead = usage.prompt_tokens_details?.cached_tokens || 0;
+	const input = Math.max(0, prompt - cacheRead);
+	const outputTokens = usage.completion_tokens || 0;
+	output.usage.input = input;
+	output.usage.output = outputTokens;
+	output.usage.cacheRead = cacheRead;
+	output.usage.totalTokens = input + outputTokens + cacheRead;
+}
+
+/**
+ * Map an OpenAI finish_reason onto Pi's StopReason. Only the known-good
+ * values pass; anything else (content_filter, provider-specific values)
+ * ends the turn as an error naming the raw reason, as pi-ai's own
+ * openai-completions stream does.
+ */
+function mapFinishReason(reason: string): {
+	stopReason: StopReason;
+	errorMessage?: string;
+} {
+	switch (reason) {
+		case "stop":
+		case "end":
+			return { stopReason: "stop" };
+		case "length":
+			return { stopReason: "length" };
+		case "tool_calls":
+		case "function_call":
+			return { stopReason: "toolUse" };
+		default:
+			return {
+				stopReason: "error",
+				errorMessage: `Qoder finish_reason: ${reason}`,
+			};
+	}
 }
 
 async function consumeSSEStream(
@@ -307,13 +359,6 @@ const logger = createLogger("qoder");
 
 /** Max SSE line buffer size before we treat the stream as malformed. */
 const MAX_SSE_BUFFER_BYTES = 1024 * 1024; // 1 MB
-
-/** Redact a bearer token so it never leaks into logs or error messages. */
-function redactToken(token: string | undefined): string {
-	if (!token) return "(none)";
-	if (token.length <= 8) return "***";
-	return `${token.slice(0, 3)}...${token.slice(-3)}`;
-}
 
 interface StreamSetup {
 	accessToken: string;
@@ -376,7 +421,6 @@ function buildStreamSetup(
 			endpoint: QODER_CHAT_URL,
 			model: qoderModel,
 			messages: normalizedMessages.length,
-			token: redactToken(accessToken),
 		});
 	}
 
@@ -436,16 +480,14 @@ async function fetchQoderStream(
 	);
 
 	if (!response.ok) {
+		// Content-free record (convention 14/17): the body can echo prompt
+		// content, so only its length is kept.
 		const errText = await response.text();
-		const truncated =
-			errText.length > 500 ? `${errText.slice(0, 500)}...` : errText;
 		logger.error("[QODER] API request failed", {
 			status: response.status,
 			statusText: response.statusText,
 			model: qoderModel,
 			responseLength: errText.length,
-			response: truncated,
-			token: redactToken(accessToken),
 		});
 		throw new Error(
 			`Qoder API request failed: ${response.status} ${response.statusText} at ${QODER_CHAT_URL}. Model: ${qoderModel}.`,
@@ -544,27 +586,34 @@ async function runStream(
 		closeThinkingBlock(state);
 		finalizeToolCalls(state);
 
-		if (state.toolCallsState.length > 0) {
-			output.stopReason = "toolUse";
-		} else if (!output.stopReason || output.stopReason === "stop") {
-			output.stopReason = "stop";
+		const finish = state.finishReason
+			? mapFinishReason(state.finishReason)
+			: { stopReason: "stop" as const };
+		if (finish.stopReason === "error") {
+			throw new Error(finish.errorMessage);
 		}
+		output.stopReason =
+			state.toolCallsState.length > 0 ? "toolUse" : finish.stopReason;
 
 		stream.push({
 			type: "done",
-			reason: output.stopReason as "stop" | "toolUse",
+			reason: output.stopReason as "stop" | "length" | "toolUse",
 			message: output,
 		});
 		stream.end();
 	} catch (e: unknown) {
-		// Local binding (not the module logger): the static import would cycle.
-		const streamLogger = (await import("../../lib/logger.ts")).createLogger(
-			"qoder",
-		);
-		streamLogger.error("stream error", {
-			error: e instanceof Error ? e.message : String(e),
-		});
-		output.stopReason = options?.signal?.aborted ? "aborted" : "error";
+		// Abort is cancellation, not failure (convention 15): no error record.
+		const aborted = options?.signal?.aborted === true;
+		if (!aborted) {
+			// Local binding (not the module logger): the static import would cycle.
+			const streamLogger = (await import("../../lib/logger.ts")).createLogger(
+				"qoder",
+			);
+			streamLogger.error("stream error", {
+				error: e instanceof Error ? e.message : String(e),
+			});
+		}
+		output.stopReason = aborted ? "aborted" : "error";
 		output.errorMessage = e instanceof Error ? e.message : String(e);
 		stream.push({
 			type: "error",
