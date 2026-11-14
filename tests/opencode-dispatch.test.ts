@@ -418,3 +418,79 @@ it.skipIf(!hasBun)(
 		expect(requests).toHaveLength(0);
 	},
 );
+
+// Compaction summaries carry no tools, and Zen's anonymous free lane answers a
+// tool-less request with 429 FreeUsageLimitError (live, 2026-11-14), so every
+// auto-compaction on opencode-free failed while ordinary turns succeeded.
+// Declare the gate names on tool-less free requests with tool choice "none" so
+// the summarizer can never call them; requests that carry tools and the keyed
+// Go lane go out untouched.
+it("declares the free-tier gate tools on tool-less requests without letting the model call them", async () => {
+	const gate = ["bash", "edit", "glob", "grep", "read"];
+	const forbidsCalls: Record<
+		string,
+		(payload: Record<string, unknown>) => boolean
+	> = {
+		"glm-5.3-flash-free": (p) => p.tool_choice === "none",
+		"grok-4.7": (p) => p.tool_choice === "none",
+		"claude-haiku-5-5": (p) =>
+			(p.tool_choice as { type?: string } | undefined)?.type === "none",
+		"gemini-3.8-flash": (p) => JSON.stringify(p).includes('"mode":"NONE"'),
+	};
+	const toolNames = (payload: unknown): string[] =>
+		[...JSON.stringify(payload).matchAll(/"name":"([a-z]+)"/g)].map(
+			(m) => m[1]!,
+		);
+	for (const [id, forbids] of Object.entries(forbidsCalls)) {
+		for (const provider of ["opencode-free", "opencode-go"]) {
+			// Shape of Pi's summarization request: a system prompt, one user turn, no tools.
+			const context = {
+				systemPrompt: "You are a context summarization assistant.",
+				messages: [
+					{
+						role: "user" as const,
+						content: "summarize",
+						timestamp: Date.now(),
+					},
+				],
+			};
+			const before = JSON.stringify(context);
+			requests.length = 0;
+			await runtime
+				.streamSimple(runtime.getModel(provider, id)!, context, {
+					maxTokens: 1,
+				})
+				.result();
+			expect(requests, `${provider}/${id}`).toHaveLength(1);
+			const payload = requests[0]!.payload as Record<string, unknown>;
+			if (provider === "opencode-free") {
+				expect(toolNames(payload), id).toEqual(expect.arrayContaining(gate));
+				expect(forbids(payload), id).toBe(true);
+			} else {
+				expect(toolNames(payload), id).toEqual([]);
+			}
+			expect(JSON.stringify(context)).toBe(before);
+		}
+		// A free request that already carries tools keeps Pi's own tool choice.
+		requests.length = 0;
+		await runtime
+			.streamSimple(
+				runtime.getModel("opencode-free", id)!,
+				{
+					tools: session.agent.state.tools.map(
+						({ name, description, parameters }) => ({
+							name,
+							description,
+							parameters,
+						}),
+					),
+					messages: [{ role: "user", content: "hello", timestamp: Date.now() }],
+				},
+				{ maxTokens: 1 },
+			)
+			.result();
+		expect(forbids(requests[0]!.payload as Record<string, unknown>), id).toBe(
+			false,
+		);
+	}
+});

@@ -37,6 +37,19 @@ export const GLOB_TOOL_NAME = "glob";
  */
 export const OPENCODE_FREE_GATE_TOOLS = ["glob", "grep"] as const;
 
+/**
+ * Every name the free-tier gate requires in `tools[]`. Requests built outside
+ * an agent turn (compaction and branch summaries) carry no tools at all, so the
+ * OpenCode stream declares these itself with tool choice "none".
+ */
+export const OPENCODE_FREE_REQUIRED_TOOLS = [
+	"bash",
+	"edit",
+	"glob",
+	"grep",
+	"read",
+] as const;
+
 /** Minimal surface of the host package this module needs. */
 interface HostFindModule {
 	createFindToolDefinition?: (
