@@ -13,6 +13,18 @@ Each provider's live `/models` endpoint is fetched (stored credential from `~/.p
 
 Counts drift as providers change their catalogs — treat every audit below as a verified snapshot, never a guarantee. Providers whose credentials are unavailable are listed as "not audited" rather than guessed. Never print or commit API keys during an audit.
 
+## 2026-11-14 — AMD Token Lab registered and audited
+
+`amd-tokenlab` (`https://api.tokenlab.amd.com/v1`) was fetched with a real key. Anonymous `/models` answers 401 `Invalid Token Lab API key`.
+
+| Field | Observation |
+| --- | --- |
+| `/models` entries | 10: 7 chat models and 3 aux routers (`Clef`, `d3`, `d3-flash`; `output_modalities: ["decision"]`, `context_length: 0`), which the text-output filter drops |
+| Pricing | None published; every chat model is stamped authoritatively free (an all-$0 catalog otherwise reads as "pricing unexposed" and the name-only fallback finds nothing) |
+| Allowance | `x-ratelimit-limit-user-budget-usd: 10`, reset epoch 1797186152 (2026-12-13), `x-ratelimit-limit-user-rpm: 20`; responses carry a per-request `cost` charged against that budget |
+| Live Pi turns | Tool round-trips succeeded on DeepSeek-V4-Flash (thinking high), DeepSeek-V4.1-Flash (off and high), Qwen3.8-27B (off), Gemma-4-31B-IT, MiniCPM5-2B, MiniCPM-V-4.7-35B-A3B. MiniCPM-V-4.7-1B was not exercised |
+| Request shape | DeepSeek's `thinking` field is rejected (400); thinking is controlled with `reasoning_effort` only |
+
 ## 2026-11-02 — InferX registered (not audited)
 
 InferX (`inferx`, `https://model.inferx.net/endpoints/v1`) is registered as a

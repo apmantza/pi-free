@@ -1,5 +1,7 @@
 # Free Models Catalog
 
+> **2026-11-14 — AMD Token Lab added and audited live:** the new `amd-tokenlab` provider lists 7 chat models, all free within AMD's per-user budget. Each was fetched with a real key; DeepSeek-V4-Flash, DeepSeek-V4.1-Flash, Qwen3.8-27B, Gemma-4-31B-IT, MiniCPM5-2B and MiniCPM-V-4.7-35B-A3B completed a Pi tool round-trip. See [catalog audit](catalog-audit.md#2026-11-14--amd-token-lab-registered-and-audited).
+
 > **2026-11-02 — InferX added, not audited:** the new `inferx` provider publishes no prices and no free-named endpoints, so it is listed under [Zero-free providers](#zero-free-providers) as **not audited** (no credential). Nothing about InferX below is a verified claim. See [catalog audit](catalog-audit.md#2026-11-02--inferx-registered-not-audited).
 
 > **2026-10-26 — 2.8.6 scoped audit / carry-over:** OpenCode's public feed was fetched live (85 IDs); its eight generative free candidates are listed below. They returned text on 2026-10-25; GLM text/tool was repeated on 2026-10-26. Other providers are **not audited for this release**: their 2026-08-26 lists/counts remain historical and promotions are not renewed. This patch's Requesty pricing-provenance and Requesty/Novita modality fixes can change classification relative to those lists. No fresh full-provider total is claimed. See [catalog audit](catalog-audit.md#2026-10-26--286-scoped-audit-and-explicit-carry-over).
@@ -60,6 +62,20 @@ pi-free registers LLM7's curated selector list rather than its full gateway cata
 | `fast` | Same; turbo-class models have lower rate/token limits for anonymous users |
 
 The paid `pro` selector ($0.30/$0.90 per M) is hidden from the free view.
+
+### AMD Token Lab (`amd-tokenlab`) — 7
+
+Key from the AMD AI Developer Program (https://notebooks.amd.com/tokenlab). All models share one per-user budget (2026-11-14: $10, resetting monthly) and 20 requests per minute.
+
+| Model | Context | Conditions |
+| --- | --- | --- |
+| `DeepSeek-V4.1-Flash` | 1M | Text + image; reasoning via `reasoning_effort` |
+| `DeepSeek-V4-Flash` | 1M | Text; reasoning via `reasoning_effort` |
+| `Qwen3.8-27B` | 262K | Text + image |
+| `Gemma-4-31B-IT` | 262K | Text + image |
+| `MiniCPM-V-4.7-35B-A3B` | 262K | Text + image |
+| `MiniCPM-V-4.7-1B` | 262K | Text + image; not exercised with tools |
+| `MiniCPM5-2B` | 131K | Text |
 
 ### Agnes AI (`agnes`) — 2
 

@@ -24,6 +24,7 @@ import {
 	PROVIDER_ORCAROUTER,
 	PROVIDER_XKIRO,
 	PROVIDER_INFERX,
+	PROVIDER_AMD_TOKENLAB,
 	PROVIDER_CLINE,
 	PROVIDER_FASTROUTER,
 	PROVIDER_REQUESTY,
@@ -159,6 +160,8 @@ interface PiFreeConfig {
 	xkiro_show_paid?: boolean;
 	inferx_api_key?: string;
 	inferx_show_paid?: boolean;
+	amd_tokenlab_api_key?: string;
+	amd_tokenlab_show_paid?: boolean;
 	openrouter_show_paid?: boolean;
 	opencode_show_paid?: boolean;
 	opencode_free_show_paid?: boolean;
@@ -250,6 +253,8 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	xkiro_show_paid: false,
 	inferx_api_key: "",
 	inferx_show_paid: false,
+	amd_tokenlab_api_key: "",
+	amd_tokenlab_show_paid: false,
 	openrouter_show_paid: false,
 	opencode_show_paid: false,
 	opencode_free_show_paid: false,
@@ -507,6 +512,11 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 	},
 	{ id: PROVIDER_XKIRO, prefix: "XKIRO", showPaidKey: "xkiro_show_paid" },
 	{ id: PROVIDER_INFERX, prefix: "INFERX", showPaidKey: "inferx_show_paid" },
+	{
+		id: PROVIDER_AMD_TOKENLAB,
+		prefix: "AMD_TOKENLAB",
+		showPaidKey: "amd_tokenlab_show_paid",
+	},
 	{
 		id: PROVIDER_FASTROUTER,
 		prefix: "FASTROUTER",
@@ -967,6 +977,17 @@ export function getInferxApiKey(): string | undefined {
 
 export function getInferxShowPaid(): boolean {
 	return resolveBool("INFERX_SHOW_PAID", loadConfigFile().inferx_show_paid);
+}
+
+export function getAmdTokenlabApiKey(): string | undefined {
+	return resolve("AMD_TOKENLAB_API_KEY", loadConfigFile().amd_tokenlab_api_key);
+}
+
+export function getAmdTokenlabShowPaid(): boolean {
+	return resolveBool(
+		"AMD_TOKENLAB_SHOW_PAID",
+		loadConfigFile().amd_tokenlab_show_paid,
+	);
 }
 
 export function getKiloApiKey(): string | undefined {

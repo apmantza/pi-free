@@ -85,6 +85,7 @@ import anyapi from "./providers/anyapi/anyapi.ts";
 import orcarouter from "./providers/orcarouter/orcarouter.ts";
 import xkiro from "./providers/xkiro/xkiro.ts";
 import inferx from "./providers/inferx/inferx.ts";
+import amdTokenlab from "./providers/amd-tokenlab/amd-tokenlab.ts";
 import qoder from "./providers/qoder/qoder.ts";
 
 /**
@@ -122,6 +123,7 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 	xkiro,
 	qoder,
 	inferx,
+	amdTokenlab,
 ];
 
 const _logger = createLogger("pi-free");
