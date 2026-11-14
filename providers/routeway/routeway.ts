@@ -191,19 +191,14 @@ export default function routewayProvider(pi: ExtensionAPI): Promise<void> {
 		tosUrl: "https://routeway.ai/terms",
 	});
 
-	const apiKey = getRoutewayApiKey();
-	if (apiKey) {
-		const probe = createOpenAIAvailabilityProbe(
-			PROVIDER_ROUTEWAY,
-			BASE_URL_ROUTEWAY,
-		);
-		registerNativeAvailabilityProbe(pi, {
-			providerId: PROVIDER_ROUTEWAY,
-			label: "Routeway",
-			apiKey,
-			probe,
-			handle,
-		});
-	}
+	// Registered keyless too: the probe resolves the key when it runs, so a
+	// /login during the session is honored (#690).
+	registerNativeAvailabilityProbe(pi, {
+		providerId: PROVIDER_ROUTEWAY,
+		label: "Routeway",
+		getApiKey: getRoutewayApiKey,
+		probe: createOpenAIAvailabilityProbe(PROVIDER_ROUTEWAY, BASE_URL_ROUTEWAY),
+		handle,
+	});
 	return Promise.resolve();
 }
