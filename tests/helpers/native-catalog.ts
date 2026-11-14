@@ -94,11 +94,15 @@ export async function refreshNativeCatalog(
 	};
 }
 
-/** The JSON body pi-ai's real request builder sends for one turn. */
+/**
+ * The JSON body pi-ai's real request builder sends for one turn. `onPayload`
+ * is the hook Pi's runner wires `before_provider_request` handlers into.
+ */
 export async function sentRequestBody(
 	http: { bodies: () => Record<string, unknown>[] },
 	model: Model<Api>,
 	reasoning?: string,
+	onPayload?: (payload: unknown) => unknown,
 ): Promise<Record<string, unknown>> {
 	const { normalizeContext, streamSimpleOpenAICompletions } =
 		await import("@earendil-works/pi-ai/compat");
@@ -108,7 +112,11 @@ export async function sentRequestBody(
 		normalizeContext({
 			messages: [{ role: "user", content: "hi", timestamp: 0 }],
 		}),
-		{ apiKey: "sk-fixture", ...(reasoning && { reasoning }) } as never,
+		{
+			apiKey: "sk-fixture",
+			...(reasoning && { reasoning }),
+			...(onPayload && { onPayload }),
+		} as never,
 	).result();
 	const sent = http.bodies().slice(before);
 	expect(sent).toHaveLength(1);
