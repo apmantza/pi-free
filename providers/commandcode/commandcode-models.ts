@@ -8,10 +8,15 @@
  * account whose plan includes Provider API access.
  *
  * The shim catalog carries only {id, object, created, owned_by, name,
- * context_length} — no pricing, modalities, or reasoning flags. Those come
- * from curated tables in commandcode-pricing.ts (ported from the MIT-licensed
- * patlux/pi-commandcode-provider extension, verified against CommandCode's
- * official pricing page 2026-08-25).
+ * context_length, supported_endpoints} — no pricing, modalities, or
+ * reasoning flags. Those come from curated tables in commandcode-pricing.ts
+ * (ported from the MIT-licensed patlux/pi-commandcode-provider extension,
+ * verified against CommandCode's official pricing page 2026-08-25).
+ *
+ * Free models are marked only by a `:free` id suffix (2026-11-14 capture:
+ * `thinkingmachines/inkling-2-small:free`, display name "Inkling 2 Small"),
+ * so the mapper decides free/paid from the id, never from names or the
+ * curated table.
  *
  * Wire protocol: claude-* models are served over Anthropic Messages; every
  * other model speaks OpenAI Chat Completions (see apiForModelId). The
@@ -38,6 +43,9 @@ import {
 } from "./commandcode-pricing.ts";
 
 const _logger = createLogger("commandcode-models");
+
+/** Catalog id suffix CommandCode uses to mark a free model. */
+const FREE_ID_SUFFIX = ":free";
 
 /** Fallback context window for entries missing `context_length`. */
 const FALLBACK_CONTEXT_WINDOW = 128_000;
@@ -104,10 +112,19 @@ export function mapCommandCodeModel(
 		maxTokens: maxOutputTokens,
 		// SAFETY: _pricingKnown is stamped ONLY for ids present in the curated
 		// MODEL_COSTS table (verified against CommandCode's official pricing
-		// page); unknown ids keep zero costs WITHOUT the stamp so detection
-		// degrades to Route B instead of trusting fabricated $0 costs.
+		// page); unknown ids keep zero costs WITHOUT the stamp, so the $0
+		// display cost is never read as a price.
 		_pricingKnown: cost !== undefined,
-	} as ChatModelConfig & { _pricingKnown?: boolean };
+		// Free is what the catalog says: the `:free` id suffix. Every other id
+		// is paid, including ones missing from the curated price table, whose
+		// $0 default would otherwise read as free beside priced siblings.
+		_freeKnown: true,
+		_isFree: id.endsWith(FREE_ID_SUFFIX),
+	} as ChatModelConfig & {
+		_pricingKnown?: boolean;
+		_freeKnown?: boolean;
+		_isFree?: boolean;
+	};
 }
 /**
  * Fetch the complete catalog. The endpoint is public (anonymous GET returns

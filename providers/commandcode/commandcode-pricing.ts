@@ -7,7 +7,8 @@
  *   https://commandcode.ai/docs/resources/pricing-limits
  *
  * pi-free converts these to its USD-per-token cost unit at mapping time
- * (divide by 1e6) in commandcode-models.ts.
+ * (divide by 1e6) in commandcode-models.ts. Free/paid is not read from this
+ * table: the catalog's `:free` id suffix decides it (commandcode-models.ts).
  */
 
 interface CommandCodeModelCostRates {
@@ -35,15 +36,6 @@ export interface CommandCodeModelCost extends CommandCodeModelCostRates {
  * only (its cost model has no tier dimension).
  */
 export const MODEL_COSTS: Readonly<Record<string, CommandCodeModelCost>> = {
-	// Free models
-	"poolside/laguna-s-2.1-free": {
-		input: 0,
-		output: 0,
-		cacheRead: 0,
-		cacheWrite: 0,
-	},
-	"stealth/ox-alpha": { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-
 	// Open and open-weight models
 	"tencent/hy3-paid": {
 		input: 0.14,
@@ -385,7 +377,6 @@ export const MODEL_INPUT_MODALITIES: Readonly<
 	"Qwen/Qwen3.8-27B": ["text", "image"],
 	"Qwen/Qwen3.8-Max": ["text", "image"],
 	"sakana/fugu-ultra": ["text", "image"],
-	"stealth/ox-alpha": ["text", "image"],
 	"stepfun/Step-3.7-Flash": ["text", "image"],
 	"thinkingmachines/inkling": ["text", "image"],
 	"thinkingmachines/inkling-small": ["text", "image"],
@@ -423,7 +414,6 @@ export const MODEL_REASONING: Readonly<Record<string, true>> = {
 	"moonshotai/Kimi-K2.7-Code-Highspeed": true,
 	"moonshotai/Kimi-K3": true,
 	"nvidia/nemotron-3-ultra-550b-a55b": true,
-	"poolside/laguna-s-2.1-free": true,
 	"Qwen/Qwen3.6-Max-Preview": true,
 	"Qwen/Qwen3.6-Plus": true,
 	"Qwen/Qwen3.7-Flash": true,
@@ -432,7 +422,6 @@ export const MODEL_REASONING: Readonly<Record<string, true>> = {
 	"Qwen/Qwen3.8-27B": true,
 	"Qwen/Qwen3.8-Max": true,
 	"sakana/fugu-ultra": true,
-	"stealth/ox-alpha": true,
 	"stepfun/Step-3.5-Flash": true,
 	"stepfun/Step-3.7-Flash": true,
 	"tencent/hy3-paid": true,
@@ -445,7 +434,5 @@ export const MODEL_REASONING: Readonly<Record<string, true>> = {
 };
 
 export const MODEL_MAX_OUTPUT_TOKENS: Readonly<Record<string, number>> = {
-	"poolside/laguna-s-2.1-free": 32_768,
 	"Qwen/Qwen3.8-27B": 32_768,
-	"stealth/ox-alpha": 131_072,
 };
