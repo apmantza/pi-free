@@ -217,6 +217,22 @@ describe("Utility Functions", () => {
 			);
 		});
 
+		// #675: the live NaN costs came from `Number.parseFloat("")`; a
+		// non-numeric price is the same unrecognized form and must read as
+		// unknown pricing, not a NaN cost Pi multiplies into usage.
+		it("treats a non-numeric price as unknown, never NaN", () => {
+			const result = mapOpenRouterModel({
+				id: "provider/model",
+				name: "Model",
+				pricing: { prompt: "n/a", completion: "0.000002" },
+			});
+
+			expect(result.cost.input).toBe(0);
+			expect(
+				(result as typeof result & { _pricingKnown?: boolean })._pricingKnown,
+			).toBe(false);
+		});
+
 		it("should use default values when fields are missing", () => {
 			const input = {
 				id: "unknown/model",

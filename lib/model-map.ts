@@ -255,6 +255,29 @@ export function cleanModelName(name: string): string {
 // =============================================================================
 
 /**
+ * Parse one OpenRouter-style catalog price. Only a numeric string is a known
+ * price; "", null, missing and non-numeric values are unknown, never $0
+ * (defect shape 15: FastRouter publishes "" for unpublished prices, and
+ * `Number.parseFloat("")` is NaN).
+ */
+function parseCatalogPrice(
+	value: string | null | undefined,
+): number | undefined {
+	if (typeof value !== "string" || value.trim() === "") return undefined;
+	const price = Number(value);
+	return Number.isFinite(price) ? price : undefined;
+}
+
+/** First published limit; 0 (OrcaRouter, FastRouter) means "not published". */
+function firstPositiveLimit(
+	...limits: (number | null | undefined)[]
+): number | undefined {
+	return limits.find(
+		(limit): limit is number => typeof limit === "number" && limit > 0,
+	);
+}
+
+/**
  * Map OpenRouter/Kilo API model to ProviderModelConfig
  * Shared between OpenRouter and Kilo providers
  */
@@ -282,12 +305,8 @@ export function mapOpenRouterModel(m: {
 	supported_parameters?: string[] | null;
 	isFree?: boolean;
 }): ProviderModelConfig {
-	const promptPrice = Number.parseFloat(m.pricing?.prompt ?? "0");
-	const completionPrice = Number.parseFloat(m.pricing?.completion ?? "0");
-	const cacheReadPrice = Number.parseFloat(m.pricing?.input_cache_read ?? "0");
-	const cacheWritePrice = Number.parseFloat(
-		m.pricing?.input_cache_write ?? "0",
-	);
+	const promptPrice = parseCatalogPrice(m.pricing?.prompt);
+	const completionPrice = parseCatalogPrice(m.pricing?.completion);
 	const supportedParameters = m.supported_parameters ?? [];
 	const reasoning =
 		supportedParameters.includes("reasoning") ||
@@ -302,15 +321,22 @@ export function mapOpenRouterModel(m: {
 			? (["text", "image"] as const)
 			: (["text"] as const),
 		cost: {
-			input: promptPrice,
-			output: completionPrice,
-			cacheRead: cacheReadPrice,
-			cacheWrite: cacheWritePrice,
+			input: promptPrice ?? 0,
+			output: completionPrice ?? 0,
+			cacheRead: parseCatalogPrice(m.pricing?.input_cache_read) ?? 0,
+			cacheWrite: parseCatalogPrice(m.pricing?.input_cache_write) ?? 0,
 		},
-		contextWindow: m.context_length ?? m.top_provider?.context_length ?? 4096,
+		contextWindow:
+			firstPositiveLimit(m.context_length, m.top_provider?.context_length) ??
+			4096,
 		maxTokens:
-			m.max_completion_tokens ?? m.top_provider?.max_completion_tokens ?? 4096,
-		_pricingKnown: true,
+			firstPositiveLimit(
+				m.max_completion_tokens,
+				m.top_provider?.max_completion_tokens,
+			) ?? 4096,
+		// The $0 defaults above are placeholders, not prices: a missing token
+		// price leaves pricing unknown so Route A falls back to the name.
+		_pricingKnown: promptPrice !== undefined && completionPrice !== undefined,
 		...(typeof m.isFree === "boolean" && {
 			_freeKnown: true,
 			_isFree: m.isFree,
