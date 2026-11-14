@@ -1,0 +1,2198 @@
+{
+	"_captured": "2026-11-15, public api.xkiro.com/v1/models (no credential), rows verbatim (#690)",
+	"object": "list",
+	"data": [
+		{
+			"id": "google/gemini-3.6-flash",
+			"object": "model",
+			"type": "model",
+			"display_name": "Gemini 3.6 Flash",
+			"created": 1,
+			"owned_by": "google",
+			"modality": "chat",
+			"access_tier": "premium",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0.4875,
+				"output": 2.4375,
+				"cache_read": 0.04875,
+				"cache_write": 0.027084
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high"],
+				"default": "medium"
+			}
+		},
+		{
+			"id": "x-ai/grok-4.5",
+			"object": "model",
+			"type": "model",
+			"display_name": "Grok 4.5",
+			"created": 1,
+			"owned_by": "grok",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 2,
+				"output": 6,
+				"cache_read": 0.3
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 500000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high", "xhigh"],
+				"default": "high"
+			}
+		},
+		{
+			"id": "mistralai/ministral-14b",
+			"object": "model",
+			"type": "model",
+			"display_name": "Ministral 3 14B",
+			"created": 1,
+			"owned_by": "mistral",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": false,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 256000,
+			"max_output_tokens": 8192
+		},
+		{
+			"id": "anthropic/claude-sonnet-4.6",
+			"object": "model",
+			"type": "model",
+			"display_name": "Sonnet 4.6",
+			"created": 1,
+			"owned_by": "anthropic",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 3,
+				"output": 15,
+				"cache_read": 0.3,
+				"cache_write": 3.75
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 128000,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high", "max"],
+				"default": "low"
+			}
+		},
+		{
+			"id": "anthropic/claude-opus-4.8",
+			"object": "model",
+			"type": "model",
+			"display_name": "Opus 4.8",
+			"created": 1,
+			"owned_by": "anthropic",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 5,
+				"output": 25,
+				"cache_read": 0.5,
+				"cache_write": 6.25
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 128000,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high", "xhigh", "max"],
+				"default": "high"
+			}
+		},
+		{
+			"id": "anthropic/claude-fable-5-1",
+			"object": "model",
+			"type": "model",
+			"display_name": "Fable 5.1",
+			"created": 1,
+			"owned_by": "anthropic",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 10,
+				"output": 50,
+				"cache_read": 0.25,
+				"cache_write": 12.5
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"min_plan_usd": 100,
+			"min_plan_names": ["Ultra", "Power"],
+			"context_length": 1000000,
+			"max_output_tokens": 128000,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high", "xhigh", "max"],
+				"default": "high"
+			}
+		},
+		{
+			"id": "x-ai/grok-4.7",
+			"object": "model",
+			"type": "model",
+			"display_name": "Grok 4.7",
+			"created": 1,
+			"owned_by": "grok",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 2,
+				"output": 6,
+				"cache_read": 0.5
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 500000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high", "xhigh"],
+				"default": "high"
+			}
+		},
+		{
+			"id": "anthropic/claude-sonnet-5.5",
+			"object": "model",
+			"type": "model",
+			"display_name": "Sonnet 5.5",
+			"created": 1,
+			"owned_by": "anthropic",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 2,
+				"output": 10,
+				"cache_read": 0.1,
+				"cache_write": 2.5
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 128000,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high", "xhigh", "max"],
+				"default": "high"
+			}
+		},
+		{
+			"id": "anthropic/claude-fable-5",
+			"object": "model",
+			"type": "model",
+			"display_name": "Fable 5",
+			"created": 1,
+			"owned_by": "anthropic",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 10,
+				"output": 50,
+				"cache_read": 1,
+				"cache_write": 12.5
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 128000,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high", "xhigh", "max"],
+				"default": "high"
+			}
+		},
+		{
+			"id": "deepseek/deepseek-v4-pro-0813",
+			"object": "model",
+			"type": "model",
+			"display_name": "DeepSeek V4 Pro 0813",
+			"created": 1,
+			"owned_by": "deepseek",
+			"modality": "chat",
+			"access_tier": "premium",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0.28275,
+				"output": 0.5655,
+				"cache_read": 0.00234,
+				"cache_write": 0.28275
+			},
+			"capabilities": {
+				"vision": false,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1048576,
+			"max_output_tokens": 128000
+		},
+		{
+			"id": "deepseek/deepseek-v4.1-flash",
+			"object": "model",
+			"type": "model",
+			"display_name": "DeepSeek V4.1 Flash",
+			"created": 1,
+			"owned_by": "deepseek",
+			"modality": "chat",
+			"access_tier": "premium",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0.075,
+				"output": 0.3,
+				"cache_read": 0.0015,
+				"cache_write": 0.075
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1048576,
+			"max_output_tokens": 128000,
+			"reasoning_efforts": {
+				"levels": ["none", "high"],
+				"default": "high"
+			}
+		},
+		{
+			"id": "google/gemini-3.8-flash",
+			"object": "model",
+			"type": "model",
+			"display_name": "Gemini 3.8 Flash",
+			"created": 1,
+			"owned_by": "google",
+			"modality": "chat",
+			"access_tier": "premium",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0.4875,
+				"output": 2.4375,
+				"cache_read": 0.04875,
+				"cache_write": 0.027105
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high"],
+				"default": "medium"
+			}
+		},
+		{
+			"id": "moonshotai/kimi-k2.8-preview-agent",
+			"object": "model",
+			"type": "model",
+			"display_name": "Kimi K2.8 Preview Agent",
+			"created": 1,
+			"owned_by": "kimi",
+			"modality": "chat",
+			"access_tier": "premium",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 1,
+				"output": 4,
+				"cache_read": 0.16
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 262144,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["none", "low", "medium", "high", "max"],
+				"default": "high"
+			}
+		},
+		{
+			"id": "google/gemini-3.7-flash",
+			"object": "model",
+			"type": "model",
+			"display_name": "Gemini 3.7 Flash",
+			"created": 1,
+			"owned_by": "google",
+			"modality": "chat",
+			"access_tier": "premium",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0.4875,
+				"output": 2.4375,
+				"cache_read": 0.04875,
+				"cache_write": 0.027084
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high"],
+				"default": "medium"
+			}
+		},
+		{
+			"id": "x-ai/grok-4.6",
+			"object": "model",
+			"type": "model",
+			"display_name": "Grok 4.6",
+			"created": 1,
+			"owned_by": "grok",
+			"modality": "chat",
+			"access_tier": "premium",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 2,
+				"output": 6,
+				"cache_read": 0.5
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 500000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high", "xhigh"],
+				"default": "high"
+			}
+		},
+		{
+			"id": "anthropic/claude-opus-5",
+			"object": "model",
+			"type": "model",
+			"display_name": "Opus 5",
+			"created": 1,
+			"owned_by": "anthropic",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 5,
+				"output": 25,
+				"cache_read": 0.5,
+				"cache_write": 6.25
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 128000,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high", "xhigh", "max"],
+				"default": "high"
+			}
+		},
+		{
+			"id": "anthropic/claude-opus-4.5",
+			"object": "model",
+			"type": "model",
+			"display_name": "Opus 4.5",
+			"created": 1,
+			"owned_by": "anthropic",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 5,
+				"output": 25,
+				"cache_read": 0.5,
+				"cache_write": 6.25
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 200000,
+			"max_output_tokens": 64000,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high"],
+				"default": "low"
+			}
+		},
+		{
+			"id": "openai/gpt-6.1-sol",
+			"object": "model",
+			"type": "model",
+			"display_name": "GPT-6.1 Sol",
+			"created": 1,
+			"owned_by": "openai",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 2,
+				"output": 10,
+				"cache_read": 0.1,
+				"cache_write": 2.5
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1050000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["none", "low", "medium", "high", "xhigh", "max"],
+				"default": "low"
+			}
+		},
+		{
+			"id": "openai/gpt-6-astra",
+			"object": "model",
+			"type": "model",
+			"display_name": "GPT-6 Astra",
+			"created": 1,
+			"owned_by": "openai",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 10,
+				"output": 50,
+				"cache_read": 1
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"min_plan_usd": 100,
+			"min_plan_names": ["Ultra", "Power"],
+			"context_length": 1050000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["none", "low", "medium", "high", "xhigh", "max"],
+				"default": "medium"
+			}
+		},
+		{
+			"id": "cohere/north-mini-code",
+			"object": "model",
+			"type": "model",
+			"display_name": "North Mini Code",
+			"created": 1,
+			"owned_by": "api",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": false,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 256000,
+			"max_output_tokens": 64000,
+			"reasoning_efforts": {
+				"levels": ["none", "high"],
+				"default": "high"
+			}
+		},
+		{
+			"id": "openai/gpt-6-sol",
+			"object": "model",
+			"type": "model",
+			"display_name": "GPT-6 Sol",
+			"created": 1,
+			"owned_by": "openai",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 2,
+				"output": 10,
+				"cache_read": 0.2,
+				"cache_write": 2.5
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1050000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["none", "low", "medium", "high", "xhigh", "max"],
+				"default": "medium"
+			}
+		},
+		{
+			"id": "cohere/command-r-08-2024",
+			"object": "model",
+			"type": "model",
+			"display_name": "Command R (08-2024)",
+			"created": 1,
+			"owned_by": "api",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": false,
+				"tools": true,
+				"reasoning": false,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 128000,
+			"max_output_tokens": 4096
+		},
+		{
+			"id": "openai/gpt-5.6-luna",
+			"object": "model",
+			"type": "model",
+			"display_name": "GPT-5.6 Luna",
+			"created": 1,
+			"owned_by": "openai",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0.1,
+				"output": 0.6,
+				"cache_read": 0.05
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["none", "low", "medium", "high", "xhigh", "max"],
+				"default": "medium"
+			}
+		},
+		{
+			"id": "openai/gpt-5.6-sol",
+			"object": "model",
+			"type": "model",
+			"display_name": "GPT-5.6 Sol",
+			"created": 1,
+			"owned_by": "openai",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 2,
+				"output": 10,
+				"cache_read": 0.2,
+				"cache_write": 2.5
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["none", "low", "medium", "high", "xhigh", "max"],
+				"default": "medium"
+			}
+		},
+		{
+			"id": "sensenova/sensenova-6.8-flash-lite",
+			"object": "model",
+			"type": "model",
+			"display_name": "SenseNova 6.8 Flash-Lite",
+			"created": 1,
+			"owned_by": "api",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 262144,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["none", "low", "medium", "high"],
+				"default": "medium"
+			}
+		},
+		{
+			"id": "cohere/command-a",
+			"object": "model",
+			"type": "model",
+			"display_name": "Command A",
+			"created": 1,
+			"owned_by": "api",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": false,
+				"tools": true,
+				"reasoning": false,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 288000,
+			"max_output_tokens": 8192
+		},
+		{
+			"id": "anthropic/claude-sonnet-4",
+			"object": "model",
+			"type": "model",
+			"display_name": "Sonnet 4",
+			"created": 1,
+			"owned_by": "anthropic",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 3,
+				"output": 15,
+				"cache_read": 0.3,
+				"cache_write": 3.75
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["none", "high"],
+				"default": "none"
+			}
+		},
+		{
+			"id": "cohere/aya-vision-32b",
+			"object": "model",
+			"type": "model",
+			"display_name": "Aya Vision 32B",
+			"created": 1,
+			"owned_by": "api",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": false,
+				"tools": false,
+				"reasoning": false,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 16384,
+			"max_output_tokens": 4096
+		},
+		{
+			"id": "mistralai/ministral-3b",
+			"object": "model",
+			"type": "model",
+			"display_name": "Ministral 3 3B",
+			"created": 1,
+			"owned_by": "mistral",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": false,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 128000,
+			"max_output_tokens": 8192
+		},
+		{
+			"id": "cohere/tiny-aya-earth",
+			"object": "model",
+			"type": "model",
+			"display_name": "Tiny Aya Earth",
+			"created": 1,
+			"owned_by": "api",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": false,
+				"tools": true,
+				"reasoning": false,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 8192,
+			"max_output_tokens": 8192
+		},
+		{
+			"id": "cohere/tiny-aya-global",
+			"object": "model",
+			"type": "model",
+			"display_name": "Tiny Aya Global",
+			"created": 1,
+			"owned_by": "api",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": false,
+				"tools": true,
+				"reasoning": false,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 8192,
+			"max_output_tokens": 8192
+		},
+		{
+			"id": "cohere/command-r-plus-08-2024",
+			"object": "model",
+			"type": "model",
+			"display_name": "Command R+ (08-2024)",
+			"created": 1,
+			"owned_by": "api",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": false,
+				"tools": true,
+				"reasoning": false,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 128000,
+			"max_output_tokens": 4096
+		},
+		{
+			"id": "openai/gpt-6.1-terra",
+			"object": "model",
+			"type": "model",
+			"display_name": "GPT-6.1 Terra",
+			"created": 1,
+			"owned_by": "openai",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 1,
+				"output": 5,
+				"cache_read": 0.05,
+				"cache_write": 1.25
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1050000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["none", "low", "medium", "high", "xhigh", "max"],
+				"default": "low"
+			}
+		},
+		{
+			"id": "cohere/aya-expanse-32b",
+			"object": "model",
+			"type": "model",
+			"display_name": "Aya Expanse 32B",
+			"created": 1,
+			"owned_by": "api",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": false,
+				"tools": false,
+				"reasoning": false,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 128000,
+			"max_output_tokens": 4096
+		},
+		{
+			"id": "openai/gpt-5.6-terra",
+			"object": "model",
+			"type": "model",
+			"display_name": "GPT-5.6 Terra",
+			"created": 1,
+			"owned_by": "openai",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 1,
+				"output": 6,
+				"cache_read": 0.125
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["none", "low", "medium", "high", "xhigh", "max"],
+				"default": "medium"
+			}
+		},
+		{
+			"id": "cohere/tiny-aya-fire",
+			"object": "model",
+			"type": "model",
+			"display_name": "Tiny Aya Fire",
+			"created": 1,
+			"owned_by": "api",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": false,
+				"tools": true,
+				"reasoning": false,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 8192,
+			"max_output_tokens": 8192
+		},
+		{
+			"id": "cohere/command-a-plus",
+			"object": "model",
+			"type": "model",
+			"display_name": "Command A+",
+			"created": 1,
+			"owned_by": "api",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 436000,
+			"max_output_tokens": 64000,
+			"reasoning_efforts": {
+				"levels": ["high"],
+				"default": "high"
+			}
+		},
+		{
+			"id": "nvidia/nemotron-3.5-super-vl",
+			"object": "model",
+			"type": "model",
+			"display_name": "Nemotron 3.5 Super VL",
+			"created": 1,
+			"owned_by": "nvidia",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0.15,
+				"output": 0.5,
+				"cache_read": 0.02
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["off", "on"],
+				"default": "on"
+			}
+		},
+		{
+			"id": "google/gemini-2.5-pro",
+			"object": "model",
+			"type": "model",
+			"display_name": "Gemini 2.5 Pro",
+			"created": 1,
+			"owned_by": "google",
+			"modality": "chat",
+			"access_tier": "premium",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0.8125,
+				"output": 6.5,
+				"cache_read": 0.08125,
+				"cache_write": 0.24375
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high"],
+				"default": "medium"
+			}
+		},
+		{
+			"id": "anthropic/claude-opus-4.6",
+			"object": "model",
+			"type": "model",
+			"display_name": "Opus 4.6",
+			"created": 1,
+			"owned_by": "anthropic",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 5,
+				"output": 25,
+				"cache_read": 0.5,
+				"cache_write": 6.25
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 128000,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high", "max"],
+				"default": "medium"
+			}
+		},
+		{
+			"id": "anthropic/claude-sonnet-4.5",
+			"object": "model",
+			"type": "model",
+			"display_name": "Sonnet 4.5",
+			"created": 1,
+			"owned_by": "anthropic",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 3,
+				"output": 15,
+				"cache_read": 0.3,
+				"cache_write": 3.75
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["none", "high"],
+				"default": "none"
+			}
+		},
+		{
+			"id": "openai/gpt-6-luna",
+			"object": "model",
+			"type": "model",
+			"display_name": "GPT-6 Luna",
+			"created": 1,
+			"owned_by": "openai",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0.1,
+				"output": 0.5,
+				"cache_read": 0.01,
+				"cache_write": 0.125
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1050000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["none", "low", "medium", "high", "xhigh", "max"],
+				"default": "medium"
+			}
+		},
+		{
+			"id": "google/gemini-3.5-flash",
+			"object": "model",
+			"type": "model",
+			"display_name": "Gemini 3.5 Flash",
+			"created": 1,
+			"owned_by": "google",
+			"modality": "chat",
+			"access_tier": "premium",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0.975,
+				"output": 5.85,
+				"cache_read": 0.0975,
+				"cache_write": 0.054145
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high"],
+				"default": "medium"
+			}
+		},
+		{
+			"id": "google/gemini-3.1-pro",
+			"object": "model",
+			"type": "model",
+			"display_name": "Gemini 3.1 Pro",
+			"created": 1,
+			"owned_by": "google",
+			"modality": "chat",
+			"access_tier": "premium",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 1.3,
+				"output": 7.8,
+				"cache_read": 0.13
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high"],
+				"default": "medium"
+			}
+		},
+		{
+			"id": "anthropic/claude-haiku-5.5",
+			"object": "model",
+			"type": "model",
+			"display_name": "Haiku 5.5",
+			"created": 1,
+			"owned_by": "anthropic",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0.1,
+				"output": 0.5,
+				"cache_read": 0.01,
+				"cache_write": 0.125
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 128000,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high", "xhigh", "max"],
+				"default": "medium"
+			}
+		},
+		{
+			"id": "anthropic/claude-haiku-4.5",
+			"object": "model",
+			"type": "model",
+			"display_name": "Haiku 4.5",
+			"created": 1,
+			"owned_by": "anthropic",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 1,
+				"output": 5,
+				"cache_read": 0.1,
+				"cache_write": 1.25
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 200000,
+			"max_output_tokens": 64000,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high"],
+				"default": "low"
+			}
+		},
+		{
+			"id": "google/gemini-2.5-flash",
+			"object": "model",
+			"type": "model",
+			"display_name": "Gemini 2.5 Flash",
+			"created": 1,
+			"owned_by": "google",
+			"modality": "chat",
+			"access_tier": "premium",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0.195,
+				"output": 1.625,
+				"cache_read": 0.0195,
+				"cache_write": 0.054145
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["low", "high"],
+				"default": "low"
+			}
+		},
+		{
+			"id": "moonshotai/kimi-k3-agent",
+			"object": "model",
+			"type": "model",
+			"display_name": "Kimi K3 Agent",
+			"created": 1,
+			"owned_by": "kimi",
+			"modality": "chat",
+			"access_tier": "premium",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 3,
+				"output": 15,
+				"cache_read": 0.3
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 262144,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["none", "low", "medium", "high", "max"],
+				"default": "high"
+			}
+		},
+		{
+			"id": "mistralai/mistral-large-4-0",
+			"object": "model",
+			"type": "model",
+			"display_name": "Mistral Large 4",
+			"created": 1,
+			"owned_by": "mistral",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0.68,
+				"output": 2.09,
+				"cache_read": 0.07
+			},
+			"capabilities": {
+				"vision": false,
+				"tools": false,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 256000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high"],
+				"default": "high"
+			}
+		},
+		{
+			"id": "mistralai/mistral-large-2512",
+			"object": "model",
+			"type": "model",
+			"display_name": "Mistral Large 3",
+			"created": 1,
+			"owned_by": "mistral",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": false,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 256000,
+			"max_output_tokens": 16384
+		},
+		{
+			"id": "anthropic/claude-sonnet-5",
+			"object": "model",
+			"type": "model",
+			"display_name": "Sonnet 5",
+			"created": 1,
+			"owned_by": "anthropic",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 2,
+				"output": 10,
+				"cache_read": 0.2,
+				"cache_write": 2.5
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 128000,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high", "xhigh", "max"],
+				"default": "high"
+			}
+		},
+		{
+			"id": "mistralai/mistral-medium-3.5",
+			"object": "model",
+			"type": "model",
+			"display_name": "Mistral Medium 3.5",
+			"created": 1,
+			"owned_by": "mistral",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 256000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["none", "high"],
+				"default": "none"
+			}
+		},
+		{
+			"id": "mistralai/mistral-small-2603",
+			"object": "model",
+			"type": "model",
+			"display_name": "Mistral Small 4",
+			"created": 1,
+			"owned_by": "mistral",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 256000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["none", "high"],
+				"default": "none"
+			}
+		},
+		{
+			"id": "mistralai/devstral-medium",
+			"object": "model",
+			"type": "model",
+			"display_name": "Devstral 2",
+			"created": 1,
+			"owned_by": "mistral",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": false,
+				"tools": true,
+				"reasoning": false,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 256000,
+			"max_output_tokens": 16384
+		},
+		{
+			"id": "anthropic/claude-opus-5.5",
+			"object": "model",
+			"type": "model",
+			"display_name": "Opus 5.5",
+			"created": 1,
+			"owned_by": "anthropic",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 4,
+				"output": 20,
+				"cache_read": 0.2,
+				"cache_write": 5
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 128000,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high", "xhigh", "max"],
+				"default": "medium"
+			}
+		},
+		{
+			"id": "mistralai/codestral-2508",
+			"object": "model",
+			"type": "model",
+			"display_name": "Codestral",
+			"created": 1,
+			"owned_by": "mistral",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": false,
+				"tools": true,
+				"reasoning": false,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 256000,
+			"max_output_tokens": 16384
+		},
+		{
+			"id": "cohere/command-a-translate",
+			"object": "model",
+			"type": "model",
+			"display_name": "Command A Translate",
+			"created": 1,
+			"owned_by": "api",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": false,
+				"tools": true,
+				"reasoning": false,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 8992,
+			"max_output_tokens": 8000
+		},
+		{
+			"id": "google/gemini-3-flash",
+			"object": "model",
+			"type": "model",
+			"display_name": "Gemini 3 Flash",
+			"created": 1,
+			"owned_by": "google",
+			"modality": "chat",
+			"access_tier": "premium",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0.4875,
+				"output": 2.4375,
+				"cache_read": 0.04875
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 65536
+		},
+		{
+			"id": "mistralai/ministral-8b",
+			"object": "model",
+			"type": "model",
+			"display_name": "Ministral 3 8B",
+			"created": 1,
+			"owned_by": "mistral",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": false,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 256000,
+			"max_output_tokens": 8192
+		},
+		{
+			"id": "deepseek/deepseek-v4-flash-0731",
+			"object": "model",
+			"type": "model",
+			"display_name": "DeepSeek V4 Flash 0731",
+			"created": 1,
+			"owned_by": "deepseek",
+			"modality": "chat",
+			"access_tier": "premium",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0.091,
+				"output": 0.182,
+				"cache_read": 0.0182,
+				"cache_write": 0.091
+			},
+			"capabilities": {
+				"vision": false,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1048576,
+			"max_output_tokens": 128000
+		},
+		{
+			"id": "anthropic/claude-opus-4.7",
+			"object": "model",
+			"type": "model",
+			"display_name": "Opus 4.7",
+			"created": 1,
+			"owned_by": "anthropic",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 5,
+				"output": 25,
+				"cache_read": 0.5,
+				"cache_write": 6.25
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 128000,
+			"reasoning_efforts": {
+				"levels": ["low", "medium", "high", "xhigh", "max"],
+				"default": "xhigh"
+			}
+		},
+		{
+			"id": "nvidia/nemotron-3-ultra",
+			"object": "model",
+			"type": "model",
+			"display_name": "Nemotron 3 Ultra",
+			"created": 1,
+			"owned_by": "nvidia",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0.6,
+				"output": 2.4,
+				"cache_read": 0.12
+			},
+			"capabilities": {
+				"vision": false,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 1000000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["off", "on"],
+				"default": "on"
+			}
+		},
+		{
+			"id": "stealth/big-pickle",
+			"object": "model",
+			"type": "model",
+			"display_name": "Big Pickle (Free)",
+			"created": 1,
+			"owned_by": "stealth",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": false,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 200000,
+			"max_output_tokens": 65536
+		},
+		{
+			"id": "cohere/command-r7b-12-2024",
+			"object": "model",
+			"type": "model",
+			"display_name": "Command R7B (12-2024)",
+			"created": 1,
+			"owned_by": "api",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": false,
+				"tools": true,
+				"reasoning": false,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 132000,
+			"max_output_tokens": 4096
+		},
+		{
+			"id": "nvidia/nemotron-3-nano-omni",
+			"object": "model",
+			"type": "model",
+			"display_name": "Nemotron 3 Nano Omni",
+			"created": 1,
+			"owned_by": "nvidia",
+			"modality": "chat",
+			"access_tier": "paid",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0.05,
+				"output": 0.2,
+				"cache_read": 0.03
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 256000,
+			"max_output_tokens": 65536,
+			"reasoning_efforts": {
+				"levels": ["off", "on"],
+				"default": "on"
+			}
+		},
+		{
+			"id": "cohere/north-small-translate",
+			"object": "model",
+			"type": "model",
+			"display_name": "North Small Translate",
+			"created": 1,
+			"owned_by": "api",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": false,
+				"tools": false,
+				"reasoning": false,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 32768,
+			"max_output_tokens": 16384
+		},
+		{
+			"id": "cohere/command-a-vision",
+			"object": "model",
+			"type": "model",
+			"display_name": "Command A Vision",
+			"created": 1,
+			"owned_by": "api",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": true,
+				"tools": false,
+				"reasoning": false,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 128000,
+			"max_output_tokens": 8192
+		},
+		{
+			"id": "cohere/command-a-reasoning",
+			"object": "model",
+			"type": "model",
+			"display_name": "Command A Reasoning",
+			"created": 1,
+			"owned_by": "api",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": false,
+				"tools": true,
+				"reasoning": true,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 288768,
+			"max_output_tokens": 32768,
+			"reasoning_efforts": {
+				"levels": ["none", "high"],
+				"default": "high"
+			}
+		},
+		{
+			"id": "cohere/tiny-aya-water",
+			"object": "model",
+			"type": "model",
+			"display_name": "Tiny Aya Water",
+			"created": 1,
+			"owned_by": "api",
+			"modality": "chat",
+			"access_tier": "free",
+			"pricing": {
+				"currency": "USD",
+				"unit": "per_1m_tokens",
+				"input": 0,
+				"output": 0
+			},
+			"capabilities": {
+				"vision": false,
+				"tools": true,
+				"reasoning": false,
+				"web_search": {
+					"chat_completions": true,
+					"messages": false,
+					"responses": false
+				}
+			},
+			"context_length": 8192,
+			"max_output_tokens": 8192
+		}
+	]
+}
