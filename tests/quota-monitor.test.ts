@@ -87,6 +87,43 @@ describe("quota-monitor response outcome counters (M2 + Mn3, #437)", () => {
 		expect(getResponseCounters("ok")?.quotaHeaderDrift).toBe(0);
 	});
 
+	// AMD Token Lab (#671) reports a monthly dollar budget and a per-minute
+	// request cap under its own header names; unmatched, the status bar stayed
+	// empty and every response counted as header drift. Headers verbatim from a
+	// live response (2026-11-14), budget partly spent.
+	it("reads AMD Token Lab's dollar budget and shows it in dollars", async () => {
+		const { processQuotaResponse, getResponseCounters, formatQuotaStatus } =
+			await import("../lib/quota-monitor.ts");
+
+		processQuotaResponse("amd-tokenlab", 200, {
+			"x-ratelimit-limit-user-budget-usd": "10.000000",
+			"x-ratelimit-limit-user-rpm": "20",
+			"x-ratelimit-remaining-user-budget-usd": "2.500000",
+			"x-ratelimit-remaining-user-rpm": "19",
+			"x-ratelimit-reset-user-budget-usd": "1797186152",
+			"x-ratelimit-used-user-budget-usd": "7.500000",
+		});
+
+		expect(formatQuotaStatus("amd-tokenlab")).toBe(
+			"⚡ amd-tokenlab: $2.50/$10.00 (25%)",
+		);
+		expect(getResponseCounters("amd-tokenlab")?.quotaHeaderDrift).toBe(0);
+	});
+
+	it("falls back to AMD Token Lab's per-minute request cap without a budget", async () => {
+		const { processQuotaResponse, formatQuotaStatus } =
+			await import("../lib/quota-monitor.ts");
+
+		processQuotaResponse("amd-tokenlab-rpm", 200, {
+			"x-ratelimit-limit-user-rpm": "20",
+			"x-ratelimit-remaining-user-rpm": "19",
+		});
+
+		expect(formatQuotaStatus("amd-tokenlab-rpm")).toBe(
+			"amd-tokenlab-rpm: 19/20 (95%)",
+		);
+	});
+
 	it("status classification is independent of the quota-header logic (M2)", async () => {
 		const { processQuotaResponse, getResponseCounters, getQuota } =
 			await import("../lib/quota-monitor.ts");
