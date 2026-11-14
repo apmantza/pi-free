@@ -1,0 +1,217 @@
+{
+	"_captured": "2026-11-14, public /models endpoint, rows verbatim (#676)",
+	"data": [
+		{
+			"id": "BAAI/bge-m3",
+			"object": "model",
+			"created": 0,
+			"owned_by": "deepinfra",
+			"root": "BAAI/bge-m3",
+			"parent": null,
+			"metadata": {
+				"description": "BGE-M3 is a versatile text embedding model that supports multi-functionality, multi-linguality, and multi-granularity, allowing it to perform dense retrieval, multi-vector retrieval, and sparse retrieval in over 100 languages and with input sizes up to 8192 tokens. The model can be used in a retrieval pipeline with hybrid retrieval and re-ranking to achieve higher accuracy and stronger generalization capabilities. BGE-M3 has shown state-of-the-art performance on several benchmarks, including MKQA, MLDR, and NarritiveQA, and can be used as a drop-in replacement for other embedding models like DPR and BGE-v1.5.",
+				"context_length": 8192,
+				"max_tokens": 8192,
+				"pricing": {
+					"input_tokens": 0.01
+				},
+				"discount": null,
+				"tags": ["embed"],
+				"default_width": null,
+				"default_height": null,
+				"default_iterations": null
+			}
+		},
+		{
+			"id": "intfloat/e5-large-v2",
+			"object": "model",
+			"created": 0,
+			"owned_by": "deepinfra",
+			"root": "intfloat/e5-large-v2",
+			"parent": null,
+			"metadata": {
+				"description": "Text Embeddings by Weakly-Supervised Contrastive Pre-training. Model has 24 layers and 1024 out dim.",
+				"context_length": 512,
+				"max_tokens": 512,
+				"pricing": {
+					"input_tokens": 0.01
+				},
+				"discount": null,
+				"tags": ["embed"],
+				"default_width": null,
+				"default_height": null,
+				"default_iterations": null
+			}
+		},
+		{
+			"id": "sentence-transformers/all-MiniLM-L6-v2",
+			"object": "model",
+			"created": 0,
+			"owned_by": "deepinfra",
+			"root": "sentence-transformers/all-MiniLM-L6-v2",
+			"parent": null,
+			"metadata": {
+				"description": "We present a sentence transformation model that achieves state-of-the-art results on various NLP tasks without requiring task-specific architectures or fine-tuning. Our approach leverages contrastive learning and utilizes a variety of datasets to learn robust sentence representations. We evaluate our model on several benchmarks and demonstrate its effectiveness in various applications such as text classification, sentiment analysis, named entity recognition, and question answering.",
+				"context_length": 512,
+				"max_tokens": 512,
+				"pricing": {
+					"input_tokens": 0.005
+				},
+				"discount": null,
+				"tags": ["embed"],
+				"default_width": null,
+				"default_height": null,
+				"default_iterations": null
+			}
+		},
+		{
+			"id": "thenlper/gte-large",
+			"object": "model",
+			"created": 0,
+			"owned_by": "deepinfra",
+			"root": "thenlper/gte-large",
+			"parent": null,
+			"metadata": {
+				"description": "The GTE models are trained by Alibaba DAMO Academy. They are mainly based on the BERT framework and currently offer three different sizes of models, including GTE-large, GTE-base, and GTE-small. The GTE models are trained on a large-scale corpus of relevance text pairs, covering a wide range of domains and scenarios. This enables the GTE models to be applied to various downstream tasks of text embeddings, including information retrieval, semantic textual similarity, text reranking, etc.",
+				"context_length": 512,
+				"max_tokens": 512,
+				"pricing": {
+					"input_tokens": 0.01
+				},
+				"discount": null,
+				"tags": ["embed"],
+				"default_width": null,
+				"default_height": null,
+				"default_iterations": null
+			}
+		},
+		{
+			"id": "Qwen/Qwen3-Embedding-8B",
+			"object": "model",
+			"created": 0,
+			"owned_by": "deepinfra",
+			"root": "Qwen/Qwen3-Embedding-8B",
+			"parent": null,
+			"metadata": {
+				"description": "The Qwen3 Embedding model series is the latest proprietary model of the Qwen family, specifically designed for text embedding and ranking tasks. Building upon the dense foundational models of the Qwen3 series, it provides a comprehensive range of text embeddings and reranking models in various sizes (0.6B, 4B, and 8B).",
+				"context_length": 32768,
+				"max_tokens": 32768,
+				"pricing": {
+					"input_tokens": 0.01
+				},
+				"discount": null,
+				"tags": ["embed"],
+				"default_width": null,
+				"default_height": null,
+				"default_iterations": null
+			}
+		},
+		{
+			"id": "moonshotai/Kimi-K3",
+			"object": "model",
+			"created": 0,
+			"owned_by": "deepinfra",
+			"root": "moonshotai/Kimi-K3",
+			"parent": null,
+			"metadata": {
+				"description": "Kimi K3 is Moonshot AI's 2.8T-parameter open-weight multimodal reasoning model. Built for complex coding, knowledge work, and long-horizon agentic workflows, it excels at navigating large repositories, calling tools, debugging, and iterating on images, logs, tests, and runtime feedback. Its architecture relies on KDA and Attention Residuals for computational efficiency.",
+				"context_length": 1048576,
+				"max_tokens": 1048576,
+				"pricing": {
+					"input_tokens": 2.8499999999999996,
+					"output_tokens": 14.25,
+					"cache_read_tokens": 0.285
+				},
+				"discount": null,
+				"tags": ["chat", "vlm", "vision", "prompt_cache", "reasoning"],
+				"default_width": null,
+				"default_height": null,
+				"default_iterations": null
+			}
+		},
+		{
+			"id": "inclusionAI/Ling-3.0-flash",
+			"object": "model",
+			"created": 0,
+			"owned_by": "deepinfra",
+			"root": "inclusionAI/Ling-3.0-flash",
+			"parent": null,
+			"metadata": {
+				"description": "The model prioritizes token efficiency and agentic inference at production scale, stretching what developers can achieve within limited token, latency, and serving-cost budgets.",
+				"context_length": 131072,
+				"max_tokens": 131072,
+				"pricing": {
+					"input_tokens": 0.060000000000000005,
+					"output_tokens": 0.18,
+					"cache_read_tokens": 0.012000000000000002
+				},
+				"discount": null,
+				"tags": ["chat", "prompt_cache", "reasoning"],
+				"default_width": null,
+				"default_height": null,
+				"default_iterations": null
+			}
+		},
+		{
+			"id": "Bria/fibo_edit-1.5",
+			"object": "model",
+			"created": 0,
+			"owned_by": "deepinfra",
+			"root": "Bria/fibo_edit-1.5",
+			"parent": null,
+			"metadata": {
+				"description": "Instruction-based image editing powered by FIBO 1.5: edit one image with a text instruction or a mask, or compose up to four reference images into a single result.",
+				"context_length": null,
+				"max_tokens": null,
+				"pricing": {
+					"per_image_unit": 0.04
+				},
+				"discount": null,
+				"tags": ["image-gen"],
+				"default_width": 0,
+				"default_height": 0,
+				"default_iterations": 0
+			}
+		},
+		{
+			"id": "mistralai/Voxtral-Small-24B-2507",
+			"object": "model",
+			"created": 0,
+			"owned_by": "deepinfra",
+			"root": "mistralai/Voxtral-Small-24B-2507",
+			"parent": null,
+			"metadata": {
+				"description": "Voxtral Small is an enhancement of Mistral Small 3, incorporating state-of-the-art audio input capabilities while retaining best-in-class text performance. It excels at speech transcription, translation and audio understanding.",
+				"context_length": null,
+				"max_tokens": null,
+				"pricing": {
+					"input_seconds": 5e-5
+				},
+				"discount": null,
+				"tags": ["stt"],
+				"default_width": null,
+				"default_height": null,
+				"default_iterations": null
+			}
+		},
+		{
+			"id": "Pixverse/Pixverse-T2V",
+			"object": "model",
+			"created": 0,
+			"owned_by": "deepinfra",
+			"root": "Pixverse/Pixverse-T2V",
+			"parent": null,
+			"metadata": {
+				"description": "PixVerse's 720p resolution offers a fast and reliable option for generating standard HD videos, ideal for quick previews and social media content where generation speed is prioritized over maximum detail.",
+				"context_length": null,
+				"max_tokens": null,
+				"pricing": {},
+				"discount": null,
+				"tags": ["video-gen"],
+				"default_width": null,
+				"default_height": null,
+				"default_iterations": null
+			}
+		}
+	]
+}

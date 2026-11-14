@@ -65,18 +65,41 @@ export function applyKiloCompat(
 // Fetch
 // =============================================================================
 
+/**
+ * Routers (kilo-auto/*, openrouter/fusion, nvidia/switchyard, ...) list
+ * prompt/completion "-1": billed at the routed model's rate. That is not a
+ * price, so it must not become a negative cost; the model is stamped
+ * pricing-unknown instead. Free/paid still comes from Kilo's `isFree` flag.
+ */
+function unpriceRoutedModel(model: ProviderModelConfig): ProviderModelConfig {
+	if (!isChatModelConfig(model)) return model;
+	if (model.cost.input >= 0 && model.cost.output >= 0) return model;
+	const unpriced: typeof model & { _pricingKnown: false } = {
+		...model,
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		_pricingKnown: false,
+	};
+	return unpriced;
+}
+
 async function fetchKiloModels(options?: {
 	token?: string | undefined;
 	freeOnly?: boolean;
+	signal?: AbortSignal | undefined;
 }): Promise<ProviderModelConfig[]> {
 	const models = await fetchOpenRouterCompatibleModels({
 		providerId: PROVIDER_KILO,
 		baseUrl: KILO_GATEWAY_BASE,
 		apiKey: options?.token,
 		freeOnly: options?.freeOnly,
+		signal: options?.signal,
+		// Gateways serve image/audio/video generators through the chat surface
+		// with "text" beside the media output (gemini-*-image, gpt-5-image,
+		// lyria-3-*, gpt-audio, gemini-omni); they are not chat models (#676).
+		excludeOutputModalities: ["image", "audio", "video", "speech"],
 	});
 
-	return applyHidden(models, PROVIDER_KILO);
+	return applyHidden(models.map(unpriceRoutedModel), PROVIDER_KILO);
 }
 
 /**
@@ -91,12 +114,23 @@ export async function fetchKiloCatalog(options?: {
 	token?: string | undefined;
 	signal?: AbortSignal;
 }): Promise<{ all: ProviderModelConfig[]; free: ProviderModelConfig[] }> {
+	const signal = options?.signal;
 	let all: ProviderModelConfig[];
 	try {
-		all = await fetchKiloModels({ token: options?.token, freeOnly: false });
+		all = await fetchKiloModels({
+			token: options?.token,
+			freeOnly: false,
+			signal,
+		});
 	} catch {
+		// Abort is cancellation, not failure: no free-only retry (convention 15).
+		if (signal?.aborted) return { all: [], free: [] };
 		try {
-			all = await fetchKiloModels({ token: options?.token, freeOnly: true });
+			all = await fetchKiloModels({
+				token: options?.token,
+				freeOnly: true,
+				signal,
+			});
 		} catch {
 			all = [];
 		}

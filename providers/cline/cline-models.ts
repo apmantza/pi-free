@@ -28,7 +28,7 @@ import {
 import { getClineProviderHeaders } from "./cline-headers.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import { getProxyModelCompat } from "../../lib/provider-compat.ts";
-import { cleanModelName, fetchWithRetry } from "../../lib/util.ts";
+import { cleanModelName, fetchWithRetry, withSignal } from "../../lib/util.ts";
 
 const _logger = createLogger("cline-models");
 
@@ -106,12 +106,31 @@ function modalityIncludes(
 	return typeof modality === "string" && modality.includes(needle);
 }
 
-function hasTextOutput(info: ClineRaw): boolean {
+/**
+ * Admit only text-only output. Gateways serve music, image and video
+ * generators through the chat surface with `text` beside the media modality
+ * (lyria-3-*-preview: ["text", "audio"] at $0, gemini-*-image, gpt-5-image),
+ * so "has text" let them into the picker and the free view (#676). A row with
+ * no output signal is refused.
+ */
+function hasTextOnlyOutput(info: ClineRaw): boolean {
 	const outputMods = info.architecture?.output_modalities;
 	if (Array.isArray(outputMods) && outputMods.length > 0) {
-		return outputMods.includes("text");
+		return outputMods.every((mod) => mod === "text");
 	}
-	return modalityIncludes(info.architecture?.modality, "text");
+	const modality = info.architecture?.modality;
+	return typeof modality === "string" && modality.endsWith("->text");
+}
+
+/**
+ * Routers (openrouter/fusion, nvidia/switchyard, ...) list "-1": billed at
+ * the routed model's rate. That is not a price, so it must not become a
+ * negative cost; the row is stamped pricing-unknown instead.
+ */
+function hasRoutedPricing(info: ClineRaw): boolean {
+	return [info.pricing?.prompt, info.pricing?.completion].some(
+		(price) => Number.parseFloat(price ?? "") < 0,
+	);
 }
 
 function supportsImages(info: ClineRaw): boolean {
@@ -156,15 +175,13 @@ function modelFromCatalog(
 		info.supported_parameters?.includes("reasoning"),
 	);
 	const isFreeToTry = freeToTryIds.has(info.id);
-	const inputCost = isFreeToTry ? 0 : parsePricing(info.pricing?.prompt);
-	const outputCost = isFreeToTry ? 0 : parsePricing(info.pricing?.completion);
-	const cacheRead = isFreeToTry
-		? 0
-		: parsePricing(info.pricing?.input_cache_read);
-	const cacheWrite = isFreeToTry
-		? 0
-		: parsePricing(info.pricing?.input_cache_write);
-	const isFree = inputCost === 0 && outputCost === 0;
+	const isRouted = !isFreeToTry && hasRoutedPricing(info);
+	const listed = !isFreeToTry && !isRouted;
+	const inputCost = listed ? parsePricing(info.pricing?.prompt) : 0;
+	const outputCost = listed ? parsePricing(info.pricing?.completion) : 0;
+	const cacheRead = listed ? parsePricing(info.pricing?.input_cache_read) : 0;
+	const cacheWrite = listed ? parsePricing(info.pricing?.input_cache_write) : 0;
+	const isFree = !isRouted && inputCost === 0 && outputCost === 0;
 	const cleanName = info.name
 		? cleanModelName(info.name)
 		: extractNameFromId(info.id);
@@ -186,16 +203,17 @@ function modelFromCatalog(
 		...(getProxyModelCompat({ id: info.id, name: info.name })
 			? { compat: getProxyModelCompat({ id: info.id, name: info.name }) }
 			: {}),
-		_pricingKnown: info.pricing !== null && info.pricing !== undefined,
+		_pricingKnown:
+			!isRouted && info.pricing !== null && info.pricing !== undefined,
 	} as ProviderModelConfig & { _pricingKnown?: boolean; compat?: any };
 }
 
-async function fetchClineRecommendedFreeModels(): Promise<
-	ClineRecommendedModel[]
-> {
+async function fetchClineRecommendedFreeModels(
+	signal?: AbortSignal,
+): Promise<ClineRecommendedModel[]> {
 	const response = await fetchWithRetry(
 		`${BASE_URL_CLINE}/ai/cline/recommended-models`,
-		{ headers: buildClineFetchHeaders() },
+		withSignal({ headers: buildClineFetchHeaders() }, signal),
 		3,
 		1000,
 		DEFAULT_FETCH_TIMEOUT_MS,
@@ -207,10 +225,12 @@ async function fetchClineRecommendedFreeModels(): Promise<
 	return Array.isArray(json.free) ? json.free.filter((m) => m?.id) : [];
 }
 
-async function fetchClineCatalogModels(): Promise<ClineRaw[]> {
+async function fetchClineCatalogModels(
+	signal?: AbortSignal,
+): Promise<ClineRaw[]> {
 	const response = await fetchWithRetry(
 		`${BASE_URL_CLINE}/ai/cline/models`,
-		{ headers: buildClineFetchHeaders() },
+		withSignal({ headers: buildClineFetchHeaders() }, signal),
 		3,
 		1000,
 		DEFAULT_FETCH_TIMEOUT_MS,
@@ -232,10 +252,11 @@ async function fetchClineCatalogModels(): Promise<ClineRaw[]> {
  */
 async function fetchClineModels(
 	freeOnly = false,
+	signal?: AbortSignal,
 ): Promise<ProviderModelConfig[]> {
 	const [catalogModels, recommendedFreeModels] = await Promise.all([
-		fetchClineCatalogModels(),
-		fetchClineRecommendedFreeModels().catch(() => []),
+		fetchClineCatalogModels(signal),
+		fetchClineRecommendedFreeModels(signal).catch(() => []),
 	]);
 	const recommendedFreeIds = new Set(recommendedFreeModels.map((m) => m.id));
 
@@ -243,7 +264,7 @@ async function fetchClineModels(
 	const seen = new Set<string>();
 
 	for (const info of catalogModels) {
-		if (!hasTextOutput(info)) continue;
+		if (!hasTextOnlyOutput(info)) continue;
 		const model = modelFromCatalog(info, recommendedFreeIds);
 		models.push(model);
 		seen.add(model.id);
@@ -286,10 +307,12 @@ export async function fetchClineCatalog(options?: {
 }): Promise<{ all: ProviderModelConfig[]; free: ProviderModelConfig[] }> {
 	let all: ProviderModelConfig[];
 	try {
-		all = await fetchClineModels(false);
+		all = await fetchClineModels(false, options?.signal);
 	} catch (error) {
-		// Genuine fetch failures must stay diagnosable (abort is handled below
-		// without logging, per convention #15) — log and retain via empty arrays.
+		// Abort is cancellation, not failure (convention #15): no log.
+		if (options?.signal?.aborted) return { all: [], free: [] };
+		// Genuine fetch failures must stay diagnosable — log and retain via
+		// empty arrays.
 		_logger.warn("Cline catalog fetch failed; retaining previous list", {
 			error: error instanceof Error ? error.message : String(error),
 		});

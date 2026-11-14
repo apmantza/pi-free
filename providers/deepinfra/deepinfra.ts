@@ -56,16 +56,15 @@ import { deepinfraAuth } from "./deepinfra-auth.ts";
 const _logger = createLogger("deepinfra");
 
 /**
- * Media-generation capability tags from DeepInfra's structured metadata.
- * Zero-priced image/video/audio models carry these tags, so filtering on them
- * (instead of id substrings) reliably keeps real chat models out of the
- * free-only view while dropping non-chat entries.
+ * DeepInfra marks every chat-completions model with the `chat` capability tag
+ * in `metadata.tags`; embeddings (`embed`), image/video generators and
+ * speech models carry their own tags instead. Admit only the chat tag: an
+ * exclusion list (and id substrings) missed the ~20 embedding models whose
+ * ids do not contain "embed" (BAAI/bge-m3, intfloat/e5-*, ...), and any tag
+ * DeepInfra adds later would leak the same way (#676).
  */
-const MEDIA_TAGS = new Set(["image-gen", "video-gen", "tts", "stt"]);
-
-function isMediaTagged(tags: string[] | undefined): boolean {
-	if (!tags) return false;
-	return tags.some((tag) => MEDIA_TAGS.has(tag));
+function isChatTagged(tags: string[] | undefined): boolean {
+	return tags?.includes("chat") ?? false;
 }
 
 // =============================================================================
@@ -122,18 +121,7 @@ export async function fetchDeepinfraModels(
 	_logger.info(`[deepinfra] Fetched ${models.length} models`);
 
 	const mapped = models
-		.filter((m) => {
-			// Prefer structured capability tags over id substrings: zero-priced
-			// media models (Seedream, Veo, Whisper, TTS, ...) are tagged.
-			if (isMediaTagged(m.metadata?.tags)) return false;
-			const id = m.id.toLowerCase();
-			// Fallback for untagged entries
-			if (id.includes("embed")) return false;
-			if (id.includes("rerank")) return false;
-			if (id.includes("whisper")) return false;
-			if (id.includes("speech")) return false;
-			return true;
-		})
+		.filter((m) => isChatTagged(m.metadata?.tags))
 		.map((m): ProviderModelConfig => {
 			const meta = m.metadata;
 			const name = m.id.split("/").pop() || m.id;
