@@ -17,7 +17,11 @@ import {
 	PROVIDER_REQUESTY,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
-import { perMillionFromPerToken } from "../../lib/model-map.ts";
+import {
+	firstPositiveLimit,
+	keepToolCallingModels,
+	perMillionFromPerToken,
+} from "../../lib/model-map.ts";
 import { fetchWithRetry, withSignal } from "../../lib/util.ts";
 
 const _logger = createLogger("requesty-models");
@@ -35,11 +39,34 @@ interface RequestyCatalogModel {
 	supports_tool_calling?: unknown;
 	supports_vision?: unknown;
 	supports_image_generation?: unknown;
+	retires?: unknown;
 	description?: unknown;
 }
 
 /** Fallback context window for entries that omit `context_window`. */
 const FALLBACK_CONTEXT_WINDOW = 128_000;
+
+/**
+ * Fallback output limit where `max_output_tokens` is 0 (unpublished; 114 of
+ * 727 live chat rows on 2026-11-15, e.g. deepinfra/deepseek-v4.1-flash-1017).
+ * The prior 4096 cut long answers and left reasoning models no room to
+ * answer after thinking; 16384 is the unpublished-limit default the other
+ * gateway catalogs here use (Novita, Routeway, OpenGateway, InferX).
+ */
+const FALLBACK_MAX_TOKENS = 16_384;
+
+/**
+ * Whether a row is still served at `now`. `retires` is a Unix time in
+ * seconds; rows past it stay listed (38 of 727 live chat rows on
+ * 2026-11-15, e.g. google/gemini-2.5-flash, retired 2026-10-16). An absent
+ * field means no retirement is scheduled; any other value is unrecognized
+ * and refused.
+ */
+function isStillServed(entry: RequestyCatalogModel, now: number): boolean {
+	const retires = entry.retires;
+	if (retires === undefined) return true;
+	return typeof retires === "number" && retires * 1000 > now;
+}
 
 function asNumber(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isFinite(value)
@@ -93,7 +120,9 @@ export function mapRequestyModel(
 			cacheWrite: asPricePerMillion(entry.caching_price) ?? 0,
 		},
 		contextWindow: asNumber(entry.context_window) ?? FALLBACK_CONTEXT_WINDOW,
-		maxTokens: asNumber(entry.max_output_tokens) || 4_096,
+		maxTokens:
+			firstPositiveLimit(asNumber(entry.max_output_tokens)) ??
+			FALLBACK_MAX_TOKENS,
 		_pricingKnown: pricingKnown,
 	} as ChatModelConfig & { _pricingKnown?: boolean };
 }
@@ -134,8 +163,15 @@ export async function fetchRequestyModels(
 		Array.isArray((payload as { data?: unknown }).data)
 			? ((payload as { data: unknown[] }).data as RequestyCatalogModel[])
 			: [];
+	const now = Date.now();
+	const served = entries.filter((entry) => isStillServed(entry, now));
+	const toolCalling = keepToolCallingModels(
+		PROVIDER_REQUESTY,
+		served,
+		(entry) => entry.supports_tool_calling === true,
+	);
 	const models: ProviderModelConfig[] = [];
-	for (const entry of entries) {
+	for (const entry of toolCalling) {
 		const mapped = mapRequestyModel(entry);
 		if (mapped) models.push(mapped);
 	}
