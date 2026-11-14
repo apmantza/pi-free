@@ -34,9 +34,8 @@ resolution). 0.81.0 is the release that exposes the public extension surface.
 
 ### A. `refreshModels` for native providers — completed for the migrated catalog
 
-Kilo, Cline, Qoder, and the API-key providers that formerly hit a `models`
-endpoint on startup now use Pi's native `refreshModels` lifecycle. Qoder's
-compatibility cache is limited to optional stream metadata; Ollama retains the
+Kilo, Cline, and the API-key providers that formerly hit a `models`
+endpoint on startup use Pi's native `refreshModels` lifecycle. Ollama retains the
 provider cache only for `/api/show` capability reuse and its compatibility
 refresh command. Pi 0.81 supplies the primitives
 that enabled the migration:
@@ -72,10 +71,10 @@ free/all policy composes with credential-aware visibility.
 
 ### C. Migrate Kilo/Cline OAuth to the new `createProvider` `auth` shape — completed
 
-Kilo, Cline, and Qoder now use native `ProviderAuth` implementations. Pi
+Kilo and Cline use native `ProviderAuth` implementations. Pi
 persists their credentials in `~/.pi/agent/auth.json` and owns refresh
-coordination. Cline's legacy callback-server flow and Qoder's OAuth/PAT flow
-are adapted to native `AuthInteraction`.
+coordination. Cline's legacy callback-server flow is adapted to native
+`AuthInteraction`.
 
 ### D. `refreshModels` for Ollama Cloud — completed with a compatibility exception
 
@@ -104,8 +103,6 @@ refactor.
   through the legacy config form.
 - `ctx.modelRegistry` / `ctx.model` events (`model_select`, `session_start`,
   `turn_end`) are unchanged.
-- Qoder's OAuth/PAT and custom stream now run behind the native provider surface;
-  their protocol-specific adapters remain Qoder-owned.
 
 ---
 
@@ -129,7 +126,6 @@ refactor.
 
 ## Remaining opportunities
 
-- Qoder native migration remains a separate protocol/auth project.
 - Provider-specific free-filter toggles for Pi-built-in catalogs can be added
   only when their pricing metadata supports safe Route A/B classification.
 - The proposed compiled packaging work is documented in

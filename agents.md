@@ -75,7 +75,7 @@ index.ts                          ← Extension entry (piFreeEntry)
   └─ providers/                   ← per-provider extensions (default async fn each):
       kilo/ cline/ (native reference ports) novita venice ollama-cloud routeway
       opengateway sambanova zenmux llm7 deepinfra tokenrouter anyapi
-      model-fetcher.ts (shared OpenRouter fetching) opencode-session.ts qoder/
+      model-fetcher.ts (shared OpenRouter fetching) opencode-session.ts
       bai agnes commandcode infron inferx amd-tokenlab/ merge/ fastrouter/ requesty stepfun/
       (gmi/ mirrors this structure for GMI Cloud; full per-file map under
       "Native `Provider` providers" below)
@@ -94,7 +94,7 @@ tla/                              ← TLA+ specs + TLC gate (see TLC Model Check
 
 ### Provider Registration Pattern
 
-All pi-free providers register through Pi's native lifecycle (single-argument `registerProvider(provider)`); Pi owns the models store, credentials, refresh timing, and offline init. Native `Provider` objects expose the complete catalog from `getModels()`, apply free/paid policy in `filterModels`, and implement `refreshModels(context)` — restore from `context.stored`/`context.store`, fetch with `context.credential` when `allowNetwork`, honor `context.signal`, retain the previous list on empty/failed fetch, publish via `context.publish`. No internal freshness gating (Pi owns throttle + `force`); never copy native catalogs into `provider-cache.json`. For a new OpenAI-compatible provider use `registerNativeOpenAIProvider()` (auth + catalog fetcher + `getShowPaid`); for custom wire protocols assemble the `Provider` interface directly. Pi owns the built-in OpenCode catalog that `opencode-free` captures; Pi's native `openrouter` and `opencode-go` are never overridden (Standing Invariants); Qoder keeps only custom auth/stream plus optional stream-metadata cache.
+All pi-free providers register through Pi's native lifecycle (single-argument `registerProvider(provider)`); Pi owns the models store, credentials, refresh timing, and offline init. Native `Provider` objects expose the complete catalog from `getModels()`, apply free/paid policy in `filterModels`, and implement `refreshModels(context)` — restore from `context.stored`/`context.store`, fetch with `context.credential` when `allowNetwork`, honor `context.signal`, retain the previous list on empty/failed fetch, publish via `context.publish`. No internal freshness gating (Pi owns throttle + `force`); never copy native catalogs into `provider-cache.json`. For a new OpenAI-compatible provider use `registerNativeOpenAIProvider()` (auth + catalog fetcher + `getShowPaid`); for custom wire protocols assemble the `Provider` interface directly. Pi owns the built-in OpenCode catalog that `opencode-free` captures; Pi's native `openrouter` and `opencode-go` are never overridden (Standing Invariants).
 
 ### Native `Provider` providers
 
@@ -168,9 +168,9 @@ One rule (`resolveModelView` in `lib/registry.ts`): **explicit per-provider choi
 
 | Category | Providers | Auth | Notes |
 | ----------- | -------------------------------------------------- | ----------------- | -------------------------------- |
-| ✅ Free / free-tier | kilo, cline, llm7, tokenrouter, agnes, amd-tokenlab, qoder basic | OAuth, key, or none | Toggles can expose paid |
+| ✅ Free / free-tier | kilo, cline, llm7, tokenrouter, agnes, amd-tokenlab | OAuth, key, or none | Toggles can expose paid |
 | 🔄 Freemium | anyapi, ollama-cloud, sambanova, requesty | API key | Free allowance with limits |
-| 💳 Paid / trial | zenmux, deepinfra, novita, routeway, opengateway, bai, stepfun, gmi, venice, merge, inferx, qoder premium | API key, OAuth, or credits | Trial credit or premium tier |
+| 💳 Paid / trial | zenmux, deepinfra, novita, routeway, opengateway, bai, stepfun, gmi, venice, merge, inferx | API key, OAuth, or credits | Trial credit or premium tier |
 | 🔧 Native | (all above except built-ins) | API key, OAuth, or none | Pi owns catalog refresh + native stores |
 
 | 🔧 Built-in | opencode-free | Built-in Pi auth | Captures Pi's `opencode` catalog under pi-free's own id; Pi's `openrouter`/`opencode-go` are Pi-served, not wrapped |
@@ -179,7 +179,7 @@ One rule (`resolveModelView` in `lib/registry.ts`): **explicit per-provider choi
 
 ## File Locations (User-Facing)
 
-- **Config:** `~/.pi/free.json` (auto-created) · **log:** `~/.pi/free.log` · **caches:** `~/.pi/provider-cache.json` (Ollama compat only), `~/.pi/agent/qoder-models-cache.json` (stream metadata), `~/.pi/agent/models-store.json` + `~/.pi/agent/auth.json` (Pi-owned native store/credentials). Auto-fallback blacklist is in-memory only.
+- **Config:** `~/.pi/free.json` (auto-created) · **log:** `~/.pi/free.log` · **caches:** `~/.pi/provider-cache.json` (Ollama compat only), `~/.pi/agent/models-store.json` + `~/.pi/agent/auth.json` (Pi-owned native store/credentials). Auto-fallback blacklist is in-memory only.
 
 ---
 
@@ -255,6 +255,7 @@ Screen against these BEFORE writing code — each one cost a real incident:
 - **Every new `free.json` key or env flag needs a forcing function.** A knob shipped "for flexibility" is permanent public API plus test/doc/support burden. Name the consumer in the PR body.
 - **Toggle flips the effective view.** Persisted choices live under provider ids in `model_view_overrides`; divergent snake_case keys are legacy-read-only.
 - **Never override a provider native to Pi.** Pi serves `openrouter`, `opencode-go` and its other built-ins with its own catalog, refresh, endpoints and credentials; re-registering them froze stale endpoints (`/zen/go/v1` after Pi moved Go to `/inference/go/…`) and added toggles/config keys to maintain. pi-free registers only ids it owns; `opencode-free` captures Pi's `opencode` catalog under its own id because the free tier needs pi-free's stream (anonymous bearer, Bun relay, gate tools, env frame). Retired keys (`openrouter_show_paid`, `opencode_go_show_paid`) stay loadable and inert in old `free.json` files (`tests/config.test.ts`). Guards: `tests/built-in-toggle-runtime.test.ts` (no capture/refresh task for either id), `tests/opencode-dispatch.test.ts` (their models never dispatch-tagged).
+- **No reverse-engineered request signing.** pi-free registers only providers reachable through a documented or openly used API; it does not ship signing schemes recovered from an obfuscated client for an undocumented private API. Such a scheme breaks without notice, ties every user's requests to a vendor's private protocol, and has no upstream contract to test against. Qoder was removed under this rule (#689; record in HISTORY.md). Its retired keys stay loadable and inert like the ones above (`tests/config.test.ts`).
 - **Logged-out providers stay hidden.** Auth that doesn't resolve keeps the provider out of `/model`; only the keyless allowlist (cline, fastrouter, llm7) resolves without a credential. Never re-add an anonymous opt-in for a catalog whose chat needs a key (#530).
 
 ## PR Test Proof
@@ -276,14 +277,13 @@ Screen against these BEFORE writing code — each one cost a real incident:
 | `/toggle-{provider}` | Per-provider | Flip free↔all view |
 | `/toggle-ollama-cloud` | Ollama Cloud | Flip native free/all catalog view |
 | `/probe-{deepinfra,novita,ollama,routeway,sambanova}` | Provider | Test all models, auto-hide broken (ollama: 403s) |
-| `/login {kilo,cline,qoder}` | Kilo/Cline/Qoder | Start OAuth flow (qoder: browser or PAT) |
+| `/login {kilo,cline}` | Kilo/Cline | Start OAuth flow |
 | `/logout {kilo,cline}` | Kilo/Cline | Clear OAuth credentials |
 
 **Authentication notes:**
 
 - **Anonymous public catalogs** — Kilo, ZenMux, DeepInfra, Novita, Routeway, SambaNova, FastRouter, Cline resolve keyless (`public catalog (no account)`); chat still needs a key/login. StepFun, GMI Cloud, Agnes AI, TokenRouter, AnyAPI, B.AI, OpenGateway, Merge Gateway resolve `undefined` without a key (#421).
 - **Kilo/Cline** support OAuth (`/login`) and API keys (`KILO_API_KEY` / `CLINE_API_KEY` or `~/.pi/free.json`); stored credential wins, then ambient key. Cline's catalog refreshes without a credential.
-- **Qoder**: OAuth/PAT, Pi-owned stores, COSY signing, custom stream. `/login qoder` or `QODER_PERSONAL_ACCESS_TOKEN` / `QODER_PAT`.
 - **OpenCode / OpenCode Go**: pi-free captures Pi's built-in `opencode` catalog under its own `opencode-free` id, then runs one **detached** public-endpoint refresh for models shipped between Pi releases. Pi's native `opencode-go` is not wrapped (Standing Invariants); `resolveApiKey` still reuses a key stored under its id for `opencode-free`. New IDs synthesize via `resolveOpenCodeModelApi`/`applyOpenCodeProtocolDefaults`. Failed/empty/aborted fetches retain cache and never rethrow. `resolveApiKey` omits absent credentials so logged-out providers read as unavailable, not refresh failures (defect shape 9; full #504 narrative in HISTORY.md). `opencode-free` inference sends Zen's anonymous `public` bearer (the keyed free-tier lane is rejected upstream with `Model access is disabled`) and activates `glob` + `grep` per turn for client compatibility. A request with no active tools (compaction and branch summaries) gets declaration-only `bash`/`edit`/`glob`/`grep`/`read` on its leading system copy with tool choice `"none"` (`OPENCODE_FREE_REQUIRED_TOOLS`), because the gate rejects tool-less requests; requests carrying tools keep Pi's tool choice. Every anonymous/free stream also adds the default request-only `<env>Working directory: .</env>` metadata frame while preserving Pi's complete prompt, tool state and history; no native persona, absolute paths, captured snapshots or CLI dependency. The frame does not modify saved transcripts or accumulate across turns; Pi's native `opencode-go` gets no frame (`lib/glob-tool.ts`).
 - **Deferred saved-model restore** — Pi restores the session model before extension registrations flush, so resumes on toggle providers hit "Could not restore model". After capture, `built-in-toggle.ts` re-selects the persisted model via `pi.setModel` when in view; Pi's warning line is unavoidable.
 

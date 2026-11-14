@@ -239,20 +239,9 @@ Or set `xkiro_api_key`. Toggle with `/toggle-xkiro`. Free models include `deepse
 
 Three models are currently documented as free on the B.AI API and are stamped free in the catalog: `deepseek-v4-flash`, `deepseek-v4-flash-vision-exp`, and `mimo-v2.5` (source: [B.AI pricing](https://docs.b.ai/llmservice/pricing-and-usage/), audited 2026-08-26). This is a time-limited promotion — revisit the pricing page before relying on it.
 
-## Qoder (native)
+## Removed: Qoder
 
-Qoder has a basic Community/free tier and premium models that consume plan credits. Its static curated catalog is restored and persisted through Pi's native models-store lifecycle; the legacy cache is retained only for optional stream metadata.
-
-Authenticate with either method:
-
-```text
-/login qoder
-```
-
-- Browser OAuth uses Qoder's device/PKCE flow.
-- PAT authentication can use `QODER_PERSONAL_ACCESS_TOKEN` or the alias `QODER_PAT`.
-
-`/toggle-qoder` switches between basic and all Qoder models. Time-bound 0.0x-credit promos (e.g. Qwen3.8-Flash, Sep 18-30 2026) are captured in `PROMO_FREE_MODELS` in `providers/qoder/models.ts` with an exclusive expiry, so the free flag lapses automatically with no follow-up change. Qoder's API remains OpenAI-compatible, while its authentication and custom stream integration remain Qoder-specific.
+pi-free no longer registers Qoder ([#689](https://github.com/apmantza/pi-free/issues/689)). Qoder moved its inference API: the OpenAI-compatible endpoint pi-free used no longer resolves, and every current client signs each request with Qoder's proprietary scheme. pi-free does not ship reverse-engineered signing for an undocumented private API. A Qoder login stored in Pi's `~/.pi/agent/auth.json` is left in place and is harmless; leftover `qoder_*` keys in `~/.pi/free.json` and `~/.pi/agent/qoder-models-cache.json` are ignored and can be deleted.
 
 ## Pi built-in providers
 
@@ -289,4 +278,3 @@ Pi owns the following providers; pi-free does not register duplicate catalogs or
 - Native providers: `~/.pi/agent/models-store.json` and Pi's `~/.pi/agent/auth.json`.
 - Legacy catalog cache: `~/.pi/provider-cache.json`.
 - Ollama compatibility data: `~/.pi/provider-cache.json` in addition to the native store.
-- Qoder's native static catalog is stored in Pi's model store; its optional stream metadata may use `~/.pi/agent/qoder-models-cache.json`.

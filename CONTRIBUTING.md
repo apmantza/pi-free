@@ -19,8 +19,6 @@ New catalog-backed providers should use the native provider helpers in [`lib/nat
 
 Pi owns native refresh throttling and credentials. Do not add a second freshness gate or a startup catalog fetch in the extension factory. If a `session_start` task is intentionally detached, use `trackDetachedSessionStart()` so `/free-startup` still reports its completion and failure without making the event wait.
 
-Qoder is intentionally still legacy and is not a migration template. Its static catalog, dedicated cache, authentication, and custom stream integration live under [`providers/qoder/`](providers/qoder/).
-
 ## Adding a provider
 
 ### 1. Add constants
@@ -66,7 +64,8 @@ Update [`README.md`](README.md), [`docs/providers.md`](docs/providers.md), and [
 
 Most providers use OpenAI-compatible APIs. For custom protocols:
 
-- **Qoder** is the intentionally legacy reference for proprietary authentication and custom streaming; do not migrate it as part of an unrelated provider change.
+- assemble the native `Provider` interface directly, with the provider's own `stream`/`streamSimple`, instead of registering an OpenAI-compatible wrapper;
+- do not ship reverse-engineered request signing for an undocumented private API. Qoder was removed for that reason ([#689](https://github.com/apmantza/pi-free/issues/689)).
 
 ## Shared helpers
 

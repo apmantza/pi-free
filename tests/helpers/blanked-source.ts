@@ -1,9 +1,8 @@
 /**
  * Source-scanning support for test-side detectors.
  *
- * Two guards need to look for text in source files: `tests/qoder-omp-compat.test.ts`
- * (no static value import of pi-ai's compat entry) and
- * `tests/worker-thread-safety.test.ts` (no worker-hostile `process` calls). Both
+ * Guards that look for text in source files, such as
+ * `tests/worker-thread-safety.test.ts` (no worker-hostile `process` calls),
  * would be broken by prose: pi-free's own source *quotes* the very strings they
  * look for, in comments explaining why those patterns are banned. A comment
  * quoting a needle must never satisfy a requirement, and must never trip one.

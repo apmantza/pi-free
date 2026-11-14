@@ -204,7 +204,7 @@ function emptyCatalogFlags(): string[] {
 		const outcome = outcomeByProvider.get(providerId);
 		// Only flag providers with refresh evidence. Auth-required providers
 		// whose auth resolves undefined without a key (StepFun, TokenRouter,
-		// AnyAPI, B.AI, OpenGateway, unconfigured Qoder) are never refreshed by
+		// AnyAPI, B.AI, OpenGateway) are never refreshed by
 		// Pi at all — flagging them would flip health to WARN on installs that
 		// were previously fine (Mn1 false-alarm regression).
 		if (!outcome) continue;

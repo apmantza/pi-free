@@ -86,7 +86,6 @@ import orcarouter from "./providers/orcarouter/orcarouter.ts";
 import xkiro from "./providers/xkiro/xkiro.ts";
 import inferx from "./providers/inferx/inferx.ts";
 import amdTokenlab from "./providers/amd-tokenlab/amd-tokenlab.ts";
-import qoder from "./providers/qoder/qoder.ts";
 
 /**
  * Single source of truth for unique provider extensions (providers NOT
@@ -121,7 +120,6 @@ const UNIQUE_PROVIDERS: ReadonlyArray<(pi: ExtensionAPI) => Promise<void>> = [
 	bai,
 	orcarouter,
 	xkiro,
-	qoder,
 	inferx,
 	amdTokenlab,
 ];

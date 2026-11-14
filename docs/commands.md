@@ -57,7 +57,6 @@ To remove a provider from the model picker entirely, run `/hide-provider <provid
 | `/toggle-inferx` | InferX | Native |
 | `/toggle-amd-tokenlab` | AMD Token Lab | Native |
 | `/toggle-stepfun` | StepFun | Native |
-| `/toggle-qoder` | Qoder | Legacy |
 | `/toggle-opencode-free` | OpenCode Zen free wrapper | Pi built-in catalog + detached Zen refresh |
 | `/toggle-fastrouter` | FastRouter | Native |
 | `/toggle-gmi` | GMI Cloud | Native |
@@ -76,11 +75,10 @@ Native providers retain their complete catalog and let Pi apply the current filt
 | --- | --- |
 | `/login kilo` | Start Kilo OAuth. Kilo also accepts `KILO_API_KEY`. |
 | `/login cline` | Start Cline OAuth. Cline's public catalog does not require login; chat does. |
-| `/login qoder` | Authenticate Qoder with a PAT or browser OAuth. |
 | `/logout kilo` | Clear Kilo credentials managed by Pi. |
 | `/logout cline` | Clear Cline credentials managed by Pi. |
 
-Qoder PAT authentication can also use `QODER_PERSONAL_ACCESS_TOKEN` or its `QODER_PAT` alias. See [providers.md](providers.md) for all API-key names.
+See [providers.md](providers.md) for all API-key names.
 
 ## Ollama Cloud Refresh
 
