@@ -160,6 +160,18 @@ export function getOpenCodeRelay(options?: RelayStartOptions): OpenCodeRelay {
 	return _singleton;
 }
 
+/**
+ * Hand the current generation off at session shutdown: later callers get a new
+ * child, and this one stops as soon as its last in-flight stream releases.
+ * Pi re-imports extensions on every /reload (jiti moduleCache:false), so an
+ * instance that does not retire its child leaves it to the idle timeout.
+ */
+export function retireOpenCodeRelay(): void {
+	const relay = _singleton;
+	_singleton = undefined;
+	relay?.retire();
+}
+
 /** Test hook: drop the singleton so a test gets a fresh constructor. */
 export function resetOpenCodeRelayForTest(): void {
 	_singleton?.stop();
@@ -176,6 +188,7 @@ class Relay implements OpenCodeRelay {
 	private readonly childArgs: string[];
 	private readonly waiters = new Set<Waiter>();
 	private stopped = false;
+	private retiring = false;
 	private activeRequests = 0;
 
 	constructor(options: RelayStartOptions) {
@@ -243,7 +256,8 @@ class Relay implements OpenCodeRelay {
 			if (!this.stopped) {
 				_lastFailure = exit;
 				this.stop();
-				_singleton = undefined;
+				// A retired generation's late exit must not drop its replacement.
+				if (_singleton === this) _singleton = undefined;
 				// One record per session: the next getOpenCodeRelay() call starts
 				// a fresh child; repeated exits in a loop stay one line.
 				_logger.warn(
@@ -274,6 +288,10 @@ class Relay implements OpenCodeRelay {
 		if (this.idleTimer) clearTimeout(this.idleTimer);
 		this.idleTimer = undefined;
 		if (this.stopped || this.activeRequests > 0) return;
+		if (this.retiring) {
+			this.stop();
+			return;
+		}
 		this.idleTimer = setTimeout(() => {
 			this.stop();
 			if (_singleton === this) _singleton = undefined;
@@ -314,6 +332,11 @@ class Relay implements OpenCodeRelay {
 			};
 			this.waiters.add(waiter);
 		});
+	}
+
+	retire(): void {
+		this.retiring = true;
+		this.armIdleTimer();
 	}
 
 	touch(): void {
