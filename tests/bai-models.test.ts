@@ -1,75 +1,83 @@
 /**
- * B.AI provider model-mapper tests.
+ * B.AI catalog classification through the real native refresh.
  *
- * B.AI's /v1/models endpoint exposes no pricing (minimal OpenAI-shim
- * `{id, object, created, owned_by}` entries), so classification falls to
- * Route B name-based detection. B.AI's official pricing page documents a
- * trio of models as currently free on the API; those ids must be stamped
- * authoritatively free (`_freeKnown`/`_isFree`) so they classify free via
- * `isFreeModel`, while every other catalog id stays paid.
+ * B.AI's /v1/models is keyed (anonymous: 401 "Invalid token", 2026-11-14) and
+ * exposes no pricing: minimal OpenAI-shim `{id, object, created, owned_by,
+ * supported_endpoint_types}` entries. Only HTTP is stubbed; the rows below use
+ * that shape with ids from B.AI's pricing page. Classification falls to
+ * Route B name detection plus the `:free` suffix promotion stamp.
  */
 
-import { describe, expect, it } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { resolve } from "node:path";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
-import { isFreeModel } from "../lib/registry.ts";
-
-import {
-	BAI_DOCUMENTED_FREE_MODEL_IDS,
-	mapBaiModel,
-} from "../providers/bai/bai.ts";
-
-const DOCUMENTED_FREE_IDS = [
+const CATALOG = [
 	"deepseek-v4-flash",
 	"deepseek-v4-flash-vision-exp",
 	"mimo-v2.5",
-] as const;
+	"claude-opus-4.8",
+	"gpt-5.2",
+	"some-model:free",
+].map((id) => ({
+	id,
+	object: "model",
+	created: 1_760_000_000,
+	owned_by: "b.ai",
+	supported_endpoint_types: ["openai"],
+}));
 
-describe("BAI_DOCUMENTED_FREE_MODEL_IDS", () => {
-	it("contains exactly the documented-free trio", () => {
-		expect([...BAI_DOCUMENTED_FREE_MODEL_IDS].sort()).toEqual(
-			[...DOCUMENTED_FREE_IDS].sort(),
-		);
-	});
+let home: string;
+
+beforeEach(() => {
+	mkdirSync(resolve(".smoke-artifacts"), { recursive: true });
+	home = mkdtempSync(resolve(".smoke-artifacts", "bai-"));
+	vi.stubEnv("HOME", home);
+	vi.stubEnv("USERPROFILE", home);
+	vi.stubEnv("PI_CODING_AGENT_DIR", resolve(home, ".pi/agent"));
+	vi.stubEnv("BAI_API_KEY", "sk-bai-test");
+	vi.stubGlobal(
+		"fetch",
+		vi.fn(async (input: string | URL | Request) => {
+			const url = new URL(input instanceof Request ? input.url : String(input));
+			if (url.hostname === "models.dev") return Response.json({});
+			if (url.hostname === "api.b.ai" && url.pathname === "/v1/models")
+				return Response.json({ object: "list", data: CATALOG });
+			return new Response(null, { status: 503 });
+		}),
+	);
 });
 
-describe("mapBaiModel free stamping", () => {
-	it("stamps the documented-free ids as authoritatively free", () => {
-		for (const id of DOCUMENTED_FREE_IDS) {
-			const mapped = mapBaiModel({ id });
-			expect(mapped._freeKnown).toBe(true);
-			expect(mapped._isFree).toBe(true);
-			expect(isFreeModel(mapped)).toBe(true);
-		}
-	});
+afterEach(() => {
+	vi.unstubAllGlobals();
+	vi.unstubAllEnvs();
+	rmSync(home, { recursive: true, force: true });
+});
 
-	it("keeps the :free-suffix promotion detection working", () => {
-		const mapped = mapBaiModel({ id: "some-model:free" });
-		expect(mapped._freeKnown).toBe(true);
-		expect(mapped._isFree).toBe(true);
-		expect(isFreeModel(mapped)).toBe(true);
-	});
+// #675: deepseek-v4-flash, deepseek-v4-flash-vision-exp and mimo-v2.5 were
+// stamped authoritatively free from a 2026-08 promotion. B.AI's pricing page
+// (docs.b.ai/llmservice/pricing-and-usage, 2026-11-14) now prices all three
+// ($0.15/$0.60 and $0.14/$0.28 per 1M off-peak) and never says "free", so the
+// free view must not offer them. The `:free` suffix stays a free signal.
+it("keeps priced models out of the free view", async () => {
+	const { createNativeOpenAIProvider } =
+		await import("../lib/native-provider.ts");
+	const { baiProviderOptions } = await import("../providers/bai/bai.ts");
+	let persisted: unknown;
+	const store = {
+		read: async () => persisted,
+		write: async (next: unknown) => {
+			persisted = next;
+		},
+		delete: async () => {
+			persisted = undefined;
+		},
+	};
+	const handle = createNativeOpenAIProvider(baiProviderOptions);
+	await handle.provider.refreshModels?.({ store, allowNetwork: true } as never);
 
-	it("leaves other models unstamped and paid under Route B", () => {
-		for (const id of [
-			"claude-opus-4.8",
-			"gpt-5.2",
-			"deepseek-v4-chat",
-			"mimo-v2.0",
-		]) {
-			const mapped = mapBaiModel({ id });
-			expect(mapped._freeKnown).toBe(false);
-			expect(mapped._isFree).toBe(false);
-			expect(mapped._pricingKnown).toBe(false);
-			// Route B: no pricing data, name has no "free" → paid.
-			expect(isFreeModel(mapped)).toBe(false);
-		}
-	});
-
-	it("does not let a paid name collide with a documented-free id prefix", () => {
-		// "deepseek-v4-flash-exp-foo" is not in the set even though it shares
-		// a prefix with a documented-free id.
-		const mapped = mapBaiModel({ id: "deepseek-v4-flash-exp-foo" });
-		expect(mapped._freeKnown).toBe(false);
-		expect(isFreeModel(mapped)).toBe(false);
-	});
+	expect(handle.stored.all.map((m) => m.id).sort()).toEqual(
+		CATALOG.map((row) => row.id).sort(),
+	);
+	expect(handle.stored.free.map((m) => m.id)).toEqual(["some-model:free"]);
 });

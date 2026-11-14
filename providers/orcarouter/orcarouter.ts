@@ -74,6 +74,8 @@ interface OrcaRouterModel {
 	} | null;
 	supported_parameters?: string[] | null;
 	supported_endpoint_types?: string[] | null;
+	/** What the model serves, e.g. `chat_completions`, `audio_speech`. */
+	endpoint_capabilities?: string[] | null;
 	isFree?: boolean;
 }
 
@@ -152,7 +154,18 @@ const CHAT_ENDPOINT_TYPES = new Set([
 	"gemini",
 ]);
 
+/**
+ * pi-free speaks /chat/completions only. When the catalog names a model's
+ * capabilities, admit only `chat_completions`: TTS rows (`audio_speech`) list
+ * the `openai` endpoint type and Gemini-native image generators
+ * (`gemini_generate`) list `gemini`, so endpoint types alone let them into
+ * the picker (#675). Rows naming no capability keep the fallback below.
+ */
 function isTextChatModel(model: OrcaRouterModel): boolean {
+	const capabilities = model.endpoint_capabilities ?? [];
+	if (capabilities.length > 0) {
+		return capabilities.includes("chat_completions");
+	}
 	const outputModalities = model.architecture?.output_modalities ?? [];
 	if (outputModalities.length > 0 && !outputModalities.includes("text")) {
 		return false;
@@ -204,7 +217,10 @@ export function mapOrcaRouterModel(
 		reasoning,
 		...(reasoning && { thinkingLevelMap: { off: "none" } }),
 		compat: getProxyModelCompat({ id: model.id, name }),
-		_pricingKnown: pricingKnown,
+		// `_pricingKnown` stays the mapper's token-price verdict: a row priced
+		// only per request (`pricing.request`) has no known token price, so its
+		// $0 token cost is a placeholder. Free per-request rows are covered by
+		// the authoritative stamp below.
 		...(freeKnown && {
 			_freeKnown: true,
 			_isFree: isOrcaRouterFreeModel(model),
@@ -257,17 +273,21 @@ async function fetchOrcaRouterModels(
 	) as OrcaRouterProviderModel[];
 }
 
+/** Everything Pi registers for OrcaRouter; tests drive the same object. */
+export const orcarouterProviderOptions = {
+	providerId: PROVIDER_ORCAROUTER,
+	name: "OrcaRouter",
+	baseUrl: BASE_URL_ORCAROUTER,
+	auth: orcarouterAuth,
+	getApiKey: getOrcarouterApiKey,
+	getShowPaid: getOrcarouterShowPaid,
+	fetchModels: (apiKey: string, signal?: AbortSignal) =>
+		fetchOrcaRouterModels(apiKey, signal),
+	tosUrl: "https://orcarouter.ai/terms",
+	suppressTosWhenKey: true,
+};
+
 export default function orcarouterProvider(pi: ExtensionAPI): Promise<void> {
-	registerNativeOpenAIProvider(pi, {
-		providerId: PROVIDER_ORCAROUTER,
-		name: "OrcaRouter",
-		baseUrl: BASE_URL_ORCAROUTER,
-		auth: orcarouterAuth,
-		getApiKey: getOrcarouterApiKey,
-		getShowPaid: getOrcarouterShowPaid,
-		fetchModels: (apiKey, signal) => fetchOrcaRouterModels(apiKey, signal),
-		tosUrl: "https://orcarouter.ai/terms",
-		suppressTosWhenKey: true,
-	});
+	registerNativeOpenAIProvider(pi, orcarouterProviderOptions);
 	return Promise.resolve();
 }

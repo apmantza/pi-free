@@ -78,7 +78,9 @@ describe("OrcaRouter free model detection", () => {
 			id: "z-ai/glm-5.3-flash-free",
 			_freeKnown: true,
 			_isFree: true,
-			_pricingKnown: true,
+			// Per-request pricing is not a token price (#675); the free verdict
+			// comes from the authoritative stamp, not from a $0 token cost.
+			_pricingKnown: false,
 		});
 	});
 

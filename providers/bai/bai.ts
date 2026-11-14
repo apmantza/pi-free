@@ -13,9 +13,9 @@
  * "free") is therefore used. As a result, with `free_only: true` no b.ai
  * models will be visible until you run `/toggle-bai` to enable paid models.
  *
- * A small set of known-promotional models are hardcoded as known-free so
- * they remain visible even when free-only mode is on (mirrors the
- * TokenRouter approach for `MiniMax-M3`).
+ * Only `:free`-suffixed ids are stamped free. The 2026-08 promotion that
+ * made deepseek-v4-flash, deepseek-v4-flash-vision-exp and mimo-v2.5 free
+ * has ended: the pricing page prices all three (checked 2026-11-14, #675).
  *
  * Setup:
  *   BAI_API_KEY=sk-...
@@ -55,26 +55,6 @@ function isBaiKnownFree(modelId: string): boolean {
 	return modelId.toLowerCase().endsWith(":free");
 }
 
-/**
- * Models B.AI's official pricing page documents as FREE on the API.
- *
- * Source: https://docs.b.ai/llmservice/pricing-and-usage/
- * Verified live against https://api.b.ai/v1/models on 2026-08-26 — all three
- * ids were present in the authenticated catalog.
- *
- * CAVEAT: the page's wording is time-limited promotion semantics —
- *   - deepseek-v4-flash: "currently free on B.AI Chat and API"
- *   - deepseek-v4-flash-vision-exp: "currently free for B.AI API use"
- *   - mimo-v2.5: "API usage currently free"
- * REVISIT: re-check the pricing page periodically (first check added
- * 2026-08-26) and remove any id whose free window has ended.
- */
-export const BAI_DOCUMENTED_FREE_MODEL_IDS: ReadonlySet<string> = new Set([
-	"deepseek-v4-flash",
-	"deepseek-v4-flash-vision-exp",
-	"mimo-v2.5",
-]);
-
 // =============================================================================
 // Types
 // =============================================================================
@@ -109,15 +89,14 @@ function isTextChatModel(model: BaiModel): boolean {
 	return endpoints.some((t) => CHAT_ENDPOINT_TYPES.has(t));
 }
 
-export function mapBaiModel(model: BaiModel): ProviderModelConfig & {
+function mapBaiModel(model: BaiModel): ProviderModelConfig & {
 	_pricingKnown?: boolean;
 	_freeKnown?: boolean;
 	_isFree?: boolean;
 } {
 	const name = cleanModelName(model.id);
 	const reasoning = isLikelyReasoningModel({ id: model.id, name });
-	const isKnownFree =
-		isBaiKnownFree(model.id) || BAI_DOCUMENTED_FREE_MODEL_IDS.has(model.id);
+	const isKnownFree = isBaiKnownFree(model.id);
 
 	return {
 		id: model.id,
@@ -195,16 +174,20 @@ async function fetchBaiModels(
 // Native Provider Entry Point
 // =============================================================================
 
+/** Everything Pi registers for B.AI; tests drive the same object. */
+export const baiProviderOptions = {
+	providerId: PROVIDER_BAI,
+	name: "B.AI",
+	baseUrl: BASE_URL_BAI,
+	auth: baiAuth,
+	getApiKey: getBaiApiKey,
+	getShowPaid: getBaiShowPaid,
+	fetchModels: (apiKey: string, signal?: AbortSignal) =>
+		fetchBaiModels(apiKey, signal),
+	tosUrl: "https://b.ai/",
+};
+
 export default function baiProvider(pi: ExtensionAPI): Promise<void> {
-	registerNativeOpenAIProvider(pi, {
-		providerId: PROVIDER_BAI,
-		name: "B.AI",
-		baseUrl: BASE_URL_BAI,
-		auth: baiAuth,
-		getApiKey: getBaiApiKey,
-		getShowPaid: getBaiShowPaid,
-		fetchModels: (apiKey, signal) => fetchBaiModels(apiKey, signal),
-		tosUrl: "https://b.ai/",
-	});
+	registerNativeOpenAIProvider(pi, baiProviderOptions);
 	return Promise.resolve();
 }
