@@ -35,13 +35,12 @@ export const PROVIDER_INFRON = "infron";
 export const PROVIDER_MERGE = "merge";
 export const PROVIDER_COMMANDCODE = "commandcode";
 
-// Built-in pi providers that pi-free wraps with toggles
-export const PROVIDER_OPENROUTER = "openrouter";
+// Pi's built-in OpenCode provider id, whose catalog pi-free captures.
 export const PROVIDER_OPENCODE = "opencode";
-// Distinct registration ids for the OpenCode Zen tiers (pi's built-in
-// provider is registered as "opencode"; see lib/built-in-toggle.ts).
+// pi-free's own registration id for that captured catalog (see
+// lib/built-in-toggle.ts). Pi's native `opencode-go` and `openrouter`
+// providers are not overridden.
 export const PROVIDER_OPENCODE_FREE = "opencode-free";
-export const PROVIDER_OPENCODE_GO = "opencode-go";
 
 // =============================================================================
 // Provider base URLs

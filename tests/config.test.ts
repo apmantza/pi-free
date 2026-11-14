@@ -214,23 +214,40 @@ describe("show-paid getters", () => {
 		expect(getKiloShowPaid()).toBe(false);
 	});
 
-	it("getOpenrouterShowPaid reads from file", async () => {
+	// Recurrence: pi-free stopped overriding Pi's native openrouter and
+	// opencode-go providers and dropped their show_paid keys. Existing
+	// ~/.pi/free.json files still carry them; loading such a file must not
+	// throw, warn, drop the user's bytes, or let a dead key drive any view.
+	it("loads a file still carrying the retired openrouter/opencode-go keys", async () => {
 		vi.stubEnv("HOME", "/tmp");
+		// Route the real logger's warnings to the console so the spy sees them.
+		vi.stubEnv("LOG_LEVEL", "warn");
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 		const fs = await import("node:fs");
 		const { __mockData } = fs as any;
 		__mockData.set(
 			configPath(),
-			JSON.stringify({ openrouter_show_paid: true }),
+			JSON.stringify({
+				openrouter_show_paid: true,
+				opencode_go_show_paid: true,
+				opencode_free_show_paid: true,
+			}),
 		);
 
-		const { getOpenrouterShowPaid } = await import("../config.ts");
-		expect(getOpenrouterShowPaid()).toBe(true);
-	});
-
-	it("getOpenrouterShowPaid defaults to false", async () => {
-		vi.stubEnv("HOME", "/tmp");
-		const { getOpenrouterShowPaid } = await import("../config.ts");
-		expect(getOpenrouterShowPaid()).toBe(false);
+		try {
+			const cfg = await import("../config.ts");
+			expect(cfg.getOpencodeFreeShowPaid()).toBe(true);
+			expect(cfg.getProviderShowPaid("openrouter")).toBe(false);
+			expect(cfg.getProviderShowPaid("opencode-go")).toBe(false);
+			expect(cfg.getModelViewOverride("openrouter")).toBeUndefined();
+			expect(cfg.getModelViewOverride("opencode-go")).toBeUndefined();
+			const written = parseMockJson(__mockData.get(configPath()));
+			expect(written.openrouter_show_paid).toBe(true);
+			expect(written.opencode_go_show_paid).toBe(true);
+			expect(warn).not.toHaveBeenCalled();
+		} finally {
+			warn.mockRestore();
+		}
 	});
 
 	it("getOpencodeFreeShowPaid reads its own key, not the shared opencode key", async () => {
@@ -247,22 +264,6 @@ describe("show-paid getters", () => {
 
 		const { getOpencodeFreeShowPaid } = await import("../config.ts");
 		expect(getOpencodeFreeShowPaid()).toBe(false);
-	});
-
-	it("getOpencodeGoShowPaid reads its own key, not the shared opencode key", async () => {
-		vi.stubEnv("HOME", "/tmp");
-		const fs = await import("node:fs");
-		const { __mockData } = fs as any;
-		__mockData.set(
-			configPath(),
-			JSON.stringify({
-				opencode_show_paid: false,
-				opencode_go_show_paid: true,
-			}),
-		);
-
-		const { getOpencodeGoShowPaid } = await import("../config.ts");
-		expect(getOpencodeGoShowPaid()).toBe(true);
 	});
 
 	it("getProviderShowPaid maps provider ids to persisted flags", async () => {
@@ -340,21 +341,6 @@ describe("API key getters", () => {
 		vi.stubEnv("HOME", "/tmp");
 		const { getNvidiaApiKey } = await import("../config.ts");
 		expect(getNvidiaApiKey()).toBeUndefined();
-	});
-
-	it("getOpenrouterApiKey only reads from env var (no file fallback)", async () => {
-		vi.stubEnv("OPENROUTER_API_KEY", "or-env-key");
-		vi.stubEnv("HOME", "/tmp");
-
-		const { getOpenrouterApiKey } = await import("../config.ts");
-		expect(getOpenrouterApiKey()).toBe("or-env-key");
-	});
-
-	it("getOpenrouterApiKey returns undefined when no env var set", async () => {
-		vi.stubEnv("OPENROUTER_API_KEY", undefined);
-		vi.stubEnv("HOME", "/tmp");
-		const { getOpenrouterApiKey } = await import("../config.ts");
-		expect(getOpenrouterApiKey()).toBeUndefined();
 	});
 
 	it("getOpengatewayApiKey prefers the environment", async () => {
@@ -502,15 +488,12 @@ describe("config re-exports", () => {
 		const cfg = await import("../config.ts");
 		const getters = [
 			"getFreeOnly",
-			"getOpenrouterApiKey",
 			"getKiloShowPaid",
 			"getClineShowPaid",
 			"getZenmuxShowPaid",
 			"getOllamaShowPaid",
-			"getOpenrouterShowPaid",
 			"getOpencodeShowPaid",
 			"getOpencodeFreeShowPaid",
-			"getOpencodeGoShowPaid",
 			"getProviderShowPaid",
 			"getZenmuxApiKey",
 			"getOllamaApiKey",

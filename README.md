@@ -15,7 +15,7 @@ Free and paid AI model providers for [Pi](https://pi.dev). Access models from mu
 When you install pi-free, it:
 
 1. Registers native providers such as Kilo, Cline, LLM7, FastRouter, Ollama Cloud, StepFun, and more.
-2. Registers Qoder through Pi's native provider surface and supports Pi's built-in OpenCode, OpenCode Go, and OpenRouter integrations.
+2. Registers Qoder through Pi's native provider surface, and serves OpenCode's free tier as `opencode-free` from Pi's built-in OpenCode catalog. Pi's own providers (OpenRouter, OpenCode Go, and the rest) are left to Pi; pi-free does not override them.
 3. Uses Pi's native model and auth stores for all extension providers; Ollama Cloud and Qoder retain documented compatibility caches only for auxiliary behavior.
 4. Applies the global free-only filter by default, while preserving provider-specific paid/trial behavior.
 5. Provides per-provider toggle commands — `/toggle-{provider}` switches between the provider's free/basic view and its full catalog.
@@ -59,7 +59,7 @@ Qoder supports `/login qoder` with PAT or browser OAuth, then `/toggle-qoder` sw
 
 ```text
 /toggle-kilo
-/toggle-openrouter
+/toggle-opencode-free
 /toggle-free
 /toggle-auto-fallback
 /free-providers
@@ -126,7 +126,7 @@ Caveats:
 | Freemium | AnyAPI, Ollama Cloud, SambaNova |
 | Paid/trial | ZenMux, DeepInfra trial, Novita, Routeway, OpenGateway, B.AI, StepFun, GMI Cloud, Venice AI, Infron AI, InferX, and paid catalog entries from other providers |
 | Native lifecycle | Kilo, Cline, LLM7, Ollama Cloud, AnyAPI, SambaNova, TokenRouter, ZenMux, DeepInfra, Novita, Routeway, OpenGateway, B.AI, FastRouter, StepFun, GMI Cloud, Agnes AI, Venice AI, Infron AI, InferX, AMD Token Lab |
-| Built-in | OpenCode, OpenCode Go, OpenRouter — captured from Pi and refreshed in place after session start (OpenCode Zen catalog + public OpenRouter endpoint), so new models appear without waiting for a Pi release |
+| Built-in | OpenCode free (`opencode-free`) — captured from Pi's built-in OpenCode catalog and refreshed in place after session start from the public Zen endpoint, so new models appear without waiting for a Pi release. OpenRouter and OpenCode Go are Pi's own providers and are not wrapped |
 
 Provider availability, authentication, and exact API-key names are maintained in [docs/providers.md](docs/providers.md). pi-free does not publish model counts as guarantees because provider catalogs change — but a dated **free-model snapshot** (per-provider model lists + usage conditions) is maintained in [docs/free_models.md](docs/free_models.md).
 

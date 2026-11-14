@@ -1,14 +1,14 @@
 /**
  * Built-in Provider Toggle Support
  *
- * Captures pi's built-in providers after session start and enables
- * free/paid toggling for them via the global registry.
+ * Captures Pi's built-in `opencode` catalog after session start and
+ * re-registers it as pi-free's own `opencode-free` provider, with free/paid
+ * toggling via the global registry.
  *
- * Currently supports:
- * - opencode (OpenCode / Zen gateway)
- * - openrouter (OpenRouter)
+ * Pi's other native providers (`openrouter`, `opencode-go`) are not
+ * overridden: Pi serves them directly.
  *
- * Usage: /toggle-opencode
+ * Usage: /toggle-opencode-free
  */
 
 import type {
@@ -52,10 +52,8 @@ import {
 	fetchOpenCodeModelIds,
 	getOpenCodeModelBaseUrl,
 	ensureOpenCodeApiProviderRegistered,
-	isOpenCodeProvider,
 	resolveOpenCodeModelApi,
 } from "../providers/opencode-session.ts";
-import { fetchOpenRouterCompatibleModels } from "../providers/model-fetcher.ts";
 import {
 	loadSyncCacheEntry,
 	persistSyncCacheEntry,
@@ -98,16 +96,6 @@ interface BuiltInToggleConfig {
 	api: Api;
 	/** Fetch the public catalog after the initial built-in capture. */
 	refreshEndpoint?: boolean;
-	/**
-	 * Live-catalog fetch strategy for {@link refreshEndpoint}. Receives the
-	 * captured built-in models and returns the refreshed catalog merged with
-	 * that metadata. Defaults to the OpenCode Zen refresh (IDs-only endpoint).
-	 */
-	fetchRefreshedModels?: (
-		config: BuiltInToggleConfig,
-		fallbackModels: ProviderModelConfig[],
-		signal?: AbortSignal,
-	) => Promise<ProviderModelConfig[]>;
 }
 
 const BUILT_IN_TOGGLE_PROVIDERS: BuiltInToggleConfig[] = [
@@ -126,28 +114,9 @@ const BUILT_IN_TOGGLE_PROVIDERS: BuiltInToggleConfig[] = [
 		api: OPENCODE_DYNAMIC_API,
 		refreshEndpoint: true,
 	},
-	{
-		id: "opencode-go",
-		showPaidConfigKey: "opencode_go_show_paid",
-		baseUrl: "https://opencode.ai/zen/go/v1",
-		api: OPENCODE_DYNAMIC_API,
-		// Pi's built-in Go catalog is a build-time snapshot overlaid by Pi's own
-		// pi.dev mirror (4h throttle), so models OpenCode ships between Pi
-		// releases never appear (#504). The Go tier exposes the same public,
-		// credential-free `GET /models` endpoint as Zen — already used by the
-		// /toggle-opencode-go discovery fallback — so refresh from it directly.
-		refreshEndpoint: true,
-	},
-	{
-		id: "openrouter",
-		baseUrl: "https://openrouter.ai/api/v1",
-		api: "openai-completions",
-		// Pi's built-in openrouter provider is also a static generated catalog
-		// (no fetchModels → refreshModels undefined → ModelRegistry.refresh()
-		// skips it entirely), so refresh it from the public keyless endpoint.
-		refreshEndpoint: true,
-		fetchRefreshedModels: fetchRefreshedOpenRouterModels,
-	},
+	// Pi's native `opencode-go` and `openrouter` providers are deliberately
+	// absent: pi-free does not override providers Pi ships itself. Pi's
+	// own refresh and credentials serve them unchanged.
 ];
 
 // =============================================================================
@@ -235,12 +204,13 @@ function fetchSharedCatalog(
 ): Promise<ProviderModelConfig[]> {
 	const inFlight = pendingCatalogFetches.get(config.id);
 	if (inFlight) return inFlight;
-	const fetcher = config.fetchRefreshedModels ?? fetchRefreshedOpenCodeModels;
-	const tracked = fetcher(config, fallbackModels).finally(() => {
-		if (pendingCatalogFetches.get(config.id) === tracked) {
-			pendingCatalogFetches.delete(config.id);
-		}
-	});
+	const tracked = fetchRefreshedOpenCodeModels(config, fallbackModels).finally(
+		() => {
+			if (pendingCatalogFetches.get(config.id) === tracked) {
+				pendingCatalogFetches.delete(config.id);
+			}
+		},
+	);
 	pendingCatalogFetches.set(config.id, tracked);
 	return tracked;
 }
@@ -255,7 +225,7 @@ function trySyncCacheRegistration(
 	pi: ExtensionAPI,
 	config: BuiltInToggleConfig,
 ): void {
-	if (!isOpenCodeProvider(config.id) || providerStates.has(config.id)) {
+	if (providerStates.has(config.id)) {
 		return;
 	}
 	const cached = loadSyncCacheEntry(config.id);
@@ -305,7 +275,7 @@ export function setupBuiltInProviderToggles(pi: ExtensionAPI): void {
 
 	if (activeConfigs.length === 0) {
 		_logger.info(
-			"[built-in-toggle] OpenCode/OpenRouter already registered; skipping capture",
+			"[built-in-toggle] opencode-free already registered; skipping capture",
 		);
 		return;
 	}
@@ -735,9 +705,7 @@ function createProviderState(
 	const currentModels = (
 		models = stateForRefresh?.toggleState.getCurrentModels() ?? allModels,
 	): ProviderModelConfig[] =>
-		isOpenCodeProvider(config.id)
-			? models.map((model) => ({ ...model, api: OPENCODE_DYNAMIC_API }))
-			: models;
+		models.map((model) => ({ ...model, api: OPENCODE_DYNAMIC_API }));
 
 	// No return-type annotation: Babel 8 (Stryker's instrumenter parser)
 	// rejects typed arrows in ternary position (UnexpectedTypeAnnotation).
@@ -795,9 +763,8 @@ function createProviderState(
 					return currentModels();
 				}
 				// Poisoning guard: an empty live response must not wipe the catalog.
-				// Reachable for every fetcher: fetchOpenCodeModelIds returns [] on
-				// empty (it only throws on malformed payloads) and the OpenRouter
-				// fetcher returns its filtered array as-is.
+				// Reachable: fetchOpenCodeModelIds returns [] on empty (it only
+				// throws on malformed payloads).
 				if (refreshed.length === 0) {
 					recordNativeEmptyRetain(config.id);
 					_logger.warn(
@@ -818,28 +785,21 @@ function createProviderState(
 	const reRegister = (models: ProviderModelConfig[]) => {
 		// Ensure the opencode-dynamic API is registered in compat's global
 		// registry so fallback code paths (compat streamSimple) can resolve it.
-		if (isOpenCodeProvider(config.id)) {
-			ensureOpenCodeApiProviderRegistered(
-				getOpenCodeSession(),
-				(model) =>
-					getProviderRegistry()
-						.get(model.provider)
-						?.stored.all.find((entry) => entry.id === model.id)?.api,
-			);
-		}
+		ensureOpenCodeApiProviderRegistered(
+			getOpenCodeSession(),
+			(model) =>
+				getProviderRegistry()
+					.get(model.provider)
+					?.stored.all.find((entry) => entry.id === model.id)?.api,
+		);
 		const providerConfig = {
 			baseUrl,
 			...(apiKey === undefined ? {} : { apiKey }),
-			api: isOpenCodeProvider(config.id) ? OPENCODE_DYNAMIC_API : api,
-			...(isOpenCodeProvider(config.id)
-				? {
-						streamSimple: createOpenCodeStreamSimple(getOpenCodeSession(), {
-							anonymous: config.id === PROVIDER_OPENCODE_FREE,
-							getModelApi: (id) =>
-								stored.all.find((model) => model.id === id)?.api,
-						}),
-					}
-				: {}),
+			api: OPENCODE_DYNAMIC_API,
+			streamSimple: createOpenCodeStreamSimple(getOpenCodeSession(), {
+				anonymous: config.id === PROVIDER_OPENCODE_FREE,
+				getModelApi: (id) => stored.all.find((model) => model.id === id)?.api,
+			}),
 			models: currentModels(models),
 		};
 		if (refreshModels) {
@@ -870,7 +830,6 @@ function createProviderState(
 		// /toggle-free cleared it, and a global-off session must not be
 		// clamped to the free view (#510).
 		initialShowPaid: resolveModelView(config.id) === "all",
-		// undefined falls through to the `{id}_show_paid` default (openrouter).
 		configKey: config.showPaidConfigKey,
 		initialModels: stored,
 	});
@@ -889,9 +848,7 @@ function createProviderState(
 		stored.free = current.free;
 		stored.all = current.all;
 		// Refreshes can discover models the cache predates; keep it fresh.
-		if (isOpenCodeProvider(config.id)) {
-			persistSyncCacheEntry(config.id, baseUrl, api, nextAllModels);
-		}
+		persistSyncCacheEntry(config.id, baseUrl, api, nextAllModels);
 	};
 
 	const state: BuiltInProviderState = {
@@ -924,7 +881,7 @@ function createProviderState(
 	);
 
 	// Sync registration re-reads the cache; only captures/refreshes persist.
-	if (source !== "cache-sync" && isOpenCodeProvider(config.id)) {
+	if (source !== "cache-sync") {
 		persistSyncCacheEntry(config.id, baseUrl, api, allModels);
 	}
 
@@ -977,37 +934,6 @@ async function fetchRefreshedOpenCodeModels(
 		config.id,
 		config.baseUrl,
 	);
-}
-
-/**
- * Refresh the built-in openrouter catalog from the public keyless
- * /api/v1/models endpoint, which — unlike the Zen endpoint — returns full
- * metadata (pricing, context window, modalities). Known IDs keep Pi's curated
- * built-in metadata; models new to the built-in snapshot are synthesized from
- * the live response with OpenRouter wire defaults matching the generated JSON.
- */
-async function fetchRefreshedOpenRouterModels(
-	config: BuiltInToggleConfig,
-	fallbackModels: ProviderModelConfig[],
-	signal?: AbortSignal,
-): Promise<ProviderModelConfig[]> {
-	const fetched = await fetchOpenRouterCompatibleModels({
-		providerId: config.id,
-		baseUrl: config.baseUrl,
-		signal,
-	});
-	const knownById = new Map(fallbackModels.map((model) => [model.id, model]));
-	return fetched.map((model) => {
-		const known = knownById.get(model.id);
-		if (known) return known;
-		return {
-			...model,
-			api: config.api,
-			baseUrl: config.baseUrl,
-			// Match the compat shape pi-ai's generated openrouter catalog uses.
-			compat: { supportsDeveloperRole: false, thinkingFormat: "openrouter" },
-		};
-	});
 }
 
 /**
@@ -1180,12 +1106,6 @@ function modelToProviderConfig(m: Model<Api>): ProviderModelConfig {
 	// drops free-tier models to the fallback rate limit. Stamp the CLI
 	// identity on the MODEL (pi-ai merges only model.headers into requests, and
 	// pi's attribution merge lets model headers override its own stamp).
-	const openCodeHeaders = isOpenCodeProvider(m.provider)
-		? (createOpenCodeHeaders(getOpenCodeSession(), m.headers) as Record<
-				string,
-				string
-			>)
-		: undefined;
 	const base: ProviderModelConfig = {
 		id: m.id,
 		name: m.name,
@@ -1193,20 +1113,18 @@ function modelToProviderConfig(m: Model<Api>): ProviderModelConfig {
 		// Pi's persisted OpenCode catalog may still contain the pre-/v1
 		// Anthropic base URL. Preserve per-model routing when re-registering;
 		// otherwise the first model's URL is shared by every model.
-		baseUrl: isOpenCodeProvider(m.provider)
-			? getOpenCodeModelBaseUrl(m.api, m.baseUrl)
-			: m.baseUrl,
+		baseUrl: getOpenCodeModelBaseUrl(m.api, m.baseUrl),
 		reasoning: m.reasoning,
 		input: m.input,
 		cost: m.cost,
 		contextWindow: m.contextWindow,
 		maxTokens: m.maxTokens,
 		compat: (m as any).compat,
+		headers: createOpenCodeHeaders(getOpenCodeSession(), m.headers) as Record<
+			string,
+			string
+		>,
 	};
-	// ProviderModelConfig is Pi-owned (no undefined members): omit headers
-	// when neither source produced any, instead of assigning undefined.
-	const resolvedHeaders = openCodeHeaders ?? m.headers;
-	if (resolvedHeaders) base.headers = resolvedHeaders;
 
 	// Keep the wire API in the canonical catalog. Registration/refresh stamp
 	// dispatch copies; the wrapper reads this metadata at request time so
@@ -1219,8 +1137,9 @@ async function resolveApiKey(
 	modelRegistry: CurrentModelRegistry,
 ): Promise<string | undefined> {
 	// OpenCode and OpenCode Go share the same Zen API key, but Pi persists
-	// credentials by provider id. Reuse a stored Go key for the free OpenCode
-	// catalog so free OpenCode models remain available after login.
+	// credentials by provider id. Reuse a key stored under Pi's native
+	// `opencode-go` id (Pi owns that credential and provider) so free OpenCode
+	// models remain available after login.
 	if (providerId === "opencode-free" || providerId === "opencode") {
 		const sharedKey = await modelRegistry.getApiKeyForProvider?.("opencode-go");
 		if (sharedKey) return sharedKey;
@@ -1232,7 +1151,6 @@ async function resolveApiKey(
 
 	// No credential means no override. An unconditional $OPENCODE_API_KEY
 	// makes Pi throw during refresh auth resolution when the variable is absent,
-	// before our refreshModels callback runs (#504). Go and OpenRouter retain
-	// Pi's native auth; the free provider's actual key was resolved above.
+	// before our refreshModels callback runs (#504).
 	return undefined;
 }

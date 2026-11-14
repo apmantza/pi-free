@@ -28,15 +28,11 @@ const mockGetGlobalFreeOnly = vi.fn();
 const mockGetModelViewOverride = vi.fn();
 const mockSetModelViewOverride = vi.fn();
 const mockGetOpencodeFreeShowPaid = vi.fn();
-const mockGetOpencodeGoShowPaid = vi.fn();
-const mockGetOpenrouterShowPaid = vi.fn();
 const mockGetOpencodeApiKey = vi.fn();
 
 /** Per-provider stored pref backing the resolveModelView mock below. */
 function mockShowPaidFor(providerId: string): boolean {
 	if (providerId === "opencode-free") return mockGetOpencodeFreeShowPaid();
-	if (providerId === "opencode-go") return mockGetOpencodeGoShowPaid();
-	if (providerId === "openrouter") return mockGetOpenrouterShowPaid();
 	return false;
 }
 const mockSaveConfig = vi.fn();
@@ -79,8 +75,6 @@ vi.mock("../lib/session-start-metrics.ts", () => ({
 vi.mock("../config.ts", () => ({
 	getOpencodeApiKey: () => mockGetOpencodeApiKey(),
 	getOpencodeFreeShowPaid: () => mockGetOpencodeFreeShowPaid(),
-	getOpencodeGoShowPaid: () => mockGetOpencodeGoShowPaid(),
-	getOpenrouterShowPaid: () => mockGetOpenrouterShowPaid(),
 	setModelViewOverride: (...args: unknown[]) =>
 		mockSetModelViewOverride(...args),
 	saveConfig: (...args: unknown[]) => mockSaveConfig(...args),
@@ -134,8 +128,6 @@ describe("built-in-toggle stale context (#509)", () => {
 		mockProviderRegistry.clear();
 		mockGetGlobalFreeOnly.mockReturnValue(true);
 		mockGetModelViewOverride.mockReturnValue(undefined);
-		mockGetOpencodeGoShowPaid.mockReturnValue(false);
-		mockGetOpenrouterShowPaid.mockReturnValue(false);
 		mockGetOpencodeApiKey.mockReturnValue(undefined);
 
 		mockPi = {

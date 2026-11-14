@@ -135,11 +135,11 @@ describe("health report", () => {
 		actions.clearActions();
 		expect(formatHealthReport()).not.toContain("Recent actions:");
 		actions.recordAction("toggle", "global free-only OFF→ON (3 providers)");
-		actions.recordAction("restore", "opencode-go: restored big-pickle");
+		actions.recordAction("restore", "opencode-free: restored big-pickle");
 
 		const report = formatHealthReport();
 		expect(report).toContain(
-			"Recent actions: [restore] opencode-go: restored big-pickle; [toggle] global free-only OFF→ON (3 providers)",
+			"Recent actions: [restore] opencode-free: restored big-pickle; [toggle] global free-only OFF→ON (3 providers)",
 		);
 		actions.clearActions();
 	});

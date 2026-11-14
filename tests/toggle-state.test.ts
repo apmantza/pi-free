@@ -45,7 +45,7 @@ describe("toggle-state helper", () => {
 	it("never falls back to paid when the free view is empty", () => {
 		const applied: unknown[][] = [];
 		const state = createToggleState<{ id: string }>({
-			providerId: "opencode-go",
+			providerId: "opencode-free",
 			initialShowPaid: false,
 			save: vi.fn(),
 			initialModels: { free: [], all: [{ id: "paid" }] },
