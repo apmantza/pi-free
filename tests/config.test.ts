@@ -214,13 +214,15 @@ describe("show-paid getters", () => {
 		expect(getKiloShowPaid()).toBe(false);
 	});
 
-	// Recurrence: pi-free stopped overriding Pi's native openrouter and
-	// opencode-go providers and dropped their show_paid keys, then removed
-	// the Qoder provider (#689) with its qoder_show_paid key. Existing
-	// ~/.pi/free.json files still carry them (plus a `qoder` entry in
-	// model_view_overrides); loading such a file must not throw, warn, drop
-	// the user's bytes, or let a dead key drive any view.
-	it("loads a file still carrying retired provider keys (openrouter, opencode-go, qoder)", async () => {
+	// Recurrence: pi-free stopped overriding Pi's native opencode-go provider
+	// and dropped its show_paid key, then removed the Qoder provider (#689)
+	// with its qoder_show_paid key. Existing ~/.pi/free.json files still
+	// carry them (plus a `qoder` entry in model_view_overrides); loading such
+	// a file must not throw, warn, drop the user's bytes, or let a dead key
+	// drive any view. `openrouter_show_paid` is live again as the legacy
+	// explicit-"all" read of Pi's OpenRouter free view (2.8.x users who chose
+	// all keep it); it is not in CONFIG_TEMPLATE.
+	it("loads a file still carrying 2.8.x provider keys (openrouter, opencode-go, qoder)", async () => {
 		vi.stubEnv("HOME", "/tmp");
 		// Route the real logger's warnings to the console so the spy sees them.
 		vi.stubEnv("LOG_LEVEL", "warn");
@@ -241,9 +243,9 @@ describe("show-paid getters", () => {
 		try {
 			const cfg = await import("../config.ts");
 			expect(cfg.getOpencodeFreeShowPaid()).toBe(true);
-			expect(cfg.getProviderShowPaid("openrouter")).toBe(false);
+			expect(cfg.getProviderShowPaid("openrouter")).toBe(true);
 			expect(cfg.getProviderShowPaid("opencode-go")).toBe(false);
-			expect(cfg.getModelViewOverride("openrouter")).toBeUndefined();
+			expect(cfg.getModelViewOverride("openrouter")).toBe("all");
 			expect(cfg.getModelViewOverride("opencode-go")).toBeUndefined();
 			expect(cfg.getProviderShowPaid("qoder")).toBe(false);
 			// Other providers' explicit choices beside the dead entry survive.

@@ -29,6 +29,11 @@ import {
 	setProviderHidden,
 } from "./config.ts";
 import { setupBuiltInProviderToggles } from "./lib/built-in-toggle.ts";
+import {
+	applyOpenRouterView,
+	type OpenRouterCatalogSource,
+	setupOpenRouterFreeView,
+} from "./lib/openrouter-free-view.ts";
 import { recordAction } from "./lib/action-log.ts";
 import { createLogger, flushLogsSync, withRunId } from "./lib/logger.ts";
 import {
@@ -59,6 +64,11 @@ import {
 } from "./lib/registry.ts";
 import { addOpenCodeFreeGateTools, registerGlobTool } from "./lib/glob-tool.ts";
 import { setupOpenCodeReadiness } from "./lib/opencode-readiness.ts";
+import {
+	isStaleContextError,
+	type NotifyCtxLike,
+	safeNotify,
+} from "./lib/stale-ctx.ts";
 // Import unique provider extensions (only providers NOT built into pi)
 import cline from "./providers/cline/cline.ts";
 import kilo from "./providers/kilo/kilo.ts";
@@ -161,11 +171,9 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 	});
 
 	// /toggle-free body, extracted so the whole fan-out shares one run tag.
-	async function runGlobalToggle(ctx: {
-		ui: {
-			notify(message: string, type?: "info" | "warning" | "error"): void;
-		};
-	}): Promise<void> {
+	async function runGlobalToggle(
+		ctx: NotifyCtxLike & { modelRegistry: OpenRouterCatalogSource },
+	): Promise<void> {
 		const current = getGlobalFreeOnly();
 		const next = !current;
 		// Clear per-provider choices first so every provider follows
@@ -173,6 +181,33 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 		// fighting the global flag on every new session (#510).
 		await clearModelViewOverrides();
 		applyGlobalFilter(next);
+		// Pi's built-in OpenRouter is not in the provider registry (it is
+		// Pi's provider, not a pi-free one); switch its filter-only view too.
+		// This body runs detached (`void`) after the flag is saved: a throw
+		// here must not skip the toast and recordAction or go unhandled.
+		try {
+			applyOpenRouterView(pi, ctx.modelRegistry);
+		} catch (error) {
+			const detail = {
+				error: error instanceof Error ? error.message : String(error),
+			};
+			if (isStaleContextError(error)) {
+				// #509: the session was replaced while the config write waited.
+				// The saved view applies from the next session start or toggle;
+				// the replacement session may already show the previous one.
+				_logger.info(
+					"session changed during /toggle-free; OpenRouter view left to the next session",
+					detail,
+				);
+			} else {
+				_logger.warn("/toggle-free: OpenRouter view not switched", detail);
+				safeNotify(
+					ctx,
+					"openrouter: could not switch its free view; Pi's provider is unchanged (see ~/.pi/free.log)",
+					"warning",
+				);
+			}
+		}
 
 		const registry = getProviderRegistry();
 		const providerCount = registry.size;
@@ -182,7 +217,8 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 				(sum, e) => sum + e.stored.free.length,
 				0,
 			);
-			ctx.ui.notify(
+			safeNotify(
+				ctx,
 				`Free-only mode: ON (${totalFree} free models across ${providerCount} providers)`,
 				"info",
 			);
@@ -191,7 +227,8 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 				(sum, e) => sum + (e.stored.all.length || e.stored.free.length),
 				0,
 			);
-			ctx.ui.notify(
+			safeNotify(
+				ctx,
 				`Free-only mode: OFF (all ${totalAll} models visible across ${providerCount} providers)`,
 				"info",
 			);
@@ -661,6 +698,9 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 
 		// Start the OpenCode relay, or warn, when a free OpenCode model is selected.
 		setupOpenCodeReadiness(pi);
+
+		// /toggle-openrouter: filter-only free view over Pi's built-in OpenRouter.
+		setupOpenRouterFreeView(pi);
 
 		// Expose Pi's file finder as `glob`, and present the OpenCode Zen
 		// free-tier gate tool names on opencode-free turns only (issue #544).
