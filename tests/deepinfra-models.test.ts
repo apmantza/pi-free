@@ -1,13 +1,13 @@
 /**
  * DeepInfra catalog classification tests.
  *
- * DeepInfra's zero-priced media models (image-gen, video-gen, tts, stt) carry
- * structured capability tags in `metadata.tags`. Observed live: ~60 zero-priced
- * entries are exclusively media models (Seedream, Veo, FLUX, Whisper, TTS...),
- * so tag-based filtering keeps the free view chat-only while substring
- * matching alone let them through.
+ * DeepInfra tags every chat-completions model `chat` in `metadata.tags`;
+ * media (image-gen, video-gen, tts, stt) and embedding (`embed`) models carry
+ * their own tags. The mapper admits only the chat tag, so zero-priced media
+ * models and embeddings with no "embed" in their id stay out of the picker.
  */
 
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../lib/model-metadata.ts", () => ({
@@ -103,7 +103,7 @@ describe("fetchDeepinfraModels — non-chat filtering", () => {
 		expect(models[0]?.cost.input).toBe(0);
 	});
 
-	it("still drops untagged entries via the substring fallback", async () => {
+	it("drops untagged entries (no chat tag, no admission)", async () => {
 		stubModels([
 			{ id: "BAAI/bge-reranker-base" }, // rerank, no metadata
 			{
@@ -117,5 +117,40 @@ describe("fetchDeepinfraModels — non-chat filtering", () => {
 
 		const models = await fetchDeepinfraModels("sk-test");
 		expect(models.map((m) => m.id)).toEqual(["Qwen/Qwen3.5-9B"]);
+	});
+});
+
+/**
+ * Live rows captured from the public /v1/openai/models endpoint on
+ * 2026-11-14 (#676). Recurrence: the media-tag exclusion list had no `embed`
+ * entry, so 20 embedding models whose ids lack "embed" (BAAI/bge-m3,
+ * intfloat/e5-*, sentence-transformers/*, thenlper/gte-*) reached the chat
+ * picker. Only rows tagged `chat` are admitted now.
+ */
+describe("fetchDeepinfraModels — live catalog rows (#676)", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	const fixture = JSON.parse(
+		readFileSync(
+			new URL("./fixtures/catalogs/deepinfra-2026-11-14.json", import.meta.url),
+			"utf8",
+		),
+	) as { data: Array<{ id: string; metadata: { tags: string[] } }> };
+
+	it("admits only chat-tagged rows: embeddings and media models are dropped", async () => {
+		stubModels(fixture.data);
+		const ids = (await fetchDeepinfraModels("")).map((m) => m.id);
+		expect(ids).toEqual(["moonshotai/Kimi-K3", "inclusionAI/Ling-3.0-flash"]);
+	});
+
+	it("drops embedding rows whose ids do not contain 'embed'", async () => {
+		const embeds = fixture.data.filter(
+			(m) => m.metadata.tags.includes("embed") && !/embed/i.test(m.id),
+		);
+		expect(embeds.length).toBeGreaterThan(0);
+		stubModels(embeds);
+		expect(await fetchDeepinfraModels("")).toEqual([]);
 	});
 });
