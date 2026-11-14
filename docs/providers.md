@@ -18,12 +18,13 @@ Provider catalog, authentication, and setup for pi-free. Catalog contents and pr
 Providers you have not logged into do not appear in `/model`. Pi hides
 any provider whose auth does not resolve, and pi-free resolves undefined
 without a stored credential or ambient key — a visible-but-unchattable
-catalog is clutter, not discovery. Only genuinely keyless-usable
-providers stay visible logged out: Cline, FastRouter, and LLM7, whose
-public catalogs work without an account (chat still needs a key where
-the gateway requires one). Logging in (`/login <provider>` or the
-provider's API-key variable) makes its models appear after the next
-refresh.
+catalog is clutter, not discovery. Only a provider whose models work
+without a key stays visible logged out: LLM7, whose anonymous tier
+answers chat. A public catalog alone is not enough: Cline and FastRouter
+serve their model lists without an account but refuse chat without one,
+so they stay hidden until you log in (#697). Logging in
+(`/login <provider>` or the provider's API-key variable) makes its models
+appear after the next refresh.
 
 ## Native providers
 
@@ -45,7 +46,7 @@ Or set `kilo_api_key` in `~/.pi/free.json`. Kilo credentials are persisted by Pi
 
 ### Cline
 
-Cline's model catalog is public, so models can appear before login. Login is required for chat requests:
+Cline's models appear after login (or with `CLINE_API_KEY`); chat needs the credential even though the catalog endpoint is public:
 
 ```text
 /login cline
@@ -131,7 +132,7 @@ Infron AI (infron.ai) is a unified AI gateway with passthrough pricing and poole
 
 ### FastRouter
 
-FastRouter is a native OpenAI-compatible provider with a public catalog. Pi restores its model store first and refreshes the catalog asynchronously; a key is required for chat requests but not model listing. Set `FASTROUTER_API_KEY` or `fastrouter_api_key`, then use `/toggle-fastrouter`.
+FastRouter is a native OpenAI-compatible provider. Pi restores its model store first and refreshes the catalog asynchronously. Chat needs a key, so its models appear only once one is set. Set `FASTROUTER_API_KEY` or `fastrouter_api_key`, then use `/toggle-fastrouter`.
 
 ## Paid and trial providers
 

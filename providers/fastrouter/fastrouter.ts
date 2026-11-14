@@ -3,8 +3,9 @@
  *
  * The factory is synchronous and network-free. Pi restores the catalog from
  * its native models store, then nudges the normal asynchronous refresh at
- * session start. FastRouter's public /models endpoint is fetched without a
- * credential; chat requests use FASTROUTER_API_KEY when configured.
+ * session start. Chat needs a key, so without a stored key or
+ * FASTROUTER_API_KEY auth does not resolve and Pi hides the provider (#697);
+ * once a key exists the /models fetch and chat requests both carry it.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -22,7 +23,6 @@ export default function fastrouterProvider(pi: ExtensionAPI): Promise<void> {
 		auth: fastrouterAuth,
 		getApiKey: getFastrouterApiKey,
 		getShowPaid: getFastrouterShowPaid,
-		allowUnauthenticated: true,
 		fetchModels: (apiKey, signal) => fetchFastrouterModels(apiKey, signal),
 	});
 	return Promise.resolve();

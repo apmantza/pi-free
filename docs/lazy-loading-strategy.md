@@ -18,7 +18,8 @@ provider contract.
 - Reduce import-time module graph work and, where possible, the work Pi awaits
   before flushing the extension registration.
 - Preserve model-picker visibility from the native models store, including
-  keyless Cline catalog discovery.
+  llm7's keyless visibility and every other provider's hiding without a
+  credential (#697).
 - Preserve authentication and `/login`, per-provider toggles, global
   `/toggle-free`, `filterModels`, hidden-model policy, and stable provider
   identity.
@@ -289,8 +290,9 @@ loading.
   lose Pi's selection/auth/filter snapshot. Prefer one object with delegated
   methods and same-object invalidation.
 - **Visibility risk:** a stub without `auth.apiKey`/OAuth or a restored
-  `getModels()` can hide a provider from Pi's availability gate. Cline's
-  keyless public catalog is a mandatory regression case.
+  `getModels()` can hide a provider from Pi's availability gate. llm7's
+  keyless catalog, and `tests/keyless-visibility.test.ts`, are mandatory
+  regression cases.
 - **Lifecycle risk:** deferring `refreshModels` or `session_start` registration
   can skip native store restoration or make detached work block startup.
 - **Error/race risk:** concurrent first requests, aborts during import, and

@@ -10,8 +10,13 @@ vi.mock("../config.ts", () => ({
 	getFastrouterApiKey: () => mocks.getApiKey(),
 	getFastrouterShowPaid: () => false,
 	applyHidden: (models: unknown[]) => models,
+	// Non-key exports pulled in transitively by lib/native-provider.
+	getFreeOnly: () => false,
+	getProviderShowPaid: () => false,
+	saveConfig: async () => undefined,
 }));
-vi.mock("../lib/native-provider.ts", () => ({
+vi.mock("../lib/native-provider.ts", async (importOriginal) => ({
+	...(await importOriginal<typeof import("../lib/native-provider.ts")>()),
 	registerNativeOpenAIProvider: (...args: unknown[]) =>
 		mocks.registerNativeOpenAIProvider(...args),
 }));
@@ -25,16 +30,14 @@ beforeEach(() => {
 });
 
 describe("FastRouter native provider", () => {
-	it("resolves keyless auth for the public catalog", async () => {
+	it("resolves undefined without a key, so Pi hides FastRouter (#697)", async () => {
+		// Recurrence: a keyless resolve listed 6 FastRouter models for users
+		// without a key and every turn failed "No API key for provider".
 		const result = await fastrouterAuth.apiKey?.resolve({
 			ctx: {} as never,
 			signal: new AbortController().signal,
 		} as never);
-		expect(result).toEqual({
-			auth: {},
-			source: "public catalog (no account)",
-		});
-		expect(fastrouterAuth.apiKey).not.toHaveProperty("check");
+		expect(result).toBeUndefined();
 	});
 
 	it("uses stored or ambient keys for authenticated requests", async () => {
@@ -54,7 +57,7 @@ describe("FastRouter native provider", () => {
 		).toMatchObject({ auth: { apiKey: "ambient-key" } });
 	});
 
-	it("registers one native provider with unauthenticated refresh enabled", () => {
+	it("registers one native provider with the keyed auth", () => {
 		const pi = {} as ExtensionAPI;
 		fastrouterProvider(pi);
 
@@ -63,7 +66,7 @@ describe("FastRouter native provider", () => {
 			expect.objectContaining({
 				providerId: "fastrouter",
 				baseUrl: "https://api.fastrouter.ai/api/v1",
-				allowUnauthenticated: true,
+				auth: fastrouterAuth,
 			}),
 		);
 	});

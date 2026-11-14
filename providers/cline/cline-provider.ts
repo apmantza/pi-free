@@ -25,9 +25,10 @@
  * re-registration needed.
  *
  * Public catalog: the model list needs no credential, so `refreshModels`
- * fetches without `context.credential`. (Cline's auth resolves even when
- * unconfigured — see cline-auth.ts — so Pi still drives refresh for
- * logged-out users, preserving the legacy "models before /login" behavior.)
+ * fetches without `context.credential`. Pi only drives that network refresh,
+ * and only lists the models, once auth resolves (a login or a key, see
+ * cline-auth.ts): chat needs a credential, so logged-out users see no Cline
+ * models (#697).
  *
  * Stored-store migration: users' model stores contain models with the retired
  * `cline-xml-tools` api until their next successful network refresh. Restore

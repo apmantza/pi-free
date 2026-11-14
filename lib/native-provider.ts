@@ -93,8 +93,7 @@ export function createNativeApiKeyAuth(
 			// key, resolve() returns undefined and Pi hides the provider
 			// from /model (#530). A visible-but-unchattable catalog is
 			// clutter, not discovery — chat needs a key everywhere except
-			// the allowlisted keyless providers (cline, fastrouter, llm7),
-			// which carry their own resolvers.
+			// llm7, whose anonymous tier carries its own resolver (#697).
 			const key = input.credential?.key ?? options.getApiKey();
 			if (!key) {
 				return undefined;
@@ -120,8 +119,6 @@ export interface NativeOpenAIProviderOptions {
 		apiKey: string,
 		signal?: AbortSignal,
 	) => Promise<ProviderModelConfig[]>;
-	/** Allow refresh to fetch a public catalog with an empty credential. */
-	allowUnauthenticated?: boolean;
 	tosUrl?: string;
 	suppressTosWhenKey?: boolean;
 	/**
@@ -334,8 +331,8 @@ export function createNativeOpenAIProvider(
 					context.credential,
 					options.getApiKey,
 				);
-				if (!token && !options.allowUnauthenticated) return [];
-				const all = await options.fetchModels(token ?? "", context.signal);
+				if (!token) return [];
+				const all = await options.fetchModels(token, context.signal);
 				return enhanceWithCI(all, options.providerId).map((model) =>
 					toNativeOpenAIModel(
 						model,

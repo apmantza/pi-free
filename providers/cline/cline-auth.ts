@@ -609,22 +609,6 @@ export async function refreshClineCredential(
 	return { ...(await refreshClineToken(credential)), type: "oauth" };
 }
 
-/**
- * Resolve the effective Cline API key: a natively-stored key wins, then the
- * ambient `CLINE_API_KEY` env var / `~/.pi/free.json` value.
- *
- * Cline-specific deviation from the Kilo recipe: when NO key is configured this
- * still resolves — with an empty `auth` — instead of returning undefined. Cline's
- * model catalog is public (the legacy factory fetched it with no credential, so
- * models appeared before `/login cline`). Pi's `Models.refresh()` skips providers
- * whose auth does not resolve, which would leave logged-out users with no models
- * at all (no offline init, no background refresh). Always resolving keeps the
- * catalog flowing for everyone — this is Pi's sanctioned keyless pattern (the
- * pi-ai `faux` provider does the same) — while chat requests without a token
- * still fail fast in the XML bridge with an actionable message. Do not add
- * `apiKey.check`: Pi runs that check before `filterModels` and would hide this
- * intentionally public catalog when the user is logged out.
- */
 // =============================================================================
 // Cline CLI credential fallback
 // =============================================================================
@@ -674,6 +658,12 @@ export function readClineCliApiKey(
  * Resolve the effective Cline API key: a natively-stored key wins, then the
  * ambient `CLINE_API_KEY` env var / `~/.pi/free.json` value, then the Cline
  * CLI's durable API key (`~/.cline/data/settings/providers.json`).
+ *
+ * Without any of them resolve() returns undefined, so Pi hides Cline until
+ * `/login cline` or a key exists (#697). The catalog endpoint is public, but
+ * chat needs a credential: a keyless resolve listed 18 models whose every
+ * turn failed "No API key for provider: cline". An OAuth login reaches Pi
+ * through `clineOAuthAuth`, not this resolver.
  */
 async function resolveClineApiKey(input: {
 	ctx: AuthContext;
@@ -681,9 +671,7 @@ async function resolveClineApiKey(input: {
 	signal?: AbortSignal;
 }): Promise<AuthResult | undefined> {
 	const key = input.credential?.key ?? getClineApiKey() ?? readClineCliApiKey();
-	if (!key) {
-		return { auth: {}, source: "public catalog (no account)" };
-	}
+	if (!key) return undefined;
 	return {
 		auth: { apiKey: key },
 		source: input.credential?.key

@@ -75,7 +75,7 @@ Native providers retain their complete catalog and let Pi apply the current filt
 | Command | Description |
 | --- | --- |
 | `/login kilo` | Start Kilo OAuth. Kilo also accepts `KILO_API_KEY`. |
-| `/login cline` | Start Cline OAuth. Cline's public catalog does not require login; chat does. |
+| `/login cline` | Start Cline OAuth. Cline's models appear only after login or with `CLINE_API_KEY`. |
 | `/logout kilo` | Clear Kilo credentials managed by Pi. |
 | `/logout cline` | Clear Cline credentials managed by Pi. |
 

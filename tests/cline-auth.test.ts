@@ -2,8 +2,8 @@
  * Tests for the Cline native auth (apiKey + OAuth callback-server flow).
  *
  * Mirrors tests/kilo-auth.test.ts, plus the Cline-specific pieces:
- *   - resolve always succeeds (public catalog) so Pi's refresh() and
- *     availability both work for logged-out users
+ *   - resolve returns undefined with no login or key, so Pi hides Cline
+ *     until one exists (#697)
  *   - toAuth applies the workos: bearer prefix (legacy oauth.getApiKey)
  *   - the login adapter maps the legacy OAuthLoginCallbacks flow onto the
  *     native AuthInteraction exactly as Pi's own adaptOAuth did
@@ -16,7 +16,27 @@ import type {
 	AuthInteraction,
 	OAuthCredential,
 } from "@earendil-works/pi-ai/compat";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	afterAll,
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	vi,
+} from "vitest";
+
+// The Cline CLI fallback path is computed from homedir() at import: pin HOME
+// inside the working tree (never the real ~/.cline) before the module loads.
+vi.hoisted(() => {
+	const home = `${process.cwd()}/.smoke-artifacts/cline-test-home-absent`;
+	vi.stubEnv("HOME", home);
+	vi.stubEnv("USERPROFILE", home);
+});
+// Restore the real HOME for later files in the same worker (#700 review).
+afterAll(() => {
+	vi.unstubAllEnvs();
+});
 
 const mockGetClineApiKey = vi.hoisted(() =>
 	vi.fn((): string | undefined => undefined),
@@ -94,19 +114,15 @@ describe("apiKey.resolve", () => {
 		});
 	});
 
-	it("still resolves (empty auth) when nothing is configured — public catalog", async () => {
-		// Cline's model catalog is public: resolving unconfigured keeps Pi's
-		// Models.refresh() driving offline init + background catalog refresh for
-		// logged-out users (the legacy factory fetched models with no credential).
+	it("resolves undefined when nothing is configured, so Pi hides Cline (#697)", async () => {
+		// Recurrence: an empty-auth resolve listed 18 Cline models for
+		// logged-out users and every turn failed "No API key for provider".
 		mockGetClineApiKey.mockReturnValue(undefined);
 		const result = await clineApiKeyAuth.resolve({
 			ctx: authCtx,
 			signal: new AbortController().signal,
 		} as never);
-		expect(result).toEqual({
-			auth: {},
-			source: "public catalog (no account)",
-		});
+		expect(result).toBeUndefined();
 	});
 
 	it("falls back to the Cline CLI durable key when nothing else is set", async () => {

@@ -4,7 +4,8 @@
  * Mirrors tests/kilo-provider.test.ts, plus the Cline-specific pieces:
  *   - the standard "openai-completions" wire api: stream AND streamSimple
  *     delegate to the lazy OpenAI compat bridge (#433)
- *   - public catalog: refreshModels fetches without any credential
+ *   - public catalog: refreshModels fetches without any credential, but Pi
+ *     lists the models only once a login or key resolves (#697)
  *   - stored-store migration: restored models with the retired legacy XML
  *     wire api are normalized to "openai-completions"
  *   - the shared mutable headers record (task-id rotation without re-register)
@@ -17,7 +18,27 @@ import type {
 	ProviderModelsStore,
 	RefreshModelsContext,
 } from "@earendil-works/pi-ai/compat";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	afterAll,
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	vi,
+} from "vitest";
+
+// The Cline CLI fallback path is computed from homedir() at import: pin HOME
+// inside the working tree (never the real ~/.cline) before the module loads.
+vi.hoisted(() => {
+	const home = `${process.cwd()}/.smoke-artifacts/cline-test-home-absent`;
+	vi.stubEnv("HOME", home);
+	vi.stubEnv("USERPROFILE", home);
+});
+// Restore the real HOME for later files in the same worker (#700 review).
+afterAll(() => {
+	vi.unstubAllEnvs();
+});
 
 const mockFetchClineCatalog = vi.hoisted(() => vi.fn());
 const mockGetClineShowPaid = vi.hoisted(() => vi.fn(() => false));
@@ -201,28 +222,26 @@ describe("createClineProvider shape", () => {
 		expect(provider.headers!["X-Task-ID"]).not.toBe("");
 	});
 
-	it("keeps the public catalog available without a credential", async () => {
+	it("hides a held catalog without a credential (#697)", async () => {
+		// Recurrence: logged-out users saw Cline models they could not chat with.
+		mockGetClineApiKey.mockReturnValue(undefined);
 		const handle = createClineProvider();
 		handle.ingest([freeCfg("public")], [freeCfg("public")]);
 
 		const models = createModels();
 		models.setProvider(handle.provider);
 
-		const available = await models.getAvailable();
-		expect(available.map((model) => model.id)).toEqual(["public"]);
+		expect(await models.getAvailable()).toEqual([]);
 	});
 
-	it("resolves a truthy keyless auth when no key is configured (anonymous catalog)", async () => {
+	it("resolves undefined without a key and the key once one is configured", async () => {
 		const { provider } = createClineProvider();
 		mockGetClineApiKey.mockReturnValue(undefined);
 		const result = await provider.auth.apiKey!.resolve!({
 			ctx: {} as never,
 			signal: new AbortController().signal,
 		});
-		expect(result).toEqual({
-			auth: {},
-			source: "public catalog (no account)",
-		});
+		expect(result).toBeUndefined();
 
 		// A configured ambient key is returned normally.
 		mockGetClineApiKey.mockReturnValue("sk-cline");

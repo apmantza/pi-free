@@ -25,7 +25,6 @@ export default function requestyProvider(pi: ExtensionAPI): Promise<void> {
 		auth: requestyAuth,
 		getApiKey: getRequestyApiKey,
 		getShowPaid: getRequestyShowPaid,
-		allowUnauthenticated: true,
 		fetchModels: (apiKey, signal) => fetchRequestyModels(apiKey, signal),
 	});
 	return Promise.resolve();

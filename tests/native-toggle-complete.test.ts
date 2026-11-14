@@ -218,8 +218,7 @@ describe("stored completeness tracking", () => {
 		})();
 		const handle = createNativeOpenAIProvider({
 			...providerOptions,
-			allowUnauthenticated: true,
-			getApiKey: () => undefined,
+			getApiKey: () => "fixture-key",
 			fetchModels: async () => [model("f1", "F1 free"), model("p1", "P1")],
 		} as never);
 
