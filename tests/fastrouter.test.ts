@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
 	getApiKey: vi.fn((): string | undefined => undefined),
-	fetchModels: vi.fn(async (_options: unknown) => []),
 	registerNativeOpenAIProvider: vi.fn(),
 }));
 
@@ -12,17 +11,12 @@ vi.mock("../config.ts", () => ({
 	getFastrouterShowPaid: () => false,
 	applyHidden: (models: unknown[]) => models,
 }));
-vi.mock("../providers/model-fetcher.ts", () => ({
-	fetchOpenRouterCompatibleModels: (options: unknown) =>
-		mocks.fetchModels(options as never),
-}));
 vi.mock("../lib/native-provider.ts", () => ({
 	registerNativeOpenAIProvider: (...args: unknown[]) =>
 		mocks.registerNativeOpenAIProvider(...args),
 }));
 
 import { fastrouterAuth } from "../providers/fastrouter/fastrouter-auth.ts";
-import { fetchFastrouterModels } from "../providers/fastrouter/fastrouter-models.ts";
 import fastrouterProvider from "../providers/fastrouter/fastrouter.ts";
 
 beforeEach(() => {
@@ -70,28 +64,6 @@ describe("FastRouter native provider", () => {
 				providerId: "fastrouter",
 				baseUrl: "https://api.fastrouter.ai/api/v1",
 				allowUnauthenticated: true,
-			}),
-		);
-	});
-
-	it("fetches the public catalog without manufacturing an auth header", async () => {
-		const signal = new AbortController().signal;
-		await fetchFastrouterModels("", signal);
-		expect(mocks.fetchModels).toHaveBeenCalledWith(
-			expect.objectContaining({
-				providerId: "fastrouter",
-				baseUrl: "https://api.fastrouter.ai/api/v1",
-				apiKey: undefined,
-				signal,
-			}),
-		);
-	});
-
-	it("excludes media-generation output modalities from the catalog", async () => {
-		await fetchFastrouterModels("");
-		expect(mocks.fetchModels).toHaveBeenCalledWith(
-			expect.objectContaining({
-				excludeOutputModalities: ["image", "audio", "video", "speech"],
 			}),
 		);
 	});

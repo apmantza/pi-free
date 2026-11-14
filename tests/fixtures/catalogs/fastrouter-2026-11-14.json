@@ -1,0 +1,1836 @@
+{
+	"_captured": "2026-11-14, public /models endpoint, rows verbatim (#676)",
+	"data": [
+		{
+			"id": "fastrouter/auto",
+			"name": "FastRouter: Auto",
+			"description": "fastrouter/auto is an enhanced meta-model that intelligently routes each prompt to the best-fit model from dozens of options — optimizing for quality, contextual relevance, and cost. You will be billed at the exact rate of the selected model, with full transparency in the Activity page and response metadata. With improved query understanding and a next-gen selection engine, Auto delivers sharper routing decisions and more consistent outputs — making it the most reliable way to get started.",
+			"created": 1767260074,
+			"context_length": 1000000,
+			"architecture": {
+				"modality": "text+image->text",
+				"input_modalities": ["text", "image"],
+				"output_modalities": ["text"],
+				"tokenizer": "Other"
+			},
+			"pricing": {
+				"prompt": "0",
+				"completion": "0",
+				"request": "",
+				"image": "",
+				"web_search": "",
+				"citation": "",
+				"reasoning": "",
+				"duration": "",
+				"internal_reasoning": "",
+				"input_cache_read": "",
+				"input_cache_write": "",
+				"prompt_more_than_128k_input": "",
+				"completion_more_than_128k_input": "",
+				"prompt_more_than_200k_input": "",
+				"completion_more_than_200k_input": "",
+				"prompt_more_than_272k_input": "",
+				"completion_more_than_272k_input": "",
+				"prompt_more_than_512k_input": "",
+				"completion_more_than_512k_input": "",
+				"web_search_per_1000_requests_low": "",
+				"web_search_per_1000_requests_medium": "",
+				"web_search_per_1000_requests_high": "",
+				"web_search_per_1000_requests": "",
+				"audio_output_per_minute": "",
+				"audio_input": "",
+				"audio_output": "",
+				"cached_audio_input": "",
+				"batchPrice": {},
+				"flex_service_tier_pricing": {},
+				"fast_service_tier_pricing": {},
+				"ultrafast_service_tier_pricing": {},
+				"priority_service_tier_pricing": {},
+				"videoCost": null,
+				"videoCostWithAudio": null,
+				"imageCost": null,
+				"priceToShow": {
+					"prompt": "",
+					"completion": "",
+					"request": "",
+					"image": "",
+					"web_search": "",
+					"citation": "",
+					"reasoning": "",
+					"duration": "",
+					"internal_reasoning": "",
+					"input_cache_read": "",
+					"input_cache_write": "",
+					"prompt_more_than_128k_input": "",
+					"completion_more_than_128k_input": "",
+					"prompt_more_than_200k_input": "",
+					"completion_more_than_200k_input": "",
+					"prompt_more_than_272k_input": "",
+					"completion_more_than_272k_input": "",
+					"prompt_more_than_512k_input": "",
+					"completion_more_than_512k_input": "",
+					"web_search_per_1000_requests_low": "",
+					"web_search_per_1000_requests_medium": "",
+					"web_search_per_1000_requests_high": "",
+					"web_search_per_1000_requests": "",
+					"audio_output_per_minute": "",
+					"audio_input": "",
+					"audio_output": "",
+					"cached_audio_input": "",
+					"batchPrice": {},
+					"flex_service_tier_pricing": {},
+					"fast_service_tier_pricing": {},
+					"ultrafast_service_tier_pricing": {},
+					"priority_service_tier_pricing": {},
+					"videoCost": null,
+					"videoCostWithAudio": null,
+					"imageCost": null,
+					"priceToShow": null,
+					"price": "As per provider"
+				}
+			},
+			"top_provider": {
+				"context_length": 1000000,
+				"max_completion_tokens": 1000000,
+				"is_moderated": false
+			},
+			"supported_parameters": [],
+			"models_extra_params": {
+				"category": null,
+				"sample_code_snippet": null
+			},
+			"is_active": true,
+			"creator": "FastRouter"
+		},
+		{
+			"id": "deepgram/nova-3",
+			"name": "Deepgram: Nova 3",
+			"description": "Deepgram Nova-3 is a fast, accurate speech-to-text model served through Telnyx's OpenAI-compatible transcription endpoint. It supports English variants (en, en-US, en-GB, en-AU, en-NZ, en-IN) and only accepts mp3 or wav audio files. Deepgram-specific options such as smart formatting, punctuation, diarization, utterance segmentation, and numeral conversion are configurable via model_config, and word-level timestamps with speaker labels are returned when enabled.",
+			"created": 1743638400,
+			"context_length": 4096,
+			"architecture": {
+				"modality": "audio->text",
+				"input_modalities": ["audio"],
+				"output_modalities": ["text"],
+				"tokenizer": "",
+				"instruct_type": "none"
+			},
+			"pricing": {
+				"prompt": "0",
+				"completion": "0",
+				"request": "0",
+				"image": "",
+				"web_search": "",
+				"citation": "",
+				"reasoning": "",
+				"duration": "",
+				"internal_reasoning": "",
+				"input_cache_read": "",
+				"input_cache_write": "",
+				"prompt_more_than_128k_input": "",
+				"completion_more_than_128k_input": "",
+				"prompt_more_than_200k_input": "",
+				"completion_more_than_200k_input": "",
+				"prompt_more_than_272k_input": "",
+				"completion_more_than_272k_input": "",
+				"prompt_more_than_512k_input": "",
+				"completion_more_than_512k_input": "",
+				"web_search_per_1000_requests_low": "",
+				"web_search_per_1000_requests_medium": "",
+				"web_search_per_1000_requests_high": "",
+				"web_search_per_1000_requests": "",
+				"audio_output_per_minute": "",
+				"audio_input": "0.00012333",
+				"audio_output": "",
+				"cached_audio_input": "",
+				"batchPrice": {},
+				"flex_service_tier_pricing": {},
+				"fast_service_tier_pricing": {},
+				"ultrafast_service_tier_pricing": {},
+				"priority_service_tier_pricing": {},
+				"videoCost": null,
+				"videoCostWithAudio": null,
+				"imageCost": null,
+				"priceToShow": null
+			},
+			"top_provider": {
+				"context_length": 4096,
+				"max_completion_tokens": 4096,
+				"is_moderated": false
+			},
+			"supported_parameters": [
+				"file",
+				"file_url",
+				"response_format",
+				"timestamp_granularities",
+				"language",
+				"model_config"
+			],
+			"models_extra_params": {
+				"category": ["Speech to Text"],
+				"sample_code_snippet": null
+			},
+			"is_active": true,
+			"creator": "Deepgram",
+			"supported_params_details": {
+				"file": {
+					"inputFormat": {
+						"dataType": "string"
+					}
+				},
+				"file_url": {
+					"inputFormat": {
+						"dataType": "string"
+					}
+				},
+				"language": {
+					"inputFormat": {
+						"dataType": "string",
+						"enum": ["en", "en-US", "en-GB", "en-AU", "en-NZ", "en-IN"]
+					}
+				},
+				"model_config": {
+					"inputFormat": {
+						"dataType": "object",
+						"properties": {
+							"smart_format": {
+								"dataType": "bool"
+							},
+							"punctuate": {
+								"dataType": "bool"
+							},
+							"diarize": {
+								"dataType": "bool"
+							},
+							"utterance": {
+								"dataType": "bool"
+							},
+							"numerals": {
+								"dataType": "bool"
+							},
+							"language": {
+								"dataType": "string"
+							}
+						}
+					}
+				},
+				"response_format": {
+					"inputFormat": {
+						"dataType": "string",
+						"enum": ["json", "verbose_json"],
+						"default": "json"
+					}
+				},
+				"timestamp_granularities": {
+					"inputFormat": {
+						"dataType": "string",
+						"enum": ["segment"]
+					}
+				}
+			}
+		},
+		{
+			"id": "openai/gpt-transcribe",
+			"name": "OpenAI: GPT Transcribe",
+			"description": "GPT Transcribe is OpenAI's speech-to-text model for completed audio files, streamed file transcripts, and committed turns in Realtime sessions over WebSocket. It supports unstructured context, keyword hints, and multiple language hints to improve transcription of domain terms, multilingual audio, and code-switching, and reports which languages it actually detected. On OpenAI's Common Voice benchmark across 22 languages, it cuts word error rate to 19.27% against 40.37% for whisper-1. It returns plain text only, without subtitle formats, word/segment timestamps, or speaker labels.",
+			"created": 1785110400,
+			"context_length": 4096,
+			"architecture": {
+				"modality": "audio->text",
+				"input_modalities": ["audio"],
+				"output_modalities": ["text"],
+				"tokenizer": "",
+				"instruct_type": "none"
+			},
+			"pricing": {
+				"prompt": "0",
+				"completion": "0",
+				"request": "0",
+				"image": "",
+				"web_search": "",
+				"citation": "",
+				"reasoning": "",
+				"duration": "",
+				"internal_reasoning": "",
+				"input_cache_read": "",
+				"input_cache_write": "",
+				"prompt_more_than_128k_input": "",
+				"completion_more_than_128k_input": "",
+				"prompt_more_than_200k_input": "",
+				"completion_more_than_200k_input": "",
+				"prompt_more_than_272k_input": "",
+				"completion_more_than_272k_input": "",
+				"prompt_more_than_512k_input": "",
+				"completion_more_than_512k_input": "",
+				"web_search_per_1000_requests_low": "",
+				"web_search_per_1000_requests_medium": "",
+				"web_search_per_1000_requests_high": "",
+				"web_search_per_1000_requests": "",
+				"audio_output_per_minute": "",
+				"audio_input": "0.000075",
+				"audio_output": "",
+				"cached_audio_input": "",
+				"batchPrice": {},
+				"flex_service_tier_pricing": {},
+				"fast_service_tier_pricing": {},
+				"ultrafast_service_tier_pricing": {},
+				"priority_service_tier_pricing": {},
+				"videoCost": null,
+				"videoCostWithAudio": null,
+				"imageCost": null,
+				"priceToShow": {
+					"prompt": "",
+					"completion": "",
+					"request": "",
+					"image": "",
+					"web_search": "",
+					"citation": "",
+					"reasoning": "",
+					"duration": "",
+					"internal_reasoning": "",
+					"input_cache_read": "",
+					"input_cache_write": "",
+					"prompt_more_than_128k_input": "",
+					"completion_more_than_128k_input": "",
+					"prompt_more_than_200k_input": "",
+					"completion_more_than_200k_input": "",
+					"prompt_more_than_272k_input": "",
+					"completion_more_than_272k_input": "",
+					"prompt_more_than_512k_input": "",
+					"completion_more_than_512k_input": "",
+					"web_search_per_1000_requests_low": "",
+					"web_search_per_1000_requests_medium": "",
+					"web_search_per_1000_requests_high": "",
+					"web_search_per_1000_requests": "",
+					"audio_output_per_minute": "",
+					"audio_input": "0.000075",
+					"audio_output": "",
+					"cached_audio_input": "",
+					"batchPrice": {},
+					"flex_service_tier_pricing": {},
+					"fast_service_tier_pricing": {},
+					"ultrafast_service_tier_pricing": {},
+					"priority_service_tier_pricing": {},
+					"videoCost": null,
+					"videoCostWithAudio": null,
+					"imageCost": null,
+					"priceToShow": null
+				}
+			},
+			"top_provider": {
+				"context_length": 4096,
+				"max_completion_tokens": 4096,
+				"is_moderated": false
+			},
+			"supported_parameters": [
+				"file",
+				"prompt",
+				"keywords",
+				"languages",
+				"response_format",
+				"stream",
+				"include",
+				"known_speaker_names",
+				"known_speaker_references"
+			],
+			"models_extra_params": {
+				"category": ["Speech to Text"],
+				"sample_code_snippet": null
+			},
+			"is_active": true,
+			"creator": "OpenAI",
+			"supported_params_details": {
+				"file": {
+					"inputFormat": {
+						"dataType": "string"
+					}
+				},
+				"include": {
+					"inputFormat": {
+						"dataType": "array"
+					}
+				},
+				"keywords": {
+					"inputFormat": {
+						"dataType": "array"
+					}
+				},
+				"known_speaker_names": {
+					"inputFormat": {
+						"dataType": "array",
+						"maxItems": 4
+					}
+				},
+				"known_speaker_references": {
+					"inputFormat": {
+						"dataType": "array",
+						"maxItems": 4
+					}
+				},
+				"languages": {
+					"inputFormat": {
+						"dataType": "array"
+					}
+				},
+				"prompt": {
+					"inputFormat": {
+						"dataType": "string"
+					}
+				},
+				"response_format": {
+					"inputFormat": {
+						"dataType": "string",
+						"enum": ["json", "text"],
+						"default": "json"
+					}
+				},
+				"stream": {
+					"inputFormat": {
+						"dataType": "bool",
+						"enum": [true, false],
+						"default": false
+					}
+				}
+			}
+		},
+		{
+			"id": "openai/whisper-1",
+			"name": "OpenAI: Whisper-1",
+			"description": "Whisper-1 is OpenAI’s speech-to-text (and translation) model for audio transcription. It accepts common audio formats and returns text (and optional segments/timestamps). It is used via the Audio Transcriptions/Translations endpoints.",
+			"created": 1672531200,
+			"architecture": {
+				"modality": "audio->text",
+				"input_modalities": ["audio"],
+				"output_modalities": ["text"],
+				"tokenizer": ""
+			},
+			"pricing": {
+				"prompt": "",
+				"completion": "",
+				"request": "",
+				"image": "",
+				"web_search": "",
+				"citation": "",
+				"reasoning": "",
+				"duration": "",
+				"internal_reasoning": "",
+				"input_cache_read": "",
+				"input_cache_write": "",
+				"prompt_more_than_128k_input": "",
+				"completion_more_than_128k_input": "",
+				"prompt_more_than_200k_input": "",
+				"completion_more_than_200k_input": "",
+				"prompt_more_than_272k_input": "",
+				"completion_more_than_272k_input": "",
+				"prompt_more_than_512k_input": "",
+				"completion_more_than_512k_input": "",
+				"web_search_per_1000_requests_low": "",
+				"web_search_per_1000_requests_medium": "",
+				"web_search_per_1000_requests_high": "",
+				"web_search_per_1000_requests": "",
+				"audio_output_per_minute": "",
+				"audio_input": "0.0001",
+				"audio_output": "",
+				"cached_audio_input": "",
+				"batchPrice": {},
+				"flex_service_tier_pricing": {},
+				"fast_service_tier_pricing": {},
+				"ultrafast_service_tier_pricing": {},
+				"priority_service_tier_pricing": {},
+				"videoCost": null,
+				"videoCostWithAudio": null,
+				"imageCost": null,
+				"priceToShow": {
+					"prompt": "",
+					"completion": "",
+					"request": "",
+					"image": "",
+					"web_search": "",
+					"citation": "",
+					"reasoning": "",
+					"duration": "",
+					"internal_reasoning": "",
+					"input_cache_read": "",
+					"input_cache_write": "",
+					"prompt_more_than_128k_input": "",
+					"completion_more_than_128k_input": "",
+					"prompt_more_than_200k_input": "",
+					"completion_more_than_200k_input": "",
+					"prompt_more_than_272k_input": "",
+					"completion_more_than_272k_input": "",
+					"prompt_more_than_512k_input": "",
+					"completion_more_than_512k_input": "",
+					"web_search_per_1000_requests_low": "",
+					"web_search_per_1000_requests_medium": "",
+					"web_search_per_1000_requests_high": "",
+					"web_search_per_1000_requests": "",
+					"audio_output_per_minute": "",
+					"audio_input": "0.0001",
+					"audio_output": "",
+					"cached_audio_input": "",
+					"batchPrice": {},
+					"flex_service_tier_pricing": {},
+					"fast_service_tier_pricing": {},
+					"ultrafast_service_tier_pricing": {},
+					"priority_service_tier_pricing": {},
+					"videoCost": null,
+					"videoCostWithAudio": null,
+					"imageCost": null,
+					"priceToShow": null
+				}
+			},
+			"top_provider": {
+				"context_length": 0,
+				"max_completion_tokens": 0,
+				"is_moderated": false
+			},
+			"supported_parameters": [
+				"file",
+				"model",
+				"language",
+				"prompt",
+				"response_format",
+				"temperature",
+				"timestamp_granularities",
+				"known_speaker_references",
+				"chunking_strategy",
+				"known_speaker_names"
+			],
+			"models_extra_params": {
+				"category": null,
+				"sample_code_snippet": null
+			},
+			"is_active": true,
+			"creator": "OpenAI",
+			"expiry_date": "2027-02-26",
+			"supported_params_details": {
+				"chunking_strategy": {},
+				"file": {},
+				"known_speaker_names": {},
+				"known_speaker_references": {},
+				"language": {},
+				"model": {},
+				"prompt": {},
+				"response_format": {},
+				"temperature": {},
+				"timestamp_granularities": {}
+			}
+		},
+		{
+			"id": "sarvam/saaras:v3",
+			"name": "Sarvam: Saaras V3",
+			"description": "Saaras V3 is Sarvam AI's next-generation automatic speech recognition (ASR) model engineered for Indian languages and real-world speech conditions.\nSaaras V3 supports 23 languages (22 official Indian languages plus English) within a unified multilingual model. The model achieves approximately 19% Word Error Rate (WER) on the IndicVoices benchmark, improving significantly from its predecessor Saaras V2.5 which had ~22% WER. On the 10 most popular languages in the IndicVoices dataset, it achieves 19.3% WER, and performance advantages widen for lower-resource Indian languages",
+			"created": 1770794385,
+			"context_length": 2046,
+			"architecture": {
+				"modality": "audio->text",
+				"input_modalities": ["audio"],
+				"output_modalities": ["text"],
+				"tokenizer": ""
+			},
+			"pricing": {
+				"prompt": "",
+				"completion": "",
+				"request": "",
+				"image": "",
+				"web_search": "",
+				"citation": "",
+				"reasoning": "",
+				"duration": "",
+				"internal_reasoning": "",
+				"input_cache_read": "",
+				"input_cache_write": "",
+				"prompt_more_than_128k_input": "",
+				"completion_more_than_128k_input": "",
+				"prompt_more_than_200k_input": "",
+				"completion_more_than_200k_input": "",
+				"prompt_more_than_272k_input": "",
+				"completion_more_than_272k_input": "",
+				"prompt_more_than_512k_input": "",
+				"completion_more_than_512k_input": "",
+				"web_search_per_1000_requests_low": "",
+				"web_search_per_1000_requests_medium": "",
+				"web_search_per_1000_requests_high": "",
+				"web_search_per_1000_requests": "",
+				"audio_output_per_minute": "",
+				"audio_input": "0.000088",
+				"audio_output": "",
+				"cached_audio_input": "",
+				"batchPrice": {},
+				"flex_service_tier_pricing": {},
+				"fast_service_tier_pricing": {},
+				"ultrafast_service_tier_pricing": {},
+				"priority_service_tier_pricing": {},
+				"videoCost": null,
+				"videoCostWithAudio": null,
+				"imageCost": null,
+				"priceToShow": {
+					"prompt": "",
+					"completion": "",
+					"request": "",
+					"image": "",
+					"web_search": "",
+					"citation": "",
+					"reasoning": "",
+					"duration": "",
+					"internal_reasoning": "",
+					"input_cache_read": "",
+					"input_cache_write": "",
+					"prompt_more_than_128k_input": "",
+					"completion_more_than_128k_input": "",
+					"prompt_more_than_200k_input": "",
+					"completion_more_than_200k_input": "",
+					"prompt_more_than_272k_input": "",
+					"completion_more_than_272k_input": "",
+					"prompt_more_than_512k_input": "",
+					"completion_more_than_512k_input": "",
+					"web_search_per_1000_requests_low": "",
+					"web_search_per_1000_requests_medium": "",
+					"web_search_per_1000_requests_high": "",
+					"web_search_per_1000_requests": "",
+					"audio_output_per_minute": "",
+					"audio_input": "0.000088",
+					"audio_output": "",
+					"cached_audio_input": "",
+					"batchPrice": {},
+					"flex_service_tier_pricing": {},
+					"fast_service_tier_pricing": {},
+					"ultrafast_service_tier_pricing": {},
+					"priority_service_tier_pricing": {},
+					"videoCost": null,
+					"videoCostWithAudio": null,
+					"imageCost": null,
+					"priceToShow": null
+				}
+			},
+			"top_provider": {
+				"context_length": 2046,
+				"max_completion_tokens": 0,
+				"is_moderated": false
+			},
+			"supported_parameters": ["input_audio_codec", "mode", "language_code"],
+			"models_extra_params": {
+				"category": null,
+				"sample_code_snippet": null
+			},
+			"is_active": true,
+			"creator": "Sarvam",
+			"supported_params_details": {
+				"input_audio_codec": {},
+				"language_code": {},
+				"mode": {}
+			}
+		},
+		{
+			"id": "google/gemma4-26b:free",
+			"name": "Google: Gemma 4 26B (Free)",
+			"description": "Gemma 4 26B is a 31B-parameter dense multimodal model from Google DeepMind, handling text, image, and audio input to generate text output. It supports an explicit thinking mode via control tokens, tool use, and a 256K-token context window, and is released under an Apache 2.0 license.",
+			"created": 1783590864,
+			"context_length": 262144,
+			"architecture": {
+				"modality": "text+image->text",
+				"input_modalities": ["text", "image"],
+				"output_modalities": ["text"],
+				"tokenizer": "Other"
+			},
+			"pricing": {
+				"prompt": "0",
+				"completion": "0",
+				"request": "",
+				"image": "",
+				"web_search": "0",
+				"citation": "",
+				"reasoning": "",
+				"duration": "",
+				"internal_reasoning": "",
+				"input_cache_read": "0",
+				"input_cache_write": "0",
+				"prompt_more_than_128k_input": "",
+				"completion_more_than_128k_input": "",
+				"prompt_more_than_200k_input": "",
+				"completion_more_than_200k_input": "",
+				"prompt_more_than_272k_input": "",
+				"completion_more_than_272k_input": "",
+				"prompt_more_than_512k_input": "",
+				"completion_more_than_512k_input": "",
+				"web_search_per_1000_requests_low": "",
+				"web_search_per_1000_requests_medium": "",
+				"web_search_per_1000_requests_high": "",
+				"web_search_per_1000_requests": "",
+				"audio_output_per_minute": "",
+				"audio_input": "",
+				"audio_output": "",
+				"cached_audio_input": "",
+				"batchPrice": {},
+				"flex_service_tier_pricing": {},
+				"fast_service_tier_pricing": {},
+				"ultrafast_service_tier_pricing": {},
+				"priority_service_tier_pricing": {},
+				"videoCost": null,
+				"videoCostWithAudio": null,
+				"imageCost": null,
+				"priceToShow": null
+			},
+			"top_provider": {
+				"context_length": 262144,
+				"max_completion_tokens": 32768,
+				"is_moderated": false
+			},
+			"supported_parameters": [
+				"max_completion_tokens",
+				"temperature",
+				"top_p",
+				"top_k",
+				"presence_penalty",
+				"frequency_penalty",
+				"stop",
+				"tools",
+				"tool_choice",
+				"response_format",
+				"reasoning",
+				"seed",
+				"stream"
+			],
+			"models_extra_params": {
+				"category": ["General", "Multimodal", "Reasoning", "Chat"],
+				"free_slug_enabled": true,
+				"free_slug_endpoint": "chat",
+				"sample_code_snippet": null
+			},
+			"is_active": true,
+			"creator": "Google",
+			"supported_params_details": {
+				"frequency_penalty": {},
+				"max_completion_tokens": {},
+				"presence_penalty": {},
+				"reasoning": {},
+				"response_format": {},
+				"seed": {},
+				"stop": {},
+				"stream": {},
+				"temperature": {},
+				"tool_choice": {},
+				"tools": {},
+				"top_k": {},
+				"top_p": {}
+			}
+		},
+		{
+			"id": "openai/gpt-oss-20b:free",
+			"name": "OpenAI: gpt-oss-20b (Free)",
+			"description": "gpt-oss-20b is OpenAI's smaller open-weight model, designed for lower latency, local, or specialized use cases while retaining strong reasoning and agentic capabilities. It supports native function calling, python tool calls, structured outputs, full chain-of-thought access, and configurable reasoning effort, released under the Apache 2.0 license.",
+			"created": 1783590864,
+			"context_length": 131072,
+			"architecture": {
+				"modality": "text->text",
+				"input_modalities": ["text"],
+				"output_modalities": ["text"],
+				"tokenizer": "Other"
+			},
+			"pricing": {
+				"prompt": "0",
+				"completion": "0",
+				"request": "",
+				"image": "",
+				"web_search": "0",
+				"citation": "",
+				"reasoning": "",
+				"duration": "",
+				"internal_reasoning": "",
+				"input_cache_read": "0",
+				"input_cache_write": "0",
+				"prompt_more_than_128k_input": "",
+				"completion_more_than_128k_input": "",
+				"prompt_more_than_200k_input": "",
+				"completion_more_than_200k_input": "",
+				"prompt_more_than_272k_input": "",
+				"completion_more_than_272k_input": "",
+				"prompt_more_than_512k_input": "",
+				"completion_more_than_512k_input": "",
+				"web_search_per_1000_requests_low": "",
+				"web_search_per_1000_requests_medium": "",
+				"web_search_per_1000_requests_high": "",
+				"web_search_per_1000_requests": "",
+				"audio_output_per_minute": "",
+				"audio_input": "",
+				"audio_output": "",
+				"cached_audio_input": "",
+				"batchPrice": {},
+				"flex_service_tier_pricing": {},
+				"fast_service_tier_pricing": {},
+				"ultrafast_service_tier_pricing": {},
+				"priority_service_tier_pricing": {},
+				"videoCost": null,
+				"videoCostWithAudio": null,
+				"imageCost": null,
+				"priceToShow": null
+			},
+			"top_provider": {
+				"context_length": 131072,
+				"max_completion_tokens": 32768,
+				"is_moderated": false
+			},
+			"supported_parameters": [
+				"max_completion_tokens",
+				"temperature",
+				"top_p",
+				"top_k",
+				"presence_penalty",
+				"frequency_penalty",
+				"stop",
+				"tools",
+				"tool_choice",
+				"response_format",
+				"reasoning",
+				"reasoning_effort",
+				"seed",
+				"stream"
+			],
+			"models_extra_params": {
+				"category": ["General", "Reasoning", "Agentic", "Coding", "Chat"],
+				"free_slug_enabled": true,
+				"free_slug_endpoint": "chat",
+				"sample_code_snippet": null
+			},
+			"is_active": true,
+			"creator": "OpenAI",
+			"supported_params_details": {
+				"frequency_penalty": {},
+				"max_completion_tokens": {},
+				"presence_penalty": {},
+				"reasoning": {},
+				"reasoning_effort": {},
+				"response_format": {},
+				"seed": {},
+				"stop": {},
+				"stream": {},
+				"temperature": {},
+				"tool_choice": {},
+				"tools": {},
+				"top_k": {},
+				"top_p": {}
+			}
+		},
+		{
+			"id": "google/gemma-4-26b-a4b-it",
+			"name": "Google: Gemma 4 26B A4B IT",
+			"description": "Gemma 4 26B A4B IT is a 26B-parameter Mixture-of-Experts, instruction-tuned, open-weight multimodal model from Google DeepMind that processes text, image, and video inputs to produce text outputs. It targets long-context (up to ~256K tokens) reasoning, coding, and chat use cases while remaining efficient via 4B active parameters. The model is suitable for agents, RAG, and tool-calling style applications where high quality and large context are required.",
+			"created": 1775227989,
+			"context_length": 131072,
+			"architecture": {
+				"modality": "text+image+video->text",
+				"input_modalities": ["text", "image", "video"],
+				"output_modalities": ["text"],
+				"tokenizer": "Gemma4"
+			},
+			"pricing": {
+				"prompt": "0",
+				"completion": "0",
+				"request": "",
+				"image": "",
+				"web_search": "",
+				"citation": "",
+				"reasoning": "",
+				"duration": "",
+				"internal_reasoning": "",
+				"input_cache_read": "",
+				"input_cache_write": "",
+				"prompt_more_than_128k_input": "",
+				"completion_more_than_128k_input": "",
+				"prompt_more_than_200k_input": "",
+				"completion_more_than_200k_input": "",
+				"prompt_more_than_272k_input": "",
+				"completion_more_than_272k_input": "",
+				"prompt_more_than_512k_input": "",
+				"completion_more_than_512k_input": "",
+				"web_search_per_1000_requests_low": "",
+				"web_search_per_1000_requests_medium": "",
+				"web_search_per_1000_requests_high": "",
+				"web_search_per_1000_requests": "",
+				"audio_output_per_minute": "",
+				"audio_input": "",
+				"audio_output": "",
+				"cached_audio_input": "",
+				"batchPrice": {},
+				"flex_service_tier_pricing": {},
+				"fast_service_tier_pricing": {},
+				"ultrafast_service_tier_pricing": {},
+				"priority_service_tier_pricing": {},
+				"videoCost": null,
+				"videoCostWithAudio": null,
+				"imageCost": null,
+				"priceToShow": null
+			},
+			"top_provider": {
+				"context_length": 131072,
+				"max_completion_tokens": 32768,
+				"is_moderated": true
+			},
+			"supported_parameters": [
+				"max_output_tokens",
+				"temperature",
+				"top_p",
+				"top_k",
+				"stop_sequences",
+				"tools",
+				"tool_choice",
+				"response_schema"
+			],
+			"models_extra_params": {
+				"category": null,
+				"sample_code_snippet": null
+			},
+			"is_active": true,
+			"creator": "Google",
+			"supported_params_details": {
+				"frequency_penalty": {},
+				"include_reasoning": {},
+				"logprobs": {},
+				"max_output_tokens": {},
+				"max_tokens": {},
+				"min_p": {},
+				"presence_penalty": {},
+				"reasoning": {},
+				"repetition_penalty": {},
+				"response_format": {},
+				"response_schema": {},
+				"seed": {},
+				"stop": {},
+				"stop_sequences": {},
+				"structured_outputs": {},
+				"temperature": {},
+				"tool_choice": {},
+				"tools": {},
+				"top_k": {},
+				"top_logprobs": {},
+				"top_p": {}
+			}
+		},
+		{
+			"id": "anthropic/claude-sonnet-5.5",
+			"name": "Anthropic: Claude Sonnet 5.5",
+			"description": "Claude Sonnet 5.5 offers the best combination of speed and intelligence in the Claude lineup, with a 1M-token context window and fast comparative latency. It accepts text and images and returns text, with adaptive thinking on by default at high effort — the lowest setting, between_tools, turns off up-front thinking rather than disabling reasoning entirely, unlike Sonnet 5 where thinking could be fully turned off. Five breaking changes apply versus Sonnet 5: forced tool use now returns an error, thinking blocks are tied to the model and conversation, the older computer_20251124 tool is no longer accepted, the advisor tool rejects older models as advisors, and text between tool calls now arrives in thinking blocks unless a display value or between_tools is set.",
+			"created": 1790553600,
+			"context_length": 1000000,
+			"architecture": {
+				"modality": "text+image->text",
+				"input_modalities": ["text", "image"],
+				"output_modalities": ["text"],
+				"tokenizer": "Claude"
+			},
+			"pricing": {
+				"prompt": "0.000002",
+				"completion": "0.00001",
+				"request": "",
+				"image": "",
+				"web_search": "0.01",
+				"citation": "",
+				"reasoning": "",
+				"duration": "",
+				"internal_reasoning": "",
+				"input_cache_read": "0.0000002",
+				"input_cache_write": "0.0000025",
+				"input_cache_write_5m": "0.0000025",
+				"input_cache_write_1h": "0.000004",
+				"prompt_more_than_128k_input": "",
+				"completion_more_than_128k_input": "",
+				"prompt_more_than_200k_input": "",
+				"completion_more_than_200k_input": "",
+				"prompt_more_than_272k_input": "",
+				"completion_more_than_272k_input": "",
+				"prompt_more_than_512k_input": "",
+				"completion_more_than_512k_input": "",
+				"web_search_per_1000_requests_low": "",
+				"web_search_per_1000_requests_medium": "",
+				"web_search_per_1000_requests_high": "",
+				"web_search_per_1000_requests": "",
+				"audio_output_per_minute": "",
+				"audio_input": "",
+				"audio_output": "",
+				"cached_audio_input": "",
+				"batchPrice": {
+					"prompt": "0.000001",
+					"completion": "0.000005",
+					"input_cache_read": "0.0000001",
+					"input_cache_write": "0.00000125"
+				},
+				"flex_service_tier_pricing": {},
+				"fast_service_tier_pricing": {},
+				"ultrafast_service_tier_pricing": {},
+				"priority_service_tier_pricing": {},
+				"videoCost": null,
+				"videoCostWithAudio": null,
+				"imageCost": null,
+				"priceToShow": {
+					"prompt": "0.000002",
+					"completion": "0.00001",
+					"request": "",
+					"image": "",
+					"web_search": "",
+					"citation": "",
+					"reasoning": "",
+					"duration": "",
+					"internal_reasoning": "",
+					"input_cache_read": "0.0000002",
+					"input_cache_write": "0.0000025",
+					"input_cache_write_5m": "0.0000025",
+					"input_cache_write_1h": "0.000004",
+					"prompt_more_than_128k_input": "",
+					"completion_more_than_128k_input": "",
+					"prompt_more_than_200k_input": "",
+					"completion_more_than_200k_input": "",
+					"prompt_more_than_272k_input": "",
+					"completion_more_than_272k_input": "",
+					"prompt_more_than_512k_input": "",
+					"completion_more_than_512k_input": "",
+					"web_search_per_1000_requests_low": "",
+					"web_search_per_1000_requests_medium": "",
+					"web_search_per_1000_requests_high": "",
+					"web_search_per_1000_requests": "",
+					"audio_output_per_minute": "",
+					"audio_input": "",
+					"audio_output": "",
+					"cached_audio_input": "",
+					"batchPrice": {},
+					"flex_service_tier_pricing": {},
+					"fast_service_tier_pricing": {},
+					"ultrafast_service_tier_pricing": {},
+					"priority_service_tier_pricing": {},
+					"videoCost": null,
+					"videoCostWithAudio": null,
+					"imageCost": null,
+					"priceToShow": null
+				}
+			},
+			"top_provider": {
+				"context_length": 1000000,
+				"max_completion_tokens": 128000,
+				"is_moderated": true
+			},
+			"supported_parameters": [
+				"max_tokens",
+				"stop",
+				"tools",
+				"tool_choice",
+				"system",
+				"metadata",
+				"response_format",
+				"reasoning",
+				"stream",
+				"cache_control",
+				"display",
+				"between_tools"
+			],
+			"models_extra_params": {
+				"category": ["Text Generation"],
+				"sample_code_snippet": null
+			},
+			"is_active": true,
+			"creator": "Anthropic",
+			"supported_params_details": {
+				"between_tools": {
+					"inputFormat": {
+						"enum": [true, false],
+						"dataType": "bool"
+					}
+				},
+				"cache_control": {
+					"inputFormat": {
+						"dataType": "object"
+					}
+				},
+				"display": {
+					"inputFormat": {
+						"enum": ["updates"],
+						"dataType": "string"
+					}
+				},
+				"frequency_penalty": {},
+				"include_reasoning": {},
+				"logprobs": {},
+				"max_tokens": {
+					"inputFormat": {
+						"max": 128000,
+						"min": 1,
+						"dataType": "number"
+					}
+				},
+				"metadata": {
+					"inputFormat": {
+						"dataType": "string"
+					}
+				},
+				"min_p": {},
+				"presence_penalty": {},
+				"reasoning": {
+					"inputFormat": {
+						"enum": ["between_tools", "low", "medium", "high"],
+						"default": "high",
+						"dataType": "string"
+					}
+				},
+				"repetition_penalty": {},
+				"response_format": {
+					"inputFormat": {
+						"enum": ["text", "json_object", "json_schema"],
+						"dataType": "string"
+					}
+				},
+				"seed": {},
+				"stop": {
+					"inputFormat": {
+						"dataType": "array"
+					}
+				},
+				"stream": {
+					"inputFormat": {
+						"enum": [true, false],
+						"dataType": "bool"
+					}
+				},
+				"structured_outputs": {},
+				"system": {
+					"inputFormat": {
+						"dataType": "string"
+					}
+				},
+				"temperature": {},
+				"tool_choice": {
+					"inputFormat": {
+						"enum": ["auto", "none"],
+						"dataType": "string"
+					}
+				},
+				"tools": {
+					"inputFormat": {
+						"dataType": "array"
+					}
+				},
+				"top_k": {},
+				"top_logprobs": {},
+				"top_p": {}
+			}
+		},
+		{
+			"id": "google/gemini-3.1-flash-lite",
+			"name": "Google: Gemini 3.1 Flash-Lite",
+			"description": "Gemini 3.1 Flash-Lite is Google's most cost-efficient Gemini 3-series model, a low-latency multimodal model optimized for high-volume, cost-sensitive workloads such as classification, translation, data extraction, model routing, and simple agentic tasks. It supports a 1,048,576-token context window across text, images, video, audio, and PDFs, with improved instruction following and audio input quality over Gemini 2.5 Flash-Lite, and four configurable thinking levels (minimal, low, medium, high). It supports function calling, structured outputs, code execution, file search, URL context, Google Search and Maps grounding, and context caching. Knowledge cutoff is January 2025.",
+			"created": 1778112000,
+			"context_length": 1048576,
+			"architecture": {
+				"modality": "text+image+audio+video+file->text",
+				"input_modalities": ["text", "image", "audio", "video", "file"],
+				"output_modalities": ["text"],
+				"tokenizer": "Gemini"
+			},
+			"pricing": {
+				"prompt": "0.00000025",
+				"completion": "0.0000015",
+				"request": "",
+				"image": "",
+				"web_search": "",
+				"citation": "",
+				"reasoning": "",
+				"duration": "",
+				"internal_reasoning": "",
+				"input_cache_read": "0.000000025",
+				"input_cache_write": "0.000001",
+				"prompt_more_than_128k_input": "",
+				"completion_more_than_128k_input": "",
+				"prompt_more_than_200k_input": "",
+				"completion_more_than_200k_input": "",
+				"prompt_more_than_272k_input": "",
+				"completion_more_than_272k_input": "",
+				"prompt_more_than_512k_input": "",
+				"completion_more_than_512k_input": "",
+				"web_search_per_1000_requests_low": "",
+				"web_search_per_1000_requests_medium": "",
+				"web_search_per_1000_requests_high": "",
+				"web_search_per_1000_requests": "14",
+				"audio_output_per_minute": "",
+				"audio_input": "0.0000005",
+				"audio_output": "",
+				"cached_audio_input": "0.00000005",
+				"batchPrice": {
+					"prompt": "0.000000125",
+					"completion": "0.00000075",
+					"input_cache_read": "0.0000000125",
+					"input_cache_write": "0.0000005",
+					"audio_input": "0.00000025",
+					"cached_audio_input": "0.000000025"
+				},
+				"flex_service_tier_pricing": {
+					"prompt": "0.000000125",
+					"completion": "0.00000075",
+					"input_cache_read": "0.0000000125",
+					"input_cache_write": "0.0000005",
+					"audio_input": "0.00000025",
+					"cached_audio_input": "0.000000025"
+				},
+				"fast_service_tier_pricing": {},
+				"ultrafast_service_tier_pricing": {},
+				"priority_service_tier_pricing": {
+					"prompt": "0.00000045",
+					"completion": "0.0000027",
+					"input_cache_read": "0.000000045",
+					"input_cache_write": "0.0000018",
+					"audio_input": "0.0000009",
+					"cached_audio_input": "0.00000009"
+				},
+				"videoCost": null,
+				"videoCostWithAudio": null,
+				"imageCost": null,
+				"priceToShow": {
+					"prompt": "0.00000025",
+					"completion": "0.0000015",
+					"request": "",
+					"image": "",
+					"web_search": "",
+					"citation": "",
+					"reasoning": "",
+					"duration": "",
+					"internal_reasoning": "",
+					"input_cache_read": "0.000000025",
+					"input_cache_write": "0.000001",
+					"prompt_more_than_128k_input": "",
+					"completion_more_than_128k_input": "",
+					"prompt_more_than_200k_input": "",
+					"completion_more_than_200k_input": "",
+					"prompt_more_than_272k_input": "",
+					"completion_more_than_272k_input": "",
+					"prompt_more_than_512k_input": "",
+					"completion_more_than_512k_input": "",
+					"web_search_per_1000_requests_low": "",
+					"web_search_per_1000_requests_medium": "",
+					"web_search_per_1000_requests_high": "",
+					"web_search_per_1000_requests": "14",
+					"audio_output_per_minute": "",
+					"audio_input": "0.0000005",
+					"audio_output": "",
+					"cached_audio_input": "0.00000005",
+					"batchPrice": {},
+					"flex_service_tier_pricing": {},
+					"fast_service_tier_pricing": {},
+					"ultrafast_service_tier_pricing": {},
+					"priority_service_tier_pricing": {},
+					"videoCost": null,
+					"videoCostWithAudio": null,
+					"imageCost": null,
+					"priceToShow": null
+				}
+			},
+			"top_provider": {
+				"context_length": 1048576,
+				"max_completion_tokens": 65536,
+				"is_moderated": true
+			},
+			"supported_parameters": [
+				"max_output_tokens",
+				"temperature",
+				"top_p",
+				"top_k",
+				"stop_sequences",
+				"tools",
+				"tool_choice",
+				"response_schema",
+				"response_mime_type",
+				"safety_settings",
+				"system_instruction",
+				"thinking",
+				"caching",
+				"request_options"
+			],
+			"models_extra_params": {
+				"category": ["General", "Multimodal"],
+				"sample_code_snippet": null
+			},
+			"is_active": true,
+			"creator": "Google",
+			"expiry_date": "2027-05-07",
+			"supported_params_details": {
+				"caching": {
+					"inputFormat": {
+						"dataType": "object"
+					}
+				},
+				"frequency_penalty": {},
+				"include_reasoning": {},
+				"max_output_tokens": {
+					"inputFormat": {
+						"dataType": "number",
+						"min": 1,
+						"max": 65536
+					}
+				},
+				"max_tokens": {},
+				"min_p": {},
+				"presence_penalty": {},
+				"reasoning": {},
+				"repetition_penalty": {},
+				"request_options": {
+					"inputFormat": {
+						"dataType": "object"
+					}
+				},
+				"response_format": {},
+				"response_mime_type": {
+					"inputFormat": {
+						"dataType": "string"
+					}
+				},
+				"response_schema": {
+					"inputFormat": {
+						"dataType": "object"
+					}
+				},
+				"safety_settings": {
+					"inputFormat": {
+						"dataType": "array<object>"
+					}
+				},
+				"seed": {},
+				"stop": {},
+				"stop_sequences": {
+					"inputFormat": {
+						"dataType": "array<string>"
+					}
+				},
+				"structured_outputs": {},
+				"system_instruction": {
+					"inputFormat": {
+						"dataType": "object"
+					}
+				},
+				"temperature": {
+					"inputFormat": {
+						"dataType": "number",
+						"min": 0,
+						"max": 2
+					}
+				},
+				"thinking": {
+					"inputFormat": {
+						"dataType": "string",
+						"enum": ["minimal", "low", "medium", "high"],
+						"default": "minimal"
+					}
+				},
+				"tool_choice": {
+					"inputFormat": {
+						"dataType": "string"
+					}
+				},
+				"tools": {
+					"inputFormat": {
+						"dataType": "array<object>"
+					}
+				},
+				"top_k": {
+					"inputFormat": {
+						"dataType": "number",
+						"min": 1
+					}
+				},
+				"top_p": {
+					"inputFormat": {
+						"dataType": "number",
+						"min": 0,
+						"max": 1
+					}
+				}
+			}
+		},
+		{
+			"id": "google/gemini-2.5-flash-image",
+			"name": "Google: Gemini 2.5 Flash Image (Nano Banana)",
+			"description": "Google Gemini 2.5 Flash Image (often nicknamed \"nano-banana\") is Google's latest state-of-the-art multimodal model for image generation and editing, designed for both developers and enterprises. It enables users to create, blend, and edit images with natural language prompts and multi-image input, all while benefiting from Gemini's deep real-world understanding and conversational editing features.",
+			"created": 1759870431,
+			"context_length": 32768,
+			"architecture": {
+				"modality": "text+image->text+image",
+				"input_modalities": ["image", "text"],
+				"output_modalities": ["image", "text"],
+				"tokenizer": "Gemini"
+			},
+			"pricing": {
+				"prompt": "0",
+				"completion": "0",
+				"request": "",
+				"image": "",
+				"web_search": "",
+				"citation": "",
+				"reasoning": "",
+				"duration": "",
+				"internal_reasoning": "",
+				"input_cache_read": "",
+				"input_cache_write": "",
+				"prompt_more_than_128k_input": "",
+				"completion_more_than_128k_input": "",
+				"prompt_more_than_200k_input": "",
+				"completion_more_than_200k_input": "",
+				"prompt_more_than_272k_input": "",
+				"completion_more_than_272k_input": "",
+				"prompt_more_than_512k_input": "",
+				"completion_more_than_512k_input": "",
+				"web_search_per_1000_requests_low": "",
+				"web_search_per_1000_requests_medium": "",
+				"web_search_per_1000_requests_high": "",
+				"web_search_per_1000_requests": "",
+				"audio_output_per_minute": "",
+				"audio_input": "",
+				"audio_output": "",
+				"cached_audio_input": "",
+				"batchPrice": {},
+				"flex_service_tier_pricing": {},
+				"fast_service_tier_pricing": {},
+				"ultrafast_service_tier_pricing": {},
+				"priority_service_tier_pricing": {},
+				"videoCost": null,
+				"videoCostWithAudio": null,
+				"imageCost": null,
+				"priceToShow": {
+					"prompt": "",
+					"completion": "",
+					"request": "",
+					"image": "",
+					"web_search": "",
+					"citation": "",
+					"reasoning": "",
+					"duration": "",
+					"internal_reasoning": "",
+					"input_cache_read": "",
+					"input_cache_write": "",
+					"prompt_more_than_128k_input": "",
+					"completion_more_than_128k_input": "",
+					"prompt_more_than_200k_input": "",
+					"completion_more_than_200k_input": "",
+					"prompt_more_than_272k_input": "",
+					"completion_more_than_272k_input": "",
+					"prompt_more_than_512k_input": "",
+					"completion_more_than_512k_input": "",
+					"web_search_per_1000_requests_low": "",
+					"web_search_per_1000_requests_medium": "",
+					"web_search_per_1000_requests_high": "",
+					"web_search_per_1000_requests": "",
+					"audio_output_per_minute": "",
+					"audio_input": "",
+					"audio_output": "",
+					"cached_audio_input": "",
+					"batchPrice": {},
+					"flex_service_tier_pricing": {},
+					"fast_service_tier_pricing": {},
+					"ultrafast_service_tier_pricing": {},
+					"priority_service_tier_pricing": {},
+					"videoCost": null,
+					"videoCostWithAudio": null,
+					"imageCost": null,
+					"priceToShow": null,
+					"price": "As per provider"
+				}
+			},
+			"top_provider": {
+				"context_length": 32768,
+				"max_completion_tokens": 8192,
+				"is_moderated": false
+			},
+			"supported_parameters": [
+				"max_tokens",
+				"response_format",
+				"seed",
+				"structured_outputs",
+				"temperature",
+				"top_p",
+				"aspectRatio"
+			],
+			"models_extra_params": {
+				"category": null,
+				"sample_code_snippet": null
+			},
+			"is_active": true,
+			"creator": "Google",
+			"expiry_date": "2026-10-02",
+			"supported_params_details": {
+				"aspectRatio": {
+					"inputFormat": {
+						"dataType": "string",
+						"enum": ["1:1", "3:4", "4:3", "9:16", "16:9"],
+						"default": "1:1"
+					}
+				},
+				"candidateCount": {
+					"inputFormat": {
+						"dataType": "number",
+						"min": 1,
+						"max": 8,
+						"default": 1
+					}
+				},
+				"contents": {
+					"inputFormat": {
+						"dataType": "array<object>"
+					}
+				},
+				"guidances": {
+					"inputFormat": {
+						"dataType": "object"
+					}
+				},
+				"height": {
+					"inputFormat": {
+						"dataType": "number"
+					}
+				},
+				"maxOutputTokens": {
+					"inputFormat": {
+						"dataType": "number",
+						"min": 1
+					}
+				},
+				"max_tokens": {},
+				"model": {
+					"inputFormat": {
+						"enum": ["seedream-4.0"],
+						"dataType": "string"
+					}
+				},
+				"prompt": {
+					"inputFormat": {
+						"dataType": "string"
+					}
+				},
+				"prompt_enhance": {
+					"inputFormat": {
+						"enum": ["ON", "OFF"],
+						"dataType": "string"
+					}
+				},
+				"public": {
+					"inputFormat": {
+						"enum": [true, false],
+						"dataType": "bool"
+					}
+				},
+				"quantity": {
+					"inputFormat": {
+						"dataType": "number"
+					}
+				},
+				"responseFormat": {
+					"inputFormat": {
+						"dataType": "object"
+					}
+				},
+				"responseModalities": {
+					"inputFormat": {
+						"dataType": "array<string>",
+						"enum": [["TEXT"], ["IMAGE"], ["TEXT", "IMAGE"]]
+					}
+				},
+				"response_format": {},
+				"safetySettings": {
+					"inputFormat": {
+						"dataType": "array<object>"
+					}
+				},
+				"seed": {
+					"inputFormat": {
+						"dataType": "number"
+					}
+				},
+				"stopSequences": {
+					"inputFormat": {
+						"dataType": "array<string>",
+						"maxItems": 5
+					}
+				},
+				"structured_outputs": {},
+				"style_ids": {
+					"inputFormat": {
+						"dataType": "array<string>"
+					}
+				},
+				"systemInstruction": {
+					"inputFormat": {
+						"dataType": "object"
+					}
+				},
+				"temperature": {
+					"inputFormat": {
+						"dataType": "number",
+						"min": 0,
+						"max": 2
+					}
+				},
+				"tools": {
+					"inputFormat": {
+						"dataType": "array<object>"
+					}
+				},
+				"topK": {
+					"inputFormat": {
+						"dataType": "number",
+						"min": 1
+					}
+				},
+				"topP": {
+					"inputFormat": {
+						"dataType": "number",
+						"min": 0,
+						"max": 1
+					}
+				},
+				"top_p": {},
+				"width": {
+					"inputFormat": {
+						"max": 1440,
+						"min": 256,
+						"dataType": "number"
+					}
+				}
+			}
+		},
+		{
+			"id": "ace-step/prompt-to-audio",
+			"name": "ACE Step: Prompt-to-Audio",
+			"description": "ACE-Step is an open-source model built to address the shortcomings of previous music generation systems by combining diffusion techniques, Sana’s Deep Compression AutoEncoder (DCAE), and a lightweight linear transformer. The ace-step/prompt-to-audio functionality is an interface within the ACE-Step music generation model that enables users to create audio directly from text prompts. This architecture allows it to produce high-quality, musically coherent audio efficiently and with a high degree of control. Users can input various prompt types -- including short tags, descriptive phrases, or full lyrics -- and the model interprets these inputs to generate corresponding music. With features like lyric editing and detailed control over song structure and style, the prompt-to-audio tool offers a powerful, flexible way to create music using natural language.",
+			"created": 1739402400,
+			"architecture": {
+				"modality": "text->audio",
+				"input_modalities": ["text"],
+				"output_modalities": ["audio"],
+				"tokenizer": "",
+				"instruct_type": "none"
+			},
+			"pricing": {
+				"prompt": "0",
+				"completion": "0",
+				"request": "0",
+				"image": "",
+				"web_search": "0",
+				"citation": "",
+				"reasoning": "",
+				"duration": "0.005",
+				"internal_reasoning": "0",
+				"input_cache_read": "",
+				"input_cache_write": "",
+				"prompt_more_than_128k_input": "",
+				"completion_more_than_128k_input": "",
+				"prompt_more_than_200k_input": "",
+				"completion_more_than_200k_input": "",
+				"prompt_more_than_272k_input": "",
+				"completion_more_than_272k_input": "",
+				"prompt_more_than_512k_input": "",
+				"completion_more_than_512k_input": "",
+				"web_search_per_1000_requests_low": "",
+				"web_search_per_1000_requests_medium": "",
+				"web_search_per_1000_requests_high": "",
+				"web_search_per_1000_requests": "",
+				"audio_output_per_minute": "",
+				"audio_input": "",
+				"audio_output": "",
+				"cached_audio_input": "",
+				"batchPrice": {},
+				"flex_service_tier_pricing": {},
+				"fast_service_tier_pricing": {},
+				"ultrafast_service_tier_pricing": {},
+				"priority_service_tier_pricing": {},
+				"videoCost": null,
+				"videoCostWithAudio": null,
+				"imageCost": null,
+				"priceToShow": {
+					"prompt": "",
+					"completion": "",
+					"request": "",
+					"image": "",
+					"web_search": "",
+					"citation": "",
+					"reasoning": "",
+					"duration": "0.005",
+					"internal_reasoning": "",
+					"input_cache_read": "",
+					"input_cache_write": "",
+					"prompt_more_than_128k_input": "",
+					"completion_more_than_128k_input": "",
+					"prompt_more_than_200k_input": "",
+					"completion_more_than_200k_input": "",
+					"prompt_more_than_272k_input": "",
+					"completion_more_than_272k_input": "",
+					"prompt_more_than_512k_input": "",
+					"completion_more_than_512k_input": "",
+					"web_search_per_1000_requests_low": "",
+					"web_search_per_1000_requests_medium": "",
+					"web_search_per_1000_requests_high": "",
+					"web_search_per_1000_requests": "",
+					"audio_output_per_minute": "",
+					"audio_input": "",
+					"audio_output": "",
+					"cached_audio_input": "",
+					"batchPrice": {},
+					"flex_service_tier_pricing": {},
+					"fast_service_tier_pricing": {},
+					"ultrafast_service_tier_pricing": {},
+					"priority_service_tier_pricing": {},
+					"videoCost": null,
+					"videoCostWithAudio": null,
+					"imageCost": null,
+					"priceToShow": null
+				}
+			},
+			"top_provider": {
+				"context_length": 0,
+				"max_completion_tokens": 0,
+				"is_moderated": true
+			},
+			"supported_parameters": [
+				"instrumental",
+				"number_of_steps",
+				"scheduler",
+				"guidance_type",
+				"granularity_scale",
+				"guidance_interval",
+				"guidance_interval_decay",
+				"guidance_scale",
+				"minimum_guidance_scale",
+				"tag_guidance_scale",
+				"lyric_guidance_scale"
+			],
+			"models_extra_params": {
+				"category": ["Audio Generation"],
+				"sample_code_snippet": null
+			},
+			"is_active": true,
+			"creator": "ACE Step",
+			"supported_params_details": {
+				"granularity_scale": {},
+				"guidance_interval": {},
+				"guidance_interval_decay": {},
+				"guidance_scale": {},
+				"guidance_type": {},
+				"instrumental": {},
+				"lyric_guidance_scale": {},
+				"minimum_guidance_scale": {},
+				"number_of_steps": {},
+				"scheduler": {},
+				"tag_guidance_scale": {}
+			}
+		},
+		{
+			"id": "openai/gpt-realtime",
+			"name": "GPT Realtime",
+			"description": "This is OpenAI's general-availability realtime model, capable of responding to audio and text inputs in realtime over WebRTC, WebSocket, or SIP connections. Supports a 32,000 token context window and up to 4,096 output tokens per response (knowledge cutoff: Oct 01, 2023). Also supports image input (text/audio/image → text/audio).",
+			"created": 1756339200,
+			"context_length": 32000,
+			"architecture": {
+				"modality": "text+audio+image->text+audio",
+				"input_modalities": ["text", "audio", "image"],
+				"output_modalities": ["text", "audio"],
+				"tokenizer": "tiktoken"
+			},
+			"pricing": {
+				"prompt": "0.000004",
+				"completion": "0.000016",
+				"request": "",
+				"image": "0.000005",
+				"web_search": "",
+				"citation": "",
+				"reasoning": "",
+				"duration": "",
+				"internal_reasoning": "",
+				"input_cache_read": "0.0000004",
+				"input_cache_write": "",
+				"prompt_more_than_128k_input": "",
+				"completion_more_than_128k_input": "",
+				"prompt_more_than_200k_input": "",
+				"completion_more_than_200k_input": "",
+				"prompt_more_than_272k_input": "",
+				"completion_more_than_272k_input": "",
+				"prompt_more_than_512k_input": "",
+				"completion_more_than_512k_input": "",
+				"web_search_per_1000_requests_low": "",
+				"web_search_per_1000_requests_medium": "",
+				"web_search_per_1000_requests_high": "",
+				"web_search_per_1000_requests": "",
+				"audio_output_per_minute": "",
+				"audio_input": "0.000032",
+				"audio_output": "0.000064",
+				"cached_audio_input": "0.0000004",
+				"batchPrice": {},
+				"flex_service_tier_pricing": {},
+				"fast_service_tier_pricing": {},
+				"ultrafast_service_tier_pricing": {},
+				"priority_service_tier_pricing": {},
+				"videoCost": null,
+				"videoCostWithAudio": null,
+				"imageCost": null,
+				"priceToShow": {
+					"prompt": "0.000004",
+					"completion": "0.000016",
+					"request": "",
+					"image": "0.000005",
+					"web_search": "",
+					"citation": "",
+					"reasoning": "",
+					"duration": "",
+					"internal_reasoning": "",
+					"input_cache_read": "0.0000004",
+					"input_cache_write": "",
+					"prompt_more_than_128k_input": "",
+					"completion_more_than_128k_input": "",
+					"prompt_more_than_200k_input": "",
+					"completion_more_than_200k_input": "",
+					"prompt_more_than_272k_input": "",
+					"completion_more_than_272k_input": "",
+					"prompt_more_than_512k_input": "",
+					"completion_more_than_512k_input": "",
+					"web_search_per_1000_requests_low": "",
+					"web_search_per_1000_requests_medium": "",
+					"web_search_per_1000_requests_high": "",
+					"web_search_per_1000_requests": "",
+					"audio_output_per_minute": "",
+					"audio_input": "0.000032",
+					"audio_output": "0.000064",
+					"cached_audio_input": "0.0000004",
+					"batchPrice": {},
+					"flex_service_tier_pricing": {},
+					"fast_service_tier_pricing": {},
+					"ultrafast_service_tier_pricing": {},
+					"priority_service_tier_pricing": {},
+					"videoCost": null,
+					"videoCostWithAudio": null,
+					"imageCost": null,
+					"priceToShow": null
+				}
+			},
+			"top_provider": {
+				"context_length": 32000,
+				"max_completion_tokens": 4096,
+				"is_moderated": false
+			},
+			"supported_parameters": [
+				"temperature",
+				"max_output_tokens",
+				"modalities",
+				"voice",
+				"turn_detection",
+				"input_audio_format",
+				"output_audio_format"
+			],
+			"models_extra_params": {
+				"category": null,
+				"sample_code_snippet": null
+			},
+			"is_active": true,
+			"creator": "OpenAI",
+			"expiry_date": "2027-01-20",
+			"supported_params_details": {
+				"input_audio_format": {},
+				"max_output_tokens": {},
+				"modalities": {},
+				"output_audio_format": {},
+				"temperature": {},
+				"turn_detection": {},
+				"voice": {}
+			}
+		}
+	]
+}
