@@ -16,7 +16,15 @@ import type {
 	AuthInteraction,
 	OAuthCredential,
 } from "@earendil-works/pi-ai/compat";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	afterAll,
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	vi,
+} from "vitest";
 
 // The Cline CLI fallback path is computed from homedir() at import: pin HOME
 // inside the working tree (never the real ~/.cline) before the module loads.
@@ -24,6 +32,10 @@ vi.hoisted(() => {
 	const home = `${process.cwd()}/.smoke-artifacts/cline-test-home-absent`;
 	vi.stubEnv("HOME", home);
 	vi.stubEnv("USERPROFILE", home);
+});
+// Restore the real HOME for later files in the same worker (#700 review).
+afterAll(() => {
+	vi.unstubAllEnvs();
 });
 
 const mockGetClineApiKey = vi.hoisted(() =>
