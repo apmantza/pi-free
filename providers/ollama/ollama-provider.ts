@@ -101,17 +101,20 @@ export function createOllamaProvider(
 		stored.free = toOllamaModels(enhanceWithCI(free, PROVIDER_OLLAMA));
 	}
 
-	ingest(initialModels, initialModels);
-
-	function restoreStoredModels(storedModels: OllamaModel[]): void {
-		stored.all = storedModels;
-		// Reclassify free/paid like every other custom native provider — a blind
-		// `stored.free = storedModels` made the free-only view show paid models
-		// after a store restore.
-		stored.free = storedModels.filter((model) =>
-			isFreeModel({ ...model, provider: PROVIDER_OLLAMA }, storedModels),
+	/**
+	 * Publish a catalog with its free view classified like every other custom
+	 * native provider. A blind `stored.free = models` showed paid models in the
+	 * free view after a store restore, and for the startup fallback seed until
+	 * the first refresh (#675): Ollama Cloud bills every cloud model per token.
+	 */
+	function publishModels(models: OllamaModel[]): void {
+		stored.all = models;
+		stored.free = models.filter((model) =>
+			isFreeModel({ ...model, provider: PROVIDER_OLLAMA }, models),
 		);
 	}
+
+	publishModels(toOllamaModels(enhanceWithCI(initialModels, PROVIDER_OLLAMA)));
 
 	async function refreshOllamaModels(
 		context: RefreshModelsContext,
@@ -119,7 +122,7 @@ export function createOllamaProvider(
 		await refreshNativeProviderModels(
 			PROVIDER_OLLAMA,
 			context,
-			restoreStoredModels,
+			publishModels,
 			async () => {
 				const token = credentialToken(context.credential);
 				if (!token) return [];
@@ -135,12 +138,7 @@ export function createOllamaProvider(
 				await saveProviderCacheGuarded(PROVIDER_OLLAMA, fresh);
 				return toOllamaModels(enhanceWithCI(fresh, PROVIDER_OLLAMA));
 			},
-			(models) => {
-				stored.all = models;
-				stored.free = models.filter((model) =>
-					isFreeModel({ ...model, provider: PROVIDER_OLLAMA }, models),
-				);
-			},
+			publishModels,
 			stored,
 		);
 	}
