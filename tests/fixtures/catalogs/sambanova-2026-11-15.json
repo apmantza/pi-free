@@ -1,0 +1,69 @@
+{
+	"_captured": "2026-11-15, public api.sambanova.ai/v1/models (complete catalog), rows verbatim (#690)",
+	"data": [
+		{
+			"context_length": 1048576,
+			"id": "GLM-5.3",
+			"max_completion_tokens": 1048576,
+			"object": "model",
+			"owned_by": "no-reply@sambanova.ai",
+			"pricing": {
+				"completion": "0.00000880",
+				"input_cache_read": "0.00000014",
+				"input_cache_write": "0.00000000",
+				"prompt": "0.00000280"
+			},
+			"sn_metadata": {}
+		},
+		{
+			"context_length": 131072,
+			"id": "Meta-Llama-3.3-70B-Instruct",
+			"max_completion_tokens": 3072,
+			"object": "model",
+			"owned_by": "no-reply@sambanova.ai",
+			"pricing": {
+				"completion": "0.00000120",
+				"prompt": "0.00000060"
+			},
+			"sn_metadata": {}
+		},
+		{
+			"context_length": 1048576,
+			"id": "MiniMax-M3.1-Flash",
+			"max_completion_tokens": 1048576,
+			"object": "model",
+			"owned_by": "no-reply@sambanova.ai",
+			"pricing": {
+				"completion": "0.00000120",
+				"input_cache_read": "0.00000003",
+				"input_cache_write": "0.00000000",
+				"prompt": "0.00000030"
+			},
+			"sn_metadata": {}
+		},
+		{
+			"context_length": 131072,
+			"id": "gemma-4-31B-it",
+			"max_completion_tokens": 131072,
+			"object": "model",
+			"owned_by": "no-reply@sambanova.ai",
+			"pricing": {
+				"completion": "0.00000115",
+				"prompt": "0.00000038"
+			},
+			"sn_metadata": {}
+		},
+		{
+			"context_length": 131072,
+			"id": "gpt-oss-120b",
+			"max_completion_tokens": 131072,
+			"object": "model",
+			"owned_by": "no-reply@sambanova.ai",
+			"pricing": {
+				"completion": "0.00000059",
+				"prompt": "0.00000022"
+			},
+			"sn_metadata": {}
+		}
+	]
+}
