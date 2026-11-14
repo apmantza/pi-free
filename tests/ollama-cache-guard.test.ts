@@ -206,3 +206,76 @@ describe("ollama cache poisoning guard (#607)", () => {
 		);
 	});
 });
+
+/**
+ * #690: the shrink rule judged every shrink against whatever entry was on
+ * disk, and a refused write keeps that entry's timestamp, so a real catalog
+ * shrink was refused forever. Live 2026-11-15: Ollama Cloud lists 24 models
+ * while a 60-model entry from 2026-10-15 stayed the startup seed and logged
+ * "Not caching ollama-cloud: 23 models vs 60 cached (likely transient
+ * shrink)" on every refresh. Only an entry within the cache TTL is a healthy
+ * baseline.
+ */
+describe("ollama cache shrink against a stale entry (#690)", () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	async function seedStaleSixty() {
+		const harness = await loadCacheHarness();
+		vi.useFakeTimers({ toFake: ["Date"] });
+		vi.setSystemTime(new Date("2026-10-15T09:00:00Z"));
+		await harness.saveProviderCache(harness.PROVIDER_OLLAMA, sixtyModels());
+		vi.setSystemTime(new Date("2026-11-15T09:00:00Z"));
+		return harness;
+	}
+
+	it("native refresh replaces a stale entry with the smaller live list", async () => {
+		const { loadProviderCache, PROVIDER_OLLAMA } = await seedStaleSixty();
+		const { registerOllamaProvider } =
+			await import("../providers/ollama/ollama-provider.ts");
+		const pi = piMock();
+		registerOllamaProvider(pi as never, {
+			fallbackModels: [],
+			fetchModels: async () => threeModels(),
+			probeModels: async () => [],
+		});
+		const provider = pi.registerProvider.mock.calls[0]![0] as {
+			refreshModels: (context: unknown) => Promise<void>;
+		};
+		await provider.refreshModels(refreshContext());
+
+		expect(loadProviderCache(PROVIDER_OLLAMA)?.map((m) => m.id)).toEqual([
+			"new-1",
+			"new-2",
+			"new-3",
+		]);
+	});
+
+	it("/ollama-cloud-refresh applies the smaller live list over a stale entry", async () => {
+		const { loadProviderCache, PROVIDER_OLLAMA } = await seedStaleSixty();
+		const { registerOllamaProvider } =
+			await import("../providers/ollama/ollama-provider.ts");
+		const pi = piMock();
+		registerOllamaProvider(pi as never, {
+			fallbackModels: [],
+			fetchModels: async () => threeModels(),
+			probeModels: async () => [],
+		});
+		const registrationsBefore = pi.registerProvider.mock.calls.length;
+		const command = pi.registerCommand.mock.calls.find(
+			(call: unknown[]) => call[0] === "ollama-cloud-refresh",
+		)![1] as {
+			handler: (args: string, ctx: unknown) => Promise<void>;
+		};
+		const notify = vi.fn();
+		await command.handler("", { ui: { notify } });
+
+		expect(loadProviderCache(PROVIDER_OLLAMA)).toHaveLength(3);
+		expect(pi.registerProvider.mock.calls.length).toBe(registrationsBefore + 1);
+		expect(notify).toHaveBeenCalledWith(
+			"Registered 3 Ollama Cloud models (refresh complete)",
+			"info",
+		);
+	});
+});

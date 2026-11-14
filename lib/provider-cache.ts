@@ -139,6 +139,13 @@ export async function saveProviderCache(
  * Persist models to the cache, but refuse to overwrite a healthy existing
  * entry with a drastically smaller list (a transient partial/error response).
  * Also never caches an empty list. Returns true when the cache was written.
+ *
+ * Only an entry written within the cache TTL is a healthy baseline. A refused
+ * write leaves `fetchedAt` unchanged, so without the bound a real catalog
+ * shrink was refused forever: Ollama Cloud went from 60 models to 23 and the
+ * 60-model entry from 2026-10-15 stayed the startup seed and blocked
+ * `/ollama-cloud-refresh` (#690). An entry older than the TTL, or with an
+ * unreadable timestamp, is replaced by any non-empty fetch.
  */
 export async function saveProviderCacheGuarded(
 	providerId: string,
@@ -147,7 +154,11 @@ export async function saveProviderCacheGuarded(
 	if (!models || models.length === 0) return false;
 	const existing = getProviderCacheEntry(providerId);
 	const existingCount = existing?.models.length ?? 0;
-	if (existingCount > 0 && models.length < existingCount * 0.5) {
+	if (
+		existingCount > 0 &&
+		models.length < existingCount * 0.5 &&
+		isProviderCacheFresh(providerId, DEFAULT_PROVIDER_CACHE_TTL_MS)
+	) {
 		_logger.debug(
 			`Not caching ${providerId}: ${models.length} models vs ${existingCount} cached (likely transient shrink)`,
 		);
