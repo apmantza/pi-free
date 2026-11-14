@@ -142,16 +142,15 @@ const INITIAL_OPEN_GATEWAY_MODELS: OpenGatewayModel[] = [
 			input_cache_read: "0.000000312",
 		},
 	},
+	// The seed's only $0 entry. Each $0 entry here is a free claim shown before
+	// the first refresh, so it must be the live catalog's own free id: the
+	// former seed's inclusionai/ling-3.0-flash:free became an alias of the
+	// paid ling-3.1-flash and mindai/macaron-v1-tall became paid (live
+	// catalog, 2026-11-14, #675).
 	{
-		id: "nvidia/nemotron-3-ultra-550b-a55b:free",
-		name: "Nemotron 3 Ultra",
-		context_window: 131_072,
-		effective_pricing: { prompt: 0, completion: 0, input_cache_read: 0 },
-	},
-	{
-		id: "inclusionai/ling-3.0-flash:free",
-		name: "Ling 3.0 Flash",
-		context_window: 262_144,
+		id: "nvidia/nemotron-3.5-super-vl:free",
+		name: "Nemotron 3.5 Super VL (free)",
+		context_window: 1_000_000,
 		effective_pricing: { prompt: 0, completion: 0, input_cache_read: 0 },
 	},
 	{
@@ -163,12 +162,6 @@ const INITIAL_OPEN_GATEWAY_MODELS: OpenGatewayModel[] = [
 			completion: "0.00000096",
 			input_cache_read: "0.00000006",
 		},
-	},
-	{
-		id: "mindai/macaron-v1-tall",
-		name: "Macaron V1 Tall",
-		context_window: 262_144,
-		effective_pricing: { prompt: 0, completion: 0, input_cache_read: 0 },
 	},
 ];
 
@@ -288,8 +281,9 @@ export async function fetchOpenGatewayModels(
 	return applyHidden(models, PROVIDER_OPENGATEWAY);
 }
 
-export default function opengatewayProvider(pi: ExtensionAPI): Promise<void> {
-	registerNativeOpenAIProvider(pi, {
+/** Everything Pi registers for OpenGateway; tests drive the same object. */
+export function createOpengatewayProviderOptions() {
+	return {
 		providerId: PROVIDER_OPENGATEWAY,
 		name: "OpenGateway",
 		baseUrl: BASE_URL_OPENGATEWAY,
@@ -297,9 +291,14 @@ export default function opengatewayProvider(pi: ExtensionAPI): Promise<void> {
 		getApiKey: getOpengatewayApiKey,
 		getShowPaid: getOpengatewayShowPaid,
 		initialModels: getInitialOpenGatewayModels(),
-		fetchModels: (apiKey, signal) => fetchOpenGatewayModels(apiKey, signal),
+		fetchModels: (apiKey: string, signal?: AbortSignal) =>
+			fetchOpenGatewayModels(apiKey, signal),
 		tosUrl: "https://gitlawb.com/opengateway",
 		suppressTosWhenKey: true,
-	});
+	};
+}
+
+export default function opengatewayProvider(pi: ExtensionAPI): Promise<void> {
+	registerNativeOpenAIProvider(pi, createOpengatewayProviderOptions());
 	return Promise.resolve();
 }

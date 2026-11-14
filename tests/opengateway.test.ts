@@ -63,7 +63,7 @@ describe("OpenGateway model mapping", () => {
 				"auto",
 				"mimo-v2.5-pro",
 				"google/gemini-3.1-flash-lite",
-				"nvidia/nemotron-3-ultra-550b-a55b:free",
+				"nvidia/nemotron-3.5-super-vl:free",
 			]),
 		);
 	});
