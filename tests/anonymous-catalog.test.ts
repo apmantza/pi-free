@@ -5,8 +5,9 @@
  * returns undefined the catalog never fetches and /model stays clean.
  * Providers whose catalogs are unusable without a key must therefore
  * resolve undefined when no credential is configured — a visible-but-
- * unchattable catalog is clutter, not discovery. Only genuinely
- * keyless-usable providers (cline, fastrouter, llm7) resolve keyless.
+ * unchattable catalog is clutter, not discovery. Only a provider whose
+ * models work without a key (llm7) resolves keyless; cline and fastrouter
+ * serve public catalogs but chat needs a credential (#697).
  */
 
 import { describe, expect, it, vi } from "vitest";
@@ -76,6 +77,7 @@ describe("shared-factory providers hide without a key (#530)", () => {
 		["anyapi", anyapiAuth],
 		["bai", baiAuth],
 		["opengateway", opengatewayAuth],
+		["fastrouter", fastrouterAuth],
 	])("%s resolves undefined without a key", async (_name, auth) => {
 		expect(await auth.apiKey?.resolve(resolveInput())).toBeUndefined();
 	});
@@ -86,22 +88,19 @@ describe("custom-resolver providers hide without a key (#530)", () => {
 		["kilo", { apiKey: kiloApiKeyAuth }],
 		["requesty", requestyAuth],
 		["zenmux", zenmuxAuth],
+		["cline", { apiKey: clineApiKeyAuth }],
 	])("%s resolves undefined without a key", async (_name, auth) => {
 		expect(await auth.apiKey?.resolve(resolveInput())).toBeUndefined();
 	});
 });
 
-describe("keyless allowlist still resolves (cline, fastrouter, llm7)", () => {
-	it.each([
-		["cline", { apiKey: clineApiKeyAuth }],
-		["fastrouter", fastrouterAuth],
-		["llm7", llm7Auth],
-	])("%s resolves keyless auth for the public catalog", async (_name, auth) => {
-		const result = await auth.apiKey?.resolve(resolveInput());
+describe("keyless allowlist still resolves (llm7)", () => {
+	it("llm7 resolves keyless auth for its anonymous tier", async () => {
+		const result = await llm7Auth.apiKey?.resolve(resolveInput());
 		expect(result).toBeDefined();
 		expect(result?.auth).toBeDefined();
-		// No apiKey.check: a check would hide the public catalog before login.
-		expect(auth.apiKey).not.toHaveProperty("check");
+		// No apiKey.check: a check would hide the anonymous catalog.
+		expect(llm7Auth.apiKey).not.toHaveProperty("check");
 	});
 });
 

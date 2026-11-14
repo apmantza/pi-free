@@ -102,7 +102,7 @@ The native providers below build a pi-ai `Provider`, registered via single-argum
 
 ```text
 providers/kilo/{kilo,kilo-provider,kilo-auth,kilo-models}.ts    ← assemble / auth+OAuth / catalog
-providers/cline/{cline,cline-provider,cline-auth,cline-models}.ts  ← same shape (public catalog)
+providers/cline/{cline,cline-provider,cline-auth,cline-models}.ts  ← same shape (public catalog endpoint)
 ```
 
 Key points of the pattern (the recipe for porting other unique providers):
@@ -117,7 +117,7 @@ Key points of the pattern (the recipe for porting other unique providers):
 
 Cline-specific deviations from the Kilo reference:
 
-- **Public catalog auth.** `apiKey.resolve` always succeeds (empty `auth` when keyless); no `apiKey.check`, or Pi hides the catalog before `/login cline`. Keyless chat still 401s.
+- **Public catalog endpoint, keyed visibility.** `refreshModels` fetches the catalog without a credential, but `apiKey.resolve` returns undefined without a stored key, `CLINE_API_KEY` or the Cline CLI key, so Pi hides Cline until a login or key exists (#697): chat needs one.
 - **Shared mutable headers.** Rotating `X-Task-ID` lives on one shared record (`providers/cline/cline-headers.ts`) stamped on every Cline **model** — pi-ai merges only model `headers`, so rotation applies without re-registration.
 - Wire api (`openai-completions`) and the legacy OAuth adapter mapping follow the recipe above; details in HISTORY.md.
 
@@ -256,7 +256,7 @@ Screen against these BEFORE writing code — each one cost a real incident:
 - **Toggle flips the effective view.** Persisted choices live under provider ids in `model_view_overrides`; divergent snake_case keys are legacy-read-only.
 - **Never override a provider native to Pi.** Pi serves `openrouter`, `opencode-go` and its other built-ins with its own catalog, refresh, endpoints and credentials; re-registering them froze stale endpoints (`/zen/go/v1` after Pi moved Go to `/inference/go/…`) and added toggles/config keys to maintain. pi-free registers only ids it owns; `opencode-free` captures Pi's `opencode` catalog under its own id because the free tier needs pi-free's stream (anonymous bearer, Bun relay, gate tools, env frame). Retired keys (`openrouter_show_paid`, `opencode_go_show_paid`) stay loadable and inert in old `free.json` files (`tests/config.test.ts`). Guards: `tests/built-in-toggle-runtime.test.ts` (no capture/refresh task for either id), `tests/opencode-dispatch.test.ts` (their models never dispatch-tagged).
 - **No reverse-engineered request signing.** pi-free registers only providers reachable through a documented or openly used API; it does not ship signing schemes recovered from an obfuscated client for an undocumented private API. Such a scheme breaks without notice, ties every user's requests to a vendor's private protocol, and has no upstream contract to test against. Qoder was removed under this rule (#689; record in HISTORY.md). Its retired keys stay loadable and inert like the ones above (`tests/config.test.ts`).
-- **Logged-out providers stay hidden.** Auth that doesn't resolve keeps the provider out of `/model`; only the keyless allowlist (cline, fastrouter, llm7) resolves without a credential. Never re-add an anonymous opt-in for a catalog whose chat needs a key (#530).
+- **Never show a model list for a provider whose models cannot be used without a key.** Auth that doesn't resolve keeps the provider out of `/model`, so a provider's `apiKey.resolve` returns undefined without a credential unless its chat works anonymously. A public catalog endpoint is not enough: Cline and FastRouter listed 18 and 6 models logged out and every turn failed `No API key for provider` (#697, after #530). The keyless allowlist is llm7 alone (anonymous tier, placeholder key, #684). Guard: `tests/keyless-visibility.test.ts` boots the whole extension through Pi with no credentials and asserts llm7 is the only provider with available models.
 
 ## PR Test Proof
 
@@ -282,8 +282,8 @@ Screen against these BEFORE writing code — each one cost a real incident:
 
 **Authentication notes:**
 
-- **Anonymous public catalogs** — Kilo, ZenMux, DeepInfra, Novita, Routeway, SambaNova, FastRouter, Cline resolve keyless (`public catalog (no account)`); chat still needs a key/login. StepFun, GMI Cloud, Agnes AI, TokenRouter, AnyAPI, B.AI, OpenGateway, Merge Gateway resolve `undefined` without a key (#421).
-- **Kilo/Cline** support OAuth (`/login`) and API keys (`KILO_API_KEY` / `CLINE_API_KEY` or `~/.pi/free.json`); stored credential wins, then ambient key. Cline's catalog refreshes without a credential.
+- **Keyless resolution** — only LLM7 resolves without a credential (anonymous placeholder key); every other provider resolves `undefined` without a key or login and stays hidden, including those whose catalog endpoint is public (Cline, FastRouter, Kilo, ZenMux, DeepInfra, Novita, Routeway, SambaNova, Requesty) (#421, #530, #697).
+- **Kilo/Cline** support OAuth (`/login`) and API keys (`KILO_API_KEY` / `CLINE_API_KEY` or `~/.pi/free.json`); stored credential wins, then ambient key. Cline's catalog fetch sends no credential, but Pi runs it only once one resolves.
 - **OpenCode / OpenCode Go**: pi-free captures Pi's built-in `opencode` catalog under its own `opencode-free` id, then runs one **detached** public-endpoint refresh for models shipped between Pi releases. Pi's native `opencode-go` is not wrapped (Standing Invariants); `resolveApiKey` still reuses a key stored under its id for `opencode-free`. New IDs synthesize via `resolveOpenCodeModelApi`/`applyOpenCodeProtocolDefaults`. Failed/empty/aborted fetches retain cache and never rethrow. `resolveApiKey` omits absent credentials so logged-out providers read as unavailable, not refresh failures (defect shape 9; full #504 narrative in HISTORY.md). `opencode-free` inference sends Zen's anonymous `public` bearer (the keyed free-tier lane is rejected upstream with `Model access is disabled`) and activates `glob` + `grep` per turn for client compatibility. A request with no active tools (compaction and branch summaries) gets declaration-only `bash`/`edit`/`glob`/`grep`/`read` on its leading system copy with tool choice `"none"` (`OPENCODE_FREE_REQUIRED_TOOLS`), because the gate rejects tool-less requests; requests carrying tools keep Pi's tool choice. Every anonymous/free stream also adds the default request-only `<env>Working directory: .</env>` metadata frame while preserving Pi's complete prompt, tool state and history; no native persona, absolute paths, captured snapshots or CLI dependency. The frame does not modify saved transcripts or accumulate across turns; Pi's native `opencode-go` gets no frame (`lib/glob-tool.ts`).
 - **Deferred saved-model restore** — Pi restores the session model before extension registrations flush, so resumes on toggle providers hit "Could not restore model". After capture, `built-in-toggle.ts` re-selects the persisted model via `pi.setModel` when in view; Pi's warning line is unavoidable.
 

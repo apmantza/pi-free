@@ -12,7 +12,7 @@
 
 **Totals at audit time:** ~106 free-classified models across 15 providers. Two registered providers exposed **zero** free models (DeepInfra, SambaNova — see [Zero-free providers](#zero-free-providers)).
 
-> **Visibility:** these lists describe what each provider *offers*, not what `/model` shows. Providers you have not logged into are hidden (only the keyless allowlist — Cline, FastRouter, LLM7 — appears logged out); see [Model visibility](providers.md#model-visibility).
+> **Visibility:** these lists describe what each provider *offers*, not what `/model` shows. Providers you have not logged into are hidden (only LLM7, whose anonymous tier answers chat, appears logged out); see [Model visibility](providers.md#model-visibility).
 
 ---
 

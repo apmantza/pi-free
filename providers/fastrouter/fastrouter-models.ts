@@ -45,8 +45,8 @@ function adaptFastrouterRow(
 }
 
 /**
- * Fetch the complete public catalog. The key is optional for /models; it is
- * only passed when configured so public discovery works for logged-out users.
+ * Fetch the complete public catalog. /models itself accepts no key, but Pi
+ * refreshes FastRouter only once a key resolves (#697), so it is always sent.
  */
 export async function fetchFastrouterModels(
 	apiKey: string,

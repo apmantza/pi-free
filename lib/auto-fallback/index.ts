@@ -89,10 +89,10 @@ interface ModelIdentity {
 interface ModelRegistryLike {
 	getAll?: () => ModelIdentity[];
 	/**
-	 * Provider-level auth check. NOTE: this resolves truthy for
-	 * anonymous-public-catalog providers (Kilo, Cline, ... resolve keyless
-	 * auth per AGENTS.md), so it answers "would setModel succeed" but NOT
-	 * "would chat succeed". Prefer {@link hasConfiguredAuth} when present.
+	 * Provider-level auth check. NOTE: this resolves truthy for a provider
+	 * whose auth resolves keyless (llm7 per AGENTS.md), so it answers "would
+	 * setModel succeed" but NOT "is a credential configured". Prefer
+	 * {@link hasConfiguredAuth} when present.
 	 */
 	getProviderAuth?(provider: string): Promise<unknown>;
 	/**

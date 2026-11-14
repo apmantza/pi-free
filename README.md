@@ -46,7 +46,7 @@ Press `Ctrl+L` to open the model picker. The global free-only setting is enabled
 
 ### Use free models
 
-Cline exposes a public catalog before login. Kilo requires an OAuth credential or API key for authenticated refreshes and chat:
+Cline and Kilo need an OAuth login or API key before their models appear in `/model`:
 
 ```text
 /login cline
