@@ -7,7 +7,7 @@
  *
  * Endpoints:
  *   Chat:    https://api.commandcode.ai/provider/v1/chat/completions
- *            (+ /messages for claude-* models, see dual-stream note)
+ *            https://api.commandcode.ai/provider/v1/messages (claude-*)
  *   Models:  https://api.commandcode.ai/provider/v1/models (public)
  *
  * The catalog is public — models appear before login — but chat requires an
@@ -17,7 +17,9 @@
  * Dual-transport wire: claude-* models are served over Anthropic Messages,
  * everything else over OpenAI Chat Completions. The provider publishes each
  * model with the right `api` (via `apiForModel`) and overrides the shared
- * streams so the transport dispatches on the runtime model api.
+ * streams so the transport dispatches on the runtime model api. The
+ * Anthropic SDK appends `/v1/messages` to the base URL, so claude-* streams
+ * get the base without `/v1` (`.../provider/v1/v1/messages` is a 404).
  *
  * Pricing: curated USD-per-M table ported from patlux/pi-commandcode-provider
  * (MIT), verified against CommandCode's official pricing page 2026-08-25;
@@ -46,20 +48,43 @@ const openAiStreams = lazyOpenAICompletionsApi();
 const anthropicStreams = lazyAnthropicMessagesApi();
 
 /**
+ * Anthropic Messages base URL. The shared `BASE_URL_COMMANDCODE` ends in
+ * `/v1` for the OpenAI client, which appends only `/chat/completions`; the
+ * Anthropic SDK appends `/v1/messages` itself.
+ */
+const ANTHROPIC_BASE_URL_COMMANDCODE = BASE_URL_COMMANDCODE.replace(
+	/\/v1$/,
+	"",
+);
+
+/**
  * Dual-transport stream override: dispatch on the runtime model api so
  * claude-* (anthropic-messages) and everything else (openai-completions)
- * each reach the gateway over the protocol it serves.
+ * each reach the gateway over the protocol it serves. The anthropic route
+ * swaps in its own base URL at stream time, so models restored from Pi's
+ * store (which carry the shared `/v1` base) are routed correctly too.
  */
+function routeModel(model: Model<Api>): {
+	streams: ProviderStreams;
+	model: Model<Api>;
+} {
+	if (model.api !== "anthropic-messages") {
+		return { streams: openAiStreams, model };
+	}
+	return {
+		streams: anthropicStreams,
+		model: { ...model, baseUrl: ANTHROPIC_BASE_URL_COMMANDCODE },
+	};
+}
+
 const dualTransportStreams: ProviderStreams = {
 	stream(model: Model<Api>, context, streamOptions) {
-		const streams =
-			model.api === "anthropic-messages" ? anthropicStreams : openAiStreams;
-		return streams.stream(model, context, streamOptions);
+		const routed = routeModel(model);
+		return routed.streams.stream(routed.model, context, streamOptions);
 	},
 	streamSimple(model: Model<Api>, context, streamOptions) {
-		const streams =
-			model.api === "anthropic-messages" ? anthropicStreams : openAiStreams;
-		return streams.streamSimple(model, context, streamOptions);
+		const routed = routeModel(model);
+		return routed.streams.streamSimple(routed.model, context, streamOptions);
 	},
 };
 

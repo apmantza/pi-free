@@ -2,8 +2,9 @@
  * CommandCode provider tests.
  *
  * Covers the catalog mapper (curated pricing table in USD per million
- * tokens -> pi-free per-token cost, Route A authority only for ids present
- * in the pricing table, modality/reasoning tables) and the claude-*
+ * tokens -> pi-free per-token cost, pricing authority only for ids present
+ * in the pricing table, free authority from the `:free` id suffix,
+ * modality/reasoning tables) and the claude-*
  * Anthropic-Messages transport split.
  */
 
@@ -43,15 +44,28 @@ describe("mapCommandCodeModel", () => {
 		).toBe(true);
 	});
 
-	it("maps the documented free models at zero cost with authority", () => {
-		for (const id of ["poolside/laguna-s-2.1-free", "stealth/ox-alpha"]) {
-			const model = mapCommandCodeModel(catalogEntry({ id }));
-			expect(model?.cost.input).toBe(0);
-			expect(model?.cost.output).toBe(0);
-			expect(
-				(model as unknown as { _pricingKnown?: boolean })._pricingKnown,
-			).toBe(true);
-		}
+	// #674: free ids carry display names without "free" and no curated
+	// price, so only the catalog's `:free` suffix can mark them free.
+	it("stamps free authority from the :free id suffix only", () => {
+		const flags = (overrides: Record<string, unknown>) => {
+			const model = mapCommandCodeModel(catalogEntry(overrides)) as unknown as {
+				_freeKnown?: boolean;
+				_isFree?: boolean;
+			};
+			return { known: model._freeKnown, free: model._isFree };
+		};
+		expect(
+			flags({
+				id: "thinkingmachines/inkling-2-small:free",
+				name: "Inkling 2 Small",
+			}),
+		).toEqual({ known: true, free: true });
+		expect(flags({})).toEqual({ known: true, free: false });
+		// A "free" display name or a "-free" id without the suffix is not
+		// the catalog's marker.
+		expect(flags({ id: "brand-new/model-free", name: "Model (free)" })).toEqual(
+			{ known: true, free: false },
+		);
 	});
 
 	it("does NOT stamp pricing authority for ids missing from the table", () => {
