@@ -15,6 +15,9 @@
  *   6. x-ratelimit-remaining-user-budget-usd / x-ratelimit-limit-user-budget-usd
  *      (AMD Token Lab monthly dollar budget, shown in dollars)
  *   7. x-ratelimit-remaining-user-rpm / x-ratelimit-limit-user-rpm (AMD Token Lab)
+ *
+ * Balance headers (an amount with no limit, shown without a percentage):
+ *   x-venice-balance-usd / x-venice-balance-diem (Venice)
  */
 
 import { createLogger } from "./logger.ts";
@@ -90,6 +93,39 @@ const HEADER_PAIRS: [string, string, QuotaUnit?][] = [
 	["x-ratelimit-remaining-user-rpm", "x-ratelimit-limit-user-rpm"],
 ];
 
+/** A provider's account balance: an amount left, with no limit to divide by. */
+interface BalanceSnapshot {
+	/** Formatted amounts, e.g. ["$4.20", "12.50 DIEM"]. */
+	amounts: string[];
+	lastUpdated: number;
+}
+
+const _balanceState = new Map<string, BalanceSnapshot>();
+
+/**
+ * Balance headers, in display order, with how each amount is shown. Venice
+ * documents both as the balance "before the request was processed" on
+ * inference responses (docs.venice.ai API reference, Response Headers
+ * Reference) and bills in USD or DIEM, so both are shown. OpenGateway's
+ * x-gateway-balance-usd is not read: its docs send it only on non-streaming
+ * responses, and Pi streams every chat request (#690).
+ */
+const BALANCE_HEADERS: [string, (amount: number) => string][] = [
+	["x-venice-balance-usd", (amount) => `$${amount.toFixed(2)}`],
+	["x-venice-balance-diem", (amount) => `${amount.toFixed(2)} DIEM`],
+];
+
+function extractBalance(headers: Record<string, string>): string[] {
+	const normalized = new Map(
+		Object.entries(headers).map(([key, value]) => [key.toLowerCase(), value]),
+	);
+	return BALANCE_HEADERS.flatMap(([header, format]) => {
+		const raw = normalized.get(header);
+		const amount = raw === undefined ? Number.NaN : Number.parseFloat(raw);
+		return Number.isFinite(amount) ? [format(amount)] : [];
+	});
+}
+
 /**
  * Attempt to extract quota from response headers.
  * Returns { remaining, limit, source } or null if no quota headers found.
@@ -142,6 +178,14 @@ export function processQuotaResponse(
 		counters.rateLimited += 1;
 	} else if (status >= 500 && status < 600) {
 		counters.serverErrors += 1;
+	}
+
+	const balance = extractBalance(headers);
+	if (balance.length > 0) {
+		_balanceState.set(providerId, {
+			amounts: balance,
+			lastUpdated: Date.now(),
+		});
 	}
 
 	const extracted = extractQuota(headers);
@@ -207,16 +251,28 @@ export function getQuota(providerId: string): QuotaSnapshot | null {
 	return _quotaState.get(providerId) ?? null;
 }
 
+/** Snapshots older than this are not shown. */
+const STATUS_MAX_AGE_MS = 5 * 60 * 1000;
+
 /**
  * Build a human-readable status bar line for a provider's quota.
  * Returns undefined if no quota data is available.
+ *
+ * A fresh balance wins over a request window: the balance is what runs out
+ * (Venice answers 402 at zero, even for $0-listed models), while its
+ * per-minute request window refills on its own, the same order the AMD
+ * Token Lab budget takes over its request cap.
  */
 export function formatQuotaStatus(providerId: string): string | undefined {
+	const balance = _balanceState.get(providerId);
+	if (balance && Date.now() - balance.lastUpdated <= STATUS_MAX_AGE_MS) {
+		return `${providerId}: ${balance.amounts.join(" + ")} balance`;
+	}
+
 	const q = _quotaState.get(providerId);
 	if (!q) return undefined;
 
-	// Stale after 5 minutes
-	if (Date.now() - q.lastUpdated > 5 * 60 * 1000) return undefined;
+	if (Date.now() - q.lastUpdated > STATUS_MAX_AGE_MS) return undefined;
 
 	const amount = (value: number) =>
 		q.unit === "usd" ? `$${value.toFixed(2)}` : String(value);

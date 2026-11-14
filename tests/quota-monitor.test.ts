@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -136,5 +136,55 @@ describe("quota-monitor response outcome counters (M2 + Mn3, #437)", () => {
 
 		expect(getResponseCounters("both")?.rateLimited).toBe(1);
 		expect(getQuota("both")?.percent).toBe(30);
+	});
+
+	// #690: Venice reports the account balance (USD and DIEM) on inference
+	// responses beside its per-minute request window, and the balance is what
+	// gates every request (402 at zero). Unread, the status bar showed only
+	// the refilling request window. Header names from docs.venice.ai (Response
+	// Headers Reference; values are strings); amounts are illustrative, as no
+	// keyed response was captured.
+	it("shows Venice's balance in place of its request window", async () => {
+		const { processQuotaResponse, formatQuotaStatus, getResponseCounters } =
+			await import("../lib/quota-monitor.ts");
+
+		processQuotaResponse("venice", 200, {
+			"x-ratelimit-limit-requests": "500",
+			"x-ratelimit-remaining-requests": "499",
+			"X-Venice-Balance-USD": "4.2061",
+			"X-Venice-Balance-DIEM": "12.5",
+		});
+
+		expect(formatQuotaStatus("venice")).toBe(
+			"venice: $4.21 + 12.50 DIEM balance",
+		);
+		expect(getResponseCounters("venice")?.quotaHeaderDrift).toBe(0);
+	});
+
+	// A balance has no limit, so no percentage or warning icon is invented.
+	it("shows a lone USD balance without a percentage", async () => {
+		const { processQuotaResponse, formatQuotaStatus } =
+			await import("../lib/quota-monitor.ts");
+
+		processQuotaResponse("venice-usd", 200, { "x-venice-balance-usd": "0.03" });
+
+		expect(formatQuotaStatus("venice-usd")).toBe("venice-usd: $0.03 balance");
+	});
+
+	// A balance is a snapshot from the last response: like a request window
+	// it is not shown once older than five minutes.
+	it("stops showing a balance older than five minutes", async () => {
+		const { processQuotaResponse, formatQuotaStatus } =
+			await import("../lib/quota-monitor.ts");
+		vi.useFakeTimers({ toFake: ["Date"] });
+		try {
+			processQuotaResponse("venice-old", 200, {
+				"x-venice-balance-usd": "7",
+			});
+			vi.setSystemTime(Date.now() + 5 * 60 * 1000 + 1);
+			expect(formatQuotaStatus("venice-old")).toBeUndefined();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
