@@ -37,9 +37,12 @@ export const PROVIDER_COMMANDCODE = "commandcode";
 // Pi's built-in OpenCode provider id, whose catalog pi-free captures.
 export const PROVIDER_OPENCODE = "opencode";
 // pi-free's own registration id for that captured catalog (see
-// lib/built-in-toggle.ts). Pi's native `opencode-go` and `openrouter`
-// providers are not overridden.
+// lib/built-in-toggle.ts). Pi's native `opencode-go` provider is not
+// overridden.
 export const PROVIDER_OPENCODE_FREE = "opencode-free";
+// Pi's built-in OpenRouter provider. pi-free only ever registers a
+// models-only free-view overlay over it (lib/openrouter-free-view.ts).
+export const PROVIDER_OPENROUTER = "openrouter";
 
 // =============================================================================
 // Provider base URLs

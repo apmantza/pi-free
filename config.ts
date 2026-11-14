@@ -35,6 +35,7 @@ import {
 	PROVIDER_OLLAMA,
 	PROVIDER_OPENCODE,
 	PROVIDER_OPENCODE_FREE,
+	PROVIDER_OPENROUTER,
 	PROVIDER_ROUTEWAY,
 	PROVIDER_OPENGATEWAY,
 	PROVIDER_TOKENROUTER,
@@ -161,6 +162,9 @@ interface PiFreeConfig {
 	amd_tokenlab_show_paid?: boolean;
 	opencode_show_paid?: boolean;
 	opencode_free_show_paid?: boolean;
+	// Read-only legacy key (2.8.x wrote it): `true` still means "all" for
+	// Pi's built-in OpenRouter free view. Not in CONFIG_TEMPLATE.
+	openrouter_show_paid?: boolean;
 
 	// Explicit per-provider catalog views, keyed by provider id. Sparse: only
 	// choices made through /toggle-<id> are recorded; absence means "follow
@@ -543,6 +547,11 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 		id: PROVIDER_OPENCODE_FREE,
 		prefix: "OPENCODE_FREE",
 		showPaidKey: "opencode_free_show_paid",
+	},
+	{
+		id: PROVIDER_OPENROUTER,
+		prefix: "OPENROUTER",
+		showPaidKey: "openrouter_show_paid",
 	},
 ];
 

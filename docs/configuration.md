@@ -56,7 +56,7 @@ Example file:
 }
 ```
 
-Pi's built-in OpenRouter and OpenCode providers use Pi's auth handling; their environment variables are `OPENROUTER_API_KEY` and `OPENCODE_API_KEY`. pi-free has no config keys for OpenRouter or OpenCode Go: older `openrouter_show_paid` and `opencode_go_show_paid` entries in `~/.pi/free.json` are ignored and can be deleted. The same holds for `qoder_*` keys and a `qoder` entry in `model_view_overrides` left from before Qoder's removal ([#689](https://github.com/apmantza/pi-free/issues/689)).
+Pi's built-in OpenRouter and OpenCode providers use Pi's auth handling; their environment variables are `OPENROUTER_API_KEY` and `OPENCODE_API_KEY`. pi-free has no API-key fields for either. OpenRouter's free view follows the same view rules as every pi-free provider (below): `/toggle-openrouter` records `"model_view_overrides": {"openrouter": ...}`, and a 2.8.x `openrouter_show_paid: true` or `OPENROUTER_SHOW_PAID=true` still means "all". Older `opencode_go_show_paid` entries are ignored and can be deleted. The same holds for `qoder_*` keys and a `qoder` entry in `model_view_overrides` left from before Qoder's removal ([#689](https://github.com/apmantza/pi-free/issues/689)).
 
 NVIDIA, Together, Mistral, Groq, Cerebras, xAI, and Hugging Face are Pi-built-in providers rather than pi-free registrations. Use Pi's documented environment variables for them; pi-free does not maintain their catalogs or config keys.
 

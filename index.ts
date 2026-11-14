@@ -29,6 +29,11 @@ import {
 	setProviderHidden,
 } from "./config.ts";
 import { setupBuiltInProviderToggles } from "./lib/built-in-toggle.ts";
+import {
+	applyOpenRouterView,
+	type OpenRouterCatalogSource,
+	setupOpenRouterFreeView,
+} from "./lib/openrouter-free-view.ts";
 import { recordAction } from "./lib/action-log.ts";
 import { createLogger, flushLogsSync, withRunId } from "./lib/logger.ts";
 import {
@@ -162,6 +167,7 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 
 	// /toggle-free body, extracted so the whole fan-out shares one run tag.
 	async function runGlobalToggle(ctx: {
+		modelRegistry: OpenRouterCatalogSource;
 		ui: {
 			notify(message: string, type?: "info" | "warning" | "error"): void;
 		};
@@ -173,6 +179,9 @@ function setupGlobalCommands(pi: ExtensionAPI) {
 		// fighting the global flag on every new session (#510).
 		await clearModelViewOverrides();
 		applyGlobalFilter(next);
+		// Pi's built-in OpenRouter is not in the provider registry (it is
+		// Pi's provider, not a pi-free one); switch its filter-only view too.
+		applyOpenRouterView(pi, ctx.modelRegistry);
 
 		const registry = getProviderRegistry();
 		const providerCount = registry.size;
@@ -661,6 +670,9 @@ export default async function piFreeEntry(pi: ExtensionAPI) {
 
 		// Start the OpenCode relay, or warn, when a free OpenCode model is selected.
 		setupOpenCodeReadiness(pi);
+
+		// /toggle-openrouter: filter-only free view over Pi's built-in OpenRouter.
+		setupOpenRouterFreeView(pi);
 
 		// Expose Pi's file finder as `glob`, and present the OpenCode Zen
 		// free-tier gate tool names on opencode-free turns only (issue #544).

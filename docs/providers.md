@@ -253,7 +253,11 @@ OpenRouter is Pi's built-in provider. Configure it using Pi's auth flow or:
 export OPENROUTER_API_KEY="sk-or-v1-..."
 ```
 
-pi-free does not override OpenRouter: Pi's own provider, catalog, refresh and credentials serve it unchanged, and pi-free has no OpenRouter toggle or config key.
+Pi's own provider, catalog, refresh and credentials serve OpenRouter. pi-free adds one thing: a free view, on by default under `free_only` like every other provider's. `/toggle-openrouter` (or `/toggle-free`) switches it.
+
+- **Free view:** Pi's current OpenRouter catalog, without the paid chat models. Free means a zero prompt and completion price and a model published as free (a `:free` id, or "free" in its name, such as the `openrouter/free` router). The `$0` routers (`openrouter/auto`, `openrouter/fusion`, `openrouter/pareto-code`, …) bill the model they route to, so they count as paid. Image and classifier models are left alone. pi-free fetches nothing and adds no key, header, endpoint or stream: your stored OpenRouter credential, OAuth login or `OPENROUTER_API_KEY` is resolved by Pi as usual.
+- **All view:** pi-free registers nothing for OpenRouter; you see Pi's provider exactly as Pi ships it.
+- The free list is taken from Pi's catalog when a session starts and when you toggle. Models Pi's own refresh adds or prices later in the same session show up after `/reload`, a new session, or a toggle.
 
 ### OpenCode free and OpenCode Go
 
