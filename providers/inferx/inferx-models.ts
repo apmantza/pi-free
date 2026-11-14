@@ -95,7 +95,11 @@ export async function fetchInferxModels(
 	if (dropped > 0) {
 		_logger.info(`[inferx] Dropped ${dropped} non-chat endpoints`);
 	}
-	if (chatModels.length === 0) {
+	// Only a catalog that answered with rows, none of them chat, is reported
+	// here. The shared fetcher returns [] for an aborted refresh (Pi
+	// supersedes the startup one; convention 15) and for a failure it has
+	// already logged, and neither is an unusable catalog (#690).
+	if (models.length > 0 && chatModels.length === 0) {
 		_logger.warn("[inferx] Catalog returned no usable chat models");
 	}
 	return applyHidden(chatModels, PROVIDER_INFERX);
