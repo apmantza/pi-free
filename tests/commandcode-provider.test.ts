@@ -66,8 +66,15 @@ afterEach(() => {
 	rmSync(home, { recursive: true, force: true });
 });
 
-/** Register through the production entry and refresh the catalog once. */
-async function registeredProvider(): Promise<Provider> {
+/**
+ * Register through the production entry and refresh the catalog once. Pi
+ * receives the provider's visible view (#672), so routing tests opt into the
+ * "all" view to reach paid models; the free-view test reads Pi's default view.
+ */
+async function registeredProvider(
+	view: "all" | "free" = "all",
+): Promise<Provider> {
+	if (view === "all") vi.stubEnv("COMMANDCODE_SHOW_PAID", "true");
 	let registered: Provider | undefined;
 	const pi = {
 		registerNativeProvider: () => {},
@@ -93,7 +100,8 @@ async function registeredProvider(): Promise<Provider> {
 			},
 		},
 	} as never);
-	expect(registered!.getModels()).toHaveLength(CATALOG.data.length);
+	if (view === "all")
+		expect(registered!.getModels()).toHaveLength(CATALOG.data.length);
 	return registered!;
 }
 
@@ -142,8 +150,10 @@ it("keeps chat-completions models on /provider/v1/chat/completions", async () =>
 // suffix (display names "Inkling 2 Small", "Glyph Cluster"), the curated
 // free ids were gone, and the default free view came out empty.
 it("shows exactly the :free catalog ids in the free view", async () => {
-	const provider = await registeredProvider();
-	const visible = provider.filterModels!(provider.getModels(), undefined)
+	const provider = await registeredProvider("free");
+	// What Pi lists by default: the registered view's own catalog.
+	const visible = provider
+		.getModels()
 		.map((m) => m.id)
 		.sort();
 	expect(visible).toEqual([

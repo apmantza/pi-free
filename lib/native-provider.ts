@@ -633,7 +633,40 @@ export function registerNativeProvider(
 	// registerProvider(provider) single-arg signature is not satisfiable with
 	// the pinned dev snapshot's ExtensionAPI. Provider is the exact runtime
 	// value pi-ai expects; the cast changes no data, only the nominal type.
-	(pi as unknown as NativeRegistrar).registerProvider(provider);
+	(pi as unknown as NativeRegistrar).registerProvider(
+		withVisibleCatalog(provider),
+	);
+}
+
+/**
+ * The provider as Pi should see it: `getModels()` already narrowed to the
+ * live view. Pi rebuilds its provisional availability snapshot from the
+ * unfiltered `getModels()` on every registerProvider and refresh start
+ * (model-runtime `updateModelSnapshot`) and only applies `filterModels` in
+ * the availability pass that follows, so a complete-catalog `getModels()`
+ * flashed paid models into the free view on every refresh, retry and
+ * toggle (#672). Every native `filterModels` here ignores the credential
+ * (the view is pi-free policy, not credential availability), so applying it
+ * eagerly is exact and Pi's later pass over the result is a no-op. The
+ * provider object itself keeps the complete catalog for the toggle, probes
+ * and tests. One view per provider, so every re-register still hands Pi
+ * the same object (the toggle/hide `reRegister()` contract).
+ */
+const visibleCatalogViews = new WeakMap<Provider, Provider>();
+
+function withVisibleCatalog(provider: Provider): Provider {
+	let view = visibleCatalogViews.get(provider);
+	if (!view) {
+		view = {
+			...provider,
+			getModels: () => {
+				const models = provider.getModels();
+				return provider.filterModels?.(models, undefined) ?? models;
+			},
+		};
+		visibleCatalogViews.set(provider, view);
+	}
+	return view;
 }
 
 interface NativeToggleOptions {
@@ -1053,15 +1086,21 @@ export async function refreshNativeProviderModels<T extends Model<Api>>(
 		// #519) scale with visible models, not the full paid catalog.
 		// In-memory state still takes the complete list via onFetched, so
 		// toggling to all works offline until the next network refresh.
-		const persistModels =
-			resolveModelView(providerId) === "free"
-				? models.filter((model) =>
-						isFreeModel(
-							{ ...model, provider: providerId },
-							models as ProviderModelConfig[],
-						),
-					)
-				: models;
+		//
+		// Each persisted model carries the free verdict judged against the
+		// COMPLETE catalog (`_freeKnown`, which isFreeModel honors first). A
+		// free-view record holds no priced sibling, so re-judging it alone on
+		// restore read as "pricing not exposed", found no "free" name, and
+		// emptied the free view until the next network refresh (#672).
+		const freeView = resolveModelView(providerId) === "free";
+		const persistModels = models.flatMap((model) => {
+			const free = isFreeModel(
+				{ ...model, provider: providerId },
+				models as ProviderModelConfig[],
+			);
+			if (freeView && !free) return [];
+			return [{ ...model, _freeKnown: true, _isFree: free }];
+		});
 		_logger.debug(
 			`[${providerId}] persisting ${persistModels.length}/${models.length} models (${resolveModelView(providerId)} view)`,
 		);

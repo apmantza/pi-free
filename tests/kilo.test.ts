@@ -109,8 +109,11 @@ describe("Kilo extension wiring", () => {
 
 	it("registers the native provider object via single-arg registerProvider", async () => {
 		await kiloProvider(mockPi);
-		// Single-arg native form: the provider object, no legacy config.
-		expect(mockRegisterProvider).toHaveBeenCalledWith(mockProvider);
+		// Single-arg native form: the provider's visible-catalog view (same
+		// auth object, #672), no legacy config.
+		expect(mockRegisterProvider).toHaveBeenCalledWith(
+			expect.objectContaining({ id: mockProvider.id, auth: mockProvider.auth }),
+		);
 		expect(mockRegisterProvider.mock.calls[0]).toHaveLength(1);
 	});
 
@@ -148,11 +151,14 @@ describe("Kilo extension wiring", () => {
 		await kiloProvider(mockPi);
 		const reRegister = mockRegisterWithGlobalToggle.mock
 			.calls[0]![2] as () => void;
+		const registered = mockRegisterProvider.mock.calls[0]![0];
 		mockRegisterProvider.mockClear();
 
 		reRegister();
 
-		expect(mockRegisterProvider).toHaveBeenCalledWith(mockProvider);
+		// The identical object (one visible-catalog view per provider, #672).
+		expect(mockRegisterProvider.mock.calls[0]![0]).toBe(registered);
+		expect(registered.auth).toBe(mockProvider.auth);
 	});
 
 	describe("/toggle-kilo command", () => {
