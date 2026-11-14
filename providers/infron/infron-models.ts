@@ -10,10 +10,16 @@
  * and no per-model reasoning flag. Mapped here instead of through the shared
  * OpenRouter-compatible fetcher.
  *
- * Free models: exactly the zero-priced LLM entries — currently seven, six
- * with an explicit `:free` id suffix plus `motif/motif-3` whose display
- * name carries "(Free)", all reported at 0/0 min prices by the catalog. Classification follows published pricing via Route A
+ * Free models: exactly the zero-priced LLM entries (one on 2026-11-14,
+ * `qwen/qwen3.8-27b:free`; the set changes with the gateway's offers).
+ * Classification follows published pricing via Route A
  * (`_pricingKnown: true`, no free/paid override).
+ *
+ * Limits: the model-level `context_length` can exceed what any serving
+ * provider accepts (live 2026-11-14: qwen3.8-27b:free lists 256000 while its
+ * only provider serves 204000, and the gateway answered a Pi turn sized from
+ * 256000 with a 400). The published window is the largest per-provider
+ * `providers[].context_length`, bounded by the model-level value.
  */
 
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
@@ -40,6 +46,8 @@ interface InfronCatalogModel {
 	min_prompt_price?: unknown;
 	min_completion_price?: unknown;
 	input_modalities?: unknown;
+	supported_endpoint_types?: unknown;
+	providers?: unknown;
 }
 
 /** Fallback context window for entries that omit `context_length`. */
@@ -47,6 +55,14 @@ const FALLBACK_CONTEXT_WINDOW = 128_000;
 
 /** Fallback max output tokens for entries that omit `max_output_tokens`. */
 const FALLBACK_MAX_TOKENS = 4_096;
+
+/**
+ * pi-ai keeps this many tokens of every window free when it sizes a request
+ * (`CONTEXT_SAFETY_TOKENS` in its simple-options), so a provider window at or
+ * below it cannot serve any turn. The live catalog lists gpt-5-chat on azure
+ * at 400 tokens beside a 128000 model window; such a value is not used.
+ */
+const PI_AI_CONTEXT_SAFETY_TOKENS = 4_096;
 
 function asNumber(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isFinite(value)
@@ -60,6 +76,26 @@ function asStringArray(value: unknown): string[] {
 				.filter((v): v is string => typeof v === "string")
 				.map((v) => v.toLowerCase())
 		: [];
+}
+
+/**
+ * The window a request can actually use: the largest one any serving provider
+ * accepts (the gateway routes a long request to a provider that fits it),
+ * never above the model-level `context_length`.
+ */
+function servedContextWindow(entry: InfronCatalogModel): number {
+	const listed = asNumber(entry.context_length) ?? FALLBACK_CONTEXT_WINDOW;
+	const served = (Array.isArray(entry.providers) ? entry.providers : [])
+		.map((provider: unknown) =>
+			provider && typeof provider === "object"
+				? asNumber((provider as { context_length?: unknown }).context_length)
+				: undefined,
+		)
+		.filter(
+			(window): window is number =>
+				window !== undefined && window > PI_AI_CONTEXT_SAFETY_TOKENS,
+		);
+	return served.length > 0 ? Math.min(listed, Math.max(...served)) : listed;
 }
 
 /**
@@ -81,6 +117,16 @@ export function mapInfronModel(
 		return undefined;
 	}
 	if (entry.is_display_only === true) return undefined;
+	// Every Infron model is published on Chat Completions, the only transport
+	// this provider streams. Admit only entries the gateway lists for that
+	// endpoint ("openai"); Responses-only entries ("openai-response", e.g.
+	// gpt-5-codex, gpt-5-pro) and entries without a list are refused.
+	if (
+		!Array.isArray(entry.supported_endpoint_types) ||
+		!entry.supported_endpoint_types.includes("openai")
+	) {
+		return undefined;
+	}
 
 	const name =
 		typeof entry.display_name === "string" && entry.display_name.length > 0
@@ -113,7 +159,7 @@ export function mapInfronModel(
 			cacheRead: 0,
 			cacheWrite: 0,
 		},
-		contextWindow: asNumber(entry.context_length) ?? FALLBACK_CONTEXT_WINDOW,
+		contextWindow: servedContextWindow(entry),
 		maxTokens: asNumber(entry.max_output_tokens) ?? FALLBACK_MAX_TOKENS,
 		// SAFETY: stamp the undocumented _pricingKnown marker consumed by
 		// isFreeModel ONLY when both prices were genuine numbers (verified live

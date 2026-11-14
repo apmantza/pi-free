@@ -85,6 +85,7 @@ beforeEach(async () => {
 							category_type: "LLM",
 							min_prompt_price: 0,
 							min_completion_price: 0,
+							supported_endpoint_types: ["openai"],
 						},
 					],
 				});
