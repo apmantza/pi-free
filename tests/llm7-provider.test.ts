@@ -2,7 +2,7 @@
  * Unit tests for the LLM7 native provider (createProvider object form).
  *
  * Mirrors tests/cline-provider.test.ts, plus the LLM7-specific pieces:
- *   - keyless proof case: auth always resolves (empty auth when no key), so
+ *   - keyless proof case: auth always resolves (a placeholder key when none), so
  *     Pi's availability filtering keeps the public free catalog visible
  *     with zero credential — verified through the REAL pi-ai Models registry
  *   - static selector catalog: refreshModels performs ZERO network I/O even
@@ -188,7 +188,11 @@ describe("createLlm7Provider shape", () => {
 // ---------------------------------------------------------------------------
 
 describe("keyless auth", () => {
-	it("resolves with an empty auth when no key is configured (public catalog)", async () => {
+	// The public tier needs no account, but pi-ai's OpenAI-compatible stream
+	// refuses to send without an API key ("No API key for provider: llm7",
+	// live 2026-11-14). LLM7 accepts any bearer anonymously, so keyless auth
+	// must still hand the stream a key or every logged-out turn fails.
+	it("lets a logged-out user chat: the resolved auth reaches the wire", async () => {
 		mockGetLlm7ApiKey.mockReturnValue(undefined);
 		const result = await llm7Auth.apiKey?.resolve({
 			ctx: {} as never,
@@ -198,8 +202,35 @@ describe("keyless auth", () => {
 		// Must RESOLVE (not undefined) so Pi's Models.refresh() does not skip
 		// the provider for logged-out users.
 		expect(result).toBeDefined();
-		expect(result?.auth).toEqual({});
-		expect(result?.auth).not.toHaveProperty("apiKey");
+		expect(result?.source).toBe("public free tier (no account)");
+
+		const sent: string[] = [];
+		const realFetch = globalThis.fetch;
+		globalThis.fetch = (async (input: string | URL | Request) => {
+			sent.push(String(input instanceof Request ? input.url : input));
+			return Response.json({ error: { message: "boundary" } }, { status: 400 });
+		}) as typeof fetch;
+		try {
+			const { normalizeContext, streamSimpleOpenAICompletions } =
+				await import("@earendil-works/pi-ai/compat");
+			const [model] = fetchLlm7Catalog().free;
+			const message = await streamSimpleOpenAICompletions(
+				{
+					...model,
+					api: "openai-completions",
+					provider: "llm7",
+					baseUrl: "https://api.llm7.io/v1",
+				} as never,
+				normalizeContext({
+					messages: [{ role: "user", content: "hi", timestamp: 0 }],
+				}),
+				{ ...result?.auth, maxTokens: 8 },
+			).result();
+			expect(message.errorMessage ?? "").not.toContain("No API key");
+			expect(sent).toEqual(["https://api.llm7.io/v1/chat/completions"]);
+		} finally {
+			globalThis.fetch = realFetch;
+		}
 	});
 
 	it("resolves the ambient LLM7_API_KEY when configured", async () => {
