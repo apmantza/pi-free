@@ -25,6 +25,7 @@ import {
 	PROVIDER_ANYAPI,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
+import { hasRouterPricing } from "../../lib/model-map.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import {
 	fetchWithRetry,
@@ -139,7 +140,8 @@ export function mapAnyApiModel(model: AnyApiModel): AnyApiProviderModel {
 
 	return {
 		...mapped,
-		_pricingKnown: pricingKnown,
+		// The mapper zeroes router "-1" prices; they must not read as $0-known.
+		_pricingKnown: pricingKnown && !hasRouterPricing(model.pricing),
 		...(freeKnown && {
 			_freeKnown: true,
 			_isFree: isAnyApiFreeModel(model),

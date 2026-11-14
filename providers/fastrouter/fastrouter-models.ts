@@ -2,20 +2,12 @@
 
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { applyHidden } from "../../config.ts";
-import {
-	BASE_URL_FASTROUTER,
-	DEFAULT_FETCH_TIMEOUT_MS,
-	PROVIDER_FASTROUTER,
-} from "../../constants.ts";
-import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
-import {
-	fetchWithRetry,
-	mapOpenRouterModel,
-	withSignal,
-} from "../../lib/util.ts";
+import { BASE_URL_FASTROUTER, PROVIDER_FASTROUTER } from "../../constants.ts";
+import type { OpenRouterCatalogRow } from "../../lib/model-map.ts";
+import { fetchOpenRouterCompatibleModels } from "../model-fetcher.ts";
 
 /** The fields of a FastRouter /models row this module reads. */
-type FastrouterRow = Parameters<typeof mapOpenRouterModel>[0] & {
+type FastrouterRow = OpenRouterCatalogRow & {
 	models_extra_params?: { free_slug_enabled?: boolean } | null;
 };
 
@@ -37,54 +29,35 @@ function isTextChatRow(row: FastrouterRow): boolean {
 }
 
 /**
- * Fetch the complete public catalog. The key is optional for /models; it is
- * only passed when configured so public discovery works for logged-out users.
- *
  * Free classification uses FastRouter's own flag,
  * `models_extra_params.free_slug_enabled`: list price 0 is not a free signal
  * here, because fastrouter/auto lists $0 while billing at the routed model's
  * rate (#676).
  */
+function adaptFastrouterRow(
+	row: FastrouterRow,
+): OpenRouterCatalogRow | undefined {
+	if (!isTextChatRow(row)) return undefined;
+	return {
+		...row,
+		isFree: row.models_extra_params?.free_slug_enabled === true,
+	};
+}
+
+/**
+ * Fetch the complete public catalog. The key is optional for /models; it is
+ * only passed when configured so public discovery works for logged-out users.
+ */
 export async function fetchFastrouterModels(
 	apiKey: string,
 	signal?: AbortSignal,
 ): Promise<ProviderModelConfig[]> {
-	const response = await fetchWithRetry(
-		`${BASE_URL_FASTROUTER}/models`,
-		withSignal(
-			{
-				headers: {
-					"Content-Type": "application/json",
-					"User-Agent": "pi-free-providers",
-					...(apiKey && { Authorization: `Bearer ${apiKey}` }),
-				},
-			},
-			signal,
-		),
-		3,
-		1000,
-		DEFAULT_FETCH_TIMEOUT_MS,
-	);
-	if (!response.ok) {
-		throw new Error(
-			`Failed to fetch models: ${response.status} ${response.statusText}`,
-		);
-	}
-	const json = (await response.json()) as { data?: FastrouterRow[] };
-	if (!Array.isArray(json.data)) {
-		throw new Error("Invalid models response: missing data array");
-	}
-
-	const models = json.data.filter(isTextChatRow).map((row) =>
-		mapOpenRouterModel({
-			...row,
-			isFree: row.models_extra_params?.free_slug_enabled === true,
-		}),
-	);
-	return applyHidden(
-		await safeEnrichModelsWithModelsDev(models, {
-			providerId: PROVIDER_FASTROUTER,
-		}),
-		PROVIDER_FASTROUTER,
-	);
+	const models = await fetchOpenRouterCompatibleModels({
+		providerId: PROVIDER_FASTROUTER,
+		baseUrl: BASE_URL_FASTROUTER,
+		apiKey,
+		signal,
+		adaptRow: adaptFastrouterRow,
+	});
+	return applyHidden(models, PROVIDER_FASTROUTER);
 }

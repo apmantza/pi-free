@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { isFreeModel } from "../lib/registry.ts";
 import {
 	isAnyApiFreeModel,
 	mapAnyApiModel,
@@ -55,5 +56,28 @@ describe("AnyAPI free model detection", () => {
 			reasoning: true,
 			input: ["text", "image"],
 		});
+	});
+
+	// Recurrence (#685): routers list prompt/completion "-1" (billed at the
+	// routed model's rate). Pre-fix the shared mapper published cost -1; once
+	// it zeroes router prices, this mapper's own pricing stamp would turn the
+	// row into a known $0 and leak it into the free view.
+	it("keeps a router '-1' row paid and pricing-unknown, never negative or $0-known", () => {
+		const router = mapAnyApiModel({
+			id: "vendor/router",
+			name: "Router",
+			pricing: { prompt: "-1", completion: "-1" },
+		});
+		const paid = mapAnyApiModel({
+			id: "vendor/paid",
+			name: "Paid",
+			pricing: { prompt: "0.000001", completion: "0.000002" },
+		});
+
+		expect(router.cost).toMatchObject({ input: 0, output: 0 });
+		expect(router._pricingKnown).toBe(false);
+		expect(isFreeModel({ ...router, provider: "anyapi" }, [router, paid])).toBe(
+			false,
+		);
 	});
 });

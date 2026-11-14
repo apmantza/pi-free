@@ -27,6 +27,7 @@ import {
 } from "../../lib/types.ts";
 import { getClineProviderHeaders } from "./cline-headers.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
+import { hasRouterPricing } from "../../lib/model-map.ts";
 import { getProxyModelCompat } from "../../lib/provider-compat.ts";
 import { cleanModelName, fetchWithRetry, withSignal } from "../../lib/util.ts";
 
@@ -122,17 +123,6 @@ function hasTextOnlyOutput(info: ClineRaw): boolean {
 	return typeof modality === "string" && modality.endsWith("->text");
 }
 
-/**
- * Routers (openrouter/fusion, nvidia/switchyard, ...) list "-1": billed at
- * the routed model's rate. That is not a price, so it must not become a
- * negative cost; the row is stamped pricing-unknown instead.
- */
-function hasRoutedPricing(info: ClineRaw): boolean {
-	return [info.pricing?.prompt, info.pricing?.completion].some(
-		(price) => Number.parseFloat(price ?? "") < 0,
-	);
-}
-
 function supportsImages(info: ClineRaw): boolean {
 	const inputMods = info.architecture?.input_modalities;
 	if (Array.isArray(inputMods) && inputMods.includes("image")) return true;
@@ -175,7 +165,8 @@ function modelFromCatalog(
 		info.supported_parameters?.includes("reasoning"),
 	);
 	const isFreeToTry = freeToTryIds.has(info.id);
-	const isRouted = !isFreeToTry && hasRoutedPricing(info);
+	// Router rows ("-1") are not priced: stamped pricing-unknown, never $0.
+	const isRouted = !isFreeToTry && hasRouterPricing(info.pricing);
 	const listed = !isFreeToTry && !isRouted;
 	const inputCost = listed ? parsePricing(info.pricing?.prompt) : 0;
 	const outputCost = listed ? parsePricing(info.pricing?.completion) : 0;

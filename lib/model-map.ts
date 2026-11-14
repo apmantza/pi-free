@@ -255,33 +255,43 @@ export function cleanModelName(name: string): string {
 // =============================================================================
 
 /**
- * Parse one OpenRouter-style catalog price. Only a numeric string is a known
- * price; "", null, missing and non-numeric values are unknown, never $0
- * (defect shape 15: FastRouter publishes "" for unpublished prices, and
- * `Number.parseFloat("")` is NaN).
+ * Parse one OpenRouter-style catalog price. Only a numeric, non-negative
+ * string is a known price; "", null, missing, non-numeric and negative values
+ * are unknown, never $0 (defect shape 15: FastRouter publishes "" for
+ * unpublished prices, and `Number.parseFloat("")` is NaN). Negative values are
+ * router sentinels, see `hasRouterPricing`.
  */
 function parseCatalogPrice(
 	value: string | null | undefined,
 ): number | undefined {
 	if (typeof value !== "string" || value.trim() === "") return undefined;
 	const price = Number(value);
-	return Number.isFinite(price) ? price : undefined;
-}
-
-/** First published limit; 0 (OrcaRouter, FastRouter) means "not published". */
-function firstPositiveLimit(
-	...limits: (number | null | undefined)[]
-): number | undefined {
-	return limits.find(
-		(limit): limit is number => typeof limit === "number" && limit > 0,
-	);
+	return Number.isFinite(price) && price >= 0 ? price : undefined;
 }
 
 /**
- * Map OpenRouter/Kilo API model to ProviderModelConfig
- * Shared between OpenRouter and Kilo providers
+ * Routers (kilo-auto/*, openrouter/auto, openrouter/fusion,
+ * nvidia/switchyard, ...) list prompt/completion "-1": billed at the routed
+ * model's rate. That is not a price: `mapOpenRouterModel` publishes such rows
+ * pricing-unknown, and catalog mappers that stamp their own pricing
+ * provenance (Cline, AnyAPI, OrcaRouter) ask this before calling a row priced.
  */
-export function mapOpenRouterModel(m: {
+export function hasRouterPricing(
+	pricing:
+		| {
+				prompt?: string | number | null | undefined;
+				completion?: string | number | null | undefined;
+		  }
+		| null
+		| undefined,
+): boolean {
+	return [pricing?.prompt, pricing?.completion].some(
+		(price) => price !== null && price !== undefined && Number(price) < 0,
+	);
+}
+
+/** The fields of an OpenRouter-style `/models` row that the mapper reads. */
+export interface OpenRouterCatalogRow {
 	id: string;
 	name: string;
 	context_length?: number;
@@ -303,8 +313,26 @@ export function mapOpenRouterModel(m: {
 		output_modalities?: string[] | null;
 	};
 	supported_parameters?: string[] | null;
+	/** Authoritative free/paid flag, when the gateway publishes one. */
 	isFree?: boolean;
-}): ProviderModelConfig {
+}
+
+/** First published limit; 0 (OrcaRouter, FastRouter) means "not published". */
+function firstPositiveLimit(
+	...limits: (number | null | undefined)[]
+): number | undefined {
+	return limits.find(
+		(limit): limit is number => typeof limit === "number" && limit > 0,
+	);
+}
+
+/**
+ * Map OpenRouter/Kilo API model to ProviderModelConfig
+ * Shared between OpenRouter and Kilo providers
+ */
+export function mapOpenRouterModel(
+	m: OpenRouterCatalogRow,
+): ProviderModelConfig {
 	const promptPrice = parseCatalogPrice(m.pricing?.prompt);
 	const completionPrice = parseCatalogPrice(m.pricing?.completion);
 	const supportedParameters = m.supported_parameters ?? [];
