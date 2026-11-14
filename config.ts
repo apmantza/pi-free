@@ -35,8 +35,6 @@ import {
 	PROVIDER_OLLAMA,
 	PROVIDER_OPENCODE,
 	PROVIDER_OPENCODE_FREE,
-	PROVIDER_OPENCODE_GO,
-	PROVIDER_OPENROUTER,
 	PROVIDER_QODER,
 	PROVIDER_ROUTEWAY,
 	PROVIDER_OPENGATEWAY,
@@ -162,10 +160,8 @@ interface PiFreeConfig {
 	inferx_show_paid?: boolean;
 	amd_tokenlab_api_key?: string;
 	amd_tokenlab_show_paid?: boolean;
-	openrouter_show_paid?: boolean;
 	opencode_show_paid?: boolean;
 	opencode_free_show_paid?: boolean;
-	opencode_go_show_paid?: boolean;
 	qoder_show_paid?: boolean;
 
 	// Explicit per-provider catalog views, keyed by provider id. Sparse: only
@@ -255,10 +251,8 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	inferx_show_paid: false,
 	amd_tokenlab_api_key: "",
 	amd_tokenlab_show_paid: false,
-	openrouter_show_paid: false,
 	opencode_show_paid: false,
 	opencode_free_show_paid: false,
-	opencode_go_show_paid: false,
 	qoder_show_paid: false,
 
 	// Auto-fallback defaults (lib/auto-fallback/config.ts reads these).
@@ -544,11 +538,6 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 	},
 	{ id: PROVIDER_OLLAMA, prefix: "OLLAMA", showPaidKey: "ollama_show_paid" },
 	{
-		id: PROVIDER_OPENROUTER,
-		prefix: "OPENROUTER",
-		showPaidKey: "openrouter_show_paid",
-	},
-	{
 		id: PROVIDER_OPENCODE,
 		prefix: "OPENCODE",
 		showPaidKey: "opencode_show_paid",
@@ -557,11 +546,6 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 		id: PROVIDER_OPENCODE_FREE,
 		prefix: "OPENCODE_FREE",
 		showPaidKey: "opencode_free_show_paid",
-	},
-	{
-		id: PROVIDER_OPENCODE_GO,
-		prefix: "OPENCODE_GO",
-		showPaidKey: "opencode_go_show_paid",
 	},
 	{ id: PROVIDER_QODER, prefix: "QODER", showPaidKey: "qoder_show_paid" },
 ];
@@ -828,13 +812,6 @@ export function getOllamaShowPaid(): boolean {
 	return resolveBool("OLLAMA_SHOW_PAID", loadConfigFile().ollama_show_paid);
 }
 
-export function getOpenrouterShowPaid(): boolean {
-	return resolveBool(
-		"OPENROUTER_SHOW_PAID",
-		loadConfigFile().openrouter_show_paid,
-	);
-}
-
 export function getOpencodeShowPaid(): boolean {
 	return resolveBool("OPENCODE_SHOW_PAID", loadConfigFile().opencode_show_paid);
 }
@@ -843,13 +820,6 @@ export function getOpencodeFreeShowPaid(): boolean {
 	return resolveBool(
 		"OPENCODE_FREE_SHOW_PAID",
 		loadConfigFile().opencode_free_show_paid,
-	);
-}
-
-export function getOpencodeGoShowPaid(): boolean {
-	return resolveBool(
-		"OPENCODE_GO_SHOW_PAID",
-		loadConfigFile().opencode_go_show_paid,
 	);
 }
 
@@ -1030,14 +1000,6 @@ function readAuthJsonKey(
 		// auth.json missing or corrupt — silently skip
 	}
 	return undefined;
-}
-
-/**
- * OpenRouter key — pi's built-in provider reads from ~/.pi/agent/auth.json.
- * pi-free checks env var first, then auth.json.
- */
-export function getOpenrouterApiKey(): string | undefined {
-	return readAuthJsonKey("openrouter", "OPENROUTER_API_KEY");
 }
 
 /** OpenCode key — pi's built-in provider. Read from env or auth.json. */

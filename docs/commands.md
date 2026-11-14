@@ -58,9 +58,7 @@ To remove a provider from the model picker entirely, run `/hide-provider <provid
 | `/toggle-amd-tokenlab` | AMD Token Lab | Native |
 | `/toggle-stepfun` | StepFun | Native |
 | `/toggle-qoder` | Qoder | Legacy |
-| `/toggle-openrouter` | OpenRouter | Pi built-in |
 | `/toggle-opencode-free` | OpenCode Zen free wrapper | Pi built-in catalog + detached Zen refresh |
-| `/toggle-opencode-go` | OpenCode Go | Pi built-in catalog + detached Go refresh |
 | `/toggle-fastrouter` | FastRouter | Native |
 | `/toggle-gmi` | GMI Cloud | Native |
 | `/toggle-agnes` | Agnes AI | Native |
@@ -70,7 +68,7 @@ To remove a provider from the model picker entirely, run `/hide-provider <provid
 | `/toggle-merge` | Merge Gateway | Native |
 | `/toggle-commandcode` | CommandCode | Native |
 
-Native providers retain their complete catalog and let Pi apply the current filter. All pi-free providers now use the native provider lifecycle; Pi built-in providers retain Pi-owned catalogs.
+Native providers retain their complete catalog and let Pi apply the current filter. All pi-free providers now use the native provider lifecycle; Pi built-in providers retain Pi-owned catalogs. Pi's own OpenRouter and OpenCode Go providers have no pi-free toggle: pi-free does not override them.
 
 ## Authentication Commands
 

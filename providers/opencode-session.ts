@@ -224,14 +224,6 @@ export function createOpenCodeHeaders(
 	};
 }
 
-export function isOpenCodeProvider(providerId: string): boolean {
-	return (
-		providerId === "opencode" ||
-		providerId === "opencode-free" ||
-		providerId === "opencode-go"
-	);
-}
-
 export function resolveOpenCodeModelApi(
 	modelId: string,
 	providerId: string,
@@ -737,8 +729,8 @@ export function createOpenCodeStreamSimple(
 ): NonNullable<ProviderConfig["streamSimple"]> {
 	// opencode-free must not send the account key: the keyed free-tier lane is
 	// disabled upstream, so every keyed request 403s with "Model access is
-	// disabled". The anonymous `public` bearer is accepted. opencode-go keeps
-	// the credential (its own `lite` lane).
+	// disabled". The anonymous `public` bearer is accepted. A keyed stream
+	// (no `anonymous` flag) keeps the credential.
 	const anonymous = settings?.anonymous === true;
 	return (model, context, options) => {
 		const headers = createOpenCodeHeaders(tracker, options?.headers);
@@ -927,8 +919,12 @@ let _apiProviderRegistrationPromise: Promise<void> | undefined;
 
 /**
  * Pick the stream for a compat-registry call. The registry key is the api id
- * (`opencode-dynamic`), so `opencode-free` and `opencode-go` share one entry:
- * free models must use the anonymous bearer, Go keeps the credential.
+ * (`opencode-dynamic`), shared by every provider whose models carry it:
+ * `opencode-free` models must use the anonymous bearer, anything else keeps
+ * the credential. pi-free publishes `opencode-dynamic` only for
+ * `opencode-free` (Pi's native `opencode-go` keeps its wire APIs), so the
+ * keyed branch is the default for an unrecognized provider, never the
+ * anonymous one.
  *
  * Exported so the rule is unit-tested directly.
  */

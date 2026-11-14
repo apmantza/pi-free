@@ -168,6 +168,5 @@ describe("opencode catalog cache", () => {
 			>
 		).map(([id]) => id);
 		expect(ids).not.toContain("opencode-free");
-		expect(ids).not.toContain("opencode-go");
 	});
 });

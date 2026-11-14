@@ -108,14 +108,24 @@ it.each(["absent", "environment", "stored-go", "stored-free"])(
 		// Wait for actual detached work, not a guessed startup delay.
 		await vi.waitFor(() => {
 			const tasks = getStartupSummary().detachedSessionWork;
-			for (const id of ["opencode-free", "opencode-go", "openrouter"]) {
-				expect(
-					tasks.some((task) => task.label === `built-in-toggle-refresh-${id}`),
-				).toBe(true);
-			}
+			expect(
+				tasks.some(
+					(task) => task.label === "built-in-toggle-refresh-opencode-free",
+				),
+			).toBe(true);
 		});
+		// Pi's native opencode-go and openrouter are not overridden: no
+		// pi-free capture or refresh may run for them.
+		const labels = getStartupSummary().detachedSessionWork.map(
+			(task) => task.label,
+		);
+		for (const id of ["opencode-go", "openrouter"]) {
+			expect(labels).not.toContain(`built-in-toggle-capture-${id}`);
+			expect(labels).not.toContain(`built-in-toggle-refresh-${id}`);
+		}
 
-		// Same dispatcher used by Pi's interactive refresh coordinator.
+		// Same dispatcher used by Pi's interactive refresh coordinator. Pi's
+		// native opencode-go refreshes beside opencode-free without errors.
 		const result = await runtime.refresh({
 			allowNetwork: true,
 			force: true,

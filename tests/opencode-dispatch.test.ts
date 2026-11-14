@@ -157,11 +157,11 @@ beforeEach(async () => {
 	await session.bindExtensions({});
 	await vi.waitFor(() => {
 		const tasks = getStartupSummary().detachedSessionWork;
-		for (const id of ["opencode-free", "opencode-go", "openrouter"]) {
-			expect(
-				tasks.some((task) => task.label === `built-in-toggle-refresh-${id}`),
-			).toBe(true);
-		}
+		expect(
+			tasks.some(
+				(task) => task.label === "built-in-toggle-refresh-opencode-free",
+			),
+		).toBe(true);
 	});
 });
 
@@ -195,16 +195,14 @@ it("dispatches every registered OpenCode model through its wrapper across refres
 			});
 			expect([...result.errors]).toEqual([]);
 		} else if (phase === "toggle") {
-			for (const provider of ["opencode-free", "opencode-go"]) {
-				const state = getProviderRegistry().get(provider)!;
-				state.reRegister(state.stored.all);
-			}
+			const state = getProviderRegistry().get("opencode-free")!;
+			state.reRegister(state.stored.all);
 		}
 		// Include a model synthesized from /models, not just known GLM ids.
 		expect(
 			runtime.getModel("opencode-free", "future-discovered-free"),
 		).toBeDefined();
-		for (const provider of ["opencode-free", "opencode-go"]) {
+		for (const provider of ["opencode-free"]) {
 			expect(runtime.getModels(provider).length).toBeGreaterThan(0);
 			for (const model of runtime.getModels(provider)) {
 				const id = model.id;
@@ -232,35 +230,31 @@ it("dispatches every registered OpenCode model through its wrapper across refres
 					wireSystemText(requests[0]?.payload).includes(
 						"<env>Working directory: .</env>",
 					),
-				).toBe(provider === "opencode-free");
+				).toBe(true);
 				expect(wire).toContain('"read"');
 				expect(JSON.stringify(context)).toBe(before);
 				expect(requests, `${phase}: ${provider}/${id}`).toHaveLength(1);
 				expect(requests[0]!.client).toBe("cli");
-				expect(requests[0]!.token).toBe(
-					provider === "opencode-free" ? "public" : "stored-go-fixture",
-				);
+				expect(requests[0]!.token).toBe("public");
+				// #635: correct auth alone does not prove the wrapper ran;
+				// model-level static headers must not reuse a request id.
+				const previousRequest = requests[0]!.requestId;
+				await runtime
+					.streamSimple(
+						model,
+						{
+							messages: [
+								{ role: "user", content: "next", timestamp: Date.now() },
+							],
+						},
+						{ maxTokens: 1 },
+					)
+					.result();
+				expect(requests).toHaveLength(2);
+				expect(requests[1]!.requestId).toMatch(/^msg_/);
+				expect(requests[1]!.requestId).not.toBe(previousRequest);
 				// Grok is Responses despite not having a gpt-* prefix; never
 				// replace authoritative catalog wire metadata with id guessing.
-				if (provider === "opencode-go") {
-					// #635: correct auth alone does not prove Go's wrapper ran;
-					// model-level static headers must not reuse a request id.
-					const previousRequest = requests[0]!.requestId;
-					await runtime
-						.streamSimple(
-							model,
-							{
-								messages: [
-									{ role: "user", content: "next", timestamp: Date.now() },
-								],
-							},
-							{ maxTokens: 1 },
-						)
-						.result();
-					expect(requests).toHaveLength(2);
-					expect(requests[1]!.requestId).toMatch(/^msg_/);
-					expect(requests[1]!.requestId).not.toBe(previousRequest);
-				}
 				if (id === "grok-4.7")
 					expect(requests[0]!.path).toMatch(/\/responses$/);
 				if (id === "claude-haiku-5-5")
@@ -268,11 +262,16 @@ it("dispatches every registered OpenCode model through its wrapper across refres
 			}
 		}
 	}
-	expect(
-		runtime
-			.getModels("openrouter")
-			.every((model) => model.api !== "opencode-dynamic"),
-	).toBe(true);
+	// Pi's native providers are not overridden: their models keep Pi's own
+	// wire APIs and never route through pi-free's dispatch tag.
+	expect(runtime.getModels("opencode-go").length).toBeGreaterThan(0);
+	for (const provider of ["opencode-go", "openrouter"]) {
+		expect(
+			runtime
+				.getModels(provider)
+				.every((model) => model.api !== "opencode-dynamic"),
+		).toBe(true);
+	}
 }, 20000);
 
 // #628: adding a new leading system message can demote Pi's original system
@@ -354,27 +353,24 @@ it("preserves rich system messages and tools without mutating or accumulating", 
 // callback. Dispatch-tagged models must retain their authoritative wire API.
 it("preserves catalog protocols through the real compat dispatcher", async () => {
 	const { streamSimple } = await import("@earendil-works/pi-ai/compat");
-	for (const provider of ["opencode-free", "opencode-go"]) {
-		requests.length = 0;
-		const model = runtime.getModel(provider, "grok-4.7")!;
-		await streamSimple(
-			model,
-			{
-				messages: [{ role: "user", content: "hello", timestamp: Date.now() }],
-			},
-			{ apiKey: "stored-go-fixture", maxTokens: 1 },
-		).result();
-		expect(requests).toHaveLength(1);
-		expect(requests[0]!.path).toMatch(/\/responses$/);
-		expect(
-			wireSystemText(requests[0]!.payload).includes(
-				"<env>Working directory: .</env>",
-			),
-		).toBe(provider === "opencode-free");
-		expect(requests[0]!.token).toBe(
-			provider === "opencode-free" ? "public" : "stored-go-fixture",
-		);
-	}
+	requests.length = 0;
+	const model = runtime.getModel("opencode-free", "grok-4.7")!;
+	await streamSimple(
+		model,
+		{
+			messages: [{ role: "user", content: "hello", timestamp: Date.now() }],
+		},
+		// A caller-supplied credential must not leak onto the anonymous lane.
+		{ apiKey: "stored-go-fixture", maxTokens: 1 },
+	).result();
+	expect(requests).toHaveLength(1);
+	expect(requests[0]!.path).toMatch(/\/responses$/);
+	expect(
+		wireSystemText(requests[0]!.payload).includes(
+			"<env>Working directory: .</env>",
+		),
+	).toBe(true);
+	expect(requests[0]!.token).toBe("public");
 });
 
 // #635: a real Bun process is required to observe the dispatcher reaching the
@@ -423,8 +419,8 @@ it.skipIf(!hasBun)(
 // tool-less request with 429 FreeUsageLimitError (live, 2026-11-14), so every
 // auto-compaction on opencode-free failed while ordinary turns succeeded.
 // Declare the gate names on tool-less free requests with tool choice "none" so
-// the summarizer can never call them; requests that carry tools and the keyed
-// Go lane go out untouched.
+// the summarizer can never call them; requests that carry tools and Pi's
+// native opencode-go provider go out untouched.
 it("declares the free-tier gate tools on tool-less requests without letting the model call them", async () => {
 	const gate = ["bash", "edit", "glob", "grep", "read"];
 	const forbidsCalls: Record<
@@ -441,36 +437,41 @@ it("declares the free-tier gate tools on tool-less requests without letting the 
 		[...JSON.stringify(payload).matchAll(/"name":"([a-z]+)"/g)].map(
 			(m) => m[1]!,
 		);
+	// Shape of Pi's summarization request: a system prompt, one user turn, no tools.
+	const summaryContext = () => ({
+		systemPrompt: "You are a context summarization assistant.",
+		messages: [
+			{
+				role: "user" as const,
+				content: "summarize",
+				timestamp: Date.now(),
+			},
+		],
+	});
+	// Negative control: Pi's native opencode-go provider is not pi-free's, so
+	// its tool-less requests carry no gate declarations.
+	const nativeGo = runtime.getModels("opencode-go")[0];
+	expect(nativeGo).toBeDefined();
+	requests.length = 0;
+	await runtime
+		.streamSimple(nativeGo!, summaryContext(), { maxTokens: 1 })
+		.result();
+	expect(requests, `opencode-go/${nativeGo!.id}`).toHaveLength(1);
+	expect(toolNames(requests[0]!.payload)).toEqual([]);
 	for (const [id, forbids] of Object.entries(forbidsCalls)) {
-		for (const provider of ["opencode-free", "opencode-go"]) {
-			// Shape of Pi's summarization request: a system prompt, one user turn, no tools.
-			const context = {
-				systemPrompt: "You are a context summarization assistant.",
-				messages: [
-					{
-						role: "user" as const,
-						content: "summarize",
-						timestamp: Date.now(),
-					},
-				],
-			};
-			const before = JSON.stringify(context);
-			requests.length = 0;
-			await runtime
-				.streamSimple(runtime.getModel(provider, id)!, context, {
-					maxTokens: 1,
-				})
-				.result();
-			expect(requests, `${provider}/${id}`).toHaveLength(1);
-			const payload = requests[0]!.payload as Record<string, unknown>;
-			if (provider === "opencode-free") {
-				expect(toolNames(payload), id).toEqual(expect.arrayContaining(gate));
-				expect(forbids(payload), id).toBe(true);
-			} else {
-				expect(toolNames(payload), id).toEqual([]);
-			}
-			expect(JSON.stringify(context)).toBe(before);
-		}
+		const context = summaryContext();
+		const before = JSON.stringify(context);
+		requests.length = 0;
+		await runtime
+			.streamSimple(runtime.getModel("opencode-free", id)!, context, {
+				maxTokens: 1,
+			})
+			.result();
+		expect(requests, `opencode-free/${id}`).toHaveLength(1);
+		const payload = requests[0]!.payload as Record<string, unknown>;
+		expect(toolNames(payload), id).toEqual(expect.arrayContaining(gate));
+		expect(forbids(payload), id).toBe(true);
+		expect(JSON.stringify(context)).toBe(before);
 		// A free request that already carries tools keeps Pi's own tool choice.
 		requests.length = 0;
 		await runtime

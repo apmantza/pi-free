@@ -6,9 +6,6 @@ const mockGetModelViewOverride = vi.fn();
 const mockSetModelViewOverride = vi.fn();
 const mockGetOpencodeShowPaid = vi.fn();
 const mockGetOpencodeFreeShowPaid = vi.fn();
-const mockGetOpencodeGoShowPaid = vi.fn();
-const mockGetOpenrouterShowPaid = vi.fn();
-const mockGetOpenrouterApiKey = vi.fn();
 const mockGetOpencodeApiKey = vi.fn();
 const mockSaveConfig = vi.fn();
 const mockRegisterWithGlobalToggle = vi.fn();
@@ -28,9 +25,6 @@ vi.mock("../config.ts", () => ({
 	getOpencodeApiKey: () => mockGetOpencodeApiKey(),
 	getOpencodeShowPaid: () => mockGetOpencodeShowPaid(),
 	getOpencodeFreeShowPaid: () => mockGetOpencodeFreeShowPaid(),
-	getOpencodeGoShowPaid: () => mockGetOpencodeGoShowPaid(),
-	getOpenrouterApiKey: () => mockGetOpenrouterApiKey(),
-	getOpenrouterShowPaid: () => mockGetOpenrouterShowPaid(),
 	setModelViewOverride: (...args: unknown[]) =>
 		mockSetModelViewOverride(...args),
 	// #603: the toggle flips atomically inside config now; mirror the same
@@ -51,8 +45,6 @@ vi.mock("../config.ts", () => ({
 /** Legacy explicit-true pref backing the resolveModelView mock below. */
 function mockLegacyShowPaid(providerId: string): boolean {
 	if (providerId === "opencode-free") return mockGetOpencodeFreeShowPaid();
-	if (providerId === "opencode-go") return mockGetOpencodeGoShowPaid();
-	if (providerId === "openrouter") return mockGetOpenrouterShowPaid();
 	return mockGetOpencodeShowPaid();
 }
 
@@ -137,9 +129,6 @@ describe("built-in provider toggles", () => {
 		mockGetModelViewOverride.mockReturnValue(undefined);
 		mockGetOpencodeShowPaid.mockReturnValue(false);
 		mockGetOpencodeFreeShowPaid.mockReturnValue(false);
-		mockGetOpencodeGoShowPaid.mockReturnValue(false);
-		mockGetOpenrouterShowPaid.mockReturnValue(false);
-		mockGetOpenrouterApiKey.mockReturnValue(undefined);
 
 		mockPi = {
 			registerCommand: vi.fn((name: string, config: { handler: Function }) => {
@@ -262,7 +251,7 @@ describe("built-in provider toggles", () => {
 		]);
 	});
 
-	it("refreshes opencode-go from the live Go endpoint after session_start", async () => {
+	it("keeps curated metadata and dispatch-tags opencode-free models on refresh", async () => {
 		// Explicit all-view: this pins refresh mechanics (fetch, merge,
 		// metadata), not view resolution (pinned separately).
 		mockGetModelViewOverride.mockReturnValue("all");
@@ -271,28 +260,28 @@ describe("built-in provider toggles", () => {
 		const fetchMock = vi.fn();
 		vi.stubGlobal("fetch", fetchMock);
 
-		// Pi's built-in Go snapshot: one curated model.
+		// Pi's built-in OpenCode snapshot: one curated model.
 		const models = [
 			{
-				provider: "opencode-go",
-				id: "minimax-m2.7",
-				name: "MiniMax M2.7",
+				provider: "opencode",
+				id: "claude-known",
+				name: "Claude Known",
 				api: "anthropic-messages",
 				reasoning: true,
 				input: ["text"],
-				cost: { input: 0.22, output: 0.66, cacheRead: 0, cacheWrite: 0 },
+				cost: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 },
 				contextWindow: 200000,
 				maxTokens: 8192,
-				baseUrl: "https://opencode.ai/zen/go/v1",
+				baseUrl: "https://opencode.ai/zen/v1",
 			},
 		];
 
 		fetchMock.mockImplementation((url: string) => {
-			if (url === "https://opencode.ai/zen/go/v1/models") {
+			if (url === "https://opencode.ai/inference/v1/models") {
 				return Promise.resolve(
 					new Response(
 						JSON.stringify({
-							data: [{ id: "minimax-m2.7" }, { id: "mimo-v2-pro" }],
+							data: [{ id: "claude-known" }, { id: "new-model-free" }],
 						}),
 						{ status: 200, headers: { "content-type": "application/json" } },
 					),
@@ -307,34 +296,25 @@ describe("built-in provider toggles", () => {
 		);
 		await settleDetachedCapture();
 
-		// Pre-fix the Go tier had no refreshEndpoint, so models OpenCode shipped
-		// after Pi's snapshot never appeared (#504).
-		expect(fetchMock).toHaveBeenCalledWith(
-			"https://opencode.ai/zen/go/v1/models",
-			expect.objectContaining({ signal: expect.any(AbortSignal) }),
-		);
-
-		const goCalls = mockRegisterProvider.mock.calls.filter(
-			([id]) => id === "opencode-go",
-		);
-		const lastModels = goCalls.at(-1)?.[1].models as Array<{
+		const lastModels = mockRegisterProvider.mock.calls.at(-1)?.[1]
+			.models as Array<{
 			id: string;
 			name: string;
 			api: string;
 			baseUrl: string;
 		}>;
 		expect(lastModels.map((model) => model.id)).toEqual([
-			"minimax-m2.7",
-			"mimo-v2-pro",
+			"claude-known",
+			"new-model-free",
 		]);
 		// Curated metadata survives, while every published model uses the
 		// provider dispatch tag (#635). Actual wire protocols are exercised
 		// independently through ModelRuntime in opencode-dispatch.test.ts.
-		expect(lastModels[0]!.name).toBe("MiniMax M2.7");
+		expect(lastModels[0]!.name).toBe("Claude Known");
 		expect(lastModels.every((model) => model.api === "opencode-dynamic")).toBe(
 			true,
 		);
-		expect(lastModels[1]!.baseUrl).toBe("https://opencode.ai/zen/go/v1");
+		expect(lastModels[1]!.baseUrl).toBe("https://opencode.ai/inference/v1");
 	});
 
 	it("retains the cached catalog when Pi's refresh fetch fails", async () => {
@@ -614,7 +594,7 @@ describe("built-in provider toggles", () => {
 
 		const models = [
 			{
-				provider: "openrouter",
+				provider: "opencode",
 				id: "known/model",
 				name: "Known Model",
 				api: "openai-completions",
@@ -623,12 +603,12 @@ describe("built-in provider toggles", () => {
 				cost: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 },
 				contextWindow: 128000,
 				maxTokens: 4096,
-				baseUrl: "https://openrouter.ai/api/v1",
+				baseUrl: "https://opencode.ai/zen/v1",
 			},
 		];
 
 		fetchMock.mockImplementation((url: string) => {
-			if (url === "https://openrouter.ai/api/v1/models") {
+			if (url === "https://opencode.ai/inference/v1/models") {
 				return Promise.resolve(
 					new Response(JSON.stringify({ data: [] }), {
 						status: 200,
@@ -663,87 +643,6 @@ describe("built-in provider toggles", () => {
 				signal: new AbortController().signal,
 			}),
 		).resolves.toEqual([expect.objectContaining({ id: "known/model" })]);
-	});
-
-	it("refreshes the built-in openrouter catalog from the public endpoint", async () => {
-		// Explicit all-view: this pins refresh mechanics (fetch, merge,
-		// metadata), not view resolution (pinned separately).
-		mockGetModelViewOverride.mockReturnValue("all");
-		setupBuiltInProviderToggles(mockPi);
-
-		const fetchMock = vi.fn();
-		vi.stubGlobal("fetch", fetchMock);
-
-		const models = [
-			{
-				provider: "openrouter",
-				id: "known/model",
-				name: "Known Model",
-				api: "openai-completions",
-				reasoning: false,
-				input: ["text"],
-				cost: { input: 3, output: 15, cacheRead: 0, cacheWrite: 0 },
-				contextWindow: 128000,
-				maxTokens: 4096,
-				baseUrl: "https://openrouter.ai/api/v1",
-			},
-		];
-
-		fetchMock.mockImplementation((url: string) => {
-			if (url === "https://openrouter.ai/api/v1/models") {
-				return Promise.resolve(
-					new Response(
-						JSON.stringify({
-							data: [
-								// Known ID — must keep Pi's curated built-in metadata.
-								{ id: "known/model", name: "Known Model (live)" },
-								// New ID — synthesized from live endpoint metadata.
-								{
-									id: "vendor/new-model",
-									name: "Vendor New Model",
-									context_length: 200000,
-									max_completion_tokens: 8192,
-									pricing: { prompt: "0.000002", completion: "0.00001" },
-									architecture: { input_modalities: ["text", "image"] },
-									supported_parameters: ["reasoning"],
-								},
-							],
-						}),
-						{ status: 200, headers: { "content-type": "application/json" } },
-					),
-				);
-			}
-			return Promise.reject(new Error(`unexpected fetch: ${url}`));
-		});
-
-		await handlers.session_start!(
-			{},
-			{ modelRegistry: { getAvailable: () => models } },
-		);
-		await settleDetachedCapture();
-
-		expect(fetchMock).toHaveBeenCalledWith(
-			"https://openrouter.ai/api/v1/models",
-			expect.objectContaining({ signal: expect.any(AbortSignal) }),
-		);
-
-		const lastModels = mockRegisterProvider.mock.calls.at(-1)?.[1]
-			.models as Array<{
-			id: string;
-			name: string;
-			cost?: { input: number };
-			contextWindow?: number;
-		}>;
-		expect(lastModels.map((model) => model.id)).toEqual([
-			"known/model",
-			"vendor/new-model",
-		]);
-		// Known ID keeps Pi's curated metadata (name + cost untouched).
-		expect(lastModels[0]!.name).toBe("Known Model");
-		expect(lastModels[0]!.cost?.input).toBe(3);
-		// New ID is synthesized from live endpoint data.
-		expect(lastModels[1]!.name).toBe("Vendor New Model");
-		expect(lastModels[1]!.contextWindow).toBe(200000);
 	});
 
 	it("registers into the latest registry when session_start fires again mid-capture", async () => {
@@ -964,12 +863,15 @@ describe("built-in provider toggles", () => {
 		);
 	});
 
-	it("preserves Pi-managed OpenRouter OAuth when toggling captured models", async () => {
+	// Recurrence #504 / defect shape 9: an absent credential must never
+	// become an apiKey override on re-registration (a toggle re-registers).
+	it("omits apiKey on toggle when opencode-free has no credential", async () => {
+		mockGetOpencodeApiKey.mockReturnValue(undefined);
 		setupBuiltInProviderToggles(mockPi);
 
 		const models = [
 			{
-				provider: "openrouter",
+				provider: "opencode",
 				id: "free-model",
 				name: "Free Model",
 				api: "openai-completions",
@@ -978,10 +880,10 @@ describe("built-in provider toggles", () => {
 				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 				contextWindow: 128000,
 				maxTokens: 4096,
-				baseUrl: "https://openrouter.ai/api/v1",
+				baseUrl: "https://opencode.ai/zen/v1",
 			},
 			{
-				provider: "openrouter",
+				provider: "opencode",
 				id: "paid-model",
 				name: "Paid Model",
 				api: "openai-completions",
@@ -990,7 +892,7 @@ describe("built-in provider toggles", () => {
 				cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
 				contextWindow: 128000,
 				maxTokens: 4096,
-				baseUrl: "https://openrouter.ai/api/v1",
+				baseUrl: "https://opencode.ai/zen/v1",
 			},
 		];
 
@@ -999,18 +901,16 @@ describe("built-in provider toggles", () => {
 			{ modelRegistry: { getAvailable: () => models } },
 		);
 		await settleDetachedCapture();
-		await commands["toggle-openrouter"]!({}, { ui: { notify: vi.fn() } });
+		await commands["toggle-opencode-free"]!({}, { ui: { notify: vi.fn() } });
 
 		expect(mockRegisterProvider).toHaveBeenLastCalledWith(
-			"openrouter",
+			"opencode-free",
 			expect.not.objectContaining({ apiKey: expect.anything() }),
 		);
 	});
 
 	it("skips fallback capture for providers already registered dynamically", () => {
 		mockProviderRegistry.set("opencode-free", {});
-		mockProviderRegistry.set("opencode-go", {});
-		mockProviderRegistry.set("openrouter", {});
 
 		setupBuiltInProviderToggles(mockPi);
 

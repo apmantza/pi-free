@@ -26,9 +26,6 @@ vi.mock("../config.ts", () => ({
 	getOpencodeApiKey: () => undefined,
 	getOpencodeShowPaid: () => false,
 	getOpencodeFreeShowPaid: () => false,
-	getOpencodeGoShowPaid: () => false,
-	getOpenrouterApiKey: () => undefined,
-	getOpenrouterShowPaid: () => false,
 	setModelViewOverride: (...args: unknown[]) =>
 		mockSetModelViewOverride(...args),
 	saveConfig: () => {},
