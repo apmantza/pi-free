@@ -15,9 +15,9 @@
  * appear only after login (Pi hides keyless providers); chat requests
  * require an API key from infron.ai.
  *
- * Free models: the catalog's zero-priced LLM entries (currently seven,
- * six with an explicit `:free` id) are classified free via Route A
- * pricing detection — no curated list needed.
+ * Free models: the catalog's zero-priced LLM entries (one on 2026-11-14,
+ * `qwen/qwen3.8-27b:free`) are classified free via Route A pricing
+ * detection — no curated list needed.
  *
  * Setup:
  *   INFRON_API_KEY=sk-...
@@ -36,16 +36,20 @@ import { infronAuth } from "./infron-auth.ts";
 import { fetchInfronModels } from "./infron-models.ts";
 import { registerInfronRateLimitContinuation } from "./infron-continuation.ts";
 
+/** Everything Pi registers for Infron; tests drive the same object. */
+export const infronProviderOptions = {
+	providerId: PROVIDER_INFRON,
+	name: "Infron AI",
+	baseUrl: BASE_URL_INFRON,
+	auth: infronAuth,
+	getApiKey: getInfronApiKey,
+	getShowPaid: getInfronShowPaid,
+	fetchModels: (apiKey: string, signal?: AbortSignal) =>
+		fetchInfronModels(apiKey, signal),
+};
+
 export default function infronProvider(pi: ExtensionAPI): Promise<void> {
 	registerInfronRateLimitContinuation(pi);
-	registerNativeOpenAIProvider(pi, {
-		providerId: PROVIDER_INFRON,
-		name: "Infron AI",
-		baseUrl: BASE_URL_INFRON,
-		auth: infronAuth,
-		getApiKey: getInfronApiKey,
-		getShowPaid: getInfronShowPaid,
-		fetchModels: (apiKey, signal) => fetchInfronModels(apiKey, signal),
-	});
+	registerNativeOpenAIProvider(pi, infronProviderOptions);
 	return Promise.resolve();
 }
