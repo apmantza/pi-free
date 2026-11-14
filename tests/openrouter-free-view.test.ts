@@ -17,7 +17,14 @@
  * ModelRuntime and request path. Only HTTP (the host boundary) is stubbed;
  * no credentialed call leaves the process.
  */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { resolve } from "node:path";
 import {
 	createAgentSessionFromServices,
@@ -367,4 +374,68 @@ it("keeps a priced model out of the free view even when its id says :free", asyn
 	).toBeDefined();
 	await command("toggle-openrouter");
 	expectNative(native, runtime);
+});
+
+/** Unhandled rejections raised while `work` runs (detached command bodies). */
+async function captureUnhandled(work: () => Promise<void>): Promise<unknown[]> {
+	const seen: unknown[] = [];
+	const listener = (reason: unknown) => seen.push(reason);
+	process.on("unhandledRejection", listener);
+	try {
+		await work();
+	} finally {
+		process.off("unhandledRejection", listener);
+	}
+	return seen;
+}
+
+it("/toggle-free still toasts and stays handled when Pi refuses the OpenRouter registration", async () => {
+	// Recurrence (review of #699): /toggle-free runs its body detached
+	// (`void`), so a throw from the OpenRouter step after the flag was saved
+	// skipped the toast and recordAction and became an unhandled rejection.
+	// Real trigger: an empty `openrouter` entry in models.json makes Pi reject
+	// every extension registration for that id (Pi itself keeps its built-in).
+	const { native, runtime } = await boot(
+		{ free_only: false },
+		{ providers: { openrouter: {} } },
+	);
+	expectNative(native, runtime);
+	const unhandled = await captureUnhandled(async () => {
+		await command("toggle-free");
+		await vi.waitFor(() =>
+			expect(notices.some((n) => n.startsWith("Free-only mode: ON"))).toBe(
+				true,
+			),
+		);
+	});
+	expect(unhandled).toEqual([]);
+	expect(notices.some((n) => n.startsWith("openrouter: could not"))).toBe(true);
+	expectNative(native, runtime);
+});
+
+it("/toggle-free resumed on a replaced session finishes quietly (#509)", async () => {
+	// Recurrence (review of #699): another pi process holds ~/.pi/free.json's
+	// lock (#611), so /toggle-free waits on it; the user starts a new session
+	// meanwhile; the detached body then resumes on a stale ctx.
+	await boot({ free_only: true });
+	const lock = resolve(home as string, ".pi/free.json.lock");
+	mkdirSync(lock);
+	writeFileSync(
+		resolve(lock, "info.json"),
+		JSON.stringify({ pid: process.pid, time: Date.now() }),
+	);
+	const log = resolve(home as string, ".pi/free.log");
+	const unhandled = await captureUnhandled(async () => {
+		await command("toggle-free");
+		await owner!.newSession();
+		rmSync(lock, { recursive: true, force: true });
+		await vi.waitFor(
+			() =>
+				expect(existsSync(log) ? readFileSync(log, "utf-8") : "").toContain(
+					"session changed during /toggle-free",
+				),
+			{ timeout: 5000 },
+		);
+	});
+	expect(unhandled).toEqual([]);
 });

@@ -4,11 +4,17 @@
  * The one exception to the Standing Invariant "never override a provider
  * native to Pi" (agents.md). Pi has no extension API to hide another
  * provider's models, so under the free view pi-free registers an overlay
- * holding ONLY `models`: Pi's own current OpenRouter catalog with the paid
- * chat models removed. Pi composes it over its built-in provider, so auth
- * (stored credential, OAuth, `OPENROUTER_API_KEY`), endpoints, headers,
- * streams and Pi's own catalog refresh all stay Pi's. No fetch, no apiKey
- * (defect shape 9), no request wrapper, no refreshModels.
+ * holding ONLY `models`: a snapshot of Pi's own resolved OpenRouter catalog
+ * entries, taken at session start or toggle, with the paid chat models
+ * removed. Each entry keeps the fields Pi resolved for it (per-model
+ * `baseUrl`, `api`, `headers`, `compat`, cost, limits); pi-free adds nothing
+ * of its own. Pi composes the overlay over its built-in provider, so auth
+ * (stored credential, OAuth, `OPENROUTER_API_KEY`), streams and Pi's own
+ * catalog refresh stay Pi's. No fetch, no apiKey (defect shape 9), no
+ * request wrapper, no refreshModels. Residual: being a snapshot, the
+ * entries do not follow a later refresh of Pi's catalog (new or repriced
+ * models, or a changed endpoint/header in Pi's data) until the next
+ * session start or toggle.
  *
  * Under the "all" view there is no pi-free registration at all:
  * `unregisterProvider` hands the id back to Pi's untouched built-in.
