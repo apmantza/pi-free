@@ -4,6 +4,10 @@ import {
 	isAnyApiFreeModel,
 	mapAnyApiModel,
 } from "../providers/anyapi/anyapi.ts";
+import {
+	refreshNativeCatalog,
+	useCatalogHttp,
+} from "./helpers/native-catalog.ts";
 
 describe("AnyAPI free model detection", () => {
 	it("recognizes the provider's explicit free flag", () => {
@@ -79,5 +83,58 @@ describe("AnyAPI free model detection", () => {
 		expect(isFreeModel({ ...router, provider: "anyapi" }, [router, paid])).toBe(
 			false,
 		);
+	});
+});
+
+describe("AnyAPI free view through the real refresh", () => {
+	// Rows follow the OpenRouter-style shape this mapper reads; the AnyAPI
+	// catalog needs a key, so whether it publishes "" or cache-only prices
+	// is unverified (HYPOTHESIS). The shared mapper's rule is the contract.
+	const CATALOG = {
+		data: [
+			{
+				id: "vendor/paid",
+				name: "Paid",
+				pricing: { prompt: "0.000001", completion: "0.000002" },
+				tags: ["chat_completions:text"],
+			},
+			{
+				id: "vendor/blank-price",
+				name: "Blank Price",
+				pricing: { prompt: "", completion: "" },
+				tags: ["chat_completions:text"],
+			},
+			{
+				id: "vendor/cache-only",
+				name: "Cache Only",
+				pricing: { input_cache_read: "0" },
+				tags: ["chat_completions:text"],
+			},
+			{
+				id: "vendor/zero",
+				name: "Zero",
+				pricing: { prompt: "0", completion: "0" },
+				tags: ["chat_completions:text"],
+			},
+		],
+	};
+	useCatalogHttp("api.anyapi.ai", () => CATALOG, ["ANYAPI_API_KEY"]);
+
+	// Recurrence (#690, defect shape 15): `_pricingKnown` and the zero-price
+	// free check read "any price field present", so "" prices
+	// (Number("") === 0) and a cache-only row read as a known $0 and joined
+	// the free view beside priced siblings. Only numeric prompt and
+	// completion prices are known prices, as in the shared mapper.
+	it("keeps blank and cache-only prices out of the free view", async () => {
+		const { anyapiProviderOptions } =
+			await import("../providers/anyapi/anyapi.ts");
+		const { all, free } = await refreshNativeCatalog(anyapiProviderOptions);
+		expect(all.map((m) => m.id).sort()).toEqual([
+			"vendor/blank-price",
+			"vendor/cache-only",
+			"vendor/paid",
+			"vendor/zero",
+		]);
+		expect(free.map((m) => m.id)).toEqual(["vendor/zero"]);
 	});
 });
