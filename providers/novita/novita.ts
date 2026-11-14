@@ -32,6 +32,7 @@ import {
 	PROVIDER_NOVITA,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
+import { keepToolCallingModels } from "../../lib/model-map.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import {
 	getProxyModelCompat,
@@ -54,12 +55,23 @@ const NOVITA_PRICE_UNITS_PER_USD = 10_000;
 // Types
 // =============================================================================
 
+/** One `pricing.*` entry; `price_per_m` is in NOVITA_PRICE_UNITS_PER_USD. */
+interface NovitaPrice {
+	price_per_m?: number;
+}
+
 interface NovitaModel {
 	id: string;
 	display_name?: string;
 	description?: string;
 	input_token_price_per_m?: number;
 	output_token_price_per_m?: number;
+	pricing?: {
+		prompt?: NovitaPrice;
+		completion?: NovitaPrice;
+		input_cache_read?: NovitaPrice;
+		input_cache_write?: NovitaPrice;
+	} | null;
 	context_size?: number;
 	max_output_tokens?: number;
 	features?: string[];
@@ -88,6 +100,14 @@ const NON_CHAT_OUTPUT_MODALITIES: ReadonlySet<string> = new Set([
 	"video",
 	"speech",
 ]);
+
+/** A `pricing.*` entry in USD per million tokens, if published. */
+function usdPerMillion(price: NovitaPrice | undefined): number | undefined {
+	const units = price?.price_per_m;
+	return typeof units === "number"
+		? units / NOVITA_PRICE_UNITS_PER_USD
+		: undefined;
+}
 
 // =============================================================================
 // Fetch
@@ -121,7 +141,7 @@ export async function fetchNovitaModels(
 		}
 
 		const json = (await response.json()) as { data?: NovitaModel[] };
-		const models = (json.data ?? [])
+		const chatRows = (json.data ?? [])
 			.filter((m) => m.status === 1 && m.model_type === "chat")
 			// Generation-output models (image/video/audio) cannot serve as
 			// chat agents even when text is also listed (2 live on
@@ -136,6 +156,9 @@ export async function fetchNovitaModels(
 			// Novita exposes internal smoke-test entries (`ai_infer_test_1..3`)
 			// as zero-priced chat models; they are not usable endpoints.
 			.filter((m) => !INTERNAL_TEST_MODEL_PATTERN.test(m.id));
+		const models = keepToolCallingModels(PROVIDER_NOVITA, chatRows, (m) =>
+			(m.features ?? []).includes("function-calling"),
+		);
 
 		_logger.info(`[novita] Fetched ${models.length} models`);
 
@@ -153,9 +176,15 @@ export async function fetchNovitaModels(
 				(m.input_token_price_per_m ?? 0) / NOVITA_PRICE_UNITS_PER_USD;
 			const outputCost =
 				(m.output_token_price_per_m ?? 0) / NOVITA_PRICE_UNITS_PER_USD;
+			// The `pricing` block is where Novita publishes a price: every
+			// priced row carries pricing.prompt/completion equal to the flat
+			// fields. Rows with `pricing: null` (live: nvrouter/auto and
+			// nvrouter/fusion, routers billed at the routed model's rate, plus
+			// bunny, apodex-1.1-mini, dev/glm46) carry flat 0s that are
+			// placeholders, not prices (defect shape 15).
 			const hasPricing =
-				m.input_token_price_per_m !== undefined ||
-				m.output_token_price_per_m !== undefined;
+				usdPerMillion(m.pricing?.prompt) !== undefined &&
+				usdPerMillion(m.pricing?.completion) !== undefined;
 
 			return {
 				id: m.id,
@@ -165,8 +194,10 @@ export async function fetchNovitaModels(
 				cost: {
 					input: inputCost,
 					output: outputCost,
-					cacheRead: 0,
-					cacheWrite: 0,
+					cacheRead: usdPerMillion(m.pricing?.input_cache_read) ?? 0,
+					// The default (short) write tier; pi-ai prices 1-hour writes
+					// itself (2x input), so input_cache_write_1h is not read.
+					cacheWrite: usdPerMillion(m.pricing?.input_cache_write) ?? 0,
 				},
 				contextWindow: m.context_size ?? 128_000,
 				maxTokens: m.max_output_tokens ?? 16_384,
