@@ -55,8 +55,10 @@ const {
 	getOpenCodeRelayFailure,
 	resetOpenCodeRelayForTest,
 	resolveBunCommand,
+	retireOpenCodeRelay,
 	relayRemedy,
 	OPENCODE_RELAY_PATH_RE,
+	OPENCODE_RELAY_SCRIPT,
 } = await import("../lib/opencode-relay.js");
 
 const BUN_AVAILABLE = spawnSync("bun", ["--version"]).status === 0;
@@ -703,6 +705,61 @@ describeBun("opencode-relay passthrough (real bun)", () => {
 		expect(replacement).not.toBe(expired);
 		await expect(replacement.ready(8000)).resolves.toBeGreaterThan(0);
 	});
+
+	// Pi loads extensions with jiti moduleCache:false, so every /reload gives
+	// pi-free a fresh relay module whose session start spawns a second Bun child,
+	// while the old instance's child lingered until its 5-minute idle timeout
+	// (2026-11-14 probe). Retiring on session_shutdown hands callers a new
+	// generation at once and stops the old child after its last stream.
+	it("retires a generation after its last stream and hands callers a new one", async () => {
+		resetOpenCodeRelayForTest();
+		const answers = (port: number) =>
+			fetch(`http://127.0.0.1:${port}/nope`, {
+				signal: AbortSignal.timeout(500),
+			}).then(
+				() => true,
+				() => false,
+			);
+		const retired = getOpenCodeRelay();
+		const retiredPort = await retired.ready(8000);
+		const release = retired.acquire();
+		retireOpenCodeRelay();
+		const replacement = getOpenCodeRelay();
+		expect(replacement).not.toBe(retired);
+		// The in-flight stream keeps its child.
+		expect(await answers(retiredPort)).toBe(true);
+		release();
+		await vi.waitFor(async () =>
+			expect(await answers(retiredPort)).toBe(false),
+		);
+		await expect(replacement.ready(8000)).resolves.toBeGreaterThan(0);
+	}, 20_000);
+
+	// A retired child that dies late must not discard the generation that
+	// replaced it: the exit handler cleared the shared reference unconditionally.
+	it("keeps the replacement when a retired child exits on its own", async () => {
+		resetOpenCodeRelayForTest();
+		const pidFile = join(mkdtempSync(join(fixtures, "retired-")), "pid");
+		const observe = `require("node:fs").writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));`;
+		const retired = getOpenCodeRelay({
+			childArgs: [
+				"-e",
+				OPENCODE_RELAY_SCRIPT.replace(
+					'console.log("PORT=" + server.port);',
+					`${observe}\nconsole.log("PORT=" + server.port);`,
+				),
+			],
+		});
+		await retired.ready(8000);
+		const release = retired.acquire();
+		retireOpenCodeRelay();
+		const replacement = getOpenCodeRelay();
+		await replacement.ready(8000);
+		process.kill(Number(readFileSync(pidFile, "utf8")), "SIGKILL");
+		await vi.waitFor(() => expect(retired.port()).toBeUndefined());
+		expect(getOpenCodeRelay()).toBe(replacement);
+		release();
+	}, 20_000);
 
 	// #631: Bun decoded gzip but kept its encoding header (double decode).
 	// Preserve the encoded wire bytes instead of rewriting body metadata.

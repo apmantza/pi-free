@@ -47,6 +47,8 @@ function setup() {
 			handlers.get("session_start")!({}, ctxFor(selected)),
 		select: (selected: ExtensionContext["model"]) =>
 			handlers.get("model_select")!({ model: selected }, ctxFor(undefined)),
+		shutdown: (reason: string) =>
+			handlers.get("session_shutdown")!({ reason }, ctxFor(undefined)),
 	};
 }
 
@@ -126,4 +128,29 @@ it.skipIf(!hasBun)(
 		// Read synchronously: a relay created here could not have a port yet.
 		expect(getOpenCodeRelay().port()).toBeGreaterThan(0);
 	},
+);
+
+// Each Pi /reload loads pi-free afresh (jiti moduleCache:false) and starts a new
+// relay, so the outgoing instance must stop its own Bun child at shutdown
+// instead of leaving it for the 5-minute idle timeout (2026-11-14 probe).
+it.skipIf(!hasBun)(
+	"stops the session's Bun child at session_shutdown",
+	async () => {
+		vi.stubEnv("PI_FREE_OPENCODE_BUN", undefined);
+		const answers = (port: number) =>
+			fetch(`http://127.0.0.1:${port}/nope`, {
+				signal: AbortSignal.timeout(500),
+			}).then(
+				() => true,
+				() => false,
+			);
+		const { notify, sessionStart, shutdown } = setup();
+		await sessionStart(model("opencode-free", "glm-5.3-flash-free"));
+		const port = await getOpenCodeRelay().ready(8000);
+		expect(await answers(port)).toBe(true);
+		await shutdown("reload");
+		await vi.waitFor(async () => expect(await answers(port)).toBe(false));
+		expect(notify).not.toHaveBeenCalled();
+	},
+	20_000,
 );

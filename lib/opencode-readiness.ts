@@ -11,7 +11,7 @@ import type {
 import { PROVIDER_OPENCODE, PROVIDER_OPENCODE_FREE } from "../constants.ts";
 import { prewarmOpenCodeRelay } from "../providers/opencode-session.ts";
 import { createLogger } from "./logger.ts";
-import { relayRemedy } from "./opencode-relay.ts";
+import { relayRemedy, retireOpenCodeRelay } from "./opencode-relay.ts";
 import { isFreeModel } from "./registry.ts";
 import { wrapSessionStartHandler } from "./session-start-metrics.ts";
 import { safeNotify } from "./stale-ctx.ts";
@@ -55,6 +55,11 @@ export function setupOpenCodeReadiness(pi: ExtensionAPI): void {
 			{ detached: true },
 		),
 	);
+	// The instance that started the child stops it: quit, /new, /resume, /fork
+	// and /reload all end here, and a reload loads a fresh pi-free instance.
+	pi.on("session_shutdown", () => {
+		retireOpenCodeRelay();
+	});
 	pi.on("model_select", (event, ctx) => {
 		prepare(event.model, ctx).catch((error: unknown) => {
 			_logger.warn("opencode readiness check failed", {

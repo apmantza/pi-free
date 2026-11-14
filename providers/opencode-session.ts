@@ -12,6 +12,7 @@ import type {
 	Model,
 	ProviderHeaders,
 	SimpleStreamOptions,
+	SystemMessage,
 	TranscriptContext,
 } from "@earendil-works/pi-ai/compat";
 import type {
@@ -22,6 +23,7 @@ import {
 	DEFAULT_FETCH_TIMEOUT_MS,
 	PROVIDER_OPENCODE_FREE,
 } from "../constants.ts";
+import { OPENCODE_FREE_REQUIRED_TOOLS } from "../lib/glob-tool.ts";
 import { loadPiAiEntry } from "../lib/pi-ai-loader.ts";
 import {
 	getOpenCodeRelay,
@@ -46,6 +48,28 @@ const OPENCODE_ANONYMOUS_API_KEY = "public";
 // not OpenCode's persona/tools/skills prompt. Dot is relative to Pi's tool cwd;
 // keep the complete Pi instructions after this small request-only metadata.
 const OPENCODE_FREE_SYSTEM_ENVELOPE = "<env>Working directory: .</env>";
+
+/** True when no tool survives the transcript's add/remove deltas. */
+function hasNoActiveTools(messages: TranscriptContext["messages"]): boolean {
+	const active = new Set<string>();
+	for (const message of messages) {
+		if (message.role !== "system") continue;
+		for (const tool of message.toolsRemoved ?? []) active.delete(tool.name);
+		for (const tool of message.toolsAdded ?? []) active.add(tool.name);
+	}
+	return active.size === 0;
+}
+
+// Zen's anonymous lane answers a request without the gate tool names with
+// 429 FreeUsageLimitError (live, 2026-11-14), which failed every compaction
+// summary. Declared only on tool-less requests, always with tool choice "none".
+const OPENCODE_FREE_GATE_DECLARATIONS = OPENCODE_FREE_REQUIRED_TOOLS.map(
+	(name) => ({
+		name,
+		description: `${name} (not available in this request)`,
+		parameters: { type: "object", properties: {} },
+	}),
+);
 
 const OPENCODE_STATIC_HEADERS = {
 	"User-Agent": "opencode/1.19.0",
@@ -718,7 +742,7 @@ export function createOpenCodeStreamSimple(
 	const anonymous = settings?.anonymous === true;
 	return (model, context, options) => {
 		const headers = createOpenCodeHeaders(tracker, options?.headers);
-		const requestOptions = anonymous
+		let requestOptions = anonymous
 			? { ...options, apiKey: OPENCODE_ANONYMOUS_API_KEY }
 			: options;
 		const stream = new DeferredAssistantMessageEventStream();
@@ -766,6 +790,14 @@ export function createOpenCodeStreamSimple(
 							content: OPENCODE_FREE_SYSTEM_ENVELOPE,
 							timestamp: 0,
 						});
+					}
+					if (hasNoActiveTools(messages)) {
+						const leading = messages[0] as SystemMessage;
+						messages[0] = {
+							...leading,
+							toolsAdded: OPENCODE_FREE_GATE_DECLARATIONS,
+						};
+						requestOptions = { ...requestOptions, toolChoice: "none" };
 					}
 					sanitizedContext = { messages };
 				}
