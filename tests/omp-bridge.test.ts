@@ -161,24 +161,40 @@ describe("shouldUseLegacyProviderBridge (#557)", () => {
 });
 
 describe("registerNativeProvider (#557)", () => {
-	it("passes the Provider object through untouched on stock Pi (flag off)", () => {
+	it("registers the native Provider (single arg) on stock Pi (flag off)", () => {
 		const { pi, registerProvider } = makeStockPi();
 		const provider = makeProvider();
 
 		registerNativeProvider(pi, provider);
 
+		// Native form: one Provider argument carrying the provider's own
+		// auth and lifecycle; only getModels is the visible view (#672).
 		expect(registerProvider).toHaveBeenCalledTimes(1);
-		expect(registerProvider).toHaveBeenCalledWith(provider);
+		expect(registerProvider.mock.calls[0]).toHaveLength(1);
+		expect(registerProvider).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: provider.id,
+				auth: provider.auth,
+				refreshModels: provider.refreshModels,
+			}),
+		);
 	});
 
-	it("passes the Provider object through on a legacy host with the flag off (status quo: native default)", () => {
+	it("registers the native Provider on a legacy host with the flag off (status quo: native default)", () => {
 		const { pi, registerProvider } = makeLegacyPi();
 		const provider = makeProvider();
 
 		registerNativeProvider(pi, provider);
 
 		expect(registerProvider).toHaveBeenCalledTimes(1);
-		expect(registerProvider).toHaveBeenCalledWith(provider);
+		expect(registerProvider.mock.calls[0]).toHaveLength(1);
+		expect(registerProvider).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: provider.id,
+				auth: provider.auth,
+				refreshModels: provider.refreshModels,
+			}),
+		);
 	});
 
 	it("bridges an OMP-shaped host with no flag set (auto-detect)", () => {

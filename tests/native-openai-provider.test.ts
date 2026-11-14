@@ -280,14 +280,21 @@ describe("createNativeOpenAIProvider", () => {
 			// Disk stays small (the #519 structuredClone sink scales with
 			// this list); memory still takes the complete catalog.
 			expect(persisted).toHaveLength(1);
-			expect(persisted[0]!.persist?.models).toEqual([freeOnly]);
+			// Each record carries its verdict judged against the complete
+			// catalog, so a restore never re-judges the subset alone (#672).
+			expect(persisted[0]!.persist?.models).toEqual([
+				{ ...freeOnly, _freeKnown: true, _isFree: true },
+			]);
 			expect(published).toEqual([[freeOnly, paidOnly]]);
 		});
 
 		it("persists the complete catalog under an all view", async () => {
 			const { persisted, published } = await runPersist("all");
 			expect(persisted).toHaveLength(1);
-			expect(persisted[0]!.persist?.models).toEqual([freeOnly, paidOnly]);
+			expect(persisted[0]!.persist?.models).toEqual([
+				{ ...freeOnly, _freeKnown: true, _isFree: true },
+				{ ...paidOnly, _freeKnown: true, _isFree: false },
+			]);
 			expect(published).toEqual([[freeOnly, paidOnly]]);
 		});
 	});

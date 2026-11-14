@@ -109,10 +109,11 @@ describe("LLM7 factory wiring", () => {
 		expect(mockRegisterProvider).toHaveBeenCalledTimes(1);
 		const provider = mockRegisterProvider.mock.calls[0]![0];
 		expect(provider.id).toBe("llm7");
+		// Pi sees the live view (free here), never the paid selector: its
+		// provisional snapshot reads getModels() unfiltered (#672).
 		expect(provider.getModels().map((m: { id: string }) => m.id)).toEqual([
 			"default",
 			"fast",
-			"pro",
 		]);
 		expect(provider.auth.apiKey).toBeDefined();
 

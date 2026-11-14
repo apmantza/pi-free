@@ -38,6 +38,7 @@ vi.mock("../config.ts", () => ({
 	setModelViewOverride: (...args: unknown[]) =>
 		mockSetModelViewOverride(...args),
 	saveConfig: (...args: unknown[]) => mockSaveConfig(...args),
+	applyHidden: (models: unknown[]) => models,
 	PROVIDER_CLINE: "cline",
 }));
 
