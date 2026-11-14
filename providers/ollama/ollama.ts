@@ -12,7 +12,7 @@
  *   pi install git:github.com/apmantza/pi-free
  *   # Set OLLAMA_API_KEY env var
  *   # Models appear in /model selector
- *   # Use /toggle-ollama to show all vs limited set
+ *   # Use /toggle-ollama-cloud to show all vs limited set
  *   # Use /probe-ollama to detect and hide 403 models
  *   # Use /ollama-cloud-refresh to re-fetch models live
  */
@@ -28,6 +28,7 @@ import {
 	PROVIDER_OLLAMA,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
+import { keepToolCallingModels } from "../../lib/model-map.ts";
 import {
 	loadProviderCache,
 	saveProviderCacheGuarded,
@@ -483,36 +484,38 @@ function buildModelName(
 function assembleModels(
 	raw: Record<string, OllamaShowResponse>,
 ): ProviderModelConfig[] {
-	return Object.entries(raw)
-		.filter(([, data]) => data.capabilities?.includes("tools"))
-		.map(([id, data]) => {
-			const reasoning = data.capabilities?.includes("thinking") ?? false;
-			const thinkingMap = resolveThinkingMap(id, data.capabilities ?? []);
+	return keepToolCallingModels(
+		PROVIDER_OLLAMA,
+		Object.entries(raw),
+		([, data]) => data.capabilities?.includes("tools") === true,
+	).map(([id, data]) => {
+		const reasoning = data.capabilities?.includes("thinking") ?? false;
+		const thinkingMap = resolveThinkingMap(id, data.capabilities ?? []);
 
-			return {
-				id,
-				name: buildModelName(id, data.details),
-				reasoning,
-				thinkingLevelMap: thinkingMap,
-				input: (data.capabilities?.includes("vision")
-					? ["text", "image"]
-					: ["text"]) as ("text" | "image")[],
-				cost: {
-					input: 0,
-					output: 0,
-					cacheRead: 0,
-					cacheWrite: 0,
-				},
-				contextWindow: getContextLength(data.model_info ?? {}),
-				maxTokens: 32768,
-				compat: {
-					supportsDeveloperRole: false,
-					// When we provide a thinkingLevelMap, tell Pi not to use its own
-					// reasoning_effort logic — we handle it ourselves.
-					supportsReasoningEffort: thinkingMap != null,
-				},
-			};
-		});
+		return {
+			id,
+			name: buildModelName(id, data.details),
+			reasoning,
+			thinkingLevelMap: thinkingMap,
+			input: (data.capabilities?.includes("vision")
+				? ["text", "image"]
+				: ["text"]) as ("text" | "image")[],
+			cost: {
+				input: 0,
+				output: 0,
+				cacheRead: 0,
+				cacheWrite: 0,
+			},
+			contextWindow: getContextLength(data.model_info ?? {}),
+			maxTokens: 32768,
+			compat: {
+				supportsDeveloperRole: false,
+				// When we provide a thinkingLevelMap, tell Pi not to use its own
+				// reasoning_effort logic — we handle it ourselves.
+				supportsReasoningEffort: thinkingMap != null,
+			},
+		};
+	});
 }
 
 // =============================================================================

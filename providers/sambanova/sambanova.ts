@@ -46,24 +46,17 @@ export default function sambanovaProvider(pi: ExtensionAPI): Promise<void> {
 		auth: sambanovaAuth,
 		getApiKey: getSambanovaApiKey,
 		getShowPaid: getSambanovaShowPaid,
-		fetchModels: async (apiKey, signal) => {
-			const models = await fetchOpenAICompatibleModels(
+		// The shared fetcher stamps pricing provenance per row: a row without
+		// `pricing` stays unknown instead of a $0 free model (defect shape 15).
+		fetchModels: (apiKey, signal) =>
+			fetchOpenAICompatibleModels(
 				"sambanova",
 				BASE_URL_SAMBANOVA,
 				apiKey,
 				{ maxTokens: 8_192 },
 				{},
 				signal,
-			);
-			for (const model of models) {
-				// SAFETY: SambaNova's catalog exposes real pricing, so stamp the
-				// undocumented _pricingKnown marker consumed by isFreeModel to
-				// mark cost-based (Route A) detection authoritative for these
-				// models; the field is metadata only and never read by pi-ai.
-				(model as unknown as { _pricingKnown?: boolean })._pricingKnown = true;
-			}
-			return models;
-		},
+			),
 		tosUrl: "https://sambanova.ai/terms",
 	});
 	// Registered keyless too: the probe resolves the key when it runs, so a

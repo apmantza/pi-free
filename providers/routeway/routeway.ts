@@ -29,7 +29,10 @@ import {
 	PROVIDER_ROUTEWAY,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
-import { perMillionFromPerToken } from "../../lib/model-map.ts";
+import {
+	keepToolCallingModels,
+	perMillionFromPerToken,
+} from "../../lib/model-map.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import {
 	getProxyModelCompat,
@@ -63,7 +66,11 @@ interface RoutewayModel {
 	pricing?: {
 		input?: RoutewayPrice;
 		output?: RoutewayPrice;
-		caching?: { read?: RoutewayPrice; write?: RoutewayPrice };
+		caching?: {
+			read?: RoutewayPrice;
+			/** Per cache lifetime; live rows list "5m" and "1h", or "1h" only. */
+			write?: { "5m"?: RoutewayPrice; "1h"?: RoutewayPrice };
+		};
 	};
 	supported_parameters?: string[];
 	capabilities?: {
@@ -102,7 +109,12 @@ function mapRoutewayModel(
 	const inputCost = parsePricePerMillion(model.pricing?.input);
 	const outputCost = parsePricePerMillion(model.pricing?.output);
 	const cacheRead = parsePricePerMillion(model.pricing?.caching?.read);
-	const cacheWrite = parsePricePerMillion(model.pricing?.caching?.write);
+	// The default (5-minute) write tier; pi-ai prices 1-hour writes itself
+	// (2x input). A row listing only "1h" is billed at that tier.
+	const writeTiers = model.pricing?.caching?.write;
+	const cacheWrite = parsePricePerMillion(
+		writeTiers?.["5m"] ?? writeTiers?.["1h"],
+	);
 	const hasPricing = Boolean(model.pricing?.input || model.pricing?.output);
 	const reasoning =
 		model.capabilities?.reasoning === true ||
@@ -128,7 +140,7 @@ function mapRoutewayModel(
 	} as ProviderModelConfig & { _pricingKnown?: boolean };
 }
 
-async function fetchRoutewayModels(
+export async function fetchRoutewayModels(
 	apiKey: string,
 	signal?: AbortSignal,
 ): Promise<ProviderModelConfig[]> {
@@ -157,7 +169,11 @@ async function fetchRoutewayModels(
 		}
 
 		const json = (await response.json()) as { data?: RoutewayModel[] };
-		const models = (json.data ?? []).filter(isChatModel);
+		const models = keepToolCallingModels(
+			PROVIDER_ROUTEWAY,
+			(json.data ?? []).filter(isChatModel),
+			(model) => model.capabilities?.function_call === true,
+		);
 
 		_logger.info(`[routeway] Fetched ${models.length} chat models`);
 		const enriched = await safeEnrichModelsWithModelsDev(

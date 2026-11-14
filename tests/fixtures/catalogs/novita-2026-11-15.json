@@ -1,0 +1,288 @@
+{
+	"_captured": "2026-11-15, public api.novita.ai/openai/v1/models, rows verbatim (#690)",
+	"data": [
+		{
+			"created": 1792375957,
+			"id": "deepseek/deepseek-v4.1-flash-1017",
+			"object": "model",
+			"owned_by": "novita",
+			"permission": null,
+			"root": "",
+			"parent": "",
+			"input_token_price_per_m": 3000,
+			"output_token_price_per_m": 12000,
+			"pricing": {
+				"prompt": {
+					"origin_price_per_m": 3000,
+					"price_per_m": 3000,
+					"origin_price_per_m_decimal": "0.3",
+					"price_per_m_decimal": "0.3"
+				},
+				"completion": {
+					"origin_price_per_m": 12000,
+					"price_per_m": 12000,
+					"origin_price_per_m_decimal": "1.2",
+					"price_per_m_decimal": "1.2"
+				},
+				"input_cache_read": {
+					"origin_price_per_m": 60,
+					"price_per_m": 60,
+					"origin_price_per_m_decimal": "0.006",
+					"price_per_m_decimal": "0.006"
+				}
+			},
+			"is_tiered_billing": false,
+			"title": "deepseek/deepseek-v4.1-flash-1017",
+			"description": "",
+			"tags": [],
+			"context_size": 1048576,
+			"status": 1,
+			"display_name": "DeepSeek V4.1 Flash 1017",
+			"model_type": "chat",
+			"max_output_tokens": 393216,
+			"features": [
+				"serverless",
+				"function-calling",
+				"structured-outputs",
+				"reasoning"
+			],
+			"endpoints": ["chat/completions", "anthropic", "responses"],
+			"input_modalities": ["text", "image"],
+			"output_modalities": ["text"]
+		},
+		{
+			"created": 1792803395,
+			"id": "moonshotai/kimi-k3.1-pro-highspeed",
+			"object": "model",
+			"owned_by": "novita",
+			"permission": null,
+			"root": "",
+			"parent": "",
+			"input_token_price_per_m": 40000,
+			"output_token_price_per_m": 200000,
+			"pricing": {
+				"prompt": {
+					"origin_price_per_m": 40000,
+					"price_per_m": 40000,
+					"origin_price_per_m_decimal": "4",
+					"price_per_m_decimal": "4"
+				},
+				"completion": {
+					"origin_price_per_m": 200000,
+					"price_per_m": 200000,
+					"origin_price_per_m_decimal": "20",
+					"price_per_m_decimal": "20"
+				},
+				"input_cache_read": {
+					"origin_price_per_m": 2000,
+					"price_per_m": 2000,
+					"origin_price_per_m_decimal": "0.2",
+					"price_per_m_decimal": "0.2"
+				},
+				"input_cache_write": {
+					"origin_price_per_m": 40000,
+					"price_per_m": 40000,
+					"origin_price_per_m_decimal": "4",
+					"price_per_m_decimal": "4"
+				},
+				"input_cache_write_1h": {
+					"origin_price_per_m": 80000,
+					"price_per_m": 80000,
+					"origin_price_per_m_decimal": "8",
+					"price_per_m_decimal": "8"
+				}
+			},
+			"is_tiered_billing": false,
+			"title": "moonshotai/kimi-k3.1-pro-highspeed",
+			"description": "Kimi K3.1 Pro Highspeed is the high-speed model released.",
+			"tags": [],
+			"context_size": 1048576,
+			"status": 1,
+			"display_name": "Kimi K3.1 Pro Highspeed",
+			"model_type": "chat",
+			"max_output_tokens": 1048576,
+			"features": [
+				"serverless",
+				"function-calling",
+				"structured-outputs",
+				"reasoning"
+			],
+			"endpoints": ["chat/completions", "anthropic", "responses"],
+			"input_modalities": ["text", "image", "video"],
+			"output_modalities": ["text"]
+		},
+		{
+			"created": 1793083113,
+			"id": "nvrouter/auto",
+			"object": "model",
+			"owned_by": "novita",
+			"permission": null,
+			"root": "",
+			"parent": "",
+			"input_token_price_per_m": 0,
+			"output_token_price_per_m": 0,
+			"is_tiered_billing": false,
+			"title": "nvrouter/auto",
+			"description": "智能网关 Auto 模型",
+			"tags": [],
+			"context_size": 1000000,
+			"status": 1,
+			"display_name": "Auto",
+			"model_type": "chat",
+			"max_output_tokens": 328000,
+			"features": [
+				"serverless",
+				"function-calling",
+				"structured-outputs",
+				"reasoning"
+			],
+			"endpoints": ["chat/completions", "anthropic", "responses"],
+			"input_modalities": ["text", "image"],
+			"output_modalities": ["text"]
+		},
+		{
+			"created": 1793082715,
+			"id": "nvrouter/fusion",
+			"object": "model",
+			"owned_by": "novita",
+			"permission": null,
+			"root": "",
+			"parent": "",
+			"input_token_price_per_m": 0,
+			"output_token_price_per_m": 0,
+			"is_tiered_billing": false,
+			"title": "nvrouter/fusion",
+			"description": "",
+			"tags": [],
+			"context_size": 1000000,
+			"status": 1,
+			"display_name": "Fusion",
+			"model_type": "chat",
+			"max_output_tokens": 328000,
+			"features": [
+				"serverless",
+				"function-calling",
+				"structured-outputs",
+				"reasoning"
+			],
+			"endpoints": ["chat/completions", "anthropic", "responses"],
+			"input_modalities": ["text", "image"],
+			"output_modalities": ["text"]
+		},
+		{
+			"created": 1775817236,
+			"id": "bunny",
+			"object": "model",
+			"owned_by": "novita",
+			"permission": null,
+			"root": "",
+			"parent": "",
+			"input_token_price_per_m": 0,
+			"output_token_price_per_m": 0,
+			"is_tiered_billing": false,
+			"title": "bunny",
+			"description": "",
+			"tags": [],
+			"context_size": 262144,
+			"status": 1,
+			"display_name": "Bunny",
+			"model_type": "chat",
+			"max_output_tokens": 32768,
+			"features": ["serverless", "function-calling", "structured-outputs"],
+			"endpoints": ["chat/completions"],
+			"input_modalities": ["text"],
+			"output_modalities": ["text"]
+		},
+		{
+			"created": 1790824276,
+			"id": "apodex/apodex-1.1-mini",
+			"object": "model",
+			"owned_by": "novita",
+			"permission": null,
+			"root": "",
+			"parent": "",
+			"input_token_price_per_m": 0,
+			"output_token_price_per_m": 0,
+			"is_tiered_billing": false,
+			"title": "apodex/apodex-1.1-mini",
+			"description": "Apodex-1.1-mini is a reasoning-first model by Apodex for complex, long-horizon research and forecasting tasks. It works directly with files, data, code, and tools to deliver verifiable results, and ranks at the top of ProphetArena, the leading live forecasting benchmark.",
+			"tags": [],
+			"context_size": 262144,
+			"status": 1,
+			"display_name": "Apodex 1.1 Mini",
+			"model_type": "chat",
+			"max_output_tokens": 262144,
+			"features": [
+				"serverless",
+				"function-calling",
+				"structured-outputs",
+				"reasoning"
+			],
+			"endpoints": ["chat/completions", "anthropic", "responses"],
+			"input_modalities": ["text"],
+			"output_modalities": ["text"]
+		},
+		{
+			"created": 1763607567,
+			"id": "dev/glm46",
+			"object": "model",
+			"owned_by": "novita",
+			"permission": null,
+			"root": "",
+			"parent": "",
+			"input_token_price_per_m": 0,
+			"output_token_price_per_m": 0,
+			"is_tiered_billing": false,
+			"title": "dev/glm46",
+			"description": "",
+			"tags": [],
+			"context_size": 256000,
+			"status": 1,
+			"display_name": "dev/glm46",
+			"model_type": "chat",
+			"max_output_tokens": 256000,
+			"features": ["function-calling", "structured-outputs", "serverless"],
+			"endpoints": ["chat/completions", "anthropic"],
+			"input_modalities": ["text"],
+			"output_modalities": ["text"]
+		},
+		{
+			"created": 1721801867,
+			"id": "meta-llama/llama-3.1-8b-instruct",
+			"object": "model",
+			"owned_by": "novita",
+			"permission": null,
+			"root": "",
+			"parent": "",
+			"input_token_price_per_m": 200,
+			"output_token_price_per_m": 500,
+			"pricing": {
+				"prompt": {
+					"origin_price_per_m": 200,
+					"price_per_m": 200,
+					"origin_price_per_m_decimal": "0.02",
+					"price_per_m_decimal": "0.02"
+				},
+				"completion": {
+					"origin_price_per_m": 500,
+					"price_per_m": 500,
+					"origin_price_per_m_decimal": "0.05",
+					"price_per_m_decimal": "0.05"
+				}
+			},
+			"is_tiered_billing": false,
+			"title": "meta-llama/llama-3.1-8b-instruct",
+			"description": "Meta's latest class of models, Llama 3.1, launched with a variety of sizes and configurations. The 8B instruct-tuned version is particularly fast and efficient. It has demonstrated strong performance in human evaluations, outperforming several leading closed-source models.",
+			"tags": [],
+			"context_size": 16384,
+			"status": 1,
+			"display_name": "Llama 3.1 8B Instruct",
+			"model_type": "chat",
+			"max_output_tokens": 16384,
+			"features": ["structured-outputs", "serverless"],
+			"endpoints": ["chat/completions", "completions"],
+			"input_modalities": ["text"],
+			"output_modalities": ["text"]
+		}
+	]
+}

@@ -29,22 +29,79 @@
  *   # Models appear in /model selector as "venice/claude-sonnet-4-6"
  */
 
+import type {
+	ProviderStreams,
+	StreamOptions,
+} from "@earendil-works/pi-ai/compat";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getVeniceApiKey, getVeniceShowPaid } from "../../config.ts";
 import { BASE_URL_VENICE, PROVIDER_VENICE } from "../../constants.ts";
-import { registerNativeOpenAIProvider } from "../../lib/native-provider.ts";
+import { lazyOpenAICompletionsApi } from "../../lib/lazy-compat.ts";
+import {
+	type NativeOpenAIProviderOptions,
+	registerNativeOpenAIProvider,
+} from "../../lib/native-provider.ts";
 import { veniceAuth } from "./venice-auth.ts";
 import { fetchVeniceModels } from "./venice-models.ts";
 
+/**
+ * Venice adds its own system prompt to every chat request unless
+ * `venice_parameters.include_venice_system_prompt` is false (default true,
+ * docs.venice.ai chat/completions). Pi already sends the agent's system
+ * prompt, so every request opts out. The flag is set in the stream's
+ * `onPayload`, the seam every caller of this provider passes through
+ * (agent turns, compaction, branch summaries; defect shape 25), and before
+ * Pi's own `before_provider_request` hook, which can still override it.
+ */
+function withoutVeniceSystemPrompt<T extends StreamOptions>(
+	options: T | undefined,
+): T {
+	const downstream = options?.onPayload;
+	return {
+		...options,
+		onPayload: async (payload, model) => {
+			const next =
+				payload && typeof payload === "object" && !Array.isArray(payload)
+					? {
+							...payload,
+							venice_parameters: {
+								...(payload as { venice_parameters?: object })
+									.venice_parameters,
+								include_venice_system_prompt: false,
+							},
+						}
+					: payload;
+			const replaced = await downstream?.(next, model);
+			return replaced === undefined ? next : replaced;
+		},
+	} as T;
+}
+
+const baseStreams = lazyOpenAICompletionsApi();
+
+const veniceStreams: ProviderStreams = {
+	stream: (model, context, options) =>
+		baseStreams.stream(model, context, withoutVeniceSystemPrompt(options)),
+	streamSimple: (model, context, options) =>
+		baseStreams.streamSimple(
+			model,
+			context,
+			withoutVeniceSystemPrompt(options),
+		),
+};
+
+export const veniceProviderOptions: NativeOpenAIProviderOptions = {
+	providerId: PROVIDER_VENICE,
+	name: "Venice AI",
+	baseUrl: BASE_URL_VENICE,
+	auth: veniceAuth,
+	getApiKey: getVeniceApiKey,
+	getShowPaid: getVeniceShowPaid,
+	fetchModels: (apiKey, signal) => fetchVeniceModels(apiKey, signal),
+	streams: veniceStreams,
+};
+
 export default function veniceProvider(pi: ExtensionAPI): Promise<void> {
-	registerNativeOpenAIProvider(pi, {
-		providerId: PROVIDER_VENICE,
-		name: "Venice AI",
-		baseUrl: BASE_URL_VENICE,
-		auth: veniceAuth,
-		getApiKey: getVeniceApiKey,
-		getShowPaid: getVeniceShowPaid,
-		fetchModels: (apiKey, signal) => fetchVeniceModels(apiKey, signal),
-	});
+	registerNativeOpenAIProvider(pi, veniceProviderOptions);
 	return Promise.resolve();
 }

@@ -1,0 +1,289 @@
+{
+	"_captured": "2026-11-15, public api.routeway.ai/v1/models, rows verbatim (#690)",
+	"data": [
+		{
+			"id": "claude-fable-5-2",
+			"name": "Anthropic: Claude Fable 5 2",
+			"short_name": "Claude Fable 5 2",
+			"description": "Claude Fable 5.2 is built for demanding reasoning and long-horizon agentic work",
+			"context_length": 1000000,
+			"created": 1794250828,
+			"added_at": 1794250828,
+			"owned_by": "anthropic",
+			"available": true,
+			"hallucination_rate": 0,
+			"endpoints": ["/v1/chat/completions", "/v1/responses", "/v1/messages"],
+			"pricing": {
+				"input": {
+					"unit": "1M tokens",
+					"price_per_million_t": 8
+				},
+				"output": {
+					"unit": "1M tokens",
+					"price_per_million_t": 40
+				},
+				"caching": {
+					"read": {
+						"unit": "1M tokens",
+						"price_per_million_t": 0.2
+					},
+					"write": {
+						"5m": {
+							"unit": "1M tokens",
+							"price_per_million_t": 10
+						},
+						"1h": {
+							"unit": "1M tokens",
+							"price_per_million_t": 16
+						}
+					}
+				}
+			},
+			"supported_parameters": [
+				"frequency_penalty",
+				"logit_bias",
+				"max_completion_tokens",
+				"presence_penalty",
+				"reasoning_effort",
+				"response_format",
+				"stop",
+				"temperature",
+				"tool_choice",
+				"tools",
+				"top_p"
+			],
+			"capabilities": {
+				"vision": true,
+				"function_call": true,
+				"reasoning": true,
+				"supported_reasoning_efforts": ["low", "medium", "high", "xhigh", "max"]
+			},
+			"sub": false
+		},
+		{
+			"id": "gpt-6.1-sol",
+			"name": "OpenAI: GPT 6.1 Sol",
+			"short_name": "GPT 6.1 Sol",
+			"description": "GPT-6.1 Sol is OpenAI's flagship Sol model for complex reasoning, coding, agentic workflows, and multi-step professional tasks.",
+			"context_length": 1050000,
+			"created": 1790640000,
+			"owned_by": "openai",
+			"available": true,
+			"hallucination_rate": 0,
+			"endpoints": ["/v1/chat/completions", "/v1/responses", "/v1/messages"],
+			"pricing": {
+				"input": {
+					"unit": "1M tokens",
+					"price_per_million_t": 2
+				},
+				"output": {
+					"unit": "1M tokens",
+					"price_per_million_t": 10
+				},
+				"caching": {
+					"read": {
+						"unit": "1M tokens",
+						"price_per_million_t": 0.2
+					},
+					"write": {
+						"1h": {
+							"unit": "1M tokens",
+							"price_per_million_t": 2.5
+						}
+					}
+				}
+			},
+			"supported_parameters": [
+				"frequency_penalty",
+				"logit_bias",
+				"max_completion_tokens",
+				"presence_penalty",
+				"reasoning_effort",
+				"response_format",
+				"service_tier",
+				"stop",
+				"temperature",
+				"tool_choice",
+				"tools",
+				"top_p"
+			],
+			"capabilities": {
+				"vision": true,
+				"function_call": true,
+				"reasoning": true,
+				"supported_reasoning_efforts": [
+					"low",
+					"medium",
+					"high",
+					"xhigh",
+					"max"
+				],
+				"service_tiers": ["default", "flex", "priority"]
+			},
+			"benchmarks": {
+				"artificial_analysis_intelligence_index": 54.5,
+				"artificial_analysis_coding_index": null,
+				"artificial_analysis_math_index": null,
+				"mmlu_pro": null,
+				"gpqa": null,
+				"hle": 0.529,
+				"livecodebench": null,
+				"scicode": 0.542,
+				"math_500": null,
+				"aime": null,
+				"aime_25": null,
+				"ifbench": null,
+				"lcr": 0.83,
+				"terminalbench_hard": null,
+				"terminalbench_v2_1": null,
+				"terminalbench_v4_0": 0.560606060606061,
+				"tau2": null,
+				"tau_banking": null
+			},
+			"use_case": ["coding", "math"],
+			"service_tiers": {
+				"flex": {
+					"price_multiplier": 0.5,
+					"note": "50% discount"
+				},
+				"priority": {
+					"price_multiplier": 2,
+					"note": "2x price"
+				}
+			}
+		},
+		{
+			"id": "deepseek-v4.1-flash:free",
+			"name": "DeepSeek: DeepSeek V4.1 Flash (Free)",
+			"short_name": "DeepSeek V4.1 Flash (Free)",
+			"description": "DeepSeek V4.1 Flash improves text and agent performance and adds native multimodal visual understanding, with a 1M-token context window for reasoning and tool-driven workflows.",
+			"context_length": 42000,
+			"created": 1788825600,
+			"owned_by": "deepseek-ai",
+			"available": true,
+			"hallucination_rate": 0,
+			"endpoints": ["/v1/chat/completions", "/v1/responses", "/v1/messages"],
+			"pricing": {
+				"input": {
+					"unit": "1M tokens",
+					"price_per_million_t": 0
+				},
+				"output": {
+					"unit": "1M tokens",
+					"price_per_million_t": 0
+				},
+				"caching": {
+					"read": {
+						"unit": "1M tokens",
+						"price_per_million_t": 0
+					}
+				}
+			},
+			"supported_parameters": [
+				"frequency_penalty",
+				"logit_bias",
+				"max_completion_tokens",
+				"presence_penalty",
+				"stop",
+				"temperature",
+				"tool_choice",
+				"tools",
+				"top_p"
+			],
+			"capabilities": {
+				"vision": false,
+				"function_call": true,
+				"reasoning": true
+			},
+			"benchmarks": {
+				"artificial_analysis_intelligence_index": null,
+				"artificial_analysis_coding_index": null,
+				"artificial_analysis_math_index": null,
+				"mmlu_pro": null,
+				"gpqa": null,
+				"hle": 0.392,
+				"livecodebench": null,
+				"scicode": 0.519,
+				"math_500": null,
+				"aime": null,
+				"aime_25": null,
+				"ifbench": null,
+				"lcr": 0.84,
+				"terminalbench_hard": null,
+				"terminalbench_v2_1": null,
+				"terminalbench_v4_0": 0.267676767676768,
+				"tau2": null,
+				"tau_banking": null
+			},
+			"use_case": ["coding", "math", "daily_use"]
+		},
+		{
+			"id": "qwen3.5-27b",
+			"name": "Qwen: Qwen 3.5 27",
+			"short_name": "Qwen 3.5 27",
+			"description": "Qwen 3.5 27B is a native vision-language dense model optimized for fast responses while balancing quality and inference speed.",
+			"context_length": 260096,
+			"created": 1771891200,
+			"owned_by": "qwen",
+			"available": true,
+			"hallucination_rate": 0,
+			"endpoints": ["/v1/chat/completions", "/v1/responses", "/v1/messages"],
+			"pricing": {
+				"input": {
+					"unit": "1M tokens",
+					"price_per_million_t": 0.28
+				},
+				"output": {
+					"unit": "1M tokens",
+					"price_per_million_t": 2.2
+				},
+				"caching": {
+					"read": {
+						"unit": "1M tokens",
+						"price_per_million_t": 0
+					}
+				}
+			},
+			"supported_parameters": [
+				"frequency_penalty",
+				"logit_bias",
+				"max_completion_tokens",
+				"presence_penalty",
+				"reasoning_effort",
+				"response_format",
+				"stop",
+				"temperature",
+				"tool_choice",
+				"tools",
+				"top_p"
+			],
+			"capabilities": {
+				"vision": true,
+				"function_call": false,
+				"reasoning": true
+			},
+			"benchmarks": {
+				"artificial_analysis_intelligence_index": null,
+				"artificial_analysis_coding_index": null,
+				"artificial_analysis_math_index": null,
+				"mmlu_pro": null,
+				"gpqa": 0.858,
+				"hle": 0.239,
+				"livecodebench": null,
+				"scicode": null,
+				"math_500": null,
+				"aime": null,
+				"aime_25": null,
+				"ifbench": 0.75578231292517,
+				"lcr": 0.776666666666667,
+				"terminalbench_hard": 0.325757575757576,
+				"terminalbench_v2_1": null,
+				"terminalbench_v4_0": null,
+				"tau2": 0.93859649122807,
+				"tau_banking": null
+			},
+			"sub": true,
+			"use_case": ["roleplay"]
+		}
+	]
+}

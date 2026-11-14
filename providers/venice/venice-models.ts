@@ -29,6 +29,7 @@ import {
 	PROVIDER_VENICE,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
+import { keepToolCallingModels } from "../../lib/model-map.ts";
 import { fetchWithRetry, withSignal } from "../../lib/util.ts";
 
 const _logger = createLogger("venice-models");
@@ -53,6 +54,8 @@ interface VeniceCatalogModel {
 		maxCompletionTokens?: unknown;
 		capabilities?: {
 			supportsReasoning?: unknown;
+			supportsReasoningEffort?: unknown;
+			reasoningEffortOptions?: unknown;
 			supportsVision?: unknown;
 			supportsMultipleImages?: unknown;
 			supportsFunctionCalling?: unknown;
@@ -73,9 +76,51 @@ function asNumber(value: unknown): number | undefined {
 		: undefined;
 }
 
-/** A Venice USD-per-million price (the `Model.cost` unit); absent is 0. */
-function usdPerMillion(price: VeniceCatalogPrice | undefined): number {
-	return asNumber(price?.usd) ?? 0;
+/** A Venice USD-per-million price (the `Model.cost` unit), if published. */
+function usdPerMillion(
+	price: VeniceCatalogPrice | undefined,
+): number | undefined {
+	return asNumber(price?.usd);
+}
+
+/** The levels Venice accepts as `reasoning_effort`, one per pi level. */
+const VENICE_EFFORT_LEVELS = [
+	"minimal",
+	"low",
+	"medium",
+	"high",
+	"xhigh",
+	"max",
+] as const;
+
+/**
+ * pi thinking levels for a model whose catalog row lists the
+ * `reasoning_effort` values it accepts (`reasoningEffortOptions`, e.g.
+ * ["low","medium","high","xhigh","max"]). A level the row does not list is
+ * marked unsupported (null) so pi-ai clamps to the nearest listed one instead
+ * of sending a value the model was never declared to take; `off` maps to
+ * "none" only where "none" is listed. Rows without the list keep pi-ai's
+ * defaults.
+ */
+function veniceThinkingLevelMap(
+	capabilities: NonNullable<VeniceCatalogModel["model_spec"]>["capabilities"],
+): ChatModelConfig["thinkingLevelMap"] | undefined {
+	const options = capabilities?.reasoningEffortOptions;
+	if (
+		capabilities?.supportsReasoningEffort !== true ||
+		!Array.isArray(options) ||
+		options.length === 0
+	) {
+		return undefined;
+	}
+	const listed = new Set(options.filter((o) => typeof o === "string"));
+	const map: NonNullable<ChatModelConfig["thinkingLevelMap"]> = {
+		off: listed.has("none") ? "none" : null,
+	};
+	for (const level of VENICE_EFFORT_LEVELS) {
+		map[level] = listed.has(level) ? level : null;
+	}
+	return map;
 }
 
 /**
@@ -97,6 +142,12 @@ export function mapVeniceModel(
 	const vision =
 		capabilities.supportsVision === true ||
 		capabilities.supportsMultipleImages === true;
+	const inputPrice = usdPerMillion(spec.pricing?.input);
+	const outputPrice = usdPerMillion(spec.pricing?.output);
+	const reasoning = capabilities.supportsReasoning === true;
+	const thinkingLevelMap = reasoning
+		? veniceThinkingLevelMap(capabilities)
+		: undefined;
 
 	return {
 		id: entry.id,
@@ -104,25 +155,24 @@ export function mapVeniceModel(
 			typeof spec.name === "string" && spec.name.length > 0
 				? spec.name
 				: entry.id,
-		reasoning: capabilities.supportsReasoning === true,
+		reasoning,
+		...(thinkingLevelMap && { thinkingLevelMap }),
 		input: vision ? (["text", "image"] as const) : (["text"] as const),
 		cost: {
-			input: usdPerMillion(spec.pricing?.input),
-			output: usdPerMillion(spec.pricing?.output),
-			cacheRead: usdPerMillion(spec.pricing?.cache_input),
-			cacheWrite: usdPerMillion(spec.pricing?.cache_write),
+			input: inputPrice ?? 0,
+			output: outputPrice ?? 0,
+			cacheRead: usdPerMillion(spec.pricing?.cache_input) ?? 0,
+			cacheWrite: usdPerMillion(spec.pricing?.cache_write) ?? 0,
 		},
 		contextWindow:
 			asNumber(entry.context_length) ??
 			asNumber(spec.availableContextTokens) ??
 			FALLBACK_CONTEXT_WINDOW,
 		maxTokens: asNumber(spec.maxCompletionTokens) ?? FALLBACK_MAX_TOKENS,
-		// SAFETY: Venice's catalog exposes real pricing for every model, so
-		// stamp the undocumented _pricingKnown marker consumed by isFreeModel
-		// to mark cost-based (Route A) detection authoritative for these models;
-		// the field is metadata only and never read by pi-ai. Free/paid follows
-		// the published pricing — no free/paid override is applied here.
-		_pricingKnown: true,
+		// Route A trusts the cost only when both token prices were published:
+		// the $0 above is a placeholder for a missing price, never a free
+		// signal (defect shape 15). Metadata only; pi-ai never reads it.
+		_pricingKnown: inputPrice !== undefined && outputPrice !== undefined,
 	} as ChatModelConfig & { _pricingKnown?: boolean };
 }
 
@@ -163,7 +213,12 @@ export async function fetchVeniceModels(
 			? ((payload as { data: unknown[] }).data as VeniceCatalogModel[])
 			: [];
 	const models: ProviderModelConfig[] = [];
-	for (const entry of entries) {
+	const toolCalling = keepToolCallingModels(
+		PROVIDER_VENICE,
+		entries,
+		(entry) => entry.model_spec?.capabilities?.supportsFunctionCalling === true,
+	);
+	for (const entry of toolCalling) {
 		const mapped = mapVeniceModel(entry);
 		if (mapped) models.push(mapped);
 	}

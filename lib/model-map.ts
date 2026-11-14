@@ -220,6 +220,38 @@ function parseModelSize(modelId: string): MoeSize | StandardSize | null {
 }
 
 // =============================================================================
+// Tool-calling Gate
+// =============================================================================
+
+/**
+ * Pi runs every model as an agent, so each turn sends tool definitions; a model
+ * that cannot call tools rejects them or answers without acting. Where a
+ * catalog states tool support per row, publish only the rows that declare it:
+ * the predicate returns true for the catalog's known-good declaration, and
+ * false, absent or malformed values are refused (#690: Venice, Novita,
+ * Requesty, Routeway, Ollama Cloud).
+ *
+ * Gate only a catalog whose flag is a real per-row statement. Infron's
+ * `supports_function_calling` is false on placeholder rows whose upstream
+ * calls tools (anthropic/claude-sonnet-4.5 lists streaming, vision, JSON mode
+ * and tools all false), so Infron stays ungated.
+ */
+export function keepToolCallingModels<T>(
+	providerId: string,
+	rows: readonly T[],
+	declaresToolCalling: (row: T) => boolean,
+): T[] {
+	const kept = rows.filter(declaresToolCalling);
+	const dropped = rows.length - kept.length;
+	if (dropped > 0) {
+		createLogger(providerId).debug(
+			`[${providerId}] Dropped ${dropped} models without tool calling`,
+		);
+	}
+	return kept;
+}
+
+// =============================================================================
 // Model Name Cleaning
 // =============================================================================
 
@@ -333,8 +365,11 @@ export interface OpenRouterCatalogRow {
 	isFree?: boolean;
 }
 
-/** First published limit; 0 (OrcaRouter, FastRouter) means "not published". */
-function firstPositiveLimit(
+/**
+ * First published limit; 0 (OrcaRouter, FastRouter, Requesty) and negative
+ * values mean "not published".
+ */
+export function firstPositiveLimit(
 	...limits: (number | null | undefined)[]
 ): number | undefined {
 	return limits.find(

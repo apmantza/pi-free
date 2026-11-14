@@ -11,6 +11,10 @@
  *    (transient partial/error responses must not wipe a good list).
  *    With no existing entry anything non-empty seeds the cache.
  *    Integer-exact rule: refuse iff newSize * 2 < diskSize.
+ *    The shrink refusal binds only while the disk entry is within the
+ *    cache TTL (a refused write keeps the old timestamp, so an unbounded
+ *    rule refused a real shrink forever, #690); the model below is the
+ *    within-TTL case, since entry age is out of scope here.
  *  - A failed fetch retains the in-memory catalog and writes nothing;
  *    an empty live response retains likewise (no updateModels, hence
  *    no persist). Only a non-empty success reaches the guarded gate.

@@ -310,12 +310,14 @@ function stubRoutewayHttp(): { calls: HttpCall[]; net: { online: boolean } } {
 						name: "Free A",
 						type: "chat.completions",
 						pricing: { input: price(0), output: price(0) },
+						capabilities: { function_call: true },
 					},
 					{
 						id: "paid-b",
 						name: "Paid B",
 						type: "chat.completions",
 						pricing: { input: price(1), output: price(2) },
+						capabilities: { function_call: true },
 					},
 				],
 			});

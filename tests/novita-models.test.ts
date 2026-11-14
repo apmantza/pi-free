@@ -24,6 +24,8 @@ function entry(overrides: Record<string, unknown> = {}) {
 		input_token_price_per_m: 0,
 		output_token_price_per_m: 0,
 		context_size: 262_144,
+		// Every live chat row an agent can use declares tool calling (#690).
+		features: ["serverless", "function-calling"],
 		...overrides,
 	};
 }

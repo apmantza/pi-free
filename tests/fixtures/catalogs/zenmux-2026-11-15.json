@@ -1,0 +1,236 @@
+{
+	"_captured": "2026-11-15, public zenmux.ai/api/v1/models, rows verbatim (#690)",
+	"data": [
+		{
+			"id": "anthropic/claude-fable-5.2",
+			"object": "model",
+			"display_name": "Anthropic: Claude Fable 5.2",
+			"created": 1794277290,
+			"owned_by": "anthropic",
+			"input_modalities": ["text", "image", "file"],
+			"output_modalities": ["text"],
+			"capabilities": {
+				"reasoning": true
+			},
+			"context_length": 1000000,
+			"max_tokens": 128000,
+			"pricings": {
+				"completion": [
+					{
+						"value": 40,
+						"unit": "perMTokens",
+						"currency": "USD"
+					}
+				],
+				"input_cache_read": [
+					{
+						"value": 0.2,
+						"unit": "perMTokens",
+						"currency": "USD"
+					}
+				],
+				"input_cache_write_1_h": [
+					{
+						"value": 16,
+						"unit": "perMTokens",
+						"currency": "USD"
+					}
+				],
+				"input_cache_write_5_min": [
+					{
+						"value": 10,
+						"unit": "perMTokens",
+						"currency": "USD"
+					}
+				],
+				"prompt": [
+					{
+						"value": 8,
+						"unit": "perMTokens",
+						"currency": "USD"
+					}
+				],
+				"web_search": [
+					{
+						"value": 0.01,
+						"unit": "perCount",
+						"currency": "USD"
+					}
+				]
+			},
+			"publish_time": "2026-11-10"
+		},
+		{
+			"id": "google/gemini-4-hydrogen",
+			"object": "model",
+			"display_name": "Google: Gemini 4 Hydrogen",
+			"created": 1794541125,
+			"owned_by": "google",
+			"input_modalities": ["file", "image", "text", "video", "audio"],
+			"output_modalities": ["text"],
+			"capabilities": {
+				"reasoning": true
+			},
+			"context_length": 1048576,
+			"max_tokens": 65536,
+			"pricings": {
+				"completion": [
+					{
+						"value": 7.5,
+						"unit": "perMTokens",
+						"currency": "USD"
+					}
+				],
+				"input_cache_read": [
+					{
+						"value": 0.075,
+						"unit": "perMTokens",
+						"currency": "USD"
+					}
+				],
+				"input_cache_write": [
+					{
+						"value": 1.875,
+						"unit": "perMTokens",
+						"currency": "USD"
+					}
+				],
+				"prompt": [
+					{
+						"value": 1.5,
+						"unit": "perMTokens",
+						"currency": "USD"
+					}
+				],
+				"web_search": [
+					{
+						"value": 0.014,
+						"unit": "perCount",
+						"currency": "USD"
+					}
+				]
+			},
+			"publish_time": "2026-11-13"
+		},
+		{
+			"id": "bytedance/doubao-seed-2.1-turbo",
+			"object": "model",
+			"display_name": "ByteDance: Doubao-Seed-2.1-turbo",
+			"created": 1782194215,
+			"owned_by": "bytedance",
+			"input_modalities": ["text", "image", "video"],
+			"output_modalities": ["text"],
+			"capabilities": {
+				"reasoning": true
+			},
+			"context_length": 256000,
+			"max_tokens": 256000,
+			"pricings": {
+				"completion": [
+					{
+						"value": 2.212,
+						"unit": "perMTokens",
+						"currency": "USD",
+						"conditions": {
+							"prompt_tokens": {
+								"unit": "kTokens",
+								"gte": 0
+							}
+						}
+					}
+				],
+				"input_cache_read": [
+					{
+						"value": 0.0885,
+						"unit": "perMTokens",
+						"currency": "USD",
+						"conditions": {
+							"prompt_tokens": {
+								"unit": "kTokens",
+								"gte": 0
+							}
+						}
+					}
+				],
+				"input_cache_write_1_h": [
+					{
+						"value": 0.0025,
+						"unit": "perMTokens",
+						"currency": "USD"
+					}
+				],
+				"prompt": [
+					{
+						"value": 0.4424,
+						"unit": "perMTokens",
+						"currency": "USD",
+						"conditions": {
+							"prompt_tokens": {
+								"unit": "kTokens",
+								"gte": 0
+							}
+						}
+					}
+				]
+			},
+			"publish_time": "2026-06-23"
+		},
+		{
+			"id": "openai/o4-mini",
+			"object": "model",
+			"display_name": "OpenAI: o4 Mini",
+			"created": 1755177196,
+			"owned_by": "openai",
+			"input_modalities": ["image", "text", "file"],
+			"output_modalities": ["text"],
+			"capabilities": {},
+			"context_length": 200000,
+			"publish_time": "2025-04-16"
+		},
+		{
+			"id": "z-ai/glm-4.7-flash-free",
+			"object": "model",
+			"display_name": "Z.AI: GLM 4.7 Flash (Free)",
+			"created": 1768877763,
+			"owned_by": "z-ai",
+			"input_modalities": ["text"],
+			"output_modalities": ["text"],
+			"capabilities": {
+				"reasoning": true
+			},
+			"context_length": 200000,
+			"max_tokens": 128000,
+			"pricings": {
+				"completion": [
+					{
+						"value": 0,
+						"unit": "perMTokens",
+						"currency": "USD"
+					}
+				],
+				"input_cache_read": [
+					{
+						"value": 0,
+						"unit": "perMTokens",
+						"currency": "USD"
+					}
+				],
+				"prompt": [
+					{
+						"value": 0,
+						"unit": "perMTokens",
+						"currency": "USD"
+					}
+				],
+				"web_search": [
+					{
+						"value": 0,
+						"unit": "perCount",
+						"currency": "USD"
+					}
+				]
+			},
+			"publish_time": "2026-01-19"
+		}
+	]
+}
