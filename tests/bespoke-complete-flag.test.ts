@@ -3,7 +3,7 @@
  *
  * `stored.complete` ("stored.all is the whole catalog, not a restored
  * subset") was written only by the shared factory's own callbacks, so the
- * six bespoke providers (cline, kilo, llm7, ollama, qoder, zenmux) never
+ * bespoke providers (cline, kilo, llm7, ollama, zenmux) never
  * set it and their toggle always under-reported ("restored ... full
  * catalog not yet fetched"). Drives llm7's real refreshModels — its fetch
  * is purely local, no network or credential — and observes the shared

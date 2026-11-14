@@ -336,7 +336,6 @@ These registered providers exposed **no free-classified chat models** at audit t
 
 - **AnyAPI** — credential expired at audit time (HTTP 401); mapper parses pricing/isFree but live state unknown. Re-auth to restore.
 - **Ollama Cloud** — usage-based tier makes the whole catalog effectively free with quotas; classification is handled by its own probing path.
-- **Qoder** — basic Community tier vs premium credits; static curated catalog.
 - **Pi's own providers** (OpenRouter, OpenCode Go) — served by Pi, not pi-free; not audited here, see Pi's own docs. OpenRouter's `:free` variants follow the cross-cutting conditions above. OpenCode Free has the scoped dated snapshot above.
 
 ---

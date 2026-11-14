@@ -11,8 +11,7 @@ bridge (since superseded by #433, which deleted the bridge and moved Cline to
 the standard OpenAI api via the resulting lazy compat bridge), then applied the
 same boundary to TokenRouter and OpenModel. A later
 phase may introduce full provider stubs, but only if they preserve Pi's native
-provider contract. Qoder now uses the native provider lifecycle; its custom auth
-and protocol remain request-time concerns.
+provider contract.
 
 ## Goals
 
@@ -36,8 +35,6 @@ and protocol remain request-time concerns.
   built-in provider toggles lazy. They are cross-provider infrastructure and
   must be available immediately.
 - Do not hide configured providers until the user selects a model or logs in.
-- Do not migrate Qoder as part of this optimization. Its PAT exchange, COSY
-  signing, static catalog, and custom stream remain legacy by design.
 - Do not treat a smaller JavaScript graph as a user-visible improvement until
   the import-inclusive benchmark demonstrates one.
 
@@ -123,10 +120,6 @@ infer a provider's import cost from its catalog or network timing.
   still restore the native store offline, and its `stream`/`streamSimple` must
   retain `anthropicMessagesApi()`. Preserve the terms notification and the
   key-required online refresh behavior.
-- **Qoder:** `providers/qoder/qoder.ts` now owns only native registration,
-  toggle invalidation, and session-start refresh wiring. Its custom OAuth/PAT
-  adapter and `streamQoder` remain request-time dependencies; preserve them
-  when considering further leaf-level lazy loading.
 
 ## Candidate designs
 
@@ -265,8 +258,7 @@ baseline environment:
 
 Focused existing tests to extend include `cline-provider.test.ts`,
 `tokenrouter-provider.test.ts`,
-`openmodel.test.ts`, `native-filter-models.test.ts`, `registry.test.ts`, and
-`qoder.test.ts` (the last one guards the eager/legacy boundary).
+`openmodel.test.ts`, `native-filter-models.test.ts`, and `registry.test.ts`.
 
 ## Compiled-dist constraints
 
@@ -331,5 +323,3 @@ loading.
   and stream errors before considering Stage 3.
 - [ ] Run the full packaging checks and update `docs/build-strategy.md` only if
   the implementation changes its stated compiled-output constraints.
-- [x] Migrate Qoder to native auth, model-store refresh, filtering, and stable
-  provider registration while preserving OAuth/PAT and `streamQoder` behavior.

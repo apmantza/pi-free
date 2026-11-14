@@ -215,10 +215,12 @@ describe("show-paid getters", () => {
 	});
 
 	// Recurrence: pi-free stopped overriding Pi's native openrouter and
-	// opencode-go providers and dropped their show_paid keys. Existing
-	// ~/.pi/free.json files still carry them; loading such a file must not
-	// throw, warn, drop the user's bytes, or let a dead key drive any view.
-	it("loads a file still carrying the retired openrouter/opencode-go keys", async () => {
+	// opencode-go providers and dropped their show_paid keys, then removed
+	// the Qoder provider (#689) with its qoder_show_paid key. Existing
+	// ~/.pi/free.json files still carry them (plus a `qoder` entry in
+	// model_view_overrides); loading such a file must not throw, warn, drop
+	// the user's bytes, or let a dead key drive any view.
+	it("loads a file still carrying retired provider keys (openrouter, opencode-go, qoder)", async () => {
 		vi.stubEnv("HOME", "/tmp");
 		// Route the real logger's warnings to the console so the spy sees them.
 		vi.stubEnv("LOG_LEVEL", "warn");
@@ -231,6 +233,8 @@ describe("show-paid getters", () => {
 				openrouter_show_paid: true,
 				opencode_go_show_paid: true,
 				opencode_free_show_paid: true,
+				qoder_show_paid: true,
+				model_view_overrides: { qoder: "all", kilo: "all" },
 			}),
 		);
 
@@ -241,9 +245,17 @@ describe("show-paid getters", () => {
 			expect(cfg.getProviderShowPaid("opencode-go")).toBe(false);
 			expect(cfg.getModelViewOverride("openrouter")).toBeUndefined();
 			expect(cfg.getModelViewOverride("opencode-go")).toBeUndefined();
+			expect(cfg.getProviderShowPaid("qoder")).toBe(false);
+			// Other providers' explicit choices beside the dead entry survive.
+			expect(cfg.getModelViewOverride("kilo")).toBe("all");
 			const written = parseMockJson(__mockData.get(configPath()));
 			expect(written.openrouter_show_paid).toBe(true);
 			expect(written.opencode_go_show_paid).toBe(true);
+			expect(written.qoder_show_paid).toBe(true);
+			expect(written.model_view_overrides).toEqual({
+				qoder: "all",
+				kilo: "all",
+			});
 			expect(warn).not.toHaveBeenCalled();
 		} finally {
 			warn.mockRestore();

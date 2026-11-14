@@ -99,7 +99,7 @@ export function createLlm7Provider(): Llm7NativeProvider {
 	// refresh (Pi aborts the older generation) — without this seed the
 	// catalog stays empty until an uncontested refresh lands. Refresh
 	// overwrites these on success and retains them on failure, exactly
-	// like the opengateway/qoder static seeds.
+	// like the opengateway static seed.
 	{
 		const seed = fetchLlm7Catalog();
 		ingest(seed.all, seed.free);

@@ -79,7 +79,7 @@ describe("health report", () => {
 
 		// Registered but no cacheNetwork evidence at all — auth-required
 		// providers Pi never refreshes (StepFun, TokenRouter, AnyAPI, B.AI,
-		// OpenGateway, unconfigured Qoder) land here; flagging them would flip
+		// OpenGateway) land here; flagging them would flip
 		// previously-OK installs to WARN (reviewer Major finding).
 		registerWithGlobalToggle(
 			"never-prov",

@@ -22,7 +22,7 @@ Most pi-free providers now use Pi's native `registerProvider(provider)` surface.
 - retain the previous catalog after an empty or failed refresh; and
 - keep their complete catalog in memory while Pi applies the current free/all filter.
 
-FastRouter and Qoder now use the native provider lifecycle alongside the other migrated providers. Pi owns the OpenCode built-in catalog, and serves its own OpenCode Go and OpenRouter providers without any pi-free override. The `opencode-free` wrapper captures Pi's built-in OpenCode metadata, then performs one detached `GET /inference/v1/models` refresh after session start so new or retired Zen models are reflected without delaying Pi startup. The refresh is detached, deduplicated per process, and never blocks session start; a failed or empty fetch retains the cached catalog and is written to `~/.pi/free.log` instead of rethrowing into Pi's `Could not refresh …; showing cached models` warning. See [configuration](configuration.md#model-stores-and-caches) for cache locations, including Ollama Cloud's intentional compatibility-cache exception.
+FastRouter uses the native provider lifecycle alongside the other migrated providers. Pi owns the OpenCode built-in catalog, and serves its own OpenCode Go and OpenRouter providers without any pi-free override. The `opencode-free` wrapper captures Pi's built-in OpenCode metadata, then performs one detached `GET /inference/v1/models` refresh after session start so new or retired Zen models are reflected without delaying Pi startup. The refresh is detached, deduplicated per process, and never blocks session start; a failed or empty fetch retains the cached catalog and is written to `~/.pi/free.log` instead of rethrowing into Pi's `Could not refresh …; showing cached models` warning. See [configuration](configuration.md#model-stores-and-caches) for cache locations, including Ollama Cloud's intentional compatibility-cache exception.
 
 ## `glob` tool and OpenCode Zen free-tier compatibility
 
@@ -76,8 +76,6 @@ For reproducible import-inclusive measurements, run `npx tsx scripts/bench-start
 
 ## Provider protocols
 
-Most providers use OpenAI-compatible APIs. Notable custom integrations are:
-
-- **Qoder** — native provider with Qoder authentication, COSY request signing, static catalog persistence, and custom streaming compatibility.
+Most providers use OpenAI-compatible APIs. pi-free does not ship reverse-engineered request signing for an undocumented private API; Qoder was removed for that reason ([#689](https://github.com/apmantza/pi-free/issues/689)).
 
 See [Provider catalog & auth](providers.md) for setup details.

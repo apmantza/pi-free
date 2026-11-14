@@ -35,7 +35,6 @@ import {
 	PROVIDER_OLLAMA,
 	PROVIDER_OPENCODE,
 	PROVIDER_OPENCODE_FREE,
-	PROVIDER_QODER,
 	PROVIDER_ROUTEWAY,
 	PROVIDER_OPENGATEWAY,
 	PROVIDER_TOKENROUTER,
@@ -162,7 +161,6 @@ interface PiFreeConfig {
 	amd_tokenlab_show_paid?: boolean;
 	opencode_show_paid?: boolean;
 	opencode_free_show_paid?: boolean;
-	qoder_show_paid?: boolean;
 
 	// Explicit per-provider catalog views, keyed by provider id. Sparse: only
 	// choices made through /toggle-<id> are recorded; absence means "follow
@@ -253,7 +251,6 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	amd_tokenlab_show_paid: false,
 	opencode_show_paid: false,
 	opencode_free_show_paid: false,
-	qoder_show_paid: false,
 
 	// Auto-fallback defaults (lib/auto-fallback/config.ts reads these).
 	auto_fallback: false,
@@ -547,7 +544,6 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 		prefix: "OPENCODE_FREE",
 		showPaidKey: "opencode_free_show_paid",
 	},
-	{ id: PROVIDER_QODER, prefix: "QODER", showPaidKey: "qoder_show_paid" },
 ];
 
 const PROVIDER_META_BY_ID = new Map(PROVIDER_META.map((m) => [m.id, m]));

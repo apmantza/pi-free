@@ -24,7 +24,6 @@ export const PROVIDER_ORCAROUTER = "orcarouter";
 export const PROVIDER_XKIRO = "xkiro";
 export const PROVIDER_INFERX = "inferx";
 export const PROVIDER_AMD_TOKENLAB = "amd-tokenlab";
-export const PROVIDER_QODER = "qoder";
 export const PROVIDER_FASTROUTER = "fastrouter";
 export const PROVIDER_REQUESTY = "requesty";
 export const PROVIDER_STEPFUN = "stepfun";
@@ -89,7 +88,6 @@ export const BASE_URL_INFRON = "https://llm.onerouter.pro/v1";
 export const BASE_URL_MERGE = "https://api-gateway.merge.dev/v1/openai";
 /** CommandCode Provider API base URL (public catalog, keyed chat). */
 export const BASE_URL_COMMANDCODE = "https://api.commandcode.ai/provider/v1";
-export const BASE_URL_QODER = "https://api2-v2.qoder.sh";
 
 // =============================================================================
 // External URLs
