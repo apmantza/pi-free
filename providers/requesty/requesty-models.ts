@@ -17,6 +17,7 @@ import {
 	PROVIDER_REQUESTY,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
+import { perMillionFromPerToken } from "../../lib/model-map.ts";
 import { fetchWithRetry, withSignal } from "../../lib/util.ts";
 
 const _logger = createLogger("requesty-models");
@@ -46,6 +47,12 @@ function asNumber(value: unknown): number | undefined {
 		: undefined;
 }
 
+/** Requesty quotes USD per token; `Model.cost` is USD per million. */
+function asPricePerMillion(value: unknown): number | undefined {
+	const price = asNumber(value);
+	return price === undefined ? undefined : perMillionFromPerToken(price);
+}
+
 /**
  * Map one catalog entry to the pi-free model config shape. Returns undefined
  * for non-chat endpoints and unusable entries rather than guessing.
@@ -65,8 +72,8 @@ export function mapRequestyModel(
 	// cannot hold a conversation.
 	if (entry.id.includes("content-safety")) return undefined;
 
-	const inputPrice = asNumber(entry.input_price);
-	const outputPrice = asNumber(entry.output_price);
+	const inputPrice = asPricePerMillion(entry.input_price);
+	const outputPrice = asPricePerMillion(entry.output_price);
 	// SAFETY: a missing/non-numeric price is a parse miss, not a zero price.
 	// Defaulting to 0 without the marker lets Route A classify a paid model
 	// as free whenever any sibling exposes pricing (#610). Both standard
@@ -82,8 +89,8 @@ export function mapRequestyModel(
 		cost: {
 			input: inputPrice ?? 0,
 			output: outputPrice ?? 0,
-			cacheRead: asNumber(entry.cached_price) ?? 0,
-			cacheWrite: asNumber(entry.caching_price) ?? 0,
+			cacheRead: asPricePerMillion(entry.cached_price) ?? 0,
+			cacheWrite: asPricePerMillion(entry.caching_price) ?? 0,
 		},
 		contextWindow: asNumber(entry.context_window) ?? FALLBACK_CONTEXT_WINDOW,
 		maxTokens: asNumber(entry.max_output_tokens) || 4_096,

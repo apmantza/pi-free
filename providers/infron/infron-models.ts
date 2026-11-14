@@ -134,7 +134,7 @@ export function mapInfronModel(
 			: entry.id;
 	const inputMods = asStringArray(entry.input_modalities);
 
-	// Min prices are USD per million tokens -> convert to pi-free per-token.
+	// Min prices are USD per million tokens, the unit of `Model.cost`.
 	// Route A authority requires BOTH prices to arrive as genuine non-negative
 	// finite numbers: a string/null/absent/negative price must NOT masquerade
 	// as a verified $0 (that would stamp a paid model authoritatively free).
@@ -154,8 +154,8 @@ export function mapInfronModel(
 			? (["text", "image"] as const)
 			: (["text"] as const),
 		cost: {
-			input: pricingKnown ? promptPrice / 1_000_000 : 0,
-			output: pricingKnown ? completionPrice / 1_000_000 : 0,
+			input: pricingKnown ? promptPrice : 0,
+			output: pricingKnown ? completionPrice : 0,
 			cacheRead: 0,
 			cacheWrite: 0,
 		},

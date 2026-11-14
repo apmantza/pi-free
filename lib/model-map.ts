@@ -255,18 +255,34 @@ export function cleanModelName(name: string): string {
 // =============================================================================
 
 /**
+ * Convert a USD-per-token catalog price (OpenRouter convention: "0.000008")
+ * to the USD-per-million-tokens unit of `Model.cost`: pi-ai's
+ * `calculateCost` charges `(cost.input / 1_000_000) * tokens`. Every
+ * per-token source goes through here; per-million sources (models.dev,
+ * DeepInfra, ZenMux, Venice, ...) publish their value unchanged. The
+ * `toPrecision` drops binary float noise (0.0000003 * 1e6 is
+ * 0.30000000000000004), so a published price reads as the catalog's.
+ */
+export function perMillionFromPerToken(price: number): number {
+	return Number((price * 1_000_000).toPrecision(12));
+}
+
+/**
  * Parse one OpenRouter-style catalog price. Only a numeric, non-negative
  * string is a known price; "", null, missing, non-numeric and negative values
  * are unknown, never $0 (defect shape 15: FastRouter publishes "" for
  * unpublished prices, and `Number.parseFloat("")` is NaN). Negative values are
- * router sentinels, see `hasRouterPricing`.
+ * router sentinels, see `hasRouterPricing`. The catalog quotes USD per token;
+ * the result is USD per million tokens.
  */
 function parseCatalogPrice(
 	value: string | null | undefined,
 ): number | undefined {
 	if (typeof value !== "string" || value.trim() === "") return undefined;
 	const price = Number(value);
-	return Number.isFinite(price) && price >= 0 ? price : undefined;
+	return Number.isFinite(price) && price >= 0
+		? perMillionFromPerToken(price)
+		: undefined;
 }
 
 /**
@@ -384,7 +400,7 @@ export function mapOpenRouterModel(
  * Defaults for mapping models from OpenAI-compatible /v1/models endpoints.
  */
 export interface OpenAIModelDefaults {
-	/** Per-model cost defaults (set to 0 if provider is free-tier). */
+	/** Per-model cost defaults in USD per million tokens (0 for free tiers). */
 	cost?: { input: number; output: number };
 	/** Default context window (tokens). */
 	contextWindow?: number;
@@ -485,15 +501,17 @@ function resolveOpenAIModelCost(
 	m: OpenAIModelEntry,
 	defaults: OpenAIModelDefaults,
 ): { input: number; output: number; pricingKnown: boolean } {
+	// Gateways on this path (SambaNova, GMI) quote OpenRouter-style
+	// USD-per-token prices.
 	const apiInput =
 		typeof m.pricing?.prompt === "number" ||
 		typeof m.pricing?.prompt === "string"
-			? Number(m.pricing.prompt)
+			? perMillionFromPerToken(Number(m.pricing.prompt))
 			: undefined;
 	const apiOutput =
 		typeof m.pricing?.completion === "number" ||
 		typeof m.pricing?.completion === "string"
-			? Number(m.pricing.completion)
+			? perMillionFromPerToken(Number(m.pricing.completion))
 			: undefined;
 	return {
 		input: apiInput ?? defaults.cost?.input ?? 0,

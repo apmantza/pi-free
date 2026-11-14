@@ -6,8 +6,8 @@
  * official pricing page, last verified there 2026-08-25:
  *   https://commandcode.ai/docs/resources/pricing-limits
  *
- * pi-free converts these to its USD-per-token cost unit at mapping time
- * (divide by 1e6) in commandcode-models.ts. Free/paid is not read from this
+ * This is the unit of `Model.cost`, so commandcode-models.ts publishes the
+ * values unchanged. Free/paid is not read from this
  * table: the catalog's `:free` id suffix decides it (commandcode-models.ts).
  */
 

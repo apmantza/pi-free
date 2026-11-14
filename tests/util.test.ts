@@ -129,8 +129,9 @@ describe("Utility Functions", () => {
 
 			expect(result.id).toBe("openai/gpt-4");
 			expect(result.name).toBe("GPT-4");
-			expect(result.cost.input).toBe(0.03);
-			expect(result.cost.output).toBe(0.06);
+			// USD per token in, USD per million tokens out (#678).
+			expect(result.cost.input).toBe(30_000);
+			expect(result.cost.output).toBe(60_000);
 			expect(result.cost.cacheRead).toBe(0);
 			expect(result.cost.cacheWrite).toBe(0);
 			expect(result.contextWindow).toBe(8192);

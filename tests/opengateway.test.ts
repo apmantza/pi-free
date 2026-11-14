@@ -27,7 +27,7 @@ describe("OpenGateway model mapping", () => {
 
 		expect(model).toMatchObject({
 			id: "mimo-v2.5-pro",
-			cost: { input: 0.000000522, output: 0.000001044 },
+			cost: { input: 0.522, output: 1.044 },
 			contextWindow: 262_144,
 			_pricingKnown: true,
 			_freeKnown: true,

@@ -2,7 +2,7 @@
  * CommandCode provider tests.
  *
  * Covers the catalog mapper (curated pricing table in USD per million
- * tokens -> pi-free per-token cost, pricing authority only for ids present
+ * tokens, published unchanged; pricing authority only for ids present
  * in the pricing table, free authority from the `:free` id suffix,
  * modality/reasoning tables) and the claude-*
  * Anthropic-Messages transport split.
@@ -28,16 +28,16 @@ function catalogEntry(overrides: Record<string, unknown> = {}) {
 }
 
 describe("mapCommandCodeModel", () => {
-	it("maps a priced model from the curated table to per-token cost", () => {
+	it("publishes a priced model from the curated table in USD per million tokens", () => {
 		const model = mapCommandCodeModel(catalogEntry());
 		expect(model).toBeDefined();
 		expect(model?.id).toBe("gpt-5.6-sol");
 		expect(model?.name).toBe("GPT-5.6 Sol");
-		// Table: $5/$30 per million -> 5e-6/3e-5 per token.
-		expect(model?.cost.input).toBeCloseTo(5e-6, 12);
-		expect(model?.cost.output).toBeCloseTo(3e-5, 12);
-		expect(model?.cost.cacheRead).toBeCloseTo(0.5e-6, 12);
-		expect(model?.cost.cacheWrite).toBeCloseTo(6.25e-6, 12);
+		// Table: $5/$30 per million, the unit of Model.cost (#678).
+		expect(model?.cost.input).toBe(5);
+		expect(model?.cost.output).toBe(30);
+		expect(model?.cost.cacheRead).toBe(0.5);
+		expect(model?.cost.cacheWrite).toBe(6.25);
 		expect(model?.contextWindow).toBe(1_000_000);
 		expect(
 			(model as unknown as { _pricingKnown?: boolean })._pricingKnown,

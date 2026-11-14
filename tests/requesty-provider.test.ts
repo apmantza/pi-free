@@ -52,10 +52,10 @@ describe("mapRequestyModel", () => {
 			}),
 		);
 		expect(model?.cost).toEqual({
-			input: 4.5e-7,
-			output: 1.8e-6,
-			cacheRead: 1e-8,
-			cacheWrite: 2e-8,
+			input: 0.45,
+			output: 1.8,
+			cacheRead: 0.01,
+			cacheWrite: 0.02,
 		});
 		expect(model?.input).toEqual(["text", "image"]);
 		expect(model?.reasoning).toBe(false);

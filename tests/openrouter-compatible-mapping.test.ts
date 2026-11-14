@@ -302,9 +302,9 @@ it("stamps empty token prices as unknown pricing", async () => {
 	const kimi = catalog.get("moonshotai/kimi-k2.6")!;
 	expect(kimi._pricingKnown).toBe(true);
 	expect(kimi.cost).toMatchObject({
-		input: 0.00000075,
-		output: 0.0000035,
-		cacheRead: 0.00000015,
+		input: 0.75,
+		output: 3.5,
+		cacheRead: 0.15,
 		cacheWrite: 0,
 	});
 	expect(isFreeModel(kimi, all)).toBe(false);

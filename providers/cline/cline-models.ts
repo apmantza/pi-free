@@ -27,7 +27,10 @@ import {
 } from "../../lib/types.ts";
 import { getClineProviderHeaders } from "./cline-headers.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
-import { hasRouterPricing } from "../../lib/model-map.ts";
+import {
+	hasRouterPricing,
+	perMillionFromPerToken,
+} from "../../lib/model-map.ts";
 import { getProxyModelCompat } from "../../lib/provider-compat.ts";
 import { cleanModelName, fetchWithRetry, withSignal } from "../../lib/util.ts";
 
@@ -90,13 +93,13 @@ function extractNameFromId(id: string): string {
 }
 
 /**
- * Parse pricing string to cost per million tokens.
+ * Parse a pricing string to USD per million tokens.
  * Cline returns pricing as string per token (e.g. "0.0001" or "0").
  */
 function parsePricing(pricingStr: string | null | undefined): number {
 	if (!pricingStr || pricingStr === "0") return 0;
 	const parsed = Number.parseFloat(pricingStr);
-	return Number.isNaN(parsed) ? 0 : parsed * 1_000_000;
+	return Number.isNaN(parsed) ? 0 : perMillionFromPerToken(parsed);
 }
 
 function modalityIncludes(

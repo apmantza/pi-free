@@ -7,8 +7,8 @@
  *
  * The catalog carries an authoritative `access_tier` per model ("free",
  * "paid", "premium") plus `capabilities` ({ vision, tools, reasoning }),
- * `context_length`, and `max_output_tokens`. Prices are quoted per million
- * tokens and are converted to per-token costs for the pi model record.
+ * `context_length`, and `max_output_tokens`. Prices are quoted in USD per
+ * million tokens, the unit of `Model.cost`, and publish unchanged.
  * Free models include `deepseek/deepseek-v4.1-flash:free`,
  * `qwen/qwen3.5-397b-a17b:free`, and the `minimax/*:free` family.
  *
@@ -78,9 +78,6 @@ type XkiroProviderModel = ProviderModelConfig & {
 	_isFree?: boolean;
 	_xkiroMetadataVersion?: number;
 };
-
-/** Xkiro quotes prices per million tokens; pi records per-token costs. */
-const XKIRO_PRICE_DIVISOR = 1_000_000;
 
 function hasPricing(model: XkiroModel): boolean {
 	const pricing = model.pricing;
@@ -152,10 +149,10 @@ export function mapXkiroModel(model: XkiroModel): XkiroProviderModel {
 		...(reasoning && { thinkingLevelMap: { off: "none" } }),
 		input: vision ? (["text", "image"] as const) : (["text"] as const),
 		cost: {
-			input: (model.pricing?.input ?? 0) / XKIRO_PRICE_DIVISOR,
-			output: (model.pricing?.output ?? 0) / XKIRO_PRICE_DIVISOR,
-			cacheRead: (model.pricing?.cache_read ?? 0) / XKIRO_PRICE_DIVISOR,
-			cacheWrite: (model.pricing?.cache_write ?? 0) / XKIRO_PRICE_DIVISOR,
+			input: model.pricing?.input ?? 0,
+			output: model.pricing?.output ?? 0,
+			cacheRead: model.pricing?.cache_read ?? 0,
+			cacheWrite: model.pricing?.cache_write ?? 0,
 		},
 		contextWindow: model.context_length ?? 4096,
 		maxTokens: model.max_output_tokens ?? 4096,

@@ -81,7 +81,7 @@ describe("Xkiro free model detection", () => {
 		});
 	});
 
-	it("converts per-million pricing to per-token costs", () => {
+	it("publishes per-million pricing unchanged", () => {
 		const model = mapXkiroModel({
 			id: "openai/gpt-6-sol",
 			access_tier: "paid",
@@ -98,10 +98,10 @@ describe("Xkiro free model detection", () => {
 		});
 
 		expect(model.cost).toMatchObject({
-			input: 2 / 1_000_000,
-			output: 10 / 1_000_000,
-			cacheRead: 0.2 / 1_000_000,
-			cacheWrite: 2.5 / 1_000_000,
+			input: 2,
+			output: 10,
+			cacheRead: 0.2,
+			cacheWrite: 2.5,
 		});
 		expect(model).toMatchObject({ _freeKnown: true, _isFree: false });
 	});

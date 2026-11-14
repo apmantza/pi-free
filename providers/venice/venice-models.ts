@@ -8,8 +8,8 @@
  * text model, which feeds pi-free's cost-based free-model detection (Route A)
  * without any curated list.
  *
- * Units: pi-free's Model.cost fields are USD per token (OpenRouter convention),
- * while Venice reports USD per million tokens — hence the 1e6 divisor.
+ * Units: Venice reports USD per million tokens, the unit of `Model.cost`
+ * (pi-ai's calculateCost divides by 1e6), so prices publish unchanged.
  *
  * Balance gate: Venice requires a POSITIVE account balance for ALL inference,
  * including zero-priced models — a $0/$0 catalog entry still answers HTTP 402
@@ -73,11 +73,9 @@ function asNumber(value: unknown): number | undefined {
 		: undefined;
 }
 
-/** Convert a Venice usd-per-million price to the pi-free per-token unit. */
-function usdPerMillionToPerToken(
-	price: VeniceCatalogPrice | undefined,
-): number {
-	return (asNumber(price?.usd) ?? 0) / 1_000_000;
+/** A Venice USD-per-million price (the `Model.cost` unit); absent is 0. */
+function usdPerMillion(price: VeniceCatalogPrice | undefined): number {
+	return asNumber(price?.usd) ?? 0;
 }
 
 /**
@@ -109,10 +107,10 @@ export function mapVeniceModel(
 		reasoning: capabilities.supportsReasoning === true,
 		input: vision ? (["text", "image"] as const) : (["text"] as const),
 		cost: {
-			input: usdPerMillionToPerToken(spec.pricing?.input),
-			output: usdPerMillionToPerToken(spec.pricing?.output),
-			cacheRead: usdPerMillionToPerToken(spec.pricing?.cache_input),
-			cacheWrite: usdPerMillionToPerToken(spec.pricing?.cache_write),
+			input: usdPerMillion(spec.pricing?.input),
+			output: usdPerMillion(spec.pricing?.output),
+			cacheRead: usdPerMillion(spec.pricing?.cache_input),
+			cacheWrite: usdPerMillion(spec.pricing?.cache_write),
 		},
 		contextWindow:
 			asNumber(entry.context_length) ??
