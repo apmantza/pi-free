@@ -13,6 +13,10 @@ import {
 	fetchMergeModels,
 	mapMergeModel,
 } from "../providers/merge/merge-models.ts";
+import {
+	refreshNativeCatalog,
+	useCatalogHttp,
+} from "./helpers/native-catalog.ts";
 
 /** One vendor route with sensible defaults matching the live schema. */
 function vendor(overrides: Record<string, unknown> = {}) {
@@ -77,7 +81,7 @@ describe("mapMergeModel", () => {
 		expect(model?.maxTokens).toBe(262_144);
 	});
 
-	it("picks the cheapest available vendor per field and ORs capabilities", () => {
+	it("prices from the cheapest available route and ORs capabilities", () => {
 		const model = mapMergeModel(
 			catalogEntry({
 				vendors: {
@@ -280,5 +284,109 @@ describe("fetchMergeModels pagination", () => {
 		const models = await fetchMergeModels("");
 		expect(models).toEqual([]);
 		expect(fetchMock).not.toHaveBeenCalled();
+	});
+});
+
+describe("Merge free view through the real refresh", () => {
+	let catalog: unknown = { data: [] };
+	useCatalogHttp("api-gateway.merge.dev", () => catalog, ["MERGE_API_KEY"]);
+
+	async function refreshed() {
+		const { mergeProviderOptions } =
+			await import("../providers/merge/merge.ts");
+		return refreshNativeCatalog(mergeProviderOptions);
+	}
+
+	const priced = {
+		model: "vendor/priced",
+		display_name: "Priced",
+		vendors: {
+			v: vendor({ pricing: { input_per_million: 1, output_per_million: 4 } }),
+		},
+	};
+
+	// Recurrence (#690): the cheapest input and the cheapest output price
+	// were taken independently across vendors, so a model with no free
+	// route (one vendor $0 in / $5 out, another $3 in / $0 out) published
+	// $0/$0 and joined the free view. Prices come from one route.
+	it("never fabricates $0/$0 from two partly free routes", async () => {
+		catalog = {
+			data: [
+				priced,
+				{
+					model: "vendor/split",
+					display_name: "Split",
+					vendors: {
+						a: vendor({
+							pricing: { input_per_million: 0, output_per_million: 5 },
+						}),
+						b: vendor({
+							pricing: { input_per_million: 3, output_per_million: 0 },
+						}),
+					},
+				},
+				{
+					model: "vendor/zero-route",
+					display_name: "Zero Route",
+					vendors: {
+						paid: vendor({
+							pricing: { input_per_million: 2, output_per_million: 8 },
+						}),
+						free: vendor({
+							pricing: { input_per_million: 0, output_per_million: 0 },
+						}),
+					},
+				},
+				{
+					// Same routes, $0 one listed first: order must not matter.
+					model: "vendor/zero-route-first",
+					display_name: "Zero Route First",
+					vendors: {
+						free: vendor({
+							pricing: { input_per_million: 0, output_per_million: 0 },
+						}),
+						paid: vendor({
+							pricing: { input_per_million: 2, output_per_million: 8 },
+						}),
+					},
+				},
+			],
+		};
+		const { all, freeView } = await refreshed();
+		const split = all.find((m) => m.id === "vendor/split");
+		// Route b ($3 + $0) is cheaper than route a ($0 + $5); its pair publishes.
+		expect(split?.cost).toMatchObject({ input: 3, output: 0 });
+		expect(freeView.map((m) => m.id)).toEqual([
+			"vendor/zero-route",
+			"vendor/zero-route-first",
+		]);
+	});
+
+	// Recurrence (#690): admission was "output includes text", so a route
+	// that also outputs images (or audio, video, decision) was published as
+	// a chat model. A route's outputs must all be text or tool_use, the
+	// only chat outputs in the documented enum.
+	it("does not publish image-output hybrids", async () => {
+		catalog = {
+			data: [
+				priced,
+				{
+					model: "vendor/image-hybrid",
+					display_name: "Image Hybrid",
+					vendors: {
+						v: vendor({
+							capabilities: {
+								input: ["text", "image"],
+								output: ["text", "image"],
+							},
+							pricing: { input_per_million: 0, output_per_million: 0 },
+						}),
+					},
+				},
+			],
+		};
+		const { all, freeView } = await refreshed();
+		expect(all.map((m) => m.id)).toEqual(["vendor/priced"]);
+		expect(freeView).toEqual([]);
 	});
 });
