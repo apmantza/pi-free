@@ -212,19 +212,6 @@ describe("TokenRouter MiniMax handling", () => {
 		]);
 	});
 
-	it("patches MiniMax-M3 thinking payloads from enabled to adaptive", () => {
-		expect(
-			normalizeTokenRouterRequestPayload({
-				model: "MiniMax-M3",
-				thinking: { type: "enabled" },
-			}),
-		).toEqual({
-			model: "MiniMax-M3",
-			thinking: { type: "adaptive" },
-			reasoning_split: true,
-		});
-	});
-
 	it("rewrites developer-role messages to system (Qwen upstreams 422 on developer)", () => {
 		const result = normalizeTokenRouterRequestPayload({
 			model: "qwen/qwen3.8-max-free",
@@ -247,7 +234,7 @@ describe("TokenRouter MiniMax handling", () => {
 		expect(normalizeTokenRouterRequestPayload(payload)).toBe(payload);
 	});
 
-	it("adds reasoning_split without touching non-MiniMax thinking", () => {
+	it("adds reasoning_split without touching thinking", () => {
 		const other = {
 			model: "deepseek-r1",
 			thinking: { type: "enabled" },
@@ -259,15 +246,6 @@ describe("TokenRouter MiniMax handling", () => {
 			thinking: { type: "enabled" },
 			reasoning_split: true,
 		});
-	});
-
-	it("force-patches even when the payload has no model field", () => {
-		expect(
-			normalizeTokenRouterRequestPayload(
-				{ thinking: { type: "enabled" } },
-				true,
-			),
-		).toEqual({ thinking: { type: "adaptive" }, reasoning_split: true });
 	});
 
 	it("leaves an already-normalized payload untouched", () => {

@@ -1,7 +1,7 @@
 /**
  * Merge Gateway API-key authentication.
  *
- * The model catalog (api-gateway.merge.dev/v1/openai/models) is KEYED —
+ * The native model catalog (api-gateway.merge.dev/v1/models) is KEYED —
  * anonymous requests return HTTP 401 (verified live) — so without a stored
  * credential or ambient key, `resolve()` returns undefined and Pi hides
  * the provider until login/key setup. Chat requests use the same key.

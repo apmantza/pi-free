@@ -225,21 +225,36 @@ function costFromModelsDev(
 	};
 }
 
+/**
+ * Map a model's declared `reasoning_effort` values onto Pi's thinking levels.
+ * Only declared values are ever sent: every Pi level the list does not name
+ * maps to `null` (hidden, and pi-ai clamps to a supported neighbour), so a
+ * value outside this known set, or an empty list, yields a map that sends
+ * nothing. Off is "none" (OpenAI spelling) or "off" (on/off toggles such as
+ * Xkiro's Nemotron rows); a toggle's "on" serves as high. xhigh falls back to
+ * "max" when only "max" is declared. Shared by models.dev `reasoning_options`
+ * and gateways that publish per-model effort lists (Xkiro).
+ */
+export function thinkingLevelMapFromEfforts(
+	declared: readonly string[],
+): ThinkingLevelMap {
+	const values = new Set(declared);
+	return {
+		off: values.has("none") ? "none" : values.has("off") ? "off" : null,
+		minimal: values.has("minimal") ? "minimal" : null,
+		low: values.has("low") ? "low" : null,
+		medium: values.has("medium") ? "medium" : null,
+		high: values.has("high") ? "high" : values.has("on") ? "on" : null,
+		xhigh: values.has("xhigh") ? "xhigh" : values.has("max") ? "max" : null,
+	};
+}
+
 function thinkingMapFromReasoningOptions(
 	options: ModelsDevModel["reasoning_options"],
 ): ThinkingLevelMap | undefined {
 	const effort = options?.find((option) => option.type === "effort");
 	if (!effort?.values?.length) return undefined;
-
-	const values = new Set(effort.values);
-	return {
-		off: values.has("none") ? "none" : null,
-		minimal: values.has("minimal") ? "minimal" : null,
-		low: values.has("low") ? "low" : null,
-		medium: values.has("medium") ? "medium" : null,
-		high: values.has("high") ? "high" : null,
-		xhigh: values.has("xhigh") ? "xhigh" : values.has("max") ? "max" : null,
-	};
+	return thinkingLevelMapFromEfforts(effort.values);
 }
 
 function identityFromMeta(

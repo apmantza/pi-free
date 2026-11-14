@@ -35,19 +35,24 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getMergeApiKey, getMergeShowPaid } from "../../config.ts";
 import { BASE_URL_MERGE, PROVIDER_MERGE } from "../../constants.ts";
-import { registerNativeOpenAIProvider } from "../../lib/native-provider.ts";
+import {
+	registerNativeOpenAIProvider,
+	type NativeOpenAIProviderOptions,
+} from "../../lib/native-provider.ts";
 import { mergeAuth } from "./merge-auth.ts";
 import { fetchMergeModels } from "./merge-models.ts";
 
+export const mergeProviderOptions: NativeOpenAIProviderOptions = {
+	providerId: PROVIDER_MERGE,
+	name: "Merge Gateway",
+	baseUrl: BASE_URL_MERGE,
+	auth: mergeAuth,
+	getApiKey: getMergeApiKey,
+	getShowPaid: getMergeShowPaid,
+	fetchModels: (apiKey, signal) => fetchMergeModels(apiKey, signal),
+};
+
 export default function mergeProvider(pi: ExtensionAPI): Promise<void> {
-	registerNativeOpenAIProvider(pi, {
-		providerId: PROVIDER_MERGE,
-		name: "Merge Gateway",
-		baseUrl: BASE_URL_MERGE,
-		auth: mergeAuth,
-		getApiKey: getMergeApiKey,
-		getShowPaid: getMergeShowPaid,
-		fetchModels: (apiKey, signal) => fetchMergeModels(apiKey, signal),
-	});
+	registerNativeOpenAIProvider(pi, mergeProviderOptions);
 	return Promise.resolve();
 }

@@ -322,7 +322,7 @@ function parseCatalogPrice(
  * nvidia/switchyard, ...) list prompt/completion "-1": billed at the routed
  * model's rate. That is not a price: `mapOpenRouterModel` publishes such rows
  * pricing-unknown, and catalog mappers that stamp their own pricing
- * provenance (Cline, AnyAPI, OrcaRouter) ask this before calling a row priced.
+ * provenance (Cline) ask this before calling a row priced.
  */
 export function hasRouterPricing(
 	pricing:

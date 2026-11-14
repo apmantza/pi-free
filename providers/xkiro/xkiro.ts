@@ -7,10 +7,11 @@
  *
  * The catalog carries an authoritative `access_tier` per model ("free",
  * "paid", "premium") plus `capabilities` ({ vision, tools, reasoning }),
- * `context_length`, and `max_output_tokens`. Prices are quoted in USD per
- * million tokens, the unit of `Model.cost`, and publish unchanged.
- * Free models include `deepseek/deepseek-v4.1-flash:free`,
- * `qwen/qwen3.5-397b-a17b:free`, and the `minimax/*:free` family.
+ * `context_length`, `max_output_tokens`, and per-model
+ * `reasoning_efforts.levels`. Prices are quoted in USD per million tokens,
+ * the unit of `Model.cost`, and publish unchanged. The catalog is public;
+ * on 2026-11-15 it listed 26 free rows (Cohere, Mistral, SenseNova,
+ * `stealth/big-pickle`), 22 of them with tool calling.
  *
  * Note: catalog pricing is not the whole access story — the gateway can
  * paywall individual models per key/plan server-side (observed with a trial
@@ -33,13 +34,19 @@ import {
 	PROVIDER_XKIRO,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
-import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
+import {
+	safeEnrichModelsWithModelsDev,
+	thinkingLevelMapFromEfforts,
+} from "../../lib/model-metadata.ts";
 import {
 	getProxyModelCompat,
 	isLikelyReasoningModel,
 } from "../../lib/provider-compat.ts";
 import { cleanModelName, fetchWithRetry, withSignal } from "../../lib/util.ts";
-import { registerNativeOpenAIProvider } from "../../lib/native-provider.ts";
+import {
+	registerNativeOpenAIProvider,
+	type NativeOpenAIProviderOptions,
+} from "../../lib/native-provider.ts";
 import { xkiroAuth } from "./xkiro-auth.ts";
 
 const _logger = createLogger("xkiro");
@@ -68,6 +75,8 @@ interface XkiroModel {
 	capabilities?: XkiroCapabilities | null;
 	context_length?: number | null;
 	max_output_tokens?: number | null;
+	/** Per-model `reasoning_effort` values the gateway accepts. */
+	reasoning_efforts?: { levels?: string[] | null } | null;
 }
 
 const XKIRO_METADATA_VERSION = 1;
@@ -114,8 +123,15 @@ export function isXkiroFreeModel(model: XkiroModel): boolean {
 	);
 }
 
+/**
+ * Admit only text chat rows that declare tool calling: pi-free feeds a coding
+ * agent that sends tools on every turn, and the catalog marks the rows that
+ * cannot take them (`capabilities.tools: false`, e.g. aya-vision-32b and
+ * north-small-translate on 2026-11-15). A row without the flag is refused.
+ */
 function isTextChatModel(model: XkiroModel): boolean {
 	if (!model.id) return false;
+	if (model.capabilities?.tools !== true) return false;
 	if (
 		model.modality !== undefined &&
 		model.modality !== null &&
@@ -146,7 +162,13 @@ export function mapXkiroModel(model: XkiroModel): XkiroProviderModel {
 		id: model.id,
 		name,
 		reasoning,
-		...(reasoning && { thinkingLevelMap: { off: "none" } }),
+		// Only levels the row declares are ever sent; a reasoning row that
+		// declares none gets a map that sends no reasoning_effort at all.
+		...(reasoning && {
+			thinkingLevelMap: thinkingLevelMapFromEfforts(
+				model.reasoning_efforts?.levels ?? [],
+			),
+		}),
 		input: vision ? (["text", "image"] as const) : (["text"] as const),
 		cost: {
 			input: model.pricing?.input ?? 0,
@@ -210,17 +232,19 @@ async function fetchXkiroModels(
 	) as XkiroProviderModel[];
 }
 
+export const xkiroProviderOptions: NativeOpenAIProviderOptions = {
+	providerId: PROVIDER_XKIRO,
+	name: "Xkiro",
+	baseUrl: BASE_URL_XKIRO,
+	auth: xkiroAuth,
+	getApiKey: getXkiroApiKey,
+	getShowPaid: getXkiroShowPaid,
+	fetchModels: (apiKey, signal) => fetchXkiroModels(apiKey, signal),
+	tosUrl: "https://xkiro.com/terms",
+	suppressTosWhenKey: true,
+};
+
 export default function xkiroProvider(pi: ExtensionAPI): Promise<void> {
-	registerNativeOpenAIProvider(pi, {
-		providerId: PROVIDER_XKIRO,
-		name: "Xkiro",
-		baseUrl: BASE_URL_XKIRO,
-		auth: xkiroAuth,
-		getApiKey: getXkiroApiKey,
-		getShowPaid: getXkiroShowPaid,
-		fetchModels: (apiKey, signal) => fetchXkiroModels(apiKey, signal),
-		tosUrl: "https://xkiro.com/terms",
-		suppressTosWhenKey: true,
-	});
+	registerNativeOpenAIProvider(pi, xkiroProviderOptions);
 	return Promise.resolve();
 }

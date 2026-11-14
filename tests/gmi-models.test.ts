@@ -1,27 +1,19 @@
 /**
- * GMI provider model-catalog tests.
+ * GMI provider model-catalog tests, through the real fetcher +
+ * createNativeOpenAIProvider refresh. Only HTTP is stubbed.
  *
- * Covers the catalog's pass-through behavior. GMI publishes priced +
- * promotional SKUs side-by-side; both are expected to survive `fetchGmiModels`
- * (no dedupe), and the promotional `is_free: true` row must surface as a
- * distinct free entry. Previously, GMI's free weeks required a hardcoded
- * PROMOTIONS window and a by-id dedupe; both were removed when
- * `fetchOpenAICompatibleModels` grew native `is_free` handling.
+ * GMI publishes a promotional model twice in `/v1/models`: the priced SKU and
+ * a duplicate id with zeroed pricing and `is_free: true`. The rows below
+ * follow that shape (the catalog needs a key, so they are not a live
+ * capture). Free weeks need no hardcoded window: the promotion ends when GMI
+ * stops publishing the `is_free` row.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
-
-import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
-
-import { fetchGmiModels } from "../providers/gmi/gmi-models.ts";
-
-function mockFetchOk(body: unknown) {
-	globalThis.fetch = vi.fn().mockResolvedValue({
-		ok: true,
-		status: 200,
-		json: async () => body,
-	} as unknown as Response);
-}
+import { describe, expect, it } from "vitest";
+import {
+	refreshNativeCatalog,
+	useCatalogHttp,
+} from "./helpers/native-catalog.ts";
 
 function asGmiEntry(overrides: Record<string, unknown> = {}) {
 	return {
@@ -42,56 +34,80 @@ function asGmiEntry(overrides: Record<string, unknown> = {}) {
 	};
 }
 
-describe("fetchGmiModels — promotional free SKUs", () => {
-	afterEach(() => {
-		vi.restoreAllMocks();
-	});
+const PROMO_FREE_ROW = asGmiEntry({
+	id: "MiniMaxAI/MiniMax-M3",
+	pricing: {
+		prompt: "0",
+		completion: "0",
+		request: "0",
+		image: "0",
+		input_cache_read: "0",
+		input_cache_write: "0",
+	},
+	is_free: true,
+});
 
-	it("keeps both the priced and the promotional is_free rows (no dedupe)", async () => {
-		mockFetchOk({
+let catalog: unknown = { data: [] };
+useCatalogHttp("api.gmi-serving.com", () => catalog, ["GMI_API_KEY"]);
+
+async function refreshed() {
+	const { gmiProviderOptions } = await import("../providers/gmi/gmi.ts");
+	return refreshNativeCatalog(gmiProviderOptions);
+}
+
+describe("GMI promotional free SKUs", () => {
+	// Recurrence (#690): the priced row and the `is_free` row share one id;
+	// both were published, so Pi got two models under one key and the free
+	// view (which selects by id) showed the priced copy beside the free one.
+	it("publishes one model per id, free when an is_free row exists", async () => {
+		catalog = {
 			object: "list",
 			data: [
 				asGmiEntry({ id: "MiniMaxAI/MiniMax-M3" }),
-				asGmiEntry({
-					id: "MiniMaxAI/MiniMax-M3",
-					pricing: {
-						prompt: "0",
-						completion: "0",
-						request: "0",
-						image: "0",
-						input_cache_read: "0",
-						input_cache_write: "0",
-					},
-					is_free: true,
-				}),
+				PROMO_FREE_ROW,
+				asGmiEntry({ id: "vendor/paid" }),
 			],
+		};
+		const { all, free, freeView } = await refreshed();
+		expect(all.map((m) => m.id).sort()).toEqual([
+			"MiniMaxAI/MiniMax-M3",
+			"vendor/paid",
+		]);
+		expect(free.map((m) => m.id)).toEqual(["MiniMaxAI/MiniMax-M3"]);
+		expect(freeView).toHaveLength(1);
+		expect(freeView[0]).toMatchObject({
+			id: "MiniMaxAI/MiniMax-M3",
+			cost: { input: 0, output: 0 },
 		});
+	});
 
-		const models = (await fetchGmiModels("sk-test")) as Array<
-			ProviderModelConfig & { _freeKnown?: boolean; _isFree?: boolean }
-		>;
+	// The verdict follows the free row wherever GMI lists it.
+	it("takes the free row when it is listed first", async () => {
+		catalog = {
+			data: [PROMO_FREE_ROW, asGmiEntry({ id: "MiniMaxAI/MiniMax-M3" })],
+		};
+		const { all, free } = await refreshed();
+		expect(all).toHaveLength(1);
+		expect(free.map((m) => m.id)).toEqual(["MiniMaxAI/MiniMax-M3"]);
+	});
 
-		expect(models).toHaveLength(2);
-
-		const priced = models.find((m) => (m.cost?.input ?? 0) > 0);
-		const promo = models.find((m) => (m.cost?.input ?? 0) === 0);
-
-		expect(priced).toBeDefined();
-		expect(priced?._freeKnown).toBeUndefined();
-
-		expect(promo).toBeDefined();
-		expect(promo?._freeKnown).toBe(true);
-		expect(promo?._isFree).toBe(true);
+	it("keeps the priced model paid once the promotion row is gone", async () => {
+		catalog = { data: [asGmiEntry({ id: "MiniMaxAI/MiniMax-M3" })] };
+		const { all, free } = await refreshed();
+		expect(all.map((m) => m.id)).toEqual(["MiniMaxAI/MiniMax-M3"]);
+		expect(free).toEqual([]);
 	});
 
 	it("returns an empty catalog when the API fails", async () => {
-		globalThis.fetch = vi.fn().mockResolvedValue({
-			ok: false,
-			status: 500,
-			json: async () => ({}),
-		} as unknown as Response);
-
-		const models = await fetchGmiModels("sk-test");
-		expect(models).toEqual([]);
+		catalog = undefined;
+		const { fetchGmiModels } = await import("../providers/gmi/gmi-models.ts");
+		const original = globalThis.fetch;
+		globalThis.fetch = (async () =>
+			new Response("{}", { status: 500 })) as typeof fetch;
+		try {
+			expect(await fetchGmiModels("sk-test")).toEqual([]);
+		} finally {
+			globalThis.fetch = original;
+		}
 	});
 });

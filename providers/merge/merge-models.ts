@@ -14,13 +14,15 @@
  *     tiers and cache_read_per_million)
  *
  * Multi-vendor models route to any available vendor; pi-free publishes the
- * CHEAPEST available route's price and the LARGEST context/output limits so
- * no capability is understated.
+ * price of the CHEAPEST available route (one route's input and output
+ * together, never the cheapest of each across routes) and the LARGEST
+ * context/output limits so no capability is understated. Only routes whose
+ * outputs are all text or tool_use are chat routes.
  *
  * Pricing units: Model.cost fields are USD per million tokens (pi-ai's
  * calculateCost divides by 1e6), so the per-million values publish unchanged. Route A authority is
  * stamped (_pricingKnown) ONLY when both standard-tier prices arrived as
- * genuine non-negative finite numbers on at least one available vendor;
+ * genuine non-negative finite numbers on one available route;
  * otherwise costs stay 0 without the stamp and detection degrades to Route B.
  *
  * Free models: verified live — nvidia/nemotron-3.5-lightning-30b-a3b is
@@ -66,15 +68,19 @@ interface MergeCatalogModel {
 	vendors?: unknown;
 }
 
+interface RoutePrice {
+	input: number;
+	output: number;
+	cacheRead: number | undefined;
+}
+
 interface VendorSummary {
 	contextWindow: number | undefined;
 	maxTokens: number | undefined;
 	reasoning: boolean;
 	imageInput: boolean;
-	textChat: boolean;
-	inputPerMillion: number | undefined;
-	outputPerMillion: number | undefined;
-	cacheReadPerMillion: number | undefined;
+	/** One route's known standard-tier price; undefined when none is known. */
+	price: RoutePrice | undefined;
 }
 
 const FALLBACK_CONTEXT_WINDOW = 128_000;
@@ -95,9 +101,51 @@ function asStringArray(value: unknown): string[] {
 }
 
 /**
- * Collapse a model's vendor routes into one summary over AVAILABLE vendors
- * only: cheapest price, largest context/output window, OR-ed capability
- * flags, and text-chat eligibility (input text AND output text).
+ * Chat outputs in the Gateway's documented output enum (text, tool_use,
+ * embedding, image, audio, video, decision). A route qualifies only when
+ * every output it lists is one of these: image/audio/video hybrids and any
+ * value outside the enum are refused.
+ */
+const CHAT_OUTPUTS: ReadonlySet<string> = new Set(["text", "tool_use"]);
+
+/** Agent chat needs text in and only text (plus tool calls) out. */
+function isTextChatRoute(input: string[], output: string[]): boolean {
+	return (
+		input.includes("text") &&
+		output.includes("text") &&
+		output.every((modality) => CHAT_OUTPUTS.has(modality))
+	);
+}
+
+/** A route's standard-tier price, when both halves are genuine numbers >= 0. */
+function knownRoutePrice(
+	pricing: MergeVendorRoute["pricing"],
+): RoutePrice | undefined {
+	const input = asNumber(pricing?.input_per_million);
+	const output = asNumber(pricing?.output_per_million);
+	if (input === undefined || output === undefined) return undefined;
+	if (input < 0 || output < 0) return undefined;
+	return {
+		input,
+		output,
+		cacheRead: asNumber(pricing?.cache_read_per_million),
+	};
+}
+
+/** Largest known value; undefined only while neither side publishes one. */
+function maxDefined(
+	a: number | undefined,
+	b: number | undefined,
+): number | undefined {
+	return a === undefined ? b : b === undefined ? a : Math.max(a, b);
+}
+
+/**
+ * Collapse a model's vendor routes into one summary over AVAILABLE text-chat
+ * routes only: the price of ONE route (the cheapest by input + output among
+ * routes with a known price, so a $0/$0 route wins and two partly free
+ * routes never combine into a fabricated $0/$0), the largest context/output
+ * window, and OR-ed capability flags.
  */
 function summarizeVendors(
 	vendors: Record<string, MergeVendorRoute>,
@@ -109,52 +157,27 @@ function summarizeVendors(
 
 		const caps = route.capabilities ?? {};
 		const input = asStringArray(caps.input);
-		const output = asStringArray(caps.output);
-		// Agent chat needs text in and text out (tool_use alone is not enough).
-		if (!input.includes("text") || !output.includes("text")) continue;
+		if (!isTextChatRoute(input, asStringArray(caps.output))) continue;
 
-		const pricing = route.pricing ?? {};
-		const candidate: VendorSummary = {
-			contextWindow: asNumber(route.context_window),
-			maxTokens: asNumber(route.max_output_tokens),
-			reasoning: caps.supports_reasoning === true,
-			imageInput: input.includes("image"),
-			textChat: true,
-			inputPerMillion: asNumber(pricing.input_per_million),
-			outputPerMillion: asNumber(pricing.output_per_million),
-			cacheReadPerMillion: asNumber(pricing.cache_read_per_million),
-		};
+		const price = knownRoutePrice(route.pricing);
+		const contextWindow = asNumber(route.context_window);
+		const maxTokens = asNumber(route.max_output_tokens);
+		const reasoning = caps.supports_reasoning === true;
+		const imageInput = input.includes("image");
 		if (!summary) {
-			summary = candidate;
+			summary = { contextWindow, maxTokens, reasoning, imageInput, price };
 			continue;
 		}
-		// Largest KNOWN window across routes; stays undefined while no route
-		// publishes one — the fallback must never participate as a candidate.
-		const maxDefined = (
-			a: number | undefined,
-			b: number | undefined,
-		): number | undefined =>
-			a === undefined ? b : b === undefined ? a : Math.max(a, b);
-		summary.contextWindow = maxDefined(
-			summary.contextWindow,
-			candidate.contextWindow,
-		);
-		summary.maxTokens = maxDefined(summary.maxTokens, candidate.maxTokens);
-		summary.reasoning = summary.reasoning || candidate.reasoning;
-		summary.imageInput = summary.imageInput || candidate.imageInput;
-		// Cheapest available route wins per field across vendors (input price
-		// may legitimately come from a different vendor than output price),
-		// treating absent as worst.
-		for (const key of [
-			"inputPerMillion",
-			"outputPerMillion",
-			"cacheReadPerMillion",
-		] as const) {
-			const cur = summary[key];
-			const next = candidate[key];
-			if (cur === undefined || (next !== undefined && next < cur)) {
-				summary[key] = next;
-			}
+		summary.contextWindow = maxDefined(summary.contextWindow, contextWindow);
+		summary.maxTokens = maxDefined(summary.maxTokens, maxTokens);
+		summary.reasoning = summary.reasoning || reasoning;
+		summary.imageInput = summary.imageInput || imageInput;
+		if (
+			price &&
+			(!summary.price ||
+				price.input + price.output < summary.price.input + summary.price.output)
+		) {
+			summary.price = price;
 		}
 	}
 	return summary;
@@ -183,13 +206,9 @@ export function mapMergeModel(
 			: id;
 
 	// Route A authority requires BOTH standard-tier prices as genuine
-	// non-negative finite numbers on some available vendor (verified live for
-	// every chat route audited); otherwise detection falls back to Route B.
-	const pricingKnown =
-		summary.inputPerMillion !== undefined &&
-		summary.outputPerMillion !== undefined &&
-		summary.inputPerMillion >= 0 &&
-		summary.outputPerMillion >= 0;
+	// non-negative finite numbers on one available route; otherwise
+	// detection falls back to Route B.
+	const price = summary.price;
 
 	return {
 		id,
@@ -199,18 +218,18 @@ export function mapMergeModel(
 			? (["text", "image"] as const)
 			: (["text"] as const),
 		cost: {
-			input: pricingKnown ? (summary.inputPerMillion ?? 0) : 0,
-			output: pricingKnown ? (summary.outputPerMillion ?? 0) : 0,
+			input: price?.input ?? 0,
+			output: price?.output ?? 0,
 			// Clamp: a malformed negative cache price must not publish negative cost.
-			cacheRead: Math.max(0, summary.cacheReadPerMillion ?? 0),
+			cacheRead: Math.max(0, price?.cacheRead ?? 0),
 			cacheWrite: 0,
 		},
 		contextWindow: summary.contextWindow ?? FALLBACK_CONTEXT_WINDOW,
 		maxTokens: summary.maxTokens || FALLBACK_MAX_TOKENS,
 		// SAFETY: the _pricingKnown marker (consumed by isFreeModel, never by
-		// pi-ai) is stamped only when real catalog pricing was parsed; see the
-		// pricingKnown guard above.
-		_pricingKnown: pricingKnown,
+		// pi-ai) is stamped only when one route's real catalog pricing was
+		// parsed (knownRoutePrice).
+		_pricingKnown: price !== undefined,
 	} as ChatModelConfig & { _pricingKnown?: boolean };
 }
 

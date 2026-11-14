@@ -22,17 +22,24 @@
  * TokenRouter-specific behaviors are thin seams on the standard provider:
  *  - Request normalization (`before_provider_request`): every request gets
  *    `reasoning_split: true` (clean `reasoning_content` separation; ignored
- *    by upstreams that do not support it), MiniMax-M3's `thinking` object is
- *    rewritten from pi's `{ type: "enabled" }` to the required
- *    `{ type: "adaptive" }`, and top-level `reasoning_effort` values outside
- *    the gateway's accepted set are mapped or dropped (the route rejects
- *    anything but low/medium/xhigh with
+ *    by upstreams that do not support it), developer-role messages become
+ *    system, and top-level `reasoning_effort` values outside the gateway's
+ *    accepted set are mapped or dropped (the route rejects anything but
+ *    low/medium/xhigh with
  *    `400: reasoning_effort must be low, medium, or xhigh`).
  *  - Model compat: the shared `getProxyModelCompat` (same as Cline/B.AI, so
  *    `requiresReasoningContentOnAssistantMessages` keeps replaying
- *    `reasoning_content` across turns) with `supportsReasoningEffort`
- *    explicitly disabled — the strip is re-applied after models.dev
- *    enrichment so the flag can never be re-derived.
+ *    `reasoning_content` across turns). Where that compat exists
+ *    (DeepSeek-style, Kimi, MiMo) its `supportsReasoningEffort` is turned
+ *    off, re-applied after models.dev enrichment, so those models send
+ *    pi-ai's `thinking` object and no effort. Models without a proxy compat
+ *    keep pi-ai's default effort support and their effort is clamped by the
+ *    normalizer above.
+ *  - MiniMax-M3 carries no proxy compat, so pi-ai sends it no `thinking`
+ *    object (an earlier `enabled` -> `adaptive` rewrite, #229, became
+ *    unreachable when #443 dropped its DeepSeek-format compat and was
+ *    removed); it is marked reasoning and its effort is clamped like any
+ *    other model.
  *  - MiniMax-M3 (`message_end`): sometimes emits DeepSeek-style inline
  *    `<think> … </think>` reasoning tags in the assistant text; they are
  *    extracted into proper ThinkingContent blocks.
@@ -182,8 +189,7 @@ export function normalizeAssistantMessage(
 // wrapper or per-model compat patching is needed:
 //   1. `reasoning_split: true` — always requested for clean reasoning/content
 //      separation (upstreams without support ignore it).
-//   2. MiniMax-M3 requires `thinking: { type: "adaptive" }`; pi sends
-//      `{ type: "enabled" }`, which is rewritten.
+//   2. Developer-role messages are sent as system.
 //   3. `reasoning_effort` must be low/medium/xhigh. pi-ai derives values from
 //      models.dev thinkingLevelMaps that contain entries like "none", which
 //      the gateway rejects with a 400 — invalid values are dropped and
@@ -192,21 +198,6 @@ export function normalizeAssistantMessage(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function containsTokenRouterMinimaxModel(value: unknown): boolean {
-	if (Array.isArray(value)) {
-		return value.some(containsTokenRouterMinimaxModel);
-	}
-	if (!isRecord(value)) return false;
-
-	for (const [key, child] of Object.entries(value)) {
-		if (key === "model" && isTokenRouterMinimaxModel(String(child ?? ""))) {
-			return true;
-		}
-		if (containsTokenRouterMinimaxModel(child)) return true;
-	}
-	return false;
 }
 
 /** OpenAI-role system prompt that some upstreams reject (see normalizer). */
@@ -258,12 +249,11 @@ type TokenRouterRequestPayload =
 
 export function normalizeTokenRouterRequestPayload(
 	payload: unknown,
-	force = false,
 ): TokenRouterRequestPayload {
 	if (typeof payload === "string") {
 		try {
 			const parsed = JSON.parse(payload) as unknown;
-			const normalized = normalizeTokenRouterRequestPayload(parsed, force);
+			const normalized = normalizeTokenRouterRequestPayload(parsed);
 			return normalized === parsed ? payload : JSON.stringify(normalized);
 		} catch {
 			return payload;
@@ -296,16 +286,6 @@ export function normalizeTokenRouterRequestPayload(
 		changed = true;
 	}
 
-	// MiniMax-M3 only: rewrite pi's thinking "enabled" to "adaptive".
-	if (
-		(force || containsTokenRouterMinimaxModel(next)) &&
-		isRecord(next.thinking) &&
-		next.thinking.type === "enabled"
-	) {
-		next = { ...next, thinking: { ...next.thinking, type: "adaptive" } };
-		changed = true;
-	}
-
 	// Clamp reasoning_effort to the gateway's accepted set.
 	const sanitized = sanitizeReasoningEffort(next);
 	if (sanitized) {
@@ -321,9 +301,12 @@ export function normalizeTokenRouterRequestPayload(
 // The shared proxy compat (Cline/B.AI parity) is kept for its other flags —
 // most importantly `requiresReasoningContentOnAssistantMessages`, which
 // replays `reasoning_content` on later assistant turns for multi-turn
-// reasoning — with only `supportsReasoningEffort` disabled.
+// reasoning — with only `supportsReasoningEffort` disabled. A model with no
+// proxy compat is left without one: pi-ai then sends `reasoning_effort`,
+// which the request normalizer clamps to the gateway's accepted set.
 // =============================================================================
 
+/** Turn off `supportsReasoningEffort` on a proxy compat; none stays none. */
 export function withoutReasoningEffort(
 	compat: ChatModelConfig["compat"],
 ): ChatModelConfig["compat"] {
@@ -477,40 +460,35 @@ async function fetchTokenRouterModels(
 // Native Provider
 // =============================================================================
 
+export const tokenRouterProviderOptions: NativeOpenAIProviderOptions = {
+	providerId: PROVIDER_TOKENROUTER,
+	name: "TokenRouter",
+	baseUrl: BASE_URL_TOKENROUTER,
+	auth: tokenRouterAuth,
+	getApiKey: getTokenrouterApiKey,
+	getShowPaid: getTokenrouterShowPaid,
+	fetchModels: (apiKey, signal) => fetchTokenRouterModels(apiKey, signal),
+};
+
 export function createTokenRouterProvider(
 	initialModels?: ProviderModelConfig[],
 ) {
-	const options: NativeOpenAIProviderOptions = {
-		providerId: PROVIDER_TOKENROUTER,
-		name: "TokenRouter",
-		baseUrl: BASE_URL_TOKENROUTER,
-		auth: tokenRouterAuth,
-		getApiKey: getTokenrouterApiKey,
-		getShowPaid: getTokenrouterShowPaid,
-		fetchModels: (apiKey, signal) => fetchTokenRouterModels(apiKey, signal),
-	};
-	if (initialModels) options.initialModels = initialModels;
-	return createNativeOpenAIProvider(options);
+	return createNativeOpenAIProvider(
+		initialModels
+			? { ...tokenRouterProviderOptions, initialModels }
+			: tokenRouterProviderOptions,
+	);
 }
 
 export default function tokenRouterProvider(pi: ExtensionAPI): Promise<void> {
-	registerNativeOpenAIProvider(pi, {
-		providerId: PROVIDER_TOKENROUTER,
-		name: "TokenRouter",
-		baseUrl: BASE_URL_TOKENROUTER,
-		auth: tokenRouterAuth,
-		getApiKey: getTokenrouterApiKey,
-		getShowPaid: getTokenrouterShowPaid,
-		fetchModels: (apiKey, signal) => fetchTokenRouterModels(apiKey, signal),
-	});
+	registerNativeOpenAIProvider(pi, tokenRouterProviderOptions);
 
 	// Normalize every outgoing TokenRouter payload at the wire boundary. The
 	// handler's RETURN value replaces the payload in the runner (a hook that
 	// only patches in place is a silent no-op).
 	pi.on("before_provider_request", (event, ctx) => {
 		if (ctx.model?.provider !== PROVIDER_TOKENROUTER) return;
-		const force = isTokenRouterMinimaxModel(ctx.model?.id ?? "");
-		return normalizeTokenRouterRequestPayload(event.payload, force);
+		return normalizeTokenRouterRequestPayload(event.payload);
 	});
 
 	// Extract MiniMax inline `<think> … </think>` tags into thinking blocks.

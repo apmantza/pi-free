@@ -25,14 +25,16 @@ import {
 	PROVIDER_ANYAPI,
 } from "../../constants.ts";
 import { createLogger } from "../../lib/logger.ts";
-import { hasRouterPricing } from "../../lib/model-map.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import {
 	fetchWithRetry,
 	mapOpenRouterModel,
 	withSignal,
 } from "../../lib/util.ts";
-import { registerNativeOpenAIProvider } from "../../lib/native-provider.ts";
+import {
+	registerNativeOpenAIProvider,
+	type NativeOpenAIProviderOptions,
+} from "../../lib/native-provider.ts";
 import { anyapiAuth } from "./anyapi-auth.ts";
 
 const _logger = createLogger("anyapi");
@@ -70,18 +72,6 @@ type AnyApiProviderModel = ProviderModelConfig & {
 	_anyapiMetadataVersion?: number;
 };
 
-function hasPricing(model: AnyApiModel): boolean {
-	return (
-		(model.pricing?.prompt !== null && model.pricing?.prompt !== undefined) ||
-		(model.pricing?.completion !== null &&
-			model.pricing?.completion !== undefined) ||
-		(model.pricing?.input_cache_read !== null &&
-			model.pricing?.input_cache_read !== undefined) ||
-		(model.pricing?.input_cache_write !== null &&
-			model.pricing?.input_cache_write !== undefined)
-	);
-}
-
 function normalizePrice(
 	value: string | number | null | undefined,
 ): string | null {
@@ -89,37 +79,20 @@ function normalizePrice(
 }
 
 /**
- * Detect AnyAPI's explicitly free model labels without treating every model
- * with omitted pricing as free. The API may also expose an authoritative flag
- * or zero pricing, both of which are handled here.
+ * Map one AnyAPI row through the shared OpenRouter mapper, which owns the
+ * price rule: only numeric, non-negative prompt AND completion prices are
+ * known (`_pricingKnown`); "", missing, cache-only and router "-1" rows stay
+ * pricing-unknown with placeholder $0 costs (defect shape 15).
  */
-export function isAnyApiFreeModel(model: AnyApiModel): boolean {
-	if (typeof model.isFree === "boolean") return model.isFree;
-
-	const label = `${model.id} ${model.name ?? ""}`.toLowerCase();
-	if (/\bfree\b/.test(label)) return true;
-
-	if (!hasPricing(model)) return false;
-	const input = Number(model.pricing?.prompt);
-	const output = Number(model.pricing?.completion);
-	return input === 0 && output === 0;
-}
-
-export function mapAnyApiModel(model: AnyApiModel): AnyApiProviderModel {
+function mapCatalogRow(model: AnyApiModel): AnyApiProviderModel {
 	const name = model.name ?? model.id;
-	const pricingKnown = hasPricing(model);
-	const freeKnown =
-		typeof model.isFree === "boolean" ||
-		/\bfree\b/i.test(`${model.id} ${name}`) ||
-		(pricingKnown && isAnyApiFreeModel(model));
-
 	const tags = model.tags ?? [];
 	const supportsReasoning =
 		tags.includes("reasoning") || tags.includes("chat_completions:reasoning");
 	const supportsVision =
 		tags.includes("vision") || tags.includes("chat_completions:vision");
 
-	const mapped = mapOpenRouterModel({
+	return mapOpenRouterModel({
 		...model,
 		name,
 		supported_parameters:
@@ -137,11 +110,39 @@ export function mapAnyApiModel(model: AnyApiModel): AnyApiProviderModel {
 				}
 			: undefined,
 	});
+}
+
+function hasFreeLabel(model: AnyApiModel): boolean {
+	return /\bfree\b/i.test(`${model.id} ${model.name ?? ""}`);
+}
+
+function isKnownZeroPrice(mapped: AnyApiProviderModel): boolean {
+	return (
+		mapped._pricingKnown === true &&
+		mapped.cost.input === 0 &&
+		mapped.cost.output === 0
+	);
+}
+
+/**
+ * Detect AnyAPI's explicitly free model labels without treating every model
+ * with omitted pricing as free. The API may also expose an authoritative flag
+ * or a known $0 prompt and completion price, both of which are handled here.
+ */
+export function isAnyApiFreeModel(model: AnyApiModel): boolean {
+	if (typeof model.isFree === "boolean") return model.isFree;
+	return hasFreeLabel(model) || isKnownZeroPrice(mapCatalogRow(model));
+}
+
+export function mapAnyApiModel(model: AnyApiModel): AnyApiProviderModel {
+	const mapped = mapCatalogRow(model);
+	const freeKnown =
+		typeof model.isFree === "boolean" ||
+		hasFreeLabel(model) ||
+		isKnownZeroPrice(mapped);
 
 	return {
 		...mapped,
-		// The mapper zeroes router "-1" prices; they must not read as $0-known.
-		_pricingKnown: pricingKnown && !hasRouterPricing(model.pricing),
 		...(freeKnown && {
 			_freeKnown: true,
 			_isFree: isAnyApiFreeModel(model),
@@ -210,17 +211,19 @@ async function fetchAnyApiModels(
 	) as AnyApiProviderModel[];
 }
 
+export const anyapiProviderOptions: NativeOpenAIProviderOptions = {
+	providerId: PROVIDER_ANYAPI,
+	name: "AnyAPI",
+	baseUrl: BASE_URL_ANYAPI,
+	auth: anyapiAuth,
+	getApiKey: getAnyapiApiKey,
+	getShowPaid: getAnyapiShowPaid,
+	fetchModels: (apiKey, signal) => fetchAnyApiModels(apiKey, signal),
+	tosUrl: "https://anyapi.ai/terms-of-service",
+	suppressTosWhenKey: true,
+};
+
 export default function anyapiProvider(pi: ExtensionAPI): Promise<void> {
-	registerNativeOpenAIProvider(pi, {
-		providerId: PROVIDER_ANYAPI,
-		name: "AnyAPI",
-		baseUrl: BASE_URL_ANYAPI,
-		auth: anyapiAuth,
-		getApiKey: getAnyapiApiKey,
-		getShowPaid: getAnyapiShowPaid,
-		fetchModels: (apiKey, signal) => fetchAnyApiModels(apiKey, signal),
-		tosUrl: "https://anyapi.ai/terms-of-service",
-		suppressTosWhenKey: true,
-	});
+	registerNativeOpenAIProvider(pi, anyapiProviderOptions);
 	return Promise.resolve();
 }

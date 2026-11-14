@@ -299,7 +299,7 @@ describe("TokenRouter native factory", () => {
 		expect(mockFetchWithRetry).not.toHaveBeenCalled();
 	});
 
-	it("before_provider_request returns the adaptive-patched MiniMax payload", async () => {
+	it("before_provider_request returns the normalized payload", async () => {
 		const registerProvider = vi.fn();
 		const registerCommand = vi.fn();
 		const on = vi.fn();
@@ -312,28 +312,27 @@ describe("TokenRouter native factory", () => {
 		await tokenRouterEntry(pi);
 
 		// The runner replaces the request payload with the handler's return
-		// value, so a hook that only calls the patch (discarding the result)
-		// is a silent no-op. Assert the registered handler returns the patch.
+		// value, so a hook that only calls the normalizer (discarding the
+		// result) is a silent no-op. The wire effect through pi-ai's real
+		// builder is pinned in tokenrouter-dispatch.test.ts.
 		const requestHandlers = on.mock.calls
 			.map(([event, handler]) => [event, handler] as const)
 			.filter(([event]) => event === "before_provider_request");
 		expect(requestHandlers).toHaveLength(1);
 		const [, handler] = requestHandlers[0]!;
 
-		const patched = await handler(
-			{ payload: { model: "MiniMax-M3", thinking: { type: "enabled" } } },
+		const normalized = await handler(
+			{ payload: { model: "MiniMax-M3", reasoning_effort: "high" } },
 			{ model: { provider: "tokenrouter", id: "MiniMax-M3" } },
 		);
-		expect(patched).toEqual({
+		expect(normalized).toEqual({
 			model: "MiniMax-M3",
-			thinking: { type: "adaptive" },
+			reasoning_effort: "xhigh",
 			reasoning_split: true,
 		});
 
 		const untouched = await handler(
-			{
-				payload: { model: "claude-3-5-sonnet", thinking: { type: "enabled" } },
-			},
+			{ payload: { model: "claude-3-5-sonnet", reasoning_effort: "high" } },
 			{ model: { provider: "anthropic", id: "claude-3-5-sonnet" } },
 		);
 		expect(untouched).toBeUndefined();
@@ -343,7 +342,7 @@ describe("TokenRouter native factory", () => {
 describe("TokenRouter request normalization and streaming", () => {
 	it("normalizes payloads through the exported seam", () => {
 		// Wire quirks are encoded in one boundary function: reasoning_split is
-		// always requested, MiniMax thinking is adaptive, invalid efforts drop.
+		// always requested and invalid efforts drop.
 		expect(
 			normalizeTokenRouterRequestPayload({
 				model: "deepseek-r1",
