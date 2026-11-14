@@ -217,6 +217,16 @@ export INFERX_API_KEY="ix-..."
 
 Or set `inferx_api_key`. Toggle with `/toggle-inferx`. The catalog endpoint is keyed (anonymous requests answer 401 `no tenant context`), so models appear only after a credential resolves. It is vLLM-shaped — entries carry only `id`, `object`, `created`, and `owned_by` — so context windows, output limits, modalities, and reasoning come from models.dev enrichment over the same endpoint ids, with 128K/16K fallbacks. Two catalog facts are not in the payload: the embedding endpoint (`Qwen3-Embedding-8B`) is dropped by id, and the `-no-thinking` variants are excluded from the reasoning-family heuristic (their ids contain the literal "thinking"). No price is published anywhere in the public catalog (each endpoint page states usage is billed per token), so entries are stamped pricing-unknown and **no InferX model classifies as free** — the catalog appears in the paid view. InferX's own "InferX Free" plan is a billing-layer tier the catalog does not expose.
 
+### AMD Token Lab
+
+AMD Token Lab serves open models on AMD Instinct GPUs through an OpenAI-compatible surface at `https://api.tokenlab.amd.com/v1` (it also speaks Anthropic `/v1/messages`; pi-free uses chat completions). Get a key at https://notebooks.amd.com/tokenlab after signing in with the AMD AI Developer Program:
+
+```bash
+export AMD_TOKENLAB_API_KEY="tl-..."
+```
+
+Or set `amd_tokenlab_api_key`. Toggle with `/toggle-amd-tokenlab`. The catalog is keyed (anonymous requests answer 401 `Invalid Token Lab API key`), so models appear after a credential resolves and the session-start refresh runs. It is OpenRouter-shaped (`context_length`, `architecture` modalities, `supported_parameters`) with no prices and no output limits; models.dev enrichment supplies output limits. The aux routers listed beside the chat models (`Clef`, `d3`, `d3-flash`, output `decision`) are dropped. **Every chat model is free**: usage draws on a per-user budget AMD grants (observed 2026-11-14: $10, resetting monthly, 20 requests per minute, reported in `x-ratelimit-*-user-budget-usd` / `-user-rpm` headers; the status bar shows the remaining budget in dollars). Thinking is controlled only through `reasoning_effort`; Token Lab rejects DeepSeek's `thinking` field, so the DeepSeek proxy format models.dev implies is removed.
+
 ### Xkiro
 
 Xkiro is an OpenAI-compatible gateway with a catalog `access_tier` (free, paid, premium) per model:

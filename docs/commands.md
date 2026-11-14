@@ -55,6 +55,7 @@ To remove a provider from the model picker entirely, run `/hide-provider <provid
 | `/toggle-orcarouter` | OrcaRouter | Native |
 | `/toggle-xkiro` | Xkiro | Native |
 | `/toggle-inferx` | InferX | Native |
+| `/toggle-amd-tokenlab` | AMD Token Lab | Native |
 | `/toggle-stepfun` | StepFun | Native |
 | `/toggle-qoder` | Qoder | Legacy |
 | `/toggle-openrouter` | OpenRouter | Pi built-in |

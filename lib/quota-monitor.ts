@@ -12,6 +12,9 @@
  *   3. ratelimit-remaining-requests / ratelimit-limit-requests
  *   4. ratelimit-remaining / ratelimit-limit
  *   5. x-ratelimit-remaining-requests-day / x-ratelimit-limit-requests-day (SambaNova daily)
+ *   6. x-ratelimit-remaining-user-budget-usd / x-ratelimit-limit-user-budget-usd
+ *      (AMD Token Lab monthly dollar budget, shown in dollars)
+ *   7. x-ratelimit-remaining-user-rpm / x-ratelimit-limit-user-rpm (AMD Token Lab)
  */
 
 import { createLogger } from "./logger.ts";
@@ -60,11 +63,15 @@ export interface QuotaSnapshot {
 	lastUpdated: number;
 	/** Which header variant was matched (for debugging). */
 	source: string;
+	/** What remaining/limit count: requests, or US dollars of a spend budget. */
+	unit: QuotaUnit;
 }
 
+type QuotaUnit = "requests" | "usd";
+
 // Header key pairs to try, in priority order.
-// Each pair is [remaining, limit].
-const HEADER_PAIRS: [string, string][] = [
+// Each pair is [remaining, limit], optionally with a unit (default requests).
+const HEADER_PAIRS: [string, string, QuotaUnit?][] = [
 	// Per-minute (most common)
 	["x-ratelimit-remaining-requests", "x-ratelimit-limit-requests"],
 	["x-ratelimit-remaining", "x-ratelimit-limit"],
@@ -73,15 +80,26 @@ const HEADER_PAIRS: [string, string][] = [
 	// Per-day
 	["x-ratelimit-remaining-requests-day", "x-ratelimit-limit-requests-day"],
 	["x-ratelimit-remaining-day", "x-ratelimit-limit-day"],
+	// AMD Token Lab: the monthly budget is the scarce resource; its per-minute
+	// cap refills constantly, so it only stands in when no budget is sent.
+	[
+		"x-ratelimit-remaining-user-budget-usd",
+		"x-ratelimit-limit-user-budget-usd",
+		"usd",
+	],
+	["x-ratelimit-remaining-user-rpm", "x-ratelimit-limit-user-rpm"],
 ];
 
 /**
  * Attempt to extract quota from response headers.
  * Returns { remaining, limit, source } or null if no quota headers found.
  */
-function extractQuota(
-	headers: Record<string, string>,
-): { remaining: number; limit: number; source: string } | null {
+function extractQuota(headers: Record<string, string>): {
+	remaining: number;
+	limit: number;
+	source: string;
+	unit: QuotaUnit;
+} | null {
 	// Normalize keys to lowercase for case-insensitive matching.
 	// Some proxies/servers vary header casing.
 	const normalized: Record<string, string> = {};
@@ -89,14 +107,14 @@ function extractQuota(
 		normalized[key.toLowerCase()] = value;
 	}
 
-	for (const [remainingKey, limitKey] of HEADER_PAIRS) {
+	for (const [remainingKey, limitKey, unit = "requests"] of HEADER_PAIRS) {
 		const remainingRaw = normalized[remainingKey];
 		const limitRaw = normalized[limitKey];
 		if (remainingRaw === undefined || limitRaw === undefined) continue;
 		const remaining = Number.parseFloat(remainingRaw);
 		const limit = Number.parseFloat(limitRaw);
 		if (Number.isFinite(remaining) && Number.isFinite(limit) && limit > 0) {
-			return { remaining, limit, source: remainingKey };
+			return { remaining, limit, source: remainingKey, unit };
 		}
 	}
 
@@ -159,6 +177,7 @@ export function processQuotaResponse(
 		percent: Math.max(0, Math.min(100, percent)),
 		lastUpdated: Date.now(),
 		source: extracted.source,
+		unit: extracted.unit,
 	});
 }
 
@@ -199,9 +218,10 @@ export function formatQuotaStatus(providerId: string): string | undefined {
 	// Stale after 5 minutes
 	if (Date.now() - q.lastUpdated > 5 * 60 * 1000) return undefined;
 
-	if (q.percent <= 10)
-		return `⚠️ ${providerId}: ${q.remaining}/${q.limit} (${q.percent}%)`;
-	if (q.percent <= 25)
-		return `⚡ ${providerId}: ${q.remaining}/${q.limit} (${q.percent}%)`;
-	return `${providerId}: ${q.remaining}/${q.limit} (${q.percent}%)`;
+	const amount = (value: number) =>
+		q.unit === "usd" ? `$${value.toFixed(2)}` : String(value);
+	const line = `${providerId}: ${amount(q.remaining)}/${amount(q.limit)} (${q.percent}%)`;
+	if (q.percent <= 10) return `⚠️ ${line}`;
+	if (q.percent <= 25) return `⚡ ${line}`;
+	return line;
 }

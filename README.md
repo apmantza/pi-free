@@ -122,10 +122,10 @@ Caveats:
 
 | Category | Providers |
 | --- | --- |
-| Free/free-tier | Kilo, Cline, LLM7, TokenRouter, Agnes AI, Qoder basic tier, and eligible models from other catalogs |
+| Free/free-tier | Kilo, Cline, LLM7, TokenRouter, Agnes AI, AMD Token Lab, Qoder basic tier, and eligible models from other catalogs |
 | Freemium | AnyAPI, Ollama Cloud, SambaNova |
 | Paid/trial | ZenMux, DeepInfra trial, Novita, Routeway, OpenGateway, B.AI, StepFun, GMI Cloud, Venice AI, Infron AI, InferX, and paid catalog entries from other providers |
-| Native lifecycle | Kilo, Cline, LLM7, Ollama Cloud, AnyAPI, SambaNova, TokenRouter, ZenMux, DeepInfra, Novita, Routeway, OpenGateway, B.AI, FastRouter, StepFun, GMI Cloud, Agnes AI, Venice AI, Infron AI, InferX |
+| Native lifecycle | Kilo, Cline, LLM7, Ollama Cloud, AnyAPI, SambaNova, TokenRouter, ZenMux, DeepInfra, Novita, Routeway, OpenGateway, B.AI, FastRouter, StepFun, GMI Cloud, Agnes AI, Venice AI, Infron AI, InferX, AMD Token Lab |
 | Built-in | OpenCode, OpenCode Go, OpenRouter — captured from Pi and refreshed in place after session start (OpenCode Zen catalog + public OpenRouter endpoint), so new models appear without waiting for a Pi release |
 
 Provider availability, authentication, and exact API-key names are maintained in [docs/providers.md](docs/providers.md). pi-free does not publish model counts as guarantees because provider catalogs change — but a dated **free-model snapshot** (per-provider model lists + usage conditions) is maintained in [docs/free_models.md](docs/free_models.md).
