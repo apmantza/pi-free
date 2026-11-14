@@ -6,6 +6,7 @@ import {
 	DEFAULT_FETCH_TIMEOUT_MS,
 	PROVIDER_ZENMUX,
 } from "../../constants.ts";
+import { firstPositiveLimit } from "../../lib/model-map.ts";
 import { safeEnrichModelsWithModelsDev } from "../../lib/model-metadata.ts";
 import { withGatewayCompat } from "../../lib/native-provider.ts";
 import { getProxyModelCompat } from "../../lib/provider-compat.ts";
@@ -19,27 +20,44 @@ interface ZenMuxModel {
 	id: string;
 	display_name?: string;
 	context_length?: number;
+	max_tokens?: number | null;
 	input_modalities?: string[];
 	output_modalities?: string[];
 	capabilities?: {
 		reasoning?: boolean;
 	};
-	pricings?: {
-		prompt?: Array<{ value: number }>;
-		completion?: Array<{ value: number }>;
-		input_cache_read?: Array<{ value: number }>;
-	};
+	pricings?: Partial<Record<ZenMuxPriceKey, Array<{ value: number }>>>;
 }
 
-/** Extract ZenMux's USD-per-million price, the unit of `Model.cost`. */
-function extractZenmuxPrice(
+type ZenMuxPriceKey =
+	| "prompt"
+	| "completion"
+	| "input_cache_read"
+	| "input_cache_write"
+	| "input_cache_write_5_min"
+	| "input_cache_write_1_h";
+
+/** ZenMux's USD-per-million price (the `Model.cost` unit), if listed. */
+function zenmuxPrice(
 	pricings: ZenMuxModel["pricings"],
-	key: "prompt" | "completion" | "input_cache_read",
-): number {
-	const entries = pricings?.[key];
-	if (!entries || entries.length === 0) return 0;
-	// Length check above proves defined.
-	return entries[0]!.value ?? 0;
+	key: ZenMuxPriceKey,
+): number | undefined {
+	return pricings?.[key]?.[0]?.value;
+}
+
+/**
+ * The cache-write price. ZenMux lists one `input_cache_write`, or one per
+ * cache lifetime (`_5_min` and `_1_h`, or `_1_h` only). pi-ai prices 1-hour
+ * writes itself (2x input), so the 5-minute tier is the published rate; a
+ * model listing only the 1-hour tier is billed at it.
+ */
+function zenmuxCacheWritePrice(pricings: ZenMuxModel["pricings"]): number {
+	return (
+		zenmuxPrice(pricings, "input_cache_write") ??
+		zenmuxPrice(pricings, "input_cache_write_5_min") ??
+		zenmuxPrice(pricings, "input_cache_write_1_h") ??
+		0
+	);
 }
 
 /**
@@ -104,15 +122,17 @@ export async function fetchZenmuxCatalog(options: {
 					? ["text", "image"]
 					: ["text"],
 				cost: {
-					input: extractZenmuxPrice(model.pricings, "prompt"),
-					output: extractZenmuxPrice(model.pricings, "completion"),
-					cacheRead: extractZenmuxPrice(model.pricings, "input_cache_read"),
-					cacheWrite: 0,
+					input: zenmuxPrice(model.pricings, "prompt") ?? 0,
+					output: zenmuxPrice(model.pricings, "completion") ?? 0,
+					cacheRead: zenmuxPrice(model.pricings, "input_cache_read") ?? 0,
+					cacheWrite: zenmuxCacheWritePrice(model.pricings),
 				},
 				contextWindow: model.context_length || 128000,
-				maxTokens: model.context_length
-					? Math.floor(model.context_length / 2)
-					: 4096,
+				// The catalog's output limit; half the window only where none is
+				// listed (3 live text models on 2026-11-15, e.g. openai/o4-mini).
+				maxTokens:
+					firstPositiveLimit(model.max_tokens) ??
+					(model.context_length ? Math.floor(model.context_length / 2) : 4096),
 				compat: getProxyModelCompat(model),
 				_pricingKnown: hasPricings,
 			} as ProviderModelConfig & { _pricingKnown?: boolean };
