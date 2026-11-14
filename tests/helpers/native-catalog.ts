@@ -56,8 +56,13 @@ export function useCatalogHttp(
 
 export async function refreshNativeCatalog(
 	options: NativeOpenAIProviderOptions,
-): Promise<{ all: Model<Api>[]; free: Model<Api>[] }> {
-	const { createNativeOpenAIProvider } =
+): Promise<{
+	all: Model<Api>[];
+	free: Model<Api>[];
+	/** What Pi shows under the free view: `filterModels(getModels())`. */
+	freeView: readonly Model<Api>[];
+}> {
+	const { createNativeOpenAIProvider, filterNativeModels } =
 		await import("../../lib/native-provider.ts");
 	let persisted: unknown;
 	const handle = createNativeOpenAIProvider(options);
@@ -74,9 +79,18 @@ export async function refreshNativeCatalog(
 		allowNetwork: true,
 		credential: { type: "api_key", key: "sk-fixture" },
 	} as never);
+	// Pi's free view: the provider's filter (filterNativeModels over the
+	// stored free list) with the view forced to free, since the global
+	// free-only default is module state captured at import.
+	const freeView = filterNativeModels(
+		options.providerId,
+		handle.provider.getModels(),
+		{ freeModels: handle.stored.free, forceFree: true },
+	);
 	return {
 		all: handle.stored.all as Model<Api>[],
 		free: handle.stored.free as Model<Api>[],
+		freeView,
 	};
 }
 
