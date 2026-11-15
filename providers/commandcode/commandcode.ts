@@ -10,9 +10,9 @@
  *            https://api.commandcode.ai/provider/v1/messages (claude-*)
  *   Models:  https://api.commandcode.ai/provider/v1/models (public)
  *
- * The catalog is public — models appear before login — but chat requires an
- * account whose plan includes Provider API access (Go plans answer
- * `upgrade_required`).
+ * The catalog endpoint is public, but models appear only once a key resolves
+ * (#697): chat requires an account whose plan includes Provider API access
+ * (Go plans answer `upgrade_required`).
  *
  * Dual-transport wire: claude-* models are served over Anthropic Messages,
  * everything else over OpenAI Chat Completions. The provider publishes each

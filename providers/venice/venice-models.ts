@@ -177,8 +177,9 @@ export function mapVeniceModel(
 }
 
 /**
- * Fetch the complete text-model catalog. The key is optional for /models; it
- * is only sent when configured so public discovery works for logged-out users.
+ * Fetch the complete text-model catalog. /models answers without a key, so
+ * the key is sent only when present; in production Pi calls this only once
+ * the provider's auth resolves (#697).
  */
 export async function fetchVeniceModels(
 	apiKey: string,

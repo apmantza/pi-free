@@ -42,7 +42,7 @@ Kilo supports free models and paid catalog entries. Authenticate with OAuth or a
 export KILO_API_KEY="..."
 ```
 
-Or set `kilo_api_key` in `~/.pi/free.json`. Kilo credentials are persisted by Pi in `~/.pi/agent/auth.json`. Use `/toggle-kilo` to change the visible catalog.
+Or set `kilo_api_key` in `~/.pi/free.json`. Kilo credentials are persisted by Pi in `~/.pi/agent/auth.json`. Use `/toggle-kilo` to change the visible catalog. Free/paid follows Kilo's own `isFree` flag; models whose outputs include image, audio or video are not listed, and routers priced "-1" are treated as unpriced.
 
 ### Cline
 
@@ -52,11 +52,11 @@ Cline's models appear after login (or with `CLINE_API_KEY`); chat needs the cred
 /login cline
 ```
 
-Cline also accepts `CLINE_API_KEY` or `cline_api_key`. OAuth/API-key credentials are stored by Pi in `~/.pi/agent/auth.json`. Cline's endpoint speaks standard OpenAI Chat Completions; the provider uses the `openai-completions` api with Cline identity headers.
+Cline also accepts `CLINE_API_KEY` or `cline_api_key`; without one of these, or a login, Cline stays hidden. OAuth/API-key credentials are stored by Pi in `~/.pi/agent/auth.json`. Cline's endpoint speaks standard OpenAI Chat Completions; the provider uses the `openai-completions` api with Cline identity headers. Only models whose outputs are all text are listed (music and image models are dropped).
 
 ### LLM7
 
-LLM7 provides free selector-based access through an OpenAI-compatible endpoint. Set `LLM7_API_KEY` or `llm7_api_key` as required by the service, then use `/toggle-llm7`.
+LLM7 provides free selector-based access (`default`, `fast`; the paid `pro` selector is hidden in the free view) through an OpenAI-compatible endpoint. It is the only provider that works without a key: logged out, pi-free sends a placeholder key that LLM7's anonymous tier accepts. A free token from dash.llm7.io raises the limits; set it as `LLM7_API_KEY` or `llm7_api_key`. Toggle with `/toggle-llm7`.
 
 ```bash
 export LLM7_API_KEY="..."
@@ -64,13 +64,13 @@ export LLM7_API_KEY="..."
 
 ### Ollama Cloud
 
-Ollama Cloud provides usage-based free access alongside other catalog entries. Get a key from [Ollama](https://ollama.com/settings/keys):
+Ollama Cloud is pay-as-you-go with no free tier, so its free view is empty. Get a key from [Ollama](https://ollama.com/settings/keys):
 
 ```bash
 export OLLAMA_API_KEY="..."
 ```
 
-Or set `ollama_api_key` in `~/.pi/free.json`. Use `/toggle-ollama-cloud`, `/probe-ollama`, and `/ollama-cloud-refresh`. Although Ollama is native, it retains `~/.pi/provider-cache.json` for `/api/show` capability reuse and the compatibility refresh command; Pi's native model store remains authoritative for native lifecycle initialization.
+Or set `ollama_api_key` in `~/.pi/free.json`. Use `/toggle-ollama-cloud`, `/probe-ollama`, and `/ollama-cloud-refresh`. Although Ollama is native, it retains `~/.pi/provider-cache.json` for `/api/show` capability reuse and the compatibility refresh command; Pi's native model store remains authoritative for native lifecycle initialization. Only models that support tool calling are listed. The cache guard refuses a shrunken or empty catalog only while the last healthy write is within the one-hour cache lifetime, so a stale cache cannot pin an old list forever.
 
 ### AnyAPI
 
@@ -84,7 +84,7 @@ Or set `anyapi_api_key`. Toggle with `/toggle-anyapi`.
 
 ### SambaNova
 
-SambaNova offers a free tier with rate limits:
+SambaNova lists every model with a per-token price, so it has no free models in pi-free:
 
 ```bash
 export SAMBANOVA_API_KEY="..."
@@ -108,31 +108,41 @@ StepFun Step Plan is a native, paid OpenAI-compatible provider. Pi uses the Chat
 
 ### GMI Cloud
 
-GMI Cloud is a native, paid OpenAI-compatible provider. Pi uses the Inference API at `https://api.gmi-serving.com/v1/chat/completions` (one OpenAI-compatible endpoint for chat, vision, tools, and reasoning across 200+ open and frontier models); the same base also exposes `GET /v1/models`. Set `GMI_API_KEY` or `gmi_api_key` and toggle with `/toggle-gmi`. GMI Cloud shows its full paid catalog by default because the gateway lists no free models; restrict the view with `/toggle-gmi`, `"model_view_overrides": {"gmi": "free"}`, or `GMI_SHOW_PAID=false`. GMI runs time-limited "free week" promotions where specific models are free at the billing layer despite nonzero list prices — during the active window those models are stamped authoritatively free so they appear in the free-only view and `/free-providers` counts, and the stamp auto-expires when the promotion ends. The current promotion is **MiniMax Week (2026-08-24 → 2026-09-06)**: `MiniMaxAI/MiniMax-M3` and `MiniMaxAI/MiniMax-M2.7` are free.
+GMI Cloud is a native, paid OpenAI-compatible provider. Pi uses the Inference API at `https://api.gmi-serving.com/v1/chat/completions` (one OpenAI-compatible endpoint for chat, vision, tools, and reasoning across 200+ open and frontier models); the same base also exposes `GET /v1/models`. Set `GMI_API_KEY` or `gmi_api_key` and toggle with `/toggle-gmi`. GMI Cloud shows its full paid catalog by default because the gateway lists no free models outside promotions; restrict the view with `/toggle-gmi`, `"model_view_overrides": {"gmi": "free"}`, or `GMI_SHOW_PAID=false`. GMI runs time-limited promotions by publishing a second row for a model with zeroed pricing and `is_free: true`; pi-free folds the two rows into one model per id, free while the promotional row is listed, so a promotion ends on its own when GMI drops the row. No promotion was listed in the 2026-11-15 audit (the MiniMax Week promotion ended 2026-09-06).
 
 ### Agnes AI
 
-Agnes AI is a native OpenAI-compatible provider mixing free and paid chat models. Pi uses the gateway at `https://apihub.agnes-ai.com/v1/chat/completions` (an omni-modal API covering text, image, and video models under one `sk-` key); the same base also exposes `GET /v1/models`. Per the Agnes pricing docs, the flash-class models (`agnes-2.0-flash`, `agnes-2.5-flash`) are free while the pro models (`agnes-2.5-pro`, `agnes-2.5-pro-alpha`) are billed at list price. The `/v1/models` endpoint exposes no pricing, so the free flash models are stamped authoritatively free and the paid pro models are left to the default paid classification; image/video generation models are filtered out so only text chat models are published. Set `AGNES_API_KEY` or `agnes_api_key` and toggle with `/toggle-agnes`. The catalog defaults to the free-only view (the two free flash models); `/toggle-agnes` reveals the paid pro models.
+Agnes AI is a native OpenAI-compatible provider mixing free and paid chat models. Pi uses the gateway at `https://apihub.agnes-ai.com/v1/chat/completions` (an omni-modal API covering text, image, and video models under one `sk-` key); the same base also exposes `GET /v1/models`. The `/v1/models` endpoint exposes no pricing, and its `supported_endpoint_types` cannot tell text models from generators (image and video generators list `openai` too), so admission and free status come from Agnes's documented text-model list (llms.txt and the pricing page, checked 2026-11-15; revisit at each audit): `agnes-2.5-flash` and `agnes-3.0-flash` are free on promotional terms with no published end date, and the pro models (`agnes-2.5-pro`, `agnes-2.5-pro-beta`, `agnes-2.5-pro-theta`, and `agnes-3.0-pro` once released) are paid. A catalog row not on that list, such as `agnes-2.5-pro-alpha`, is not published. Set `AGNES_API_KEY` or `agnes_api_key` and toggle with `/toggle-agnes`. The catalog defaults to the free-only view; `/toggle-agnes` reveals the paid pro models.
 
 ### Venice AI
 
-Venice AI is a native OpenAI-compatible provider mixing free-classified and paid chat models. Pi uses the inference API at `https://api.venice.ai/api/v1/chat/completions` (100+ text models billed in USD or DIEM per million tokens); the same base also exposes `GET /models?type=text`. The model catalog endpoint is public, but models appear only after login — chat requires `VENICE_API_KEY` or `venice_api_key`; toggle with `/toggle-venice`. Free/paid classification follows the published pricing (zero-priced models count as free). **Balance gate:** Venice requires a positive account balance for all inference — including zero-priced models, which answer HTTP 402 on unfunded keys — so a model classified as free can still fail at request time until the account is funded.
+Venice AI is a native OpenAI-compatible provider mixing free-classified and paid chat models. Pi uses the inference API at `https://api.venice.ai/api/v1/chat/completions` (100+ text models billed in USD or DIEM per million tokens); the same base also exposes `GET /models?type=text`. The model catalog endpoint is public, but models appear only after login — chat requires `VENICE_API_KEY` or `venice_api_key`; toggle with `/toggle-venice`. Free/paid classification follows the published pricing (zero-priced models count as free; a model counts as priced only when both prices are published); no model was free on 2026-11-15. Only models whose capabilities declare tool calling are listed, and each model's thinking levels map to the `reasoning_effort` values it declares (`reasoningEffortOptions`). Every request sends `venice_parameters.include_venice_system_prompt: false`, because Venice otherwise injects its own system prompt; this applies to compaction and summaries too. When Venice sends `x-venice-balance-usd` / `x-venice-balance-diem`, the status bar shows the balance (`venice: $4.21 + 12.50 DIEM balance`). **Balance gate:** Venice requires a positive account balance for all inference — including zero-priced models, which answer HTTP 402 on unfunded keys — so a model classified as free can still fail at request time until the account is funded.
 
 ### Infron AI
 
-Infron AI (infron.ai) is a unified AI gateway with passthrough pricing and pooled upstream uptime; its OpenAI-compatible API runs on the OneRouter gateway at `https://llm.onerouter.pro/v1/chat/completions`. The catalog endpoint is public (anonymous `/models` returns 200), but models appear only after login; chat requires `INFRON_API_KEY` or `infron_api_key`; toggle with `/toggle-infron`. The catalog mixes ~295 chat LLM entries with embeddings/image/video entries (filtered out); min prices are USD per million tokens, and the zero-priced entries (currently seven, six with an explicit `:free` id — `motif/motif-3` carries `(Free)` in its display name instead) classify as free via Route A
+Infron AI (infron.ai) is a unified AI gateway with passthrough pricing and pooled upstream uptime; its OpenAI-compatible API runs on the OneRouter gateway at `https://llm.onerouter.pro/v1/chat/completions`. The catalog endpoint is public (anonymous `/models` returns 200), but models appear only after login; chat requires `INFRON_API_KEY` or `infron_api_key`; toggle with `/toggle-infron`. Embedding, image and video entries are filtered out, and only models served over Chat Completions (`supported_endpoint_types` includes `openai`) are listed; Responses-only models are dropped. Prices are USD per million tokens and zero-priced entries classify as free. A model's context window is the smaller of its own value and the largest window its serving providers publish (ignoring windows of 4096 or less), because the gateway rejects requests sized beyond the serving provider's limit. The catalog's `supports_function_calling` flag is an unfilled placeholder (models with working tools list `false`), so Infron is not tool-gated. After Pi's retries are exhausted on a TPM rate limit, pi-free continues the same model after the advertised delay (see the README).
 
 ### Merge Gateway
 
-[Merge](https://merge.dev) is a multi-vendor LLM gateway with an OpenAI-compatible chat shim at `https://api-gateway.merge.dev/v1/openai/chat/completions`. Model discovery uses Merge's **native Gateway API** (`GET /v1/models`) rather than the minimal OpenAI shim catalog, because the native endpoint carries display names, per-vendor routes with availability status, context windows, max output tokens, capability flags (text/image input, reasoning, streaming), and pricing in USD per million tokens — all of which pi-free maps directly (cheapest available vendor's price, largest window, OR-ed capabilities). The catalog (~275 chat-capable entries after filtering non-text routes) is keyed — anonymous requests return HTTP 401 — so `MERGE_API_KEY` (or `merge_api_key`) is required before models appear; toggle with `/toggle-merge`. Free models: `nvidia/nemotron-3.5-lightning-30b-a3b` is published at $0/$0 per million via its nvidia route and classifies free via Route A pricing detection (verified live 2026-08-26).
+[Merge](https://merge.dev) is a multi-vendor LLM gateway with an OpenAI-compatible chat shim at `https://api-gateway.merge.dev/v1/openai/chat/completions`. Model discovery uses Merge's **native Gateway API** (`GET /v1/models`) rather than the minimal OpenAI shim catalog, because the native endpoint carries display names, per-vendor routes with availability status, context windows, max output tokens, capability flags (text/image input, reasoning, streaming), and pricing in USD per million tokens — all of which pi-free maps directly. A model's price comes from a single route (the cheapest available one), never the cheapest input and cheapest output taken from different vendors, which could add up to a $0/$0 nobody sells. Only models whose outputs are `text` and `tool_use` are listed (image-output hybrids are dropped). The catalog is keyed — anonymous requests return HTTP 401 — so `MERGE_API_KEY` (or `merge_api_key`) is required before models appear; toggle with `/toggle-merge`. A positive account balance may be required even on a $0 route (the 2026-11-15 audit account answered 402 when out of credits).
 
 ### CommandCode
 
-[CommandCode](https://commandcode.ai) is an AI subscription gateway routing to ~60 models (OpenAI GPT-5.6 family, Claude Opus/Sonnet, Gemini 3.x, Grok 4.6, Kimi K3, Qwen 3.7/3.8, GLM 5.x, DeepSeek V4) through one Provider API at `https://api.commandcode.ai/provider/v1/chat/completions`. The catalog endpoint is public (anonymous `/models` returns 200), but models appear only after login; chat requires an account whose plan includes **Provider API access** (`COMMAND_CODE_API_KEY` or `commandcode_api_key`; Go plans answer `upgrade_required`) — toggle with `/toggle-commandcode`. Pricing comes from a curated USD-per-M table ported from the MIT-licensed patlux/pi-commandcode-provider extension (verified against CommandCode's official pricing page 2026-08-25); zero-priced entries (`poolside/laguna-s-2.1-free`, `stealth/ox-alpha`) classify as free. Wire note: `claude-*` models route over Anthropic Messages, everything else over OpenAI Chat Completions — the provider dispatches transports per model.
+[CommandCode](https://commandcode.ai) is an AI subscription gateway routing to ~60 models (OpenAI GPT-5.6 family, Claude Opus/Sonnet, Gemini 3.x, Grok 4.6, Kimi K3, Qwen 3.7/3.8, GLM 5.x, DeepSeek V4) through one Provider API at `https://api.commandcode.ai/provider/v1/chat/completions`. The catalog endpoint is public (anonymous `/models` returns 200), but models appear only after login; chat requires an account whose plan includes **Provider API access** (`COMMAND_CODE_API_KEY` or `commandcode_api_key`; Go plans answer `upgrade_required`) — toggle with `/toggle-commandcode`. Prices come from a curated USD-per-M table ported from the MIT-licensed patlux/pi-commandcode-provider extension, because the catalog publishes none; free is exactly the ids ending in `:free` (`thinkingmachines/inkling-2-small:free`, `stealth/glyph-cluster:free` on 2026-11-15), and a "free" display name or `-free` id does not count. Wire note: `claude-*` models route over Anthropic Messages at `/provider/v1/messages`, everything else over OpenAI Chat Completions — the provider dispatches transports per model.
 
 ### FastRouter
 
-FastRouter is a native OpenAI-compatible provider. Pi restores its model store first and refreshes the catalog asynchronously. Chat needs a key, so its models appear only once one is set. Set `FASTROUTER_API_KEY` or `fastrouter_api_key`, then use `/toggle-fastrouter`.
+FastRouter is a native OpenAI-compatible provider. Pi restores its model store first and refreshes the catalog asynchronously. Chat needs a key, so its models appear only once one is set. Set `FASTROUTER_API_KEY` or `fastrouter_api_key`, then use `/toggle-fastrouter`. Only models with text input and text-only output are listed (speech-to-text models are dropped), and free follows FastRouter's own `free_slug_enabled` flag, so the billed `fastrouter/auto` router and $0-listed models without the flag count as paid.
+
+### Requesty
+
+Requesty is an OpenAI-compatible router with inline per-model pricing:
+
+```bash
+export REQUESTY_API_KEY="..."
+```
+
+Or set `requesty_api_key`. Toggle with `/toggle-requesty`. Models appear only once a key resolves. Zero-priced chat models classify as free, and a price that fails to parse is pricing-unknown, never $0. Image-generation models, models past their published `retires` date, and models the catalog marks as unable to call tools are not listed; an unpublished output limit falls back to 16,384 tokens.
 
 ## Paid and trial providers
 
@@ -144,7 +154,7 @@ Gateway for models from multiple upstream vendors. Requires an API key and avail
 export ZENMUX_API_KEY="..."
 ```
 
-Or set `zenmux_api_key`. Toggle with `/toggle-zenmux`.
+Or set `zenmux_api_key`. Toggle with `/toggle-zenmux`. ZenMux publishes each model's own `max_tokens` output limit, and cache-write prices follow the catalog's flat tier, then the 5-minute tier, then the 1-hour tier.
 
 The catalog also lists non-chat endpoints (image/video generation, speech/transcription, embeddings, rerank); pi-free registers only chat-capable entries, dropping any model whose `output_modalities` is present and does not include `text` and keeping rows with no modality info.
 
@@ -156,27 +166,27 @@ DeepInfra offers trial credits and paid inference. Its environment variable is i
 export DEEPINFRA_TOKEN="..."
 ```
 
-Or set `deepinfra_api_key`. Toggle with `/toggle-deepinfra`; `/probe-deepinfra` checks availability.
+Or set `deepinfra_api_key`. Toggle with `/toggle-deepinfra`; `/probe-deepinfra` checks availability. Only rows the catalog tags `chat` are listed (embedding and media models are dropped); no chat model is free.
 
 ### Novita AI
 
-OpenAI-compatible inference provider with free-tier and paid catalog entries:
+OpenAI-compatible inference provider with a paid catalog (no free chat models on 2026-11-15):
 
 ```bash
 export NOVITA_API_KEY="..."
 ```
 
-Or set `novita_api_key`. Toggle with `/toggle-novita`; `/probe-novita` checks availability.
+Or set `novita_api_key`. Toggle with `/toggle-novita`; `/probe-novita` checks availability. Only models with the `function-calling` feature are listed, and image/video/audio generators are dropped. Rows with `pricing: null` (including the `nvrouter/*` routers) are pricing-unknown, not free. Novita quotes prices in 1/10,000 USD per million tokens; pi-free converts them, and publishes cache read and write prices.
 
 ### Routeway
 
-OpenAI-compatible gateway with free-tier model entries and paid models:
+OpenAI-compatible gateway with `:free` model entries and paid models:
 
 ```bash
 export ROUTEWAY_API_KEY="..."
 ```
 
-Or set `routeway_api_key`. Toggle with `/toggle-routeway`; `/probe-routeway` checks availability.
+Or set `routeway_api_key`. Toggle with `/toggle-routeway`; `/probe-routeway` checks availability. Models the catalog marks `function_call: false` are not listed. Cache-write prices come from the 5-minute tier, else the only listed tier.
 
 ### OpenGateway
 
@@ -186,11 +196,11 @@ Or set `routeway_api_key`. Toggle with `/toggle-routeway`; `/probe-routeway` che
 export OPENGATEWAY_API_KEY="ogw_live_..."
 ```
 
-Or set `opengateway_api_key`. Toggle with `/toggle-opengateway`. The catalog is refreshed through Pi's native model lifecycle and includes the `auto` smart-routing model plus the models advertised by `/v1/models`. The gateway accepts the short `mimo-v2.5-pro` alias as well as its Xiaomi-qualified model ID.
+Or set `opengateway_api_key`. Toggle with `/toggle-opengateway`. The catalog is refreshed through Pi's native model lifecycle; the startup seed carries only the live-verified free id. OpenGateway now operates as Twigpine: `api.twigpine.com/v1` serves an identical catalog and the old host sends no deprecation headers, so pi-free keeps the gitlawb URL. OpenGateway documents balance headers on non-streaming responses only, and pi-ai always streams, so the status bar shows no OpenGateway balance.
 
 ### B.AI
 
-B.AI is an OpenAI-compatible paid provider:
+B.AI is an OpenAI-compatible paid provider. The three models it once described as "currently free" (`deepseek-v4-flash`, `deepseek-v4-flash-vision-exp`, `mimo-v2.5`) are priced on [docs.b.ai](https://docs.b.ai/llmservice/pricing-and-usage/) ($0.14–0.60 per million tokens), so pi-free no longer marks them free; only a `:free` id would count:
 
 ```bash
 export BAI_API_KEY="..."
@@ -206,7 +216,7 @@ OrcaRouter is an OpenAI-compatible gateway with free `-free`-suffixed models:
 export ORCAROUTER_API_KEY="sk-orca-..."
 ```
 
-Or set `orcarouter_api_key`. Toggle with `/toggle-orcarouter`. Free models include `orcarouter/free`, `deepseek/deepseek-v4-flash-free`, `tencent/hy3-free`, and `z-ai/glm-5.3-flash-free`; the gateway prices them per-request at zero, which pi-free detects explicitly.
+Or set `orcarouter_api_key`. Toggle with `/toggle-orcarouter`. Free models are the `-free`/`free`-named entries and those priced per request at zero, which pi-free detects explicitly. When a row names its `endpoint_capabilities`, only `chat_completions` models are listed, so TTS and per-request-priced image generators stay out of the free view.
 
 ### InferX
 
@@ -236,9 +246,7 @@ Xkiro is an OpenAI-compatible gateway with a catalog `access_tier` (free, paid, 
 export XKIRO_API_KEY="sk-xt-..."
 ```
 
-Or set `xkiro_api_key`. Toggle with `/toggle-xkiro`. Free models include `deepseek/deepseek-v4.1-flash:free`, `qwen/qwen3.5-397b-a17b:free`, and the `minimax/*:free` family. Note the gateway can paywall individual models per key/plan server-side, so paid entries may refuse chat without a funded plan.
-
-Three models are currently documented as free on the B.AI API and are stamped free in the catalog: `deepseek-v4-flash`, `deepseek-v4-flash-vision-exp`, and `mimo-v2.5` (source: [B.AI pricing](https://docs.b.ai/llmservice/pricing-and-usage/), audited 2026-08-26). This is a time-limited promotion — revisit the pricing page before relying on it.
+Or set `xkiro_api_key`. Toggle with `/toggle-xkiro`. Free follows the catalog's `access_tier`; on 2026-11-15 the free tier was the Cohere and Mistral families, `sensenova/sensenova-6.8-flash-lite` and `stealth/big-pickle` (full list in [free_models.md](free_models.md)). Only models whose `capabilities.tools` is true are listed, and each model's thinking levels map to the `reasoning_efforts.levels` it declares; a reasoning model that declares none sends no effort. Note the gateway can paywall individual models per key/plan server-side, so paid entries may refuse chat without a funded plan.
 
 ## Removed: Qoder
 

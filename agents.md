@@ -18,7 +18,7 @@ Durable context for every agent on pi-free. **Update it in the same commit that 
 
 A **Pi extension** that registers free and paid AI model providers with Pi's model picker: free models by default, per-provider free↔all toggles via `/toggle-{provider}`.
 
-**Package:** `pi-free` v2.8.6 · MIT · Apostolos Mantzaris · `github.com/apmantza/pi-free`
+**Package:** `pi-free` v2.9.0 · MIT · Apostolos Mantzaris · `github.com/apmantza/pi-free`
 **Peer deps:** `@earendil-works/pi-ai` (`^1.1.0` — floor tracks pi-coding-agent's minor, defect shape 10), `@earendil-works/pi-coding-agent` (`>=0.86.0`; 0.86 introduced the `TranscriptContext` provider contract), `@earendil-works/pi-tui` (`>=0.81.0`; the native `createProvider` / `registerProvider(provider)` surface)
 
 ---
@@ -74,10 +74,11 @@ index.ts                          ← Extension entry (piFreeEntry)
   │   └─ benchmarks.json           ← Lazy-loaded benchmark catalog
   │
   └─ providers/                   ← per-provider extensions (default async fn each):
-      kilo/ cline/ (native reference ports) novita venice ollama-cloud routeway
+      kilo/ cline/ (native reference ports) novita venice ollama routeway
       opengateway sambanova zenmux llm7 deepinfra tokenrouter anyapi
       model-fetcher.ts (shared OpenRouter fetching) opencode-session.ts
       bai agnes commandcode infron inferx amd-tokenlab/ merge/ fastrouter/ requesty stepfun/
+      orcarouter xkiro
       (gmi/ mirrors this structure for GMI Cloud; full per-file map under
       "Native `Provider` providers" below)
 
@@ -114,6 +115,7 @@ Key points of the pattern (the recipe for porting other unique providers):
 - One global session-start nudge, never awaited; `session-start-metrics.ts` records handler + completion for `/free-startup`.
 - `apiKey.resolve` → `credential?.key ?? getXApiKey()`; `oauth` = `login`/`refresh`/`toAuth`; creds persist to `~/.pi/agent/auth.json`.
 - `registerWithGlobalToggle`: `reRegister()` re-registers the **same** object (upsert by id); `filterModels` selects the view.
+- **Pi receives a view-filtered provider.** `registerNativeProvider` registers `withVisibleCatalog(provider)` (one cached wrapper per provider object, so re-register still passes the same object), whose `getModels()` is already filtered by the provider's own `filterModels`: Pi's provisional snapshot ignores `filterModels`, so the raw catalog flashed paid models into the free view on every register, refresh start and nudge (#672). Persisted free-view records carry `_freeKnown`/`_isFree` judged against the complete catalog, because an all-$0 restored subset re-judged on its own reads as "pricing not exposed" and empties the view. Old unstamped records still parse; they self-correct at the first fetch.
 - Register through the documented `NativeRegistrar` bridge (dev lockfile can lag peer minimum).
 
 Cline-specific deviations from the Kilo reference:
@@ -146,7 +148,7 @@ One rule (`resolveModelView` in `lib/registry.ts`): **explicit per-provider choi
 
 ### Quota Monitoring
 
-`lib/quota-monitor.ts` passively extracts rate-limit headers from provider responses. Tries 5 header pair formats in priority order. Shows quota in status bar with warning icons when < 25%.
+`lib/quota-monitor.ts` passively extracts rate-limit headers from provider responses. Tries its header pairs in priority order (the module comment lists them); a pair can carry a unit, so AMD Token Lab's `x-ratelimit-*-user-budget-usd` renders in dollars and its `-user-rpm` pair stands in only when no budget is sent. Shows quota in status bar with warning icons when < 25%. Balance headers with no limit (`extractBalance`: Venice's `x-venice-balance-usd` / `-diem`) render as a balance-only line and take precedence over the request window. OpenGateway documents balance headers on non-streaming responses only and pi-ai always streams, so none is read.
 
 ### Infron Timed Continuation
 
@@ -169,11 +171,10 @@ One rule (`resolveModelView` in `lib/registry.ts`): **explicit per-provider choi
 
 | Category | Providers | Auth | Notes |
 | ----------- | -------------------------------------------------- | ----------------- | -------------------------------- |
-| ✅ Free / free-tier | kilo, cline, llm7, tokenrouter, agnes, amd-tokenlab | OAuth, key, or none | Toggles can expose paid |
-| 🔄 Freemium | anyapi, ollama-cloud, sambanova, requesty | API key | Free allowance with limits |
-| 💳 Paid / trial | zenmux, deepinfra, novita, routeway, opengateway, bai, stepfun, gmi, venice, merge, inferx | API key, OAuth, or credits | Trial credit or premium tier |
+| ✅ Free / free-tier | kilo, cline, llm7, amd-tokenlab, xkiro, tokenrouter, agnes | OAuth, key, or none (llm7 only) | Toggles can expose paid |
+| 🔄 Freemium | anyapi, requesty, orcarouter | API key | Paid catalog with free entries |
+| 💳 Paid / trial | zenmux, deepinfra, novita, routeway, opengateway, bai, stepfun, gmi, venice, infron, merge, commandcode, fastrouter, inferx, sambanova, ollama-cloud | API key or OAuth | Credits, trial or subscription; sambanova and ollama-cloud have no free tier |
 | 🔧 Native | (all above except built-ins) | API key, OAuth, or none | Pi owns catalog refresh + native stores |
-
 | 🔧 Built-in | opencode-free, openrouter (free view only) | Built-in Pi auth | Captures Pi's `opencode` catalog under pi-free's own id; Pi's `openrouter`/`opencode-go` are Pi-served, not wrapped (`openrouter` free view: models-only overlay of Pi's catalog) |
 
 ---
@@ -205,13 +206,15 @@ One rule (`resolveModelView` in `lib/registry.ts`): **explicit per-provider choi
 17. **Wire-signature logs are header NAMES only — never values** (`lib/wire-signature.ts`, debug level). `headerNames` holds KEYS only; a token/value there leaks credentials into `~/.pi/free.log`. Same rule for any new header-touching observability; health output stays bodies/keys/tokens/tails-free (#437).
 18. **Live catalog audits gate each release and each new provider** — fetch every registered `/models` endpoint and verify free/paid classification before release notes (stored credential where available, anonymous where public). Dated counts go in `docs/catalog-audit.md` — a snapshot, never a guarantee; unauditable = "not audited"; never print keys. **`docs/free_models.md` must be regenerated from the same audit** — stale docs block the release; carry-over needs an explicit dated note in CHANGELOG + audit doc.
 19. **Detached log streams stay quiet after intentional teardown** — `attachLogStream` ignores errors from a stream that is no longer `logStream`; rotation and `flushLogsSync()` detach before ending/destroying, while errors from the active stream still enter the synchronous fallback.
+20. **`Model.cost` is USD per million tokens.** pi-ai's `calculateCost` charges `(cost.input / 1_000_000) * tokens`. Per-token sources (OpenRouter-style `pricing.prompt`) convert through `perMillionFromPerToken` (`lib/model-map.ts`); per-million sources publish unchanged; any other unit converts in its mapper (Novita quotes 1/10,000 USD per million). Guard: `tests/model-cost-units.test.ts` (real fetchers, pi-ai `calculateCost` over 1M + 1M tokens).
+21. **Catalog quirks go through the shared seams, not private fetchers.** An OpenRouter-shaped gateway with its own admission rule or free flag passes `adaptRow(row) → row | undefined` to `fetchOpenRouterCompatibleModels` (FastRouter's `adaptFastrouterRow`); router "-1" prices are refused once in `parseCatalogPrice` and published pricing-unknown, and `hasRouterPricing` remains only for mappers that stamp their own provenance (Cline). Declared per-model effort lists map through `thinkingLevelMapFromEfforts` (`lib/model-metadata.ts`: undeclared levels are `null`, so only declared values reach the wire; models.dev and Xkiro); Venice keeps its own `veniceThinkingLevelMap`.
 
 ## Recurring Defect Shapes
 
 Screen against these BEFORE writing code — each one cost a real incident:
 
 1. **Stale extension context across awaits.** Snapshot what you need at handler entry; stale throw after `await` = session moved on (log debug/info, stop). Never user-visible (`lib/stale-ctx.ts`; #393/#394/#509).
-2. **Registration-time values going stale.** Never freeze prefs/views/handles at registration — resolve live. (#510 saga: HISTORY.md.)
+2. **Registration-time values going stale.** Never freeze prefs/views/handles at registration — resolve live. (#510 saga: HISTORY.md.) Member: availability probes (`registerNativeAvailabilityProbe`) captured `stored.free` by reference and the startup key, so the session-start probe checked the registration-time empty list and `/probe-<id>` used a stale key or was never registered (#693). Probes take `getApiKey` and read key and list when they run; the auto-probe awaits the handle's `firstCatalog`, because Pi restores the store after register.
 3. **Detached session-start work must resolve, never reject, on expected races.** Replacement, reload, supersede, missing creds are routine — resolve quietly. Only real errors reject.
 4. **Refresh supersede races.** Scope refreshes to owned providers, retry once when aborted, seed static catalogs. (Narrative: HISTORY.md.)
 5. **Template-materialized defaults destroy presence info.** `ensureConfigFile` writes every key, so presence ≠ choice — use a sparse explicit-choice map (`model_view_overrides`).
@@ -225,7 +228,7 @@ Screen against these BEFORE writing code — each one cost a real incident:
 13. **Host drift breaks load outside the tested tree.** Every lane resolved pi from the devDependency tree or a below-floor fixture, so #547 (host API removal) and #581 (host-era module layout) arrived as field reports, not CI reds. Screen: the extension must boot in a real pi on the oldest supported host (PR-gated floor lane) and the newest published host (nightly latest lane) — pack + `pi install` + RPC suites, never the loader alone. Guards: `host-smoke.yml` (`host-floor`, `host-latest`); floor fixtures pin the literal (kept in sync by comment), never an arbitrary old release.
 14. **An in-process mutex does not serialize a second process.** `ConfigLock` and the store `Lock` were promise chains in module state: two pi processes sharing one home raced read-modify-write and the loser silently vanished (48/200 keys survived the two-process probe, #611). Screen: every shared-state write path must hold a cross-process lock with the read taken inside it, and every write must be tmp + rename so readers never see a torn file. Guards: `lib/atomic-file.ts` (single seam replacing both mutexes), `tests/atomic-file.test.ts`, cross-process regression in `tests/json-persistence.test.ts`.
 15. **A defaulted cost is not a known price.** A catalog mapper that writes `cost: 0` when the price field is missing/non-numeric manufactures a free signal: Route A trusts cost numbers unless `_pricingKnown === false`, so one parse-miss beside priced siblings leaks a paid model into the free view (#610: requesty). Screen: every mapper stamps pricing provenance (`_pricingKnown`) exactly where it defaults — miss means `false`, never silent zero. Curated-static zeros (llm7/ollama, knowledge not parse) and name-derived zeros (discovery synthesis) are different shapes and stay unstamped. Guards: `tests/requesty-provider.test.ts` (stamp + leak + name-fallback).
-16. **A chat-typed API tag says nothing about the output modality.** Gateways serve image/video/audio generators through the chat surface: Requesty returns 23 image models with `api: "chat"`, Novita returns `model_type: "chat"` entries outputting image/video/audio (#608). Screen every catalog mapper for a typed output-modality signal (`supports_image_generation`, `architecture.output_modalities`, `supported_endpoint_types`, a curated modality table) — and never blanket-drop by id substring: vision *understanding* is legitimate chat input and must survive. A guard on an endpoint that exposes no modality field is vacuous and does not ship. Guards: `tests/requesty-provider.test.ts`, `tests/novita-models.test.ts` (drop + vision-keep pairs; each drop fails pre-fix).
+16. **A chat-typed API tag says nothing about the output modality.** Gateways serve image/video/audio generators through the chat surface: Requesty returns 23 image models with `api: "chat"`, Novita returns `model_type: "chat"` entries outputting image/video/audio (#608). Screen every catalog mapper for a typed output-modality signal (`supports_image_generation`, `architecture.output_modalities`, `supported_endpoint_types`, a curated modality table) — and never blanket-drop by id substring: vision *understanding* is legitimate chat input and must survive. A guard on an endpoint that exposes no modality field is vacuous and does not ship. Guards: `tests/requesty-provider.test.ts`, `tests/novita-models.test.ts` (drop + vision-keep pairs; each drop fails pre-fix). Same family, tool support: an agent turn always sends tools, so where a catalog states tool calling per row, mappers gate through `keepToolCallingModels` (`lib/model-map.ts`; Venice, Novita, Requesty, Routeway, Ollama Cloud; Xkiro's `capabilities.tools`). Gate only on a flag that is a reliable per-row statement: Infron's `supports_function_calling` is an unfilled placeholder (models with working tools list `false`), so Infron is exempt. Cache-write prices with several tiers take the flat tier, then the 5-minute tier, then the 1-hour tier (ZenMux; Routeway: 5-minute, else the only listed tier).
 17. **An offline store restore must not downgrade a live catalog.** The view-filtered persist (#519) writes only the visible subset to Pi's store, and Pi re-runs an `allowNetwork:false` refresh on *every* `registerProvider` — so any toggle/hide re-register used to hand back the on-disk free subset and collapse `stored.all` (live: commandcode 92 → 1 on `/toggle-commandcode`, toast still saying "showing all 92 models"). Screen: every restore path must be dominated by an in-session network publication (`stored.complete`), and every re-register-triggered refresh must be probed for what it does to `getModels()` (a grow-only restore is the only safe shape). Guards: `tests/native-restore-clobber.test.ts` (clobber case fails pre-fix; restore-when-incomplete and toggle-notify cases pin the boundary).
 
 18. **Idle is not request-start age, and decoded bytes are not wire bytes.** The Bun relay (#631) initially killed active streams on its idle timer, cached the stopped singleton forever, delayed later turns after ENOENT, and forwarded decompressed gzip under its original encoding header. Screen: hold a relay generation through the entire production stream with release in one `finally`; retire idle generations but cache missing-executable failures; let every startup waiter settle independently. A byte pipe must disable automatic decompression rather than forward stale encoding metadata. Fence child lifetime with a parent-owned stdin pipe (EOF stops the child even after parent SIGKILL); unref child/output pipes so they do not hold an idle parent open, but keep bounded readiness deadlines referenced until settled. Guards: `tests/opencode-relay.test.ts` (real child, overlapping production streams through finish/abort/error, virtual idle clock, raw gzip bytes and decoded text).

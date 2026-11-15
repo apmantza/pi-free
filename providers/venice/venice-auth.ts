@@ -1,10 +1,9 @@
 /**
  * Venice AI API-key authentication.
  *
- * The model catalog (api.venice.ai/api/v1/models) is public, so keyless
- * resolution returns a truthy anonymous result and Pi's model refresh still
- * populates the catalog. Chat requests use the configured key; the gateway
- * rejects unauthenticated completions.
+ * The model catalog (api.venice.ai/api/v1/models) answers anonymously, but
+ * resolution returns undefined without a key, so Pi hides Venice until one
+ * exists (#697): the gateway rejects unauthenticated completions.
  */
 
 import { getVeniceApiKey } from "../../config.ts";

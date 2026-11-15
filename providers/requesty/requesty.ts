@@ -3,11 +3,12 @@
  *
  * The factory is synchronous and network-free. Pi restores the catalog from
  * its native models store, then nudges the normal asynchronous refresh at
- * session start. Requesty's public /models endpoint is fetched without a
- * credential; chat requests use REQUESTY_API_KEY when configured. Pricing is
- * inline in the catalog, so the standard cost-based free-model detection
- * applies and `/toggle-requesty` switches between the 12-model free view and
- * the full ~670-model catalog.
+ * session start. The provider's auth resolves only with a key
+ * (REQUESTY_API_KEY, `requesty_api_key` or a stored credential), and Pi
+ * fetches the catalog only once it resolves, so Requesty stays hidden without
+ * one (#697). Pricing is inline in the catalog, so the standard cost-based
+ * free-model detection applies and `/toggle-requesty` switches between the
+ * free view and the full catalog (counts: docs/catalog-audit.md).
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";

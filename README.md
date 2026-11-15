@@ -46,7 +46,7 @@ Press `Ctrl+L` to open the model picker. The global free-only setting is enabled
 
 ### Use free models
 
-Cline and Kilo need an OAuth login or API key before their models appear in `/model`:
+Every provider except LLM7 needs a login or API key before its models appear in `/model`; LLM7's anonymous tier works with no account. Cline and Kilo support an OAuth login:
 
 ```text
 /login cline
@@ -121,10 +121,10 @@ Caveats:
 
 | Category | Providers |
 | --- | --- |
-| Free/free-tier | Kilo, Cline, LLM7, TokenRouter, Agnes AI, AMD Token Lab, and eligible models from other catalogs |
-| Freemium | AnyAPI, Ollama Cloud, SambaNova |
-| Paid/trial | ZenMux, DeepInfra trial, Novita, Routeway, OpenGateway, B.AI, StepFun, GMI Cloud, Venice AI, Infron AI, InferX, and paid catalog entries from other providers |
-| Native lifecycle | Kilo, Cline, LLM7, Ollama Cloud, AnyAPI, SambaNova, TokenRouter, ZenMux, DeepInfra, Novita, Routeway, OpenGateway, B.AI, FastRouter, StepFun, GMI Cloud, Agnes AI, Venice AI, Infron AI, InferX, AMD Token Lab |
+| Free/free-tier | Kilo, Cline, LLM7, AMD Token Lab, Xkiro, TokenRouter, Agnes AI, and eligible models from other catalogs |
+| Freemium | AnyAPI, Requesty, OrcaRouter |
+| Paid/trial | ZenMux, DeepInfra trial, Novita, Routeway, OpenGateway, B.AI, StepFun, GMI Cloud, Venice AI, Infron AI, InferX, Merge, Command Code, FastRouter, SambaNova, Ollama Cloud (SambaNova and Ollama Cloud have no free tier), and paid catalog entries from other providers |
+| Native lifecycle | Kilo, Cline, LLM7, Ollama Cloud, AnyAPI, SambaNova, TokenRouter, ZenMux, DeepInfra, Novita, Routeway, OpenGateway, B.AI, FastRouter, Requesty, StepFun, GMI Cloud, Agnes AI, Venice AI, Infron AI, Merge, Command Code, OrcaRouter, Xkiro, InferX, AMD Token Lab |
 | Built-in | OpenCode free (`opencode-free`) — captured from Pi's built-in OpenCode catalog and refreshed in place after session start from the public Zen endpoint, so new models appear without waiting for a Pi release. OpenRouter and OpenCode Go are Pi's own providers and are not wrapped; OpenRouter gets a filter-only free view of Pi's catalog (`/toggle-openrouter`) |
 
 Provider availability, authentication, and exact API-key names are maintained in [docs/providers.md](docs/providers.md). pi-free does not publish model counts as guarantees because provider catalogs change — but a dated **free-model snapshot** (per-provider model lists + usage conditions) is maintained in [docs/free_models.md](docs/free_models.md).
