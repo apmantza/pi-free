@@ -13,6 +13,40 @@ Each provider's live `/models` endpoint is fetched (stored credential from `~/.p
 
 Counts drift as providers change their catalogs — treat every audit below as a verified snapshot, never a guarantee. Providers whose credentials are unavailable are listed as "not audited" rather than guessed. Never print or commit API keys during an audit.
 
+## 2026-11-15 — 2.9.0 live audit
+
+Run by the maintainer's orchestrator on 2026-11-15 against master `43100f3` through real Pi: each provider's catalog was loaded by pi-free's own refresh with the stored credential where one exists, counted in the free and full views, and one tool-calling turn was attempted on a free model. "Free / published" counts chat models after pi-free's own filters. A live turn is a dated observation, not a guarantee. Per-model lists are in [free_models.md](free_models.md).
+
+| Provider | Free / published | Live tool-call turn |
+| --- | --- | --- |
+| openrouter (Pi built-in, pi-free free view) | 14 free | OK, `cohere/north-mini-code:free` |
+| opencode-go (Pi's own provider, not wrapped) | 3 free of 32 shown | OK, `beam-free` |
+| opencode-free | 12 free | Maintainer confirmed working; the audit IP then hit `429 FreeUsageLimit` after heavy probing |
+| kilo | 14 / 451 | OK, `kilo-auto/free` |
+| cline | 18 / 440 | OK, `baidu/ernie-5.5-flash-preview:free` (`inclusionai/ling-3.2-flash:free` failed upstream) |
+| xkiro | 22 / 64 | OK, `mistralai/ministral-14b` |
+| requesty | 8 / 658 | OK, `novita/ling-3.1-flash` |
+| infron | 1 / 299 | OK, `qwen/qwen3.8-27b:free` |
+| amd-tokenlab | 7 / 7 | OK, `DeepSeek-V4-Flash` (`DeepSeek-V4.1-Flash` at capacity) |
+| llm7 (no key) | 2 / 3 | Daily anonymous quota exhausted by probing; worked earlier on 2026-11-14 |
+| zenmux | 4 / 170 | **Not verified**: the account key is a legacy key (429) |
+| merge | 1 / 280 | **Not verified**: account out of credits (402) |
+| tokenrouter | 1 / 121 | **Not verified**: daily free limit reached (429) |
+| orcarouter | 6 / 176 | **Not verified**: account key reset (401) |
+| gmi | 0 verified free; 75 published (full view) | Its one $0 model, `gmicloud/Ripple-65B-Preview`, answered `402 no_entitlement` ("Insufficient balance"); GMI's launch post prices it at $0.20/$0.60 per million, so the $0 is a catalog gap, not a free tier |
+| venice | 0 / 137 | No free models |
+| bai | 0 / 68 | No free models |
+| inferx | 0 / 13 | No free tier |
+| ollama-cloud | 0 / 23 | No free tier |
+
+With no keys at all, only llm7 (2 models) is listed, as the keyless-visibility rule requires.
+
+**No key (catalog-only or unaudited):** deepinfra, sambanova, novita, commandcode, fastrouter, stepfun, agnes, routeway, opengateway, anyapi. Public-catalog counts recorded by the lane workers on 2026-11-15 (pi-free's real fetchers, no live turn): fastrouter 6 / 192, deepinfra 0 / 92, novita 0 / 82, routeway 9 / 195, agnes 2 / 4 (`agnes-2.5-flash`, `agnes-3.0-flash`, from Agnes's documented text-model list), opengateway 1 / 23, sambanova 0 / 5, commandcode 2 / 98 (the `:free` ids). StepFun and AnyAPI have keyed catalogs and were not counted.
+
+Free ids for kilo, cline, xkiro, requesty, infron, zenmux, routeway, fastrouter, commandcode and opengateway were listed the same day by running pi-free's real fetchers anonymously over the public catalogs; every count matched the table above.
+
+Changes since the previous full audit (2026-08-26) that move counts: Qoder removed; non-chat and tool-less models dropped (DeepInfra, Cline, FastRouter, Kilo, Venice, Novita, Requesty, Routeway, Xkiro, Agnes, Merge); paid-shown-as-free fixes (OrcaRouter, B.AI, OpenGateway, Ollama, FastRouter `auto`, Novita unpriced rows); Infron's Responses-only models dropped; costs published in USD per million tokens. OpenRouter and OpenCode Go are Pi's own providers; their rows above describe what Pi shows, with pi-free's free view applied to OpenRouter only.
+
 ## 2026-11-14 — AMD Token Lab registered and audited
 
 `amd-tokenlab` (`https://api.tokenlab.amd.com/v1`) was fetched with a real key. Anonymous `/models` answers 401 `Invalid Token Lab API key`.

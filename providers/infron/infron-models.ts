@@ -172,9 +172,9 @@ export function mapInfronModel(
 }
 
 /**
- * Fetch the complete catalog. The key is optional for /models (public
- * endpoint); it is only sent when configured so discovery works for
- * logged-out users.
+ * Fetch the complete catalog. /models answers without a key, so the key is
+ * sent only when present; in production Pi calls this only once the
+ * provider's auth resolves (#697).
  */
 export async function fetchInfronModels(
 	apiKey: string,

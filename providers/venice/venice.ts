@@ -9,8 +9,8 @@
  *   Chat:   https://api.venice.ai/api/v1/chat/completions
  *   Models: https://api.venice.ai/api/v1/models?type=text
  *
- * The model catalog is public (no credential required to list models), so
- * models appear before login; chat requests require an API key.
+ * The model catalog endpoint is public, but models appear only once a key
+ * resolves (#697): chat requests require an API key.
  *
  * Balance gate: Venice requires a positive account balance for ALL
  * inference — including $0-listed models — so an unfunded key will see

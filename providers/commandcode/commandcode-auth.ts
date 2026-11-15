@@ -1,11 +1,11 @@
 /**
  * CommandCode API-key authentication.
  *
- * The model catalog (api.commandcode.ai/provider/v1/models) is public —
- * anonymous GET returns 200 (verified live) — so keyless resolution returns a
- * truthy anonymous result and Pi's model refresh populates the catalog. Chat
- * requires an account whose plan includes Provider API access; keys are
- * issued at commandcode.ai (format `user_...`).
+ * The model catalog (api.commandcode.ai/provider/v1/models) answers
+ * anonymously, but resolution returns undefined without a key, so Pi hides
+ * Command Code until one exists (#697). Chat requires an account whose plan
+ * includes Provider API access; keys are issued at commandcode.ai (format
+ * `user_...`).
  */
 
 import { getCommandCodeApiKey } from "../../config.ts";

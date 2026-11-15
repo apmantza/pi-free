@@ -128,8 +128,9 @@ export function mapRequestyModel(
 }
 
 /**
- * Fetch the complete public catalog. The key is optional for /models; it is
- * only passed when configured so public discovery works for logged-out users.
+ * Fetch the complete catalog. Requesty's /models answers without a key, so
+ * the key is sent only when present; in production Pi calls this only once
+ * the provider's auth resolves (see requesty.ts).
  */
 export async function fetchRequestyModels(
 	apiKey: string,

@@ -107,13 +107,15 @@ infer a provider's import cost from its catalog or network timing.
   the provider streams through pi-ai's standard `openai-completions` handling
   via the shared lazy compat bridge, like Cline after #433. TokenRouter-specific
   behavior is retained as thin seams on the standard provider: a
-  `before_provider_request` hook rewrites MiniMax-M3 `thinking.type`
-  `enabled` → `adaptive`, a `message_end` hook extracts MiniMax DeepSeek-style
-  inline think tags, the model compat is the shared `getProxyModelCompat` with
-  `supportsReasoningEffort` explicitly disabled (its chat completions route
-  rejects `reasoning_effort`) and re-stripped after models.dev enrichment, and
-  `stream`/`streamSimple` are wrapped with the 2064 high-load retry built on
-  the lazy bridge. Model mapping, enrichment/fetching, auth, store, toggle,
+  `before_provider_request` normalizer adds `reasoning_split`, turns
+  developer-role messages into system and maps or drops `reasoning_effort`
+  values outside the gateway's accepted set; a `message_end` hook extracts
+  MiniMax DeepSeek-style inline think tags; models with a proxy compat use the
+  shared `getProxyModelCompat` with `supportsReasoningEffort` disabled and
+  re-stripped after models.dev enrichment; and `stream`/`streamSimple` are
+  wrapped with the 2064 high-load retry built on the lazy bridge. (The former
+  MiniMax-M3 `thinking.type` `enabled` → `adaptive` rewrite was unreachable,
+  since pi-ai sends MiniMax-M3 no `thinking` object, and was removed.) Model mapping, enrichment/fetching, auth, store, toggle,
   registry, and session refresh all live in this one file plus
   `tokenrouter-auth.ts`.
 - **OpenModel:** `providers/openmodel/openmodel.ts` combines public/protocol
@@ -215,8 +217,8 @@ requests share the same import promise.
    filtering, terms notification, and refresh/store wrapper eager; defer
    catalog mapping/fetch helpers and stream construction only where that does
    not change the `anthropic-messages` contract.
-3. Preserve TokenRouter's payload patch and `message_end` normalization hooks,
-   including MiniMax handling, across the lazy boundary.
+3. Preserve TokenRouter's request normalizer and `message_end` normalization
+   hooks, including MiniMax think-tag handling, across the lazy boundary.
 4. Add cached-loader race/error tests and repeat the benchmark plus first-use
    latency measurements. Stop if import savings are smaller than operational
    complexity or first-use cost is user-visible.
@@ -297,7 +299,7 @@ loading.
   can skip native store restoration or make detached work block startup.
 - **Error/race risk:** concurrent first requests, aborts during import, and
   failed compiled paths need deterministic handling and no unhandled promise.
-- **Behavior risk:** TokenRouter MiniMax payload and
+- **Behavior risk:** TokenRouter request and MiniMax
   message normalization, and OpenModel Anthropic streaming are wire contracts;
   import timing must not change them. (Cline's XML/tool parsing risk is gone:
   the bridge was deleted by #433.)
