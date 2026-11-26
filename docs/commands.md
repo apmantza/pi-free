@@ -56,6 +56,7 @@ To remove a provider from the model picker entirely, run `/hide-provider <provid
 | `/toggle-xkiro` | Xkiro | Native |
 | `/toggle-inferx` | InferX | Native |
 | `/toggle-amd-tokenlab` | AMD Token Lab | Native |
+| `/toggle-trustedrouter` | TrustedRouter | Native |
 | `/toggle-stepfun` | StepFun | Native |
 | `/toggle-opencode-free` | OpenCode Zen free wrapper | Pi built-in catalog + detached Zen refresh |
 | `/toggle-openrouter` | Pi's built-in OpenRouter | Filter-only free view of Pi's own catalog |

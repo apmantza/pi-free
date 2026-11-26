@@ -13,6 +13,18 @@ Each provider's live `/models` endpoint is fetched (stored credential from `~/.p
 
 Counts drift as providers change their catalogs — treat every audit below as a verified snapshot, never a guarantee. Providers whose credentials are unavailable are listed as "not audited" rather than guessed. Never print or commit API keys during an audit.
 
+## 2026-11-26 — TrustedRouter registered and catalog-audited
+
+`trustedrouter` (`https://api.trustedrouter.com/v1`) was fetched anonymously from its public `GET /v1/models` endpoint (no credential was available for a live chat turn; unauthenticated `POST /v1/chat/completions` verified HTTP 401 `Invalid API key`).
+
+| Field | Observation |
+| --- | --- |
+| `/v1/models` entries | 625 total: 497 admitted text-in, text-only-out chat models; dropped 12 `configuration_hidden`, 123 `supports_chat: false` (decision, image/video/speech/transcription/embedding/rerank and non-chat orchestration rows), and 1 image-output hybrid (`google/gemini-3.1-flash-image-preview`, `output_modalities: ["text", "image"]`) |
+| Free / published | 1 / 497 (`trustedrouter/free`, priced `"0"` / `"0"`; all 496 other admitted rows carry positive per-token prompt and completion prices, including `trustedrouter/auto`, `trustedrouter/zdr`, `trustedrouter/e2e`, and direct upstream models) |
+| Pricing units | OpenRouter-style USD per token (`pricing.prompt`, `pricing.completion`, `pricing.input_cache_read`), converted to USD per million tokens via `perMillionFromPerToken` |
+| Reasoning efforts | 139 admitted rows publish `reasoning.supported_efforts` (90 non-empty effort sets, 49 empty lists); mapped through `thinkingLevelMapFromEfforts` so only declared effort values reach the wire |
+| Live Pi turn | **Not verified** (catalog only; no `TRUSTEDROUTER_API_KEY` available during audit) |
+
 ## 2026-11-15 — 2.9.0 live audit
 
 Run by the maintainer's orchestrator on 2026-11-15 against master `43100f3` through real Pi: each provider's catalog was loaded by pi-free's own refresh with the stored credential where one exists, counted in the free and full views, and one tool-calling turn was attempted on a free model. "Free / published" counts chat models after pi-free's own filters. A live turn is a dated observation, not a guarantee. Per-model lists are in [free_models.md](free_models.md).

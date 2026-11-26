@@ -25,6 +25,7 @@ import {
 	PROVIDER_XKIRO,
 	PROVIDER_INFERX,
 	PROVIDER_AMD_TOKENLAB,
+	PROVIDER_TRUSTEDROUTER,
 	PROVIDER_CLINE,
 	PROVIDER_FASTROUTER,
 	PROVIDER_REQUESTY,
@@ -160,6 +161,8 @@ interface PiFreeConfig {
 	inferx_show_paid?: boolean;
 	amd_tokenlab_api_key?: string;
 	amd_tokenlab_show_paid?: boolean;
+	trustedrouter_api_key?: string;
+	trustedrouter_show_paid?: boolean;
 	opencode_show_paid?: boolean;
 	opencode_free_show_paid?: boolean;
 	// Read-only legacy key (2.8.x wrote it): `true` still means "all" for
@@ -253,6 +256,8 @@ const CONFIG_TEMPLATE: PiFreeConfig = {
 	inferx_show_paid: false,
 	amd_tokenlab_api_key: "",
 	amd_tokenlab_show_paid: false,
+	trustedrouter_api_key: "",
+	trustedrouter_show_paid: false,
 	opencode_show_paid: false,
 	opencode_free_show_paid: false,
 
@@ -511,6 +516,11 @@ const PROVIDER_META: readonly ProviderMeta[] = [
 		id: PROVIDER_AMD_TOKENLAB,
 		prefix: "AMD_TOKENLAB",
 		showPaidKey: "amd_tokenlab_show_paid",
+	},
+	{
+		id: PROVIDER_TRUSTEDROUTER,
+		prefix: "TRUSTEDROUTER",
+		showPaidKey: "trustedrouter_show_paid",
 	},
 	{
 		id: PROVIDER_FASTROUTER,
@@ -962,6 +972,20 @@ export function getAmdTokenlabShowPaid(): boolean {
 	return resolveBool(
 		"AMD_TOKENLAB_SHOW_PAID",
 		loadConfigFile().amd_tokenlab_show_paid,
+	);
+}
+
+export function getTrustedrouterApiKey(): string | undefined {
+	return resolve(
+		"TRUSTEDROUTER_API_KEY",
+		loadConfigFile().trustedrouter_api_key,
+	);
+}
+
+export function getTrustedrouterShowPaid(): boolean {
+	return resolveBool(
+		"TRUSTEDROUTER_SHOW_PAID",
+		loadConfigFile().trustedrouter_show_paid,
 	);
 }
 

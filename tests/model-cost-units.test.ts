@@ -86,6 +86,7 @@ const ROUTEWAY_ROW = {
 
 const CATALOGS: Record<string, unknown[]> = {
 	"api.fastrouter.ai": fixture("fastrouter-2026-11-14.json"),
+	"api.trustedrouter.com": fixture("trustedrouter-2026-11-26.json"),
 	"api.deepinfra.com": fixture("deepinfra-2026-11-14.json"),
 	"api.novita.ai": [NOVITA_ROW],
 	"zenmux.ai": [ZENMUX_ROW],
@@ -148,6 +149,18 @@ it("charges an OpenRouter-style catalog's per-token price per million tokens", a
 			models.find((m) => m.id === "anthropic/claude-sonnet-5.5"),
 		),
 	).toEqual({ input: 2, output: 10 });
+});
+
+it("charges TrustedRouter's per-token price per million tokens", async () => {
+	const { fetchTrustedrouterModels } =
+		await import("../providers/trustedrouter/trustedrouter-models.ts");
+	const models = await fetchTrustedrouterModels("");
+	// Catalog: prompt "0.000003165", completion "0.000015825" USD per token.
+	expect(
+		chargeForMillion(
+			models.find((m) => m.id === "anthropic/claude-sonnet-4.6"),
+		),
+	).toEqual({ input: 3.165, output: 15.825 });
 });
 
 // Cline maps its OpenRouter-style catalog with its own mapper; it must use

@@ -77,7 +77,7 @@ index.ts                          ← Extension entry (piFreeEntry)
       kilo/ cline/ (native reference ports) novita venice ollama routeway
       opengateway sambanova zenmux llm7 deepinfra tokenrouter anyapi
       model-fetcher.ts (shared OpenRouter fetching) opencode-session.ts
-      bai agnes commandcode infron inferx amd-tokenlab/ merge/ fastrouter/ requesty stepfun/
+      bai agnes commandcode infron inferx amd-tokenlab/ trustedrouter/ merge/ fastrouter/ requesty stepfun/
       orcarouter xkiro
       (gmi/ mirrors this structure for GMI Cloud; full per-file map under
       "Native `Provider` providers" below)
@@ -172,7 +172,7 @@ One rule (`resolveModelView` in `lib/registry.ts`): **explicit per-provider choi
 | Category | Providers | Auth | Notes |
 | ----------- | -------------------------------------------------- | ----------------- | -------------------------------- |
 | ✅ Free / free-tier | kilo, cline, llm7, amd-tokenlab, xkiro, tokenrouter, agnes | OAuth, key, or none (llm7 only) | Toggles can expose paid |
-| 🔄 Freemium | anyapi, requesty, orcarouter | API key | Paid catalog with free entries |
+| 🔄 Freemium | anyapi, requesty, orcarouter, trustedrouter | API key | Paid catalog with free entries |
 | 💳 Paid / trial | zenmux, deepinfra, novita, routeway, opengateway, bai, stepfun, gmi, venice, infron, merge, commandcode, fastrouter, inferx, sambanova, ollama-cloud | API key or OAuth | Credits, trial or subscription; sambanova and ollama-cloud have no free tier |
 | 🔧 Native | (all above except built-ins) | API key, OAuth, or none | Pi owns catalog refresh + native stores |
 | 🔧 Built-in | opencode-free, openrouter (free view only) | Built-in Pi auth | Captures Pi's `opencode` catalog under pi-free's own id; Pi's `openrouter`/`opencode-go` are Pi-served, not wrapped (`openrouter` free view: models-only overlay of Pi's catalog) |
