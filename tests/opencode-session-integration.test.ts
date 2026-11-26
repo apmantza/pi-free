@@ -82,7 +82,7 @@ describe("opencode-session fallback resolution", () => {
 		const first = createOpenCodeHeaders(tracker);
 		const second = createOpenCodeHeaders(tracker);
 
-		expect(first["User-Agent"]).toBe("opencode/1.19.0");
+		expect(first["User-Agent"]).toBe("opencode/latest/2.4.2/cli");
 		expect(first["x-opencode-client"]).toBe("cli");
 		expect(first["x-opencode-session"]).toMatch(
 			/^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$/,
