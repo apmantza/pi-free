@@ -317,6 +317,21 @@ describe("show-paid getters", () => {
 		expect(getOpengatewayShowPaid()).toBe(true);
 		expect(getProviderShowPaid("opengateway")).toBe(true);
 	});
+
+	it("getTrustedrouterShowPaid reads from file", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(
+			configPath(),
+			JSON.stringify({ trustedrouter_show_paid: true }),
+		);
+
+		const { getProviderShowPaid, getTrustedrouterShowPaid } =
+			await import("../config.ts");
+		expect(getTrustedrouterShowPaid()).toBe(true);
+		expect(getProviderShowPaid("trustedrouter")).toBe(true);
+	});
 });
 
 // =============================================================================
@@ -369,6 +384,33 @@ describe("API key getters", () => {
 
 		const { getOpengatewayApiKey } = await import("../config.ts");
 		expect(getOpengatewayApiKey()).toBe("env-key");
+	});
+
+	it("getTrustedrouterApiKey prefers the environment over file", async () => {
+		vi.stubEnv("TRUSTEDROUTER_API_KEY", "tr-env-key");
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(
+			configPath(),
+			JSON.stringify({ trustedrouter_api_key: "tr-file-key" }),
+		);
+
+		const { getTrustedrouterApiKey } = await import("../config.ts");
+		expect(getTrustedrouterApiKey()).toBe("tr-env-key");
+	});
+
+	it("getTrustedrouterApiKey falls back to file value", async () => {
+		vi.stubEnv("HOME", "/tmp");
+		const fs = await import("node:fs");
+		const { __mockData } = fs as any;
+		__mockData.set(
+			configPath(),
+			JSON.stringify({ trustedrouter_api_key: "tr-file-key" }),
+		);
+
+		const { getTrustedrouterApiKey } = await import("../config.ts");
+		expect(getTrustedrouterApiKey()).toBe("tr-file-key");
 	});
 });
 

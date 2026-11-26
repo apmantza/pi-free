@@ -298,6 +298,14 @@ Key required; no key was available for the audit. OpenGateway now operates as Tw
 nvidia/nemotron-3.5-super-vl:free
 ```
 
+### TrustedRouter (`trustedrouter`) — 1 / 497 · catalog only (2026-11-26)
+
+Key required (`TRUSTEDROUTER_API_KEY`); no key was available for the 2026-11-26 audit, so counts come from the public `GET /v1/models` catalog through pi-free's real fetcher. Inline per-token pricing classifies `trustedrouter/free` as free while `/toggle-trustedrouter` reveals the full paid catalog (including `trustedrouter/auto`, `trustedrouter/zdr`, `trustedrouter/e2e`, and direct upstream models).
+
+```text
+trustedrouter/free
+```
+
 ### TokenRouter (`tokenrouter`) — 1 / 121 · not verified
 
 The catalog exposes no pricing; classification is name-based. **Not verified:** the audit account had reached its daily free limit (429), and the free id was not recorded.

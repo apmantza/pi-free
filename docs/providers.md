@@ -144,6 +144,16 @@ export REQUESTY_API_KEY="..."
 
 Or set `requesty_api_key`. Toggle with `/toggle-requesty`. Models appear only once a key resolves. Zero-priced chat models classify as free, and a price that fails to parse is pricing-unknown, never $0. Image-generation models, models past their published `retires` date, and models the catalog marks as unable to call tools are not listed; an unpublished output limit falls back to 16,384 tokens.
 
+### TrustedRouter
+
+[TrustedRouter](https://trustedrouter.com) is an OpenAI-compatible AI gateway running inside verifiable GCP Confidential Space TEEs at `https://api.trustedrouter.com/v1/chat/completions`, exposing live model discovery at `GET https://api.trustedrouter.com/v1/models`. It serves `trustedrouter/free`, privacy-routed pools (`trustedrouter/zdr`, `trustedrouter/e2e`, `trustedrouter/confidential`, `trustedrouter/eu`, `trustedrouter/trusted`, `trustedrouter/auto`, supporting `min_privacy` policies such as `zdr` and `e2e`), and direct upstream models:
+
+```bash
+export TRUSTEDROUTER_API_KEY="..."
+```
+
+Or set `trustedrouter_api_key` in `~/.pi/free.json`. Toggle with `/toggle-trustedrouter`. The `/v1/models` catalog endpoint is public, but chat requests require a key, so models appear only once a credential resolves. Pricing is published inline per token and converted to USD per million tokens; `trustedrouter/free` classifies as free in the default view and `/toggle-trustedrouter` reveals the full catalog. Rows flagged `internal_only`, `configuration_hidden`, `synthetic_monitor`, or `supports_chat: false` and non-text-only-output entries (such as image-generation hybrids) are dropped. Unpublished context/output limits fall back to 128K / 16K (enriched from models.dev when matched), and per-model `reasoning.supported_efforts` map strictly to declared levels via `thinkingLevelMapFromEfforts`. `supported_parameters` is not tool-gated because several chat rows and routing pools carry a `["max_tokens"]` placeholder.
+
 ## Paid and trial providers
 
 ### ZenMux

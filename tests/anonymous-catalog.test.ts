@@ -29,6 +29,7 @@ vi.mock("../config.ts", () => ({
 	getZenmuxApiKey: () => undefined,
 	getClineApiKey: () => undefined,
 	getFastrouterApiKey: () => undefined,
+	getTrustedrouterApiKey: () => undefined,
 	getLlm7ApiKey: () => undefined,
 	// Non-key exports pulled in transitively by lib/registry / native-provider.
 	getFreeOnly: () => false,
@@ -53,6 +54,7 @@ import { requestyAuth } from "../providers/requesty/requesty-auth.ts";
 import { zenmuxAuth } from "../providers/zenmux/zenmux-auth.ts";
 import { clineApiKeyAuth } from "../providers/cline/cline-auth.ts";
 import { fastrouterAuth } from "../providers/fastrouter/fastrouter-auth.ts";
+import { trustedrouterAuth } from "../providers/trustedrouter/trustedrouter-auth.ts";
 import { llm7Auth } from "../providers/llm7/llm7-auth.ts";
 import { createNativeApiKeyAuth } from "../lib/native-provider.ts";
 
@@ -78,6 +80,7 @@ describe("shared-factory providers hide without a key (#530)", () => {
 		["bai", baiAuth],
 		["opengateway", opengatewayAuth],
 		["fastrouter", fastrouterAuth],
+		["trustedrouter", trustedrouterAuth],
 	])("%s resolves undefined without a key", async (_name, auth) => {
 		expect(await auth.apiKey?.resolve(resolveInput())).toBeUndefined();
 	});

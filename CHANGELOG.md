@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **TrustedRouter provider** — `trustedrouter` (`https://api.trustedrouter.com/v1`; `TRUSTEDROUTER_API_KEY` or `trustedrouter_api_key`; `/toggle-trustedrouter`). OpenAI-compatible AI gateway running inside verifiable GCP Confidential Space TEEs with live discovery over the public `GET /v1/models` catalog, exposing `trustedrouter/free` in the default free view and the full catalog (privacy-routed pools such as `trustedrouter/zdr` and `trustedrouter/e2e`, routing presets, and direct upstream models) via `/toggle-trustedrouter`. Drops hidden, internal, synthetic-monitor, non-chat, and image-output hybrid rows, falls back unpublished limits to 128K / 16K (with models.dev enrichment), and maps per-model `reasoning.supported_efforts` through `thinkingLevelMapFromEfforts`.
+
 ## [2.9.0] - 2026-11-15
 
 ### Added

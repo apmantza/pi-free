@@ -34,6 +34,7 @@ These are the pi-free config keys and their environment variables:
 | `commandcode_api_key` | `COMMAND_CODE_API_KEY` |
 | `inferx_api_key` | `INFERX_API_KEY` |
 | `amd_tokenlab_api_key` | `AMD_TOKENLAB_API_KEY` |
+| `trustedrouter_api_key` | `TRUSTEDROUTER_API_KEY` |
 
 ```bash
 export FASTROUTER_API_KEY="..."
