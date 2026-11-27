@@ -71,8 +71,11 @@ const OPENCODE_FREE_GATE_DECLARATIONS = OPENCODE_FREE_REQUIRED_TOOLS.map(
 	}),
 );
 
+// Verified accepted by the free-tier gate on 2026-11-26; bump with the CLI.
+const OPENCODE_CLIENT_USER_AGENT = "opencode/latest/2.4.2/cli";
+
 const OPENCODE_STATIC_HEADERS = {
-	"User-Agent": "opencode/1.19.0",
+	"User-Agent": OPENCODE_CLIENT_USER_AGENT,
 	"x-opencode-client": "cli",
 } as const;
 
@@ -132,16 +135,16 @@ export async function fetchOpenCodeModelIds(
 /**
  * OpenCode-native identifier generation.
  *
- * OpenCode's server uses checkHeaders to distinguish native CLI requests from
- * third-party clients, and applies a fallback rate limit (~2 req/day, the
- * "freeze") when the identity looks foreign. The real CLI (v1.19.0,
- * packages/opencode/src/session/llm/request.ts) sends:
+ * The free lane admits only the CLI's own identity: its `User-Agent`
+ * (`opencode/<channel>/<version>/<name>`) plus the headers the real client sends
+ * (2.4.2, packages/core/src/session/model-request.ts), which also require the
+ * Bun relay below (defect shape 26, #711):
  *
  *   x-opencode-session:  ses_ + descending ULID (26 chars: 12 hex + 14 base62)
  *   x-opencode-request:  msg_ + ascending ULID (the user message id)
  *   x-opencode-project:  the project id (schema default "global")
  *   x-opencode-client:   "cli" (OPENCODE_CLIENT default)
- *   User-Agent:          opencode/<version>
+ *   User-Agent:          opencode/<channel>/<version>/<name>
  *
  * The ULID is `~timestamp<<12 | counter` encoded as 6 hex bytes then 14
  * base62 bytes (crypto random) — see packages/schema/src/identifier.ts.
@@ -245,7 +248,9 @@ export function resolveOpenCodeModelApi(
 	return "openai-completions";
 }
 
-// The CLI (v1.19.0) sends Zen traffic to /inference/v1. Since 2026-10-15
+// OpenCode 2.x publishes a per-protocol root per model (below /inference:
+// openai, anthropic, google, xai), but the flat <root>/v1 form below still
+// reaches the model (openai-completions verified 2026-11-26). Since 2026-10-15
 // /zen/v1 refuses every free-tier request with 403 FreeTierError, including
 // ones copied byte for byte from the CLI. Captured Pi catalogs and persisted
 // caches still carry /zen/v1, so rewrite it here. /zen/go/v1 is left alone.

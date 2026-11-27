@@ -30,6 +30,7 @@ type RequestRecord = {
 	path: string;
 	token: string | null;
 	client: string | null;
+	userAgent?: string;
 	requestId?: string | null;
 	payload?: unknown;
 };
@@ -383,6 +384,7 @@ it.skipIf(!hasBun)(
 				path: req.url!,
 				token: req.headers.authorization?.replace(/^Bearer /, "") ?? null,
 				client: String(req.headers["x-opencode-client"] ?? ""),
+				userAgent: String(req.headers["user-agent"] ?? ""),
 			});
 			res.writeHead(400, { "content-type": "application/json" });
 			res.end(JSON.stringify({ error: { message: "local upstream fixture" } }));
@@ -409,6 +411,7 @@ it.skipIf(!hasBun)(
 				path: "/inference/v1/chat/completions",
 				token: "public",
 				client: "cli",
+				userAgent: "opencode/latest/2.4.2/cli",
 			},
 		]);
 		expect(requests).toHaveLength(0);

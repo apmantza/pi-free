@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`opencode-free` free models answer again instead of `429 FreeUsageLimitError`** — the free lane refused pi-free's legacy `opencode/1.19.0` `User-Agent` and answered `429` from every address tried, so rotating IPs no longer helped and the error text blamed a quota that was never spent. The `User-Agent` is now the CLI's own `opencode/latest/2.4.2/cli`; the remaining headers, the endpoint, the anonymous `public` bearer and the Bun relay are unchanged. The lane accepted both forms again two hours later from the same address, so the pin follows the shipped client rather than betting on one form ([#711](https://github.com/apmantza/pi-free/issues/711)).
+
 ## [2.9.0] - 2026-11-15
 
 ### Added
